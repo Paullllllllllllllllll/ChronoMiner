@@ -1,0 +1,30 @@
+general: # General processing settings
+  retain_temporary_jsonl: false
+  input_paths_is_output_path: false
+  logs_dir: "C:/path"
+
+schemas_paths: # Schema specific input and output paths and settings
+  BibliographicEntries:
+    input: "C:/path"
+    output: "C:/path"
+    csv_output: True
+    docx_output: True
+    txt_output: True
+  StructuredSummaries:
+    input: "C:/path"
+    output: "C:/path"
+    csv_output: True
+    docx_output: True
+    txt_output: True
+  HistoricalAddressBookEntries:
+    input: "C:/path"
+    output: "C:/path"
+    csv_output: True
+    docx_output: True
+    txt_output: True
+  BrazilianMilitaryRecords:
+    input: "C:/path"
+    output: "C:/path"
+    csv_output: True
+    docx_output: True
+    txt_output: True

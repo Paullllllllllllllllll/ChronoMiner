@@ -1,0 +1,7 @@
+# model_config.yaml
+
+extraction_model: # the large-language model that will be used for extraction
+  name: "o3-mini" # default model, for more information refer to OpenAI's documentation
+  max_completion_tokens: 100000 # max number of tokens the model can use to respond, includes reasoning tokens
+  temperature: 0.0 # temperature (currently not supported for o3-mini)
+  reasoning_effort: "medium" # reasoning effort -> higher reasoning effort will yield better results but produce more tokens

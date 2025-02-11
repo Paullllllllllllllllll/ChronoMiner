@@ -1,0 +1,5 @@
+# chunking_config.yaml
+
+chunking:
+  default_tokens_per_chunk: 6250 # Chunk size (in tokens) that will be used for chunking operations
+  chunking_method: "auto-adjust"  # Options: "auto", "auto-adjust"

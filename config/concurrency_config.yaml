@@ -1,0 +1,6 @@
+# concurrency_config.yaml
+
+concurrency:
+  text_processing:
+    concurrency_limit: 500 # Max number of concurrent requests
+    delay_between_tasks: 0.1 # Delay between single requests
