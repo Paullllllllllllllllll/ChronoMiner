@@ -1,0 +1,48 @@
+{
+  "name": "StructuredSummaries",
+  "schema_version": "2.2",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "entries": {
+        "type": "array",
+        "description": "An array where each entry corresponds to a specific page in the academic text. Each entry includes the page number, bullet-point summaries, and literature references associated with that page.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "page": {
+              "type": "integer",
+              "description": "The page number as it appears in the text."
+            },
+            "bullet_points": {
+              "type": ["array", "null"],
+              "description": "A list of key bullet-point summaries for the page.",
+              "items": {
+                "type": ["string", "null"],
+                "description": "A concise summary point."
+              }
+            },
+            "literature": {
+              "type": ["array", "null"],
+              "description": "A list of APA-formatted literature references associated with the page.",
+              "items": {
+                "type": ["string", "null"],
+                "description": "An individual literature reference."
+              }
+            }
+          },
+          "required": [
+            "page",
+            "bullet_points",
+            "literature"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "entries"
+    ],
+    "additionalProperties": false
+  }
+}

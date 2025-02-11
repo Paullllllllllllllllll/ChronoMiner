@@ -1,0 +1,252 @@
+{
+  "name": "BibliographicEntries",
+  "schema_version": "2.6",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "full_title": {
+              "type": "string",
+              "description": "The complete, official title of the work as it appears in the bibliography, preserving original (archaic) spelling but in plain text."
+            },
+            "short_title": {
+              "type": "string",
+              "description": "A short version of the title for easy reference in plain text. Example: 'Art of Cooking'."
+            },
+            "bibliography_number": {
+              "type": ["string", "null"],
+              "description": "The bibliography number or indicator associated with the short title. Can be null if unavailable in the provided text."
+            },
+            "authors": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "description": "Names of authors, editors, translators, publishers, and printers. Use 'Anonymous' if the name is not provided."
+              },
+              "description": "An array of names. Example: ['François Pierre de la Varenne', 'Pelligrino Artusi']."
+            },
+            "roles": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Author",
+                  "Editor",
+                  "Translator",
+                  "Publisher",
+                  "Printer",
+                  "Unknown",
+                  "Other"
+                ],
+                "description": "Roles corresponding to each name in the 'authors' array."
+              },
+              "description": "An array of roles corresponding to the authors. Each role aligns with the author at the same index. Example: ['Author', 'Publisher']."
+            },
+            "culinary_focus": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "General",
+                  "Baking and Pastry",
+                  "Brewing and Distilling",
+                  "Confectionery and Sweets",
+                  "Preserving and Pickling",
+                  "Medicinal and Health",
+                  "Vegetarian and Vegan",
+                  "Regional and Ethnic Cuisine",
+                  "Dietary and Nutrition",
+                  "Beverages and Drinks",
+                  "Carving and Presentation",
+                  "Wine and Viticulture",
+                  "Meat and Poultry",
+                  "Fish and Seafood",
+                  "Herbs and Spices",
+                  "Sauces and Condiments",
+                  "Culinary Techniques",
+                  "Culinary History",
+                  "Culinary Arts Education",
+                  "Agriculture and Viticulture",
+                  "Unknown",
+                  "Other"
+                ],
+                "description": "Culinary focus areas. Example: ['Baking and Pastry', 'Culinary Techniques']."
+              },
+              "description": "An array indicating the specific culinary areas the book focuses on."
+            },
+            "format": {
+              "type": ["string", "null"],
+              "enum": [
+                "Folio",
+                "Quarto",
+                "Octavo",
+                "Duodecimo",
+                "Pocket-Sized",
+                "Miniature",
+                "Unknown",
+                "Other",
+                null
+              ],
+              "description": "The format of the book. Use `null` if unknown. Example: 'Quarto'."
+            },
+            "pages": {
+              "type": ["integer", "null"],
+              "description": "The number of pages. Use an integer or `null` if unknown. Example: 250."
+            },
+            "edition_info": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "year": {
+                    "type": ["integer", "null"],
+                    "description": "The year of publication. Use an integer or `null` if unknown. Example: 1751."
+                  },
+                  "edition_number": {
+                    "type": ["integer", "null"],
+                    "description": "The edition number. Use an integer or `null` if unknown. Example: 1."
+                  },
+                  "location": {
+                    "type": "object",
+                    "properties": {
+                      "country": {
+                        "type": ["string", "null"],
+                        "description": "Country of publication. Use a string or `null` if unknown. Example: 'Italy'."
+                      },
+                      "city": {
+                        "type": ["string", "null"],
+                        "description": "City of publication. Use a string or `null` if unknown. Example: 'Rome'."
+                      }
+                    },
+                    "required": ["country", "city"],
+                    "additionalProperties": false,
+                    "description": "The location of publication."
+                  },
+                  "roles": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": [
+                        "Author",
+                        "Editor",
+                        "Translator",
+                        "Publisher",
+                        "Printer",
+                        "Unknown",
+                        "Other"
+                      ],
+                      "description": "Roles specific to this edition."
+                    },
+                    "description": "An array of roles for this edition."
+                  },
+                  "short_note": {
+                    "type": ["string", "null"],
+                    "description": "A brief note of any important information. Example: 'Second edition with added chapters.'"
+                  },
+                  "edition_category": {
+                    "type": ["string", "null"],
+                    "enum": [
+                      "Original",
+                      "Reprint",
+                      "Translation",
+                      "Plagiarism",
+                      "Modified Edition",
+                      "Compilation",
+                      "Facsimile",
+                      "Critical Edition",
+                      "Unknown",
+                      "Other",
+                      null
+                    ],
+                    "description": "The category of the edition. Use `null` if unknown. Example: 'Original'."
+                  },
+                  "language": {
+                    "type": ["string", "null"],
+                    "enum": [
+                      "German",
+                      "Spanish",
+                      "English",
+                      "French",
+                      "Italian",
+                      "Dutch",
+                      "Latin",
+                      "Other",
+                      null
+                    ],
+                    "description": "The language in which this edition was published. Use `null` if unknown. Example: 'Italian'."
+                  },
+                  "original_language": {
+                    "type": ["string", "null"],
+                    "enum": [
+                      "German",
+                      "Spanish",
+                      "English",
+                      "French",
+                      "Italian",
+                      "Dutch",
+                      "Latin",
+                      "Other",
+                      null
+                    ],
+                    "description": "The original language of the work if it has been translated. Use `null` if not applicable. Example: 'English'."
+                  },
+                  "translated_from": {
+                    "type": ["string", "null"],
+                    "enum": [
+                      "German",
+                      "Spanish",
+                      "English",
+                      "French",
+                      "Italian",
+                      "Dutch",
+                      "Latin",
+                      "Other",
+                      null
+                    ],
+                    "description": "The language from which the work was translated. Use `null` if not applicable. Example: 'English'."
+                  }
+                },
+                "required": [
+                  "year",
+                  "edition_number",
+                  "location",
+                  "roles",
+                  "short_note",
+                  "edition_category",
+                  "language",
+                  "original_language",
+                  "translated_from"
+                ],
+                "additionalProperties": false,
+                "description": "Detailed information about each edition."
+              }
+            },
+            "total_editions": {
+              "type": ["integer", "null"],
+              "description": "The total number of editions, deduced from edition_info."
+            }
+          },
+          "required": [
+            "full_title",
+            "short_title",
+            "bibliography_number",
+            "authors",
+            "roles",
+            "culinary_focus",
+            "format",
+            "pages",
+            "edition_info",
+            "total_editions"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["entries"],
+    "additionalProperties": false
+  }
+}
