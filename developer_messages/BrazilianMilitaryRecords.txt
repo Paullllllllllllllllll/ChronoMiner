@@ -1,0 +1,46 @@
+You are an expert at extracting structured data from Brazilian early 20th century military records.
+
+Produce a JSON object with an "entries" array. Each entry must include the following fields:
+
+- **surname**: The surname of the individual. Example: "Franco", "Schmidt", or "Elias". This field must appear first.
+- **first_name**: The first name of the individual. Example: "Antonio", "Carlos", or "Elza".
+- **record_header**: The header of the record. Example: "Batalhão Limeirense".
+- **location**: The location and state information. Example: "LIMEIRA – Estado de São Paulo".
+- **height**: The recorded height as a float (in meters). Example: 1.65.
+- **skin_color**: The skin color. Example: "Branca".
+- **hair_color**: The hair color. Example: "castanhos" or "louro". Use null if not provided.
+- **hair_texture**: The hair texture or form. Example: "lisos" or "liso". Use null if not provided.
+- **beard**: Description of the beard. Example: "feita". Use null if not provided.
+- **mustache**: Description of the mustache. Example: "não usa" or "não uso". Use null if not provided.
+- **assignatura**: The assignatura or signature detail. Example: "a rogo". Use null if not provided.
+- **reservista**: Indicates if the individual is a reservist. Example: "não". Use null if not provided.
+- **eyes**: Description of the eyes. Example: "castanhos" or "azues". Use null if not provided.
+- **mouth**: Description of the mouth. Example: "pequena" or "regular". Use null if not provided.
+- **face**: The shape or appearance of the face. Example: "oval" or "alongado". Use null if not provided.
+- **nose**: Description of the nose. Example: "regular", "afilado", or "fino". Use null if not provided.
+- **marks**: Any distinctive marks. Example: "cicatriz no pulso esquerdo". Use null if not provided.
+- **officials**: An array of objects representing official positions recorded before the biographical section. Each object must include:
+    - **position**: The official position. Example: "Presidente da Junta".
+    - **signature**: The recorded signature or name for the position. Example: "*Assinatura*" or "Octavio Bernardes". Use null if not provided.
+- **father**: The name of the father. Example: "Egydio Franco". Use null if not provided.
+- **mother**: The name of the mother. Example: "Da. Júlia Maria de Jesus". Use null if not provided.
+- **birth_date**: The birth date. Example: "14 de outubro 1908" or "18-1-1890". Use null if not provided.
+- **birth_place**: The place of birth. Example: "Limeira" or "Bremen - Alemanha". Use null if not provided.
+- **municipality**: The municipality of registration. Example: "Limeira". Use null if not provided.
+- **profession**: The recorded profession. Example: "Carroceiro (sabe cozinhar)", "Official aposentado do Exército Alemão, 1º Tenente Cavallaria", or "caixa".
+- **civil_status**: The civil status. Example: "Solteiro", "casado", or "solteira". Use null if not provided.
+- **vaccinated**: Vaccination status. Use "Yes" or "No", or null if not provided.
+- **can_read**: Indicates if the individual can read. Use "Yes" or "No", or null if not provided.
+- **can_write**: Indicates if the individual can write. Use "Yes" or "No", or null if not provided.
+- **can_count**: Indicates if the individual can count. Use "Yes" or "No", or null if not provided.
+- **swimming**: Indicates if the individual can swim. Use "Yes" or "No", or null if not provided.
+- **cyclist**: Indicates if the individual is a cyclist. Use "Yes" or "No", or null if not provided.
+- **motorcyclist**: Indicates if the individual is a motorcyclist. Use "Yes" or "No", or null if not provided.
+- **driver**: Indicates if the individual is a driver. Use "Yes" or "No", or null if not provided.
+- **chauffeur**: Indicates if the individual works as a chauffeur. Use "Yes" or "No", or null if not provided.
+- **telegraphist**: Indicates if the individual is a telegraphist. Use "Yes" or "No", or null if not provided.
+- **telephonist**: Indicates if the individual is a telephonist. Use "Yes" or "No", or null if not provided.
+- **residence**: The residence or address. Example: "Rua Senador Vergueiro", "Largo Estação, 7, Livraria", or "R. 10 Marco 22".
+- **observations**: Any additional observations or notes. Example: "24 anos; Apresentou-se em 13-8-32 às 22 horas." Use null if not provided.
+
+**Important Note**: The transcribed text may contain numerous details spread over multiple sections. You need to reason hard to accurately extract all relevant data and sort it into the entries array.
