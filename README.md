@@ -1,7 +1,7 @@
 # ChronoMiner
 
 ChronoMiner is a Python-based project designed for the extraction of structured data from different 
-types of `.txt`-formatted input files. It comes with example input files (European culinary bibliographies, 
+types of `.txt` input files. It comes with example input files (European culinary bibliographies, 
 Brazilian military records, Swiss address books, and academic texts) and recommended JSON schemas for their 
 extraction. The repository can be easily adjusted to support the processing of various primary and secondary sources 
 of interest to historians and social scientists. It provides users with multiple processing options to ensure 
@@ -31,10 +31,11 @@ ChronoMiner processes large historical or academic texts by:
 
 - **Splitting Text into Chunks:**  
   Uses token-based chunking (with options for automatic or manually adjusted chunk boundaries) to divide text files 
-  into manageable pieces. Current large language models are limited in handling extremely long texts.
-
+  into manageable pieces. The effective context window of current-generation large language models (such as OpenAI's o3-mini)
+  is limited, which necessitates chunking.
+  
 - **API-Based Data Extraction:**  
-  Constructs API requests using OpenAI's API with schema-specific JSON payloads and developer prompts. Both 
+  Constructs API requests using OpenAI's API with schema-specific JSON payloads and developer messages. Both 
   synchronous and batch processing modes are supported.
 
 - **Dynamic Post-Processing:**  
@@ -95,6 +96,9 @@ ChronoMiner/
   - **Automatic:** The file is divided automatically.
   - **Automatic with Manual Adjustments:** Users can interactively adjust chunk boundaries.
   - **Pre-Defined Line Ranges:** If a `_line_ranges.txt` file is available, it is used to determine chunk boundaries.
+    - line_ranges.txt files can be generated for the folders defined for each schema in paths_config.yaml. This allows for the
+      preparation of chunking in advance if large amounts of `.txt` files have to be processed and automatic chunking runs the
+      risk of splitting semantic units.
 
 ### 2. API Request Construction and Data Extraction
 
@@ -103,7 +107,8 @@ ChronoMiner/
   payloads. Each handler returns a JSON payload based on the selected schema and its corresponding developer message.
 
 - **Processing Modes:**  
-  - **Synchronous:** Each chunk is processed individually with immediate API calls.
+  - **Synchronous:** Each chunk is processed individually with immediate API calls. The processed chunks are written to temporary
+    JSONL files as they arrive and then processed further.
   - **Batch:** Chunks are written into a temporary JSONL file and submitted as a batch for asynchronous processing.
 
 ### 3. Post-Processing and Output Generation
@@ -230,6 +235,9 @@ Once completed, your schema is fully integrated and ready for use.
     - chardet==5.2.0  
     - tqdm==4.67.1
 
+- **Further Dependencies:**
+    - A full list of dependencies can be found in requirements.txt.
+
 ## Installation
 
 1. **Clone the Repository:**
@@ -327,6 +335,7 @@ python main/check_batches.py
 
 - **API Key Management:**  
   Do not hard-code your OpenAI API key. Use environment variables or secure secret management to protect your credentials.
+  This repository assumes your API key is stored in an environment variable.
 - **Sensitive Data Handling:**  
   Handle any sensitive input data according to relevant data protection guidelines.
 
@@ -341,7 +350,7 @@ python main/check_batches.py
 ## Extending and Customizing
 
 - **Adding New Schemas:**  
-  Refer to the "Introducing New Schemas" section below for detailed steps on creating new JSON schemas and developer 
+  Refer to the "Introducing New Schemas" section above for detailed steps on creating new JSON schemas and developer 
   message files.
 - **Customizing Chunking and Post-Processing:**  
   The project can be extended by modifying modules such as `modules/text_utils.py` or `modules/schema_handlers.py`. 
