@@ -349,37 +349,7 @@ class DocumentConverter:
                 lines.append(f" - {edition_text}")
             lines.append("\n" + "=" * 40 + "\n")
         return lines
-
-    def _convert_recipes_to_txt(self, entries: List[Any]) -> List[str]:
-        lines: List[str] = []
-        for entry in entries:
-            lines.append(f"Recipe Name: {entry.get('Name', 'Unknown')}")
-            lines.append("Original Text:")
-            lines.append(entry.get("Original_Text", ""))
-            lines.append("Translated Text:")
-            lines.append(entry.get("Translated_Text", ""))
-            lines.append(f"Servings: {entry.get('Servings', '')}")
-            lines.append(f"Category: {entry.get('Category', '')}")
-            lines.append(f"Original Language: {entry.get('Original_Language', '')}")
-            lines.append("Ingredients:")
-            for ingredient in entry.get("Ingredients", []):
-                lines.append(
-                    f" - {ingredient.get('historical_name', '')} "
-                    f"({ingredient.get('modern_name', '')}), Qty: {ingredient.get('quantity', '')} {ingredient.get('unit', '')}"
-                )
-            lines.append("Cooking Methods:")
-            for method in entry.get("cooking_methods", []):
-                lines.append(
-                    f" - {method.get('historical_method', '')} -> {method.get('modern_method', '')}"
-                )
-            lines.append("Cooking Utensils:")
-            for utensil in entry.get("cooking_utensils", []):
-                lines.append(
-                    f" - {utensil.get('historical_utensil', '')} -> {utensil.get('modern_utensil', '')}"
-                )
-            lines.append("\n" + "=" * 40 + "\n")
-        return lines
-
+    
     def _convert_historicaladdressbookentries_to_txt(self,
                                                      entries: List[Any]) -> \
     List[str]:
