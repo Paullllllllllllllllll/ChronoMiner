@@ -374,7 +374,6 @@ Contributions are welcome! When contributing:
 - Contact the main developer before adding any new features.
 - Ensure that any new schema JSON files and developer messages work as intended before submission.
 - (Optionally) Register any custom schema handlers in `modules/schema_handlers.py`.
-- Update all relevant configuration files and documentation accordingly.
 - Follow the repository’s coding style and contribution guidelines.
 
 ## Contact and Support
