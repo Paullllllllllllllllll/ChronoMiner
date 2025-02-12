@@ -1,8 +1,8 @@
 # ChronoMiner
 
 ChronoMiner is a Python-based project designed for the extraction of structured data from different 
-types of `.txt` input files. It comes with example input files (European culinary bibliographies, 
-Brazilian military records, Swiss address books, and academic texts) and recommended JSON schemas for their 
+types of `.txt` input files. It comes with example input files (a European culinary bibliographies, 
+Brazilian military records, and a Swiss address books) and recommended JSON schemas for their 
 extraction. The repository can be easily adjusted to support the processing of various primary and secondary sources 
 of interest to historians and social scientists. It provides users with multiple processing options to ensure 
 well-structured output in different file formats.
