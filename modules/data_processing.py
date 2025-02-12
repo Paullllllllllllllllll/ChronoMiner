@@ -109,49 +109,7 @@ class CSVConverter:
             df["edition_info_summary"] = df["edition_info"].apply(summarize_editions)
             df.drop(columns=["edition_info"], inplace=True)
         return df
-
-    def _convert_recipes_to_df(self, entries: List[Any]) -> pd.DataFrame:
-        df = pd.json_normalize(entries, sep='_')
-        if "Ingredients" in df.columns:
-            def summarize_ingredients(ingredients: Any) -> str:
-                if not ingredients or not isinstance(ingredients, list):
-                    return ""
-                parts = []
-                for ing in ingredients:
-                    historical = ing.get("historical_name", "")
-                    modern = ing.get("modern_name", "")
-                    quantity = ing.get("quantity", "")
-                    unit = ing.get("unit", "")
-                    parts.append(f"{historical} ({modern}), Qty: {quantity} {unit}")
-                return "; ".join(parts)
-            df["Ingredients_summary"] = df["Ingredients"].apply(summarize_ingredients)
-            df.drop(columns=["Ingredients"], inplace=True)
-        if "cooking_methods" in df.columns:
-            def summarize_methods(methods: Any) -> str:
-                if not methods or not isinstance(methods, list):
-                    return ""
-                parts = []
-                for m in methods:
-                    hist = m.get("historical_method", "")
-                    mod = m.get("modern_method", "")
-                    parts.append(f"{hist} -> {mod}")
-                return "; ".join(parts)
-            df["cooking_methods_summary"] = df["cooking_methods"].apply(summarize_methods)
-            df.drop(columns=["cooking_methods"], inplace=True)
-        if "cooking_utensils" in df.columns:
-            def summarize_utensils(utensils: Any) -> str:
-                if not utensils or not isinstance(utensils, list):
-                    return ""
-                parts = []
-                for u in utensils:
-                    hist = u.get("historical_utensil", "")
-                    mod = u.get("modern_utensil", "")
-                    parts.append(f"{hist} -> {mod}")
-                return "; ".join(parts)
-            df["cooking_utensils_summary"] = df["cooking_utensils"].apply(summarize_utensils)
-            df.drop(columns=["cooking_utensils"], inplace=True)
-        return df
-
+    
     def _convert_structured_summaries_to_df(self, entries: List[Any]) -> pd.DataFrame:
         df = pd.json_normalize(entries, sep='_')
         if "bullet_points" in df.columns:
