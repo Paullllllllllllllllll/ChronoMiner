@@ -20,7 +20,6 @@ well-structured output in different file formats.
 - [Security Considerations](#security-considerations)
 - [Performance & Limitations](#performance--limitations)
 - [Extending and Customizing](#extending-and-customizing)
-- [Testing](#testing)
 - [Future Enhancements](#future-enhancements)
 - [Contributing](#contributing)
 - [Contact and Support](#contact-and-support)
