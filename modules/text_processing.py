@@ -57,7 +57,6 @@ class DocumentConverter:
         converters = {
             "structuredsummaries": self._convert_structured_summaries_to_docx,
             "bibliographicentries": self._convert_bibliographic_entries_to_docx,
-            "recipes": self._convert_recipes_to_docx,
             "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_docx,
             "brazilianoccupationrecords": self._convert_brazilianoccupationrecords_to_docx
         }
