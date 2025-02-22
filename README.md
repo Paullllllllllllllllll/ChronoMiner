@@ -241,14 +241,13 @@ Once completed, your schema is fully integrated and ready for use.
 ## Installation
 
 1. **Clone the Repository:**
-
    ```bash
-   git clone https://github.com/yourusername/ChronoMiner.git
+   git clone https://ChronoMiner.git
    cd ChronoMiner
    ```
 
-2. **Create and Activate the Virtual Environment:**
-
+2. **Set Up the Environment:**
+   Create and activate a virtual environment:
    ```bash
    python -m venv .venv
    # On Linux/Mac:
@@ -258,18 +257,27 @@ Once completed, your schema is fully integrated and ready for use.
    ```
 
 3. **Install Dependencies:**
-
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Set the OpenAI API Key:**
-
-   Ensure you have your OpenAI API key set as an environment variable:
+4. **Adjust PYTHONPATH:**
+   To ensure that Python can find the `modules` package, update your PYTHONPATH. For example, on Linux/Mac:
    ```bash
-   export OPENAI_API_KEY="your_api_key_here"   # On Linux/Mac
-   set OPENAI_API_KEY=your_api_key_here         # On Windows
+   export PYTHONPATH="$PYTHONPATH:$(pwd)/modules"
    ```
+   On Windows (PowerShell):
+   ```powershell
+   $env:PYTHONPATH = "$env:PYTHONPATH;$(Get-Location)\modules"
+   ```
+   Alternatively, you can add the above commands to your shell profile or run them each time before running the project.
+
+5. **Set Environment Variables:**
+   ```bash
+   export OPENAI_API_KEY=your_openai_api_key  # On Linux/Mac
+   set OPENAI_API_KEY=your_openai_api_key     # On Windows
+   ```
+
 
 ## Usage
 
