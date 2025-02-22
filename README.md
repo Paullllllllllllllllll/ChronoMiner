@@ -278,6 +278,10 @@ Once completed, your schema is fully integrated and ready for use.
    set OPENAI_API_KEY=your_openai_api_key     # On Windows
    ```
 
+6. **Important:**  
+  For ChronoMiner to work properly, **all file paths specified in the configuration files (e.g., `paths_config.yaml`) must be specified and be absolute.**  
+  Relative file paths can lead to errors such as files not being found or misinterpretation of input/output locations, causing the script to fail unexpectedly.
+  Please ensure you update your configuration files accordingly before running the scripts.
 
 ## Usage
 
