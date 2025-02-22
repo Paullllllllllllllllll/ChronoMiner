@@ -242,7 +242,7 @@ Once completed, your schema is fully integrated and ready for use.
 
 1. **Clone the Repository:**
    ```bash
-   git clone https://ChronoMiner.git
+   git clone https://github.com/Paullllllllllllllllll/ChronoMiner.git
    cd ChronoMiner
    ```
 
