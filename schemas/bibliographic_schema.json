@@ -1,6 +1,6 @@
 {
   "name": "BibliographicEntries",
-  "schema_version": "2.6",
+  "schema_version": "2.8",
   "schema": {
     "type": "object",
     "properties": {
@@ -11,23 +11,27 @@
           "properties": {
             "full_title": {
               "type": "string",
-              "description": "The complete, official title of the work as it appears in the bibliography, preserving original (archaic) spelling but in plain text."
+              "description": "Complete official title in plain text, preserving archaic spelling."
             },
             "short_title": {
               "type": "string",
-              "description": "A short version of the title for easy reference in plain text. Example: 'Art of Cooking'."
+              "description": "A concise title or reference name in plain text. Example: 'Art of Cooking'."
             },
             "bibliography_number": {
               "type": ["string", "null"],
-              "description": "The bibliography number or indicator associated with the short title. Can be null if unavailable in the provided text."
+              "description": "A unique identifier or reference number assigned to the work in the bibliography. This number is typically found at the beginning of the bibliographic entry. If no such number is present in the text, use `null`. Do not infer or generate a number from dates or other metadata."
+            },
+            "physical_location": {
+              "type": ["string", "null"],
+              "description": "Physical location (library, city, etc.) or null if unknown."
             },
             "authors": {
               "type": "array",
               "items": {
                 "type": "string",
-                "description": "Names of authors, editors, translators, publishers, and printers. Use 'Anonymous' if the name is not provided."
+                "description": "Name of an author/editor/translator/etc.; use 'Anonymous' if absent."
               },
-              "description": "An array of names. Example: ['François Pierre de la Varenne', 'Pelligrino Artusi']."
+              "description": "An array of names corresponding to contributors. Example: ['François Pierre de la Varenne', 'Pelligrino Artusi']."
             },
             "roles": {
               "type": "array",
@@ -42,9 +46,9 @@
                   "Unknown",
                   "Other"
                 ],
-                "description": "Roles corresponding to each name in the 'authors' array."
+                "description": "Role for each corresponding entry in 'authors'."
               },
-              "description": "An array of roles corresponding to the authors. Each role aligns with the author at the same index. Example: ['Author', 'Publisher']."
+              "description": "Array of roles, aligned with 'authors'."
             },
             "culinary_focus": {
               "type": "array",
@@ -91,11 +95,11 @@
                 "Other",
                 null
               ],
-              "description": "The format of the book. Use `null` if unknown. Example: 'Quarto'."
+              "description": "Physical format of the book, or null if unknown."
             },
             "pages": {
               "type": ["integer", "null"],
-              "description": "The number of pages. Use an integer or `null` if unknown. Example: 250."
+              "description": "Number of pages/leaf count, or null if unknown."
             },
             "edition_info": {
               "type": "array",
@@ -108,7 +112,7 @@
                   },
                   "edition_number": {
                     "type": ["integer", "null"],
-                    "description": "The edition number. Use an integer or `null` if unknown. Example: 1."
+                    "description": "Edition number (1,2,3...) or null if unknown."
                   },
                   "location": {
                     "type": "object",
@@ -124,24 +128,7 @@
                     },
                     "required": ["country", "city"],
                     "additionalProperties": false,
-                    "description": "The location of publication."
-                  },
-                  "roles": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "enum": [
-                        "Author",
-                        "Editor",
-                        "Translator",
-                        "Publisher",
-                        "Printer",
-                        "Unknown",
-                        "Other"
-                      ],
-                      "description": "Roles specific to this edition."
-                    },
-                    "description": "An array of roles for this edition."
+                    "description": "Geographic publication location."
                   },
                   "short_note": {
                     "type": ["string", "null"],
@@ -177,7 +164,7 @@
                       "Other",
                       null
                     ],
-                    "description": "The language in which this edition was published. Use `null` if unknown. Example: 'Italian'."
+                    "description": "Language of this edition. Use `null` if unknown. Example: 'Italian'.."
                   },
                   "original_language": {
                     "type": ["string", "null"],
@@ -214,26 +201,26 @@
                   "year",
                   "edition_number",
                   "location",
-                  "roles",
                   "short_note",
                   "edition_category",
                   "language",
                   "original_language",
                   "translated_from"
                 ],
-                "additionalProperties": false,
-                "description": "Detailed information about each edition."
-              }
+                "additionalProperties": false
+              },
+              "description": "Detailed information about each edition."
             },
             "total_editions": {
               "type": ["integer", "null"],
-              "description": "The total number of editions, deduced from edition_info."
+              "description": "Number of distinct editions, or null if unknown. Can be deduced from the edition_info array."
             }
           },
           "required": [
             "full_title",
             "short_title",
             "bibliography_number",
+            "physical_location",
             "authors",
             "roles",
             "culinary_focus",
