@@ -1,14 +1,19 @@
+# process_text_files.py
 """
 Main script for processing text files with schema-based structured data extraction.
 
-This script:
- - Loads configuration and prompts the user to select a schema.
- - Uses the schema-specific input and output paths.
- - Recursively processes each .txt file from the input directory (ignoring _line_ranges.txt files used for chunking).
- - Constructs API requests using the selected schema’s JSON definition and its associated developer message.
- - Writes the final output as a JSON file.
- - If enabled in paths_config.yaml, produces additional .csv, .docx, or .txt outputs.
+Workflow:
+ 1. Load configuration and prompt the user to select a schema.
+ 2. Determine input source (single file or folder) and gather files.
+ 3. Ask whether to use batch processing.
+ 4. For each file, perform:
+      - Reading and normalization of text.
+      - Determining chunking strategy and splitting text into chunks.
+      - Constructing API requests using schema-based payloads.
+      - Processing API responses either synchronously or via batch submission.
+      - Writing final structured output (JSON, with optional CSV, DOCX, TXT conversions).
 """
+
 import asyncio
 import json
 import os
@@ -25,18 +30,23 @@ from modules.schema_manager import SchemaManager
 from modules.batching import submit_batch
 from modules.text_utils import TextProcessor, perform_chunking
 from modules.schema_handlers import get_schema_handler
-from modules.user_interface import (ask_global_chunking_mode,
-                             ask_file_chunking_method)
+from modules.user_interface import ask_global_chunking_mode, ask_file_chunking_method
 
+# Initialize logger
 logger = setup_logger(__name__)
 
+# -------------------------------
+# Utility Functions
+# -------------------------------
+
 def console_print(message: str) -> None:
+    """Simple wrapper for printing to console."""
     print(message)
 
 def validate_absolute_paths(paths_config: Dict[str, Any]) -> None:
     """
     Validate that all critical file paths in the configuration are absolute.
-    If a relative path is found, print an error and exit gracefully.
+    Exits if any relative path is found.
     """
     error_found = False
     # Validate general settings (e.g., logs_dir)
@@ -63,13 +73,13 @@ def validate_absolute_paths(paths_config: Dict[str, Any]) -> None:
 
 def load_developer_message(schema_name: str) -> str:
     """
-    Automatically load the developer message corresponding to the given schema from the developer_messages folder.
+    Load the developer message corresponding to the given schema from the developer_messages folder.
 
     Parameters:
-    - schema_name (str): The name of the extraction schema (e.g., "BibliographicEntries").
+      - schema_name (str): The name of the extraction schema (e.g., "BibliographicEntries").
 
     Returns:
-    - str: The contents of the corresponding developer message file.
+      - str: The contents of the corresponding developer message file.
     """
     developer_messages_dir = Path("developer_messages")
     file_name = f"{schema_name}.txt"
@@ -81,27 +91,40 @@ def load_developer_message(schema_name: str) -> str:
         print(f"Error: Developer message file '{file_name}' not found in {developer_messages_dir}.")
         sys.exit(1)
 
+# -------------------------------
+# Core File Processing Functionality
+# -------------------------------
+
 async def process_file(
-        file_path: Path,
-        paths_config: Dict[str, Any],
-        model_config: Dict[str, Any],
-        chunking_config: Dict[str, Any],
-        use_batch: bool,
-        selected_schema: Dict[str, Any],
-        dev_message: str,
-        schema_paths: Dict[str, Any],
-        manual_adjust: bool = True,
-        global_chunking_method: Optional[str] = None
+    file_path: Path,
+    paths_config: Dict[str, Any],
+    model_config: Dict[str, Any],
+    chunking_config: Dict[str, Any],
+    use_batch: bool,
+    selected_schema: Dict[str, Any],
+    dev_message: str,
+    schema_paths: Dict[str, Any],
+    manual_adjust: bool = True,
+    global_chunking_method: Optional[str] = None
 ) -> None:
+    """
+    Process a single text file:
+      - Read and normalize text.
+      - Determine chunking strategy and split text.
+      - Construct API requests based on schema.
+      - Process responses either synchronously or via batch.
+      - Write final output and optionally convert to additional formats.
+    """
     console_print(f"Processing file: {file_path.name}")
     logger.info(f"Starting processing for file: {file_path}")
+
+    # -- Read and Normalize Text --
     encoding: str = TextProcessor.detect_encoding(file_path)
     with file_path.open("r", encoding=encoding) as f:
         lines: List[str] = f.readlines()
     normalized_lines: List[str] = [TextProcessor.normalize_text(line) for line in lines]
 
-    # Determine the chunking strategy.
-    # If global_chunking_method is provided, use it; otherwise, prompt for each file.
+    # -- Determine Chunking Strategy --
     if global_chunking_method is not None:
         chosen_method = global_chunking_method
         console_print(f"Using default chunking method '{chosen_method}' for file {file_path.name}.")
@@ -122,6 +145,7 @@ async def process_file(
         chunk_choice = "auto"
         line_ranges_file = None
 
+    # -- Perform Text Chunking --
     openai_config_task: Dict[str, Any] = {
         "model_name": model_config["extraction_model"]["name"],
         "default_tokens_per_chunk": chunking_config["chunking"]["default_tokens_per_chunk"]
@@ -133,7 +157,7 @@ async def process_file(
     )
     logger.info(f"Total chunks generated from {file_path.name}: {len(chunks)}")
 
-    # Determine working folders and output paths.
+    # -- Determine Working Folders and Output Paths --
     if paths_config["general"]["input_paths_is_output_path"]:
         working_folder: Path = file_path.parent
         output_json_path: Path = working_folder / f"{file_path.stem}_output.json"
@@ -148,16 +172,16 @@ async def process_file(
         temp_jsonl_path = temp_folder / f"{file_path.stem}_temp.jsonl"
 
     results: List[Dict[str, Any]] = []
-    # Use the schema handler for dynamic payload creation.
     handler = get_schema_handler(selected_schema["name"])
 
-    # Process using batch or synchronous API calls.
+    # -- Process API Requests --
     if use_batch:
+        # Batch processing: Prepare batch requests and submit
         batch_requests: List[Dict[str, Any]] = []
         for idx, chunk in enumerate(chunks, 1):
-            request_obj = handler.prepare_payload(chunk, dev_message,
-                                                  model_config,
-                                                  selected_schema["schema"])
+            request_obj = handler.prepare_payload(
+                chunk, dev_message, model_config, selected_schema["schema"]
+            )
             request_obj["custom_id"] = f"{file_path.stem}-chunk-{idx}"
             batch_requests.append(request_obj)
         with temp_jsonl_path.open("w", encoding="utf-8") as tempf:
@@ -181,21 +205,23 @@ async def process_file(
             logger.error(f"Error during batch submission: {e}")
             console_print(f"Error during batch submission: {e}")
     else:
+        # Synchronous processing: Process each chunk using async API calls
         api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
         if not api_key:
             logger.error("OPENAI_API_KEY is not set in environment variables.")
             console_print("Error: OPENAI_API_KEY is not set.")
             return
         async with open_extractor(
-                api_key=api_key,
-                prompt_path=Path("prompts/structured_output_prompt.txt"),
-                model=model_config["extraction_model"]["name"]
+            api_key=api_key,
+            prompt_path=Path("prompts/structured_output_prompt.txt"),
+            model=model_config["extraction_model"]["name"]
         ) as extractor:
             with temp_jsonl_path.open("a", encoding="utf-8") as tempf:
                 for idx, chunk in enumerate(chunks, 1):
                     try:
-                        final_payload = handler.get_json_schema_payload(dev_message, model_config,
-                                                                          selected_schema["schema"])
+                        final_payload = handler.get_json_schema_payload(
+                            dev_message, model_config, selected_schema["schema"]
+                        )
                         response: str = await process_text_chunk(
                             text_chunk=chunk,
                             extractor=extractor,
@@ -213,6 +239,7 @@ async def process_file(
                         logger.info(f"Processed chunk {idx} for file {file_path.name} with range {ranges[idx - 1]}")
                     except Exception as e:
                         logger.error(f"Error processing chunk {idx} of {file_path.name}: {e}")
+        # Write final JSON output and optionally convert to additional formats
         with output_json_path.open("w", encoding="utf-8") as outf:
             json.dump(results, outf, indent=2)
         console_print(f"Final structured JSON output saved to {output_json_path}")
@@ -226,6 +253,8 @@ async def process_file(
         if schema_paths.get("txt_output", False):
             output_txt_path: Path = output_json_path.with_suffix(".txt")
             handler.convert_to_txt(output_json_path, output_txt_path)
+
+    # -- Cleanup Temporary Files if Not Needed --
     if use_batch:
         logger.info("Batch processing enabled. Keeping temporary JSONL for check_batches.py.")
     else:
@@ -237,21 +266,30 @@ async def process_file(
             except Exception as e:
                 logger.error(f"Error deleting temporary file {temp_jsonl_path}: {e}")
 
+# -------------------------------
+# Main Execution Flow
+# -------------------------------
+
 def main() -> None:
+    """Main entry point: Load configs, select schema and input, then process files asynchronously."""
+    # -- Load Configuration --
     config_loader = ConfigLoader()
     config_loader.load_configs()
     paths_config: Dict[str, Any] = config_loader.get_paths_config()
     validate_absolute_paths(paths_config)
+
+    # Load model and chunking configurations from YAML files
     model_config_path: Path = Path(__file__).resolve().parent.parent / "config" / "model_config.yaml"
     with model_config_path.open('r', encoding='utf-8') as f:
         model_config = yaml.safe_load(f)
     chunking_config_path: Path = Path(__file__).resolve().parent.parent / "config" / "chunking_config.yaml"
     with chunking_config_path.open('r', encoding='utf-8') as f:
         chunking_config = yaml.safe_load(f)
-    # Prompt for global chunking method preference
+
+    # -- Global Chunking Method --
     global_chunking_method = ask_global_chunking_mode(chunking_config["chunking"]["chunking_method"])
 
-    # Schema selection and file retrieval logic remains unchanged.
+    # -- Schema Selection --
     schema_manager = SchemaManager()
     schema_manager.load_schemas()
     available_schemas = schema_manager.get_available_schemas()
@@ -271,10 +309,14 @@ def main() -> None:
         sys.exit(0)
     selected_schema: Dict[str, Any] = available_schemas[selected_schema_name]
 
-    # Automatically load the developer message corresponding to the selected schema.
+    # -- Load Developer Message --
     dev_message: str = load_developer_message(selected_schema_name)
 
-    # Determine input source (single file or folder).
+    # -- Ask for Batch Processing Option --
+    batch_choice = input("Do you want to use batch processing? (y/n): ").strip().lower()
+    use_batch = True if batch_choice == "y" else False
+
+    # -- Input Source Selection --
     mode: str = input("Enter 1 to process a single file or 2 for a folder of files (or 'q' to exit): ").strip()
     if mode.lower() in ["q", "exit"]:
         console_print("Exiting.")
@@ -316,21 +358,23 @@ def main() -> None:
         console_print("Invalid selection.")
         sys.exit(0)
 
-    # Prompt for batch mode.
-    batch_mode_input: str = input("Use batch processing? (y/n): ").strip().lower()
-    use_batch: bool = batch_mode_input in ["y", "yes"]
-
-    # Process each file asynchronously.
+    # -- Process Files Asynchronously --
     async def process_all_files() -> None:
         tasks = []
-        for file in files:
-            tasks.append(process_file(file, paths_config, model_config, chunking_config, use_batch,
-                                      selected_schema, dev_message, schemas_paths,
-                                      manual_adjust=True, global_chunking_method=global_chunking_method))
+        for file_path in files:
+            tasks.append(process_file(
+                file_path=file_path,
+                paths_config=paths_config,
+                model_config=model_config,
+                chunking_config=chunking_config,
+                use_batch=use_batch,
+                selected_schema=selected_schema,
+                dev_message=dev_message,
+                schema_paths=schemas_paths.get(selected_schema_name, {})
+            ))
         await asyncio.gather(*tasks)
 
     asyncio.run(process_all_files())
-    console_print("Processing complete.")
 
 if __name__ == "__main__":
     main()
