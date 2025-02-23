@@ -1,7 +1,7 @@
 # modules/user_interface.py
 
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from modules.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -70,3 +70,50 @@ def select_files(directory: Path, extension: str) -> List[Path]:
         print("Invalid input. Please enter numbers separated by commas.")
         logger.error("User entered invalid file selection input.")
         return []
+
+
+def ask_global_chunking_mode(default_method: str) -> Optional[str]:
+    """
+    Prompt the user whether to use the default chunking method for all files.
+    If the user chooses yes, return the default_method; otherwise, return None.
+
+    Parameters:
+    - default_method (str): The default chunking method from chunking_config.yaml.
+
+    Returns:
+    - Optional[str]: The chosen global chunking method, or None if the user opts for manual selection.
+    """
+    choice = input(
+        "Do you want to use the default chunking method for all files? (y/n): ").strip().lower()
+    if choice in ["y", "yes"]:
+        print(f"Using default chunking method: {default_method}")
+        return default_method
+    else:
+        return None
+
+
+def ask_file_chunking_method(file_name: str) -> str:
+    """
+    Prompt the user to select a chunking method for the given file.
+
+    Parameters:
+    - file_name (str): The name of the file being processed.
+
+    Returns:
+    - str: The chosen chunking method. One of: "auto", "auto-adjust", "line_ranges.txt".
+    """
+    print(f"Select chunking method for file '{file_name}':")
+    print("1. Automatic token-based chunking (auto)")
+    print(
+        "2. Automatic token-based chunking with manual re-adjustments (auto-adjust)")
+    print("3. Use _line_ranges.txt file (line_ranges.txt)")
+    choice = input("Enter 1, 2, or 3: ").strip()
+    if choice == "1":
+        return "auto"
+    elif choice == "2":
+        return "auto-adjust"
+    elif choice == "3":
+        return "line_ranges.txt"
+    else:
+        print("Invalid selection, defaulting to 'auto'.")
+        return "auto"
