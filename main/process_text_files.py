@@ -331,7 +331,7 @@ def main() -> None:
         file_input: str = input("Enter the filename to process (with or without .txt extension): ").strip()
         if not file_input.lower().endswith(".txt"):
             file_input += ".txt"
-        file_candidates: List[Path] = list(raw_text_dir.rglob(file_input))
+        file_candidates: List[Path] = [f for f in raw_text_dir.rglob(file_input) if not f.name.endswith("_line_ranges.txt")]
         if not file_candidates:
             console_print(f"File {file_input} does not exist in {raw_text_dir}.")
             sys.exit(0)
@@ -350,7 +350,7 @@ def main() -> None:
                 sys.exit(0)
         files.append(file_path)
     elif mode == "2":
-        files = list(raw_text_dir.rglob("*.txt"))
+        files = [f for f in raw_text_dir.rglob("*.txt") if not f.name.endswith("_line_ranges.txt")]
         if not files:
             console_print("No .txt files found in the specified folder.")
             sys.exit(0)
@@ -370,7 +370,8 @@ def main() -> None:
                 use_batch=use_batch,
                 selected_schema=selected_schema,
                 dev_message=dev_message,
-                schema_paths=schemas_paths.get(selected_schema_name, {})
+                schema_paths=schemas_paths.get(selected_schema_name, {}),
+                global_chunking_method=global_chunking_method
             ))
         await asyncio.gather(*tasks)
 
