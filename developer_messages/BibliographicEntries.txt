@@ -20,4 +20,4 @@ Important points:
 3. If a book has multiple editions, record the earliest edition as the main data. List all other and the main edition in "edition_info."
 4. Return only valid JSON that fits the schema, with "entries" as the root array.
 
-**Important Note**: The text may contain numerous pages with bibliographic information. **You need to reason hard to accurately extract all relevant data, sort it into the entries array, and properly format it.**
+**Important Note**: The provided text may contain numerous pages with bibliographic information and other text elements (page numbers, bibliography title, etc.). The bibliographic entries may follow slightly inconsistent formatting; sometimes information (years, editions, etc) may be missing. **You need to reason hard to accurately extract all relevant data, sort it into the entries array, and properly format it.**
