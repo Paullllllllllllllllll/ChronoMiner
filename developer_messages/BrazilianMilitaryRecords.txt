@@ -43,4 +43,233 @@ Produce a JSON object with an "entries" array. Each entry must include the follo
 - **residence**: The residence or address. Example: "Rua Senador Vergueiro", "Largo Estação, 7, Livraria", or "R. 10 Marco 22".
 - **observations**: Any additional observations or notes. Example: "24 anos; Apresentou-se em 13-8-32 às 22 horas." Use null if not provided.
 
+The JSON schema:
+{
+  "name": "BrazilianMilitaryRecords",
+  "schema_version": "1.2",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "surname": {
+              "type": "string",
+              "description": "The surname of the individual. Example: 'Franco', 'Schmidt', or 'Elias'."
+            },
+            "first_name": {
+              "type": "string",
+              "description": "The first name of the individual. Example: 'Antonio', 'Carlos', or 'Elza'."
+            },
+            "record_header": {
+              "type": "string",
+              "description": "The header of the record. Example: 'Batalhão Limeirense'."
+            },
+            "location": {
+              "type": "string",
+              "description": "Location and state information. Example: 'LIMEIRA – Estado de São Paulo'."
+            },
+            "height": {
+              "type": "number",
+              "description": "The recorded height in meters as a float. Example: 1.65 or 1.55."
+            },
+            "skin_color": {
+              "type": "string",
+              "description": "The skin color. Example: 'Branca'."
+            },
+            "hair_color": {
+              "type": ["string", "null"],
+              "description": "The hair color. Example: 'castanhos' or 'louro'. Use null if not provided."
+            },
+            "hair_texture": {
+              "type": ["string", "null"],
+              "description": "The hair texture or form. Example: 'lisos' or 'liso'. Use null if not provided."
+            },
+            "beard": {
+              "type": ["string", "null"],
+              "description": "Description of the beard. Example: 'feita'. Use null if not provided."
+            },
+            "mustache": {
+              "type": ["string", "null"],
+              "description": "Description of the mustache. Example: 'não usa' or 'não uso'. Use null if not provided."
+            },
+            "assignatura": {
+              "type": ["string", "null"],
+              "description": "The assignatura or signature detail. Example: 'a rogo'. Use null if not provided."
+            },
+            "reservista": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual is a reservist. Example: 'não'. Use null if not provided."
+            },
+            "eyes": {
+              "type": ["string", "null"],
+              "description": "Description of the eyes. Example: 'castanhos' or 'azues'. Use null if not provided."
+            },
+            "mouth": {
+              "type": ["string", "null"],
+              "description": "Description of the mouth. Example: 'pequena' or 'regular'. Use null if not provided."
+            },
+            "face": {
+              "type": ["string", "null"],
+              "description": "The shape or appearance of the face. Example: 'oval' or 'alongado'. Use null if not provided."
+            },
+            "nose": {
+              "type": ["string", "null"],
+              "description": "Description of the nose. Example: 'regular', 'afilado', or 'fino'. Use null if not provided."
+            },
+            "marks": {
+              "type": ["string", "null"],
+              "description": "Any distinctive marks. Example: 'cicatriz no pulso esquerdo'. Use null if not provided."
+            },
+            "officials": {
+              "type": ["array", "null"],
+              "description": "An array of official positions and their signatures.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "position": {
+                    "type": "string",
+                    "description": "The official position. Example: 'Presidente da Junta'."
+                  },
+                  "signature": {
+                    "type": ["string", "null"],
+                    "description": "The recorded signature or name for the position. Example: '*Assinatura*' or 'Octavio Bernardes'. Use null if not provided."
+                  }
+                },
+                "required": ["position", "signature"],
+                "additionalProperties": false
+              }
+            },
+            "father": {
+              "type": ["string", "null"],
+              "description": "The name of the father. Example: 'Egydio Franco'. Use null if not provided."
+            },
+            "mother": {
+              "type": ["string", "null"],
+              "description": "The name of the mother. Example: 'Da. Júlia Maria de Jesus'. Use null if not provided."
+            },
+            "birth_date": {
+              "type": ["string", "null"],
+              "description": "The birth date. Example: '14 de outubro 1908' or '18-1-1890'. Use null if not provided."
+            },
+            "birth_place": {
+              "type": ["string", "null"],
+              "description": "The place of birth. Example: 'Limeira' or 'Bremen - Alemanha'. Use null if not provided."
+            },
+            "municipality": {
+              "type": ["string", "null"],
+              "description": "The municipality of registration. Example: 'Limeira'. Use null if not provided."
+            },
+            "profession": {
+              "type": "string",
+              "description": "The recorded profession. Example: 'Carroceiro (sabe cozinhar)', 'Official aposentado do Exército Alemão, 1º Tenente Cavallaria', or 'caixa'."
+            },
+            "civil_status": {
+              "type": ["string", "null"],
+              "description": "The civil status. Example: 'Solteiro', 'casado', or 'solteira'. Use null if not provided."
+            },
+            "vaccinated": {
+              "type": ["string", "null"],
+              "description": "Vaccination status. Use 'Yes' or 'No', or null if not provided."
+            },
+            "can_read": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual can read. Use 'Yes' or 'No', or null if not provided."
+            },
+            "can_write": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual can write. Use 'Yes' or 'No', or null if not provided."
+            },
+            "can_count": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual can count. Use 'Yes' or 'No', or null if not provided."
+            },
+            "swimming": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual can swim. Use 'Yes' or 'No', or null if not provided."
+            },
+            "cyclist": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual is a cyclist. Use 'Yes' or 'No', or null if not provided."
+            },
+            "motorcyclist": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual is a motorcyclist. Use 'Yes' or 'No', or null if not provided."
+            },
+            "driver": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual is a driver. Use 'Yes' or 'No', or null if not provided."
+            },
+            "chauffeur": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual works as a chauffeur. Use 'Yes' or 'No', or null if not provided."
+            },
+            "telegraphist": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual is a telegraphist. Use 'Yes' or 'No', or null if not provided."
+            },
+            "telephonist": {
+              "type": ["string", "null"],
+              "description": "Indicates if the individual is a telephonist. Use 'Yes' or 'No', or null if not provided."
+            },
+            "residence": {
+              "type": "string",
+              "description": "The residence or address. Example: 'Rua Senador Vergueiro', 'Largo Estação, 7, Livraria', or 'R. 10 Marco 22'."
+            },
+            "observations": {
+              "type": ["string", "null"],
+              "description": "Additional observations or notes. Example: '24 anos; Apresentou-se em 13-8-32 às 22 horas.' Use null if not provided."
+            }
+          },
+          "required": [
+            "surname",
+            "first_name",
+            "record_header",
+            "location",
+            "height",
+            "skin_color",
+            "hair_color",
+            "hair_texture",
+            "beard",
+            "mustache",
+            "assignatura",
+            "reservista",
+            "eyes",
+            "mouth",
+            "face",
+            "nose",
+            "marks",
+            "officials",
+            "father",
+            "mother",
+            "birth_date",
+            "birth_place",
+            "municipality",
+            "profession",
+            "civil_status",
+            "vaccinated",
+            "can_read",
+            "can_write",
+            "can_count",
+            "swimming",
+            "cyclist",
+            "motorcyclist",
+            "driver",
+            "chauffeur",
+            "telegraphist",
+            "telephonist",
+            "residence",
+            "observations"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["entries"],
+    "additionalProperties": false
+  }
+}
+
 **Important Note**: The transcribed text may contain numerous details spread over multiple sections. You need to reason hard to accurately extract all relevant data and sort it into the entries array.
