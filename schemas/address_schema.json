@@ -1,6 +1,6 @@
 {
   "name": "HistoricalAddressBookEntries",
-  "schema_version": "1.4",
+  "schema_version": "1.5",
   "schema": {
     "type": "object",
     "properties": {
@@ -11,11 +11,11 @@
           "properties": {
             "last_name": {
               "type": "string",
-              "description": "The last name of the person. Example: 'Müller'. This field is required."
+              "description": "The last name of the person. Example: 'Müller'. This field is required. Never use placeholders."
             },
             "first_name": {
               "type": "string",
-              "description": "The first name of the person. Example: 'Hans'. This field is required."
+              "description": "The first name of the person. Example: 'Hans'. This field is required. Never use placeholders."
             },
             "address": {
               "type": "object",
@@ -37,7 +37,7 @@
             },
             "occupation": {
               "type": "string",
-              "description": "The occupation of the person. Example: 'Bäcker' or 'Lehrer'. This field is required."
+              "description": "The occupation of the person. Example: 'Bäcker' or 'Lehrer'. This field is required. Never use placeholders."
             },
             "section": {
               "type": [
