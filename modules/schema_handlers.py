@@ -2,6 +2,7 @@
 
 import json
 from pathlib import Path
+from typing import Optional
 from modules.data_processing import CSVConverter
 from modules.text_processing import DocumentConverter
 
@@ -19,8 +20,14 @@ class BaseSchemaHandler:
 		}
 
 	def prepare_payload(self, text_chunk: str, dev_message: str,
-	                    model_config: dict, schema: dict) -> dict:
+	                    model_config: dict, schema: dict,
+	                    additional_context: Optional[str] = None) -> dict:
 		instruction = "Please extract data from the following text according to the provided instructions.\n\n"
+
+		# If additional_context is provided, prepend it to the text_chunk
+		if additional_context:
+			text_chunk = f"{additional_context}\n\n{text_chunk}"
+
 		text_chunk = instruction + text_chunk
 
 		json_schema_payload = self.get_json_schema_payload(dev_message,
@@ -80,6 +87,6 @@ def get_schema_handler(schema_name: str):
 
 
 # Register existing schema handlers with the default implementation.
-for schema in ["BibliographicEntries", "Recipes", "StructuredSummaries",
+for schema in ["BibliographicEntries", "StructuredSummaries",
                "HistoricalAddressBookEntries", "BrazilianMilitaryRecords"]:
 	register_schema_handler(schema, BaseSchemaHandler)
