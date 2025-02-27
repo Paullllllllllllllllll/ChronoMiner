@@ -1,8 +1,8 @@
 # ChronoMiner
 
 ChronoMiner is a Python-based project designed for the extraction of structured data from different types of `.txt` 
-input files. It comes with example input files (a European culinary bibliographies, Brazilian military records, and 
-a Swiss address books) and recommended JSON schemas for their extraction. The repository can be easily adjusted 
+input files. It comes with example input files (European culinary bibliographies, Brazilian military records, and 
+Swiss address books) and recommended JSON schemas for their extraction. The repository can be easily adjusted 
 to support the processing of various primary and secondary sources of interest to historians and social scientists. 
 It provides users with multiple processing options to ensure well-structured output in different file formats.
 
@@ -36,6 +36,10 @@ ChronoMiner processes large historical or academic texts by:
   Constructs API requests using OpenAI's API with schema-specific JSON payloads and developer messages. Both 
   synchronous and batch processing modes are supported.
 
+- **Enhanced Extraction with Additional Context:**  
+  Optionally integrates schema-specific or file-specific additional context to improve extraction quality and accuracy,
+  particularly useful for specialized documents or domain-specific extraction tasks.
+
 - **Dynamic Post-Processing:**  
   Responses are post-processed using a centralized schema handler registry that dynamically invokes schema-specific 
   converters for output generation.
@@ -49,11 +53,11 @@ ChronoMiner processes large historical or academic texts by:
 ```
 ChronoMiner/
 ├── config/
-│   ├── chunking_config.yaml          # Chunking strategy settings (token count per chunk, automatic chunking method)
+│   ├── chunking_and_context.yaml      # Chunking strategy settings and context configuration
 │   ├── concurrency_config.yaml       # Concurrency limits for asynchronous processing
 │   ├── model_config.yaml             # OpenAI model settings (name, tokens, reasoning effort)
 │   └── paths_config.yaml             # Global and schema-specific I/O paths and output flags
-├── developer_messages/               # Exemplary developer messages matching the examplary .json schemas
+├── developer_messages/               # Exemplary developer messages matching the exemplary .json schemas
 │   ├── BibliographicEntries.txt
 │   ├── BrazilianMilitaryRecords.txt
 │   ├── HistoricalAddressBookEntries.txt
@@ -67,13 +71,15 @@ ChronoMiner/
 │   ├── batching.py                   # Batch request file creation and submission logic
 │   ├── config_loader.py              # Loads and validates YAML configuration files
 │   ├── concurrency.py                # Asynchronous task processing with concurrency limits
+│   ├── context_manager.py            # Manages additional context for improved extraction
 │   ├── data_processing.py            # CSV conversion routines (schema-specific converters included)
 │   ├── logger.py                     # Logger configuration for consistent logging across modules
 │   ├── openai_utils.py               # OpenAI API wrapper and asynchronous request handling
 │   ├── schema_manager.py             # Loads and manages JSON schemas and developer messages
 │   ├── schema_handlers.py            # Central registry and base class for schema-specific processing
 │   ├── text_processing.py            # DOCX and TXT conversion routines (schema-specific converters included)
-│   └── text_utils.py                 # Text normalization, encoding detection, token estimation, and chunking
+│   ├── text_utils.py                 # Text normalization, encoding detection, token estimation, and chunking
+│   └── user_interface.py             # Functions for interactive user prompts and selections
 └── schemas/
     ├── address_schema.json           # JSON schema for Swiss Historical Address Book Entries
     ├── bibliographic_schema.json     # JSON schema for European Culinary Bibliography Entries
@@ -129,12 +135,17 @@ ChronoMiner/
    set OPENAI_API_KEY=your_openai_api_key     # On Windows
    ```
 
-6. **Important:**  
-   For ChronoMiner to work properly, **all file paths specified in the configuration files (e.g., `paths_config.yaml`) 
-   must be specified and be absolute.**  
-   Relative file paths can lead to errors such as files not being found or misinterpretation of input/output locations, 
-   causing the script to fail unexpectedly. Please ensure you update your configuration files accordingly before 
-   running the scripts.
+6. **Configure File Paths:**  
+   ChronoMiner supports both absolute and relative file paths. You can:
+   - Use absolute paths for specific environments (default)
+   - Enable relative paths for more portable configurations by setting `allow_relative_paths: true` in `paths_config.yaml`
+
+   For relative paths, set up your configuration like this:
+   ```yaml
+   general:
+     allow_relative_paths: true
+     base_directory: "."  # All relative paths will be resolved from this directory
+   ```
 
 ## Usage
 
@@ -149,6 +160,11 @@ python main/process_text_files.py
 - **Interactive Prompts:**  
   The script will prompt you to select a schema, choose a processing mode (single file with manual adjustments or 
   bulk processing), and select the chunking strategy.
+
+- **Additional Context:**  
+  You can optionally provide additional context to improve extraction quality:
+  - Schema-specific context files in the `additional_context` directory
+  - File-specific context with a corresponding `{filename}_context.txt` file
 
 - **Output:**  
   The final structured JSON output is saved along with optional CSV, DOCX, or TXT outputs (as configured in 
@@ -181,7 +197,7 @@ python main/check_batches.py
   Each input `.txt` file is read using its detected encoding and normalized by stripping whitespace.
 
 - **Token-Based Chunking:**  
-  The text is split into chunks based on a token count limit defined in `chunking_config.yaml`.  
+  The text is split into chunks based on a token count limit defined in `chunking_and_context.yaml`.  
   **Processing Options:**  
   - **Automatic:** The file is divided automatically.
   - **Automatic with Manual Adjustments:** Users can interactively adjust chunk boundaries.
@@ -190,7 +206,19 @@ python main/check_batches.py
       allows for the preparation of chunking in advance if large amounts of `.txt` files have to be processed and 
       automatic chunking runs the risk of splitting semantic units.
 
-### 2. API Request Construction and Data Extraction
+### 2. Additional Context Integration
+
+- **Schema-Specific Context:**  
+  Provides domain knowledge relevant to a specific schema type, improving extraction accuracy.
+
+- **File-Specific Context:**  
+  Allows custom context for individual files through `{filename}_context.txt` files.
+
+- **Context Integration:**  
+  Additional context is prepended to the text chunks before processing, giving the model more information 
+  to guide extraction decisions.
+
+### 3. API Request Construction and Data Extraction
 
 - **Schema-Specific Payloads:**  
   The system uses a schema handler registry (implemented in `modules/schema_handlers.py`) to prepare API request 
@@ -201,7 +229,7 @@ python main/check_batches.py
     to temporary JSONL files as they arrive and then processed further.
   - **Batch:** Chunks are written into a temporary JSONL file and submitted as a batch for asynchronous processing.
 
-### 3. Post-Processing and Output Generation
+### 4. Post-Processing and Output Generation
 
 - **Response Processing:**  
   Responses are post-processed via the appropriate schema handler, which also handles error checking and JSON 
@@ -217,11 +245,11 @@ python main/check_batches.py
   The script `main/check_batches.py` retrieves and aggregates responses from batch jobs and dynamically invokes the 
   correct output converters using the schema handler registry.
 
-### 4. Introducing New Schemas
+### 5. Introducing New Schemas
 
 ChronoMiner allows easy integration of new extraction schemas. Follow these steps to add one:
 
-#### 4.1. Create the JSON Schema
+#### 5.1. Create the JSON Schema
 Place a new schema file in `schemas/` (e.g., `new_schema.json`). The schema must follow this format:
 
 ```json
@@ -252,7 +280,7 @@ Place a new schema file in `schemas/` (e.g., `new_schema.json`). The schema must
 With an entries array, where each entry ideally contains one unit of analysis. For further information refer to 
 OpenAI's documentation on structured outputs.
 
-#### 4.2. Add a Developer Message
+#### 5.2. Add a Developer Message
 Create a corresponding prompt file in `developer_messages/` (e.g., `NewSchema.txt`) with clear extraction instructions:
 
 ```
@@ -265,13 +293,13 @@ You are a structured data extraction expert. Extract structured data and return 
 Ensure the JSON strictly follows the schema.
 ```
 
-#### 4.3. Register the Schema
+#### 5.3. Register the Schema
 Add the schema to `SCHEMA_REGISTRY` in `modules/schema_manager.py`:
 ```python
 SCHEMA_REGISTRY["NewSchema"] = "schemas/new_schema.json"
 ```
 
-#### 4.4. (Optional) Implement a Custom Handler
+#### 5.4. (Optional) Implement a Custom Handler
 If special post-processing is needed, create a class in `modules/schema_handlers.py`:
 ```python
 from modules.schema_handlers import BaseSchemaHandler, register_schema_handler
@@ -294,8 +322,16 @@ class NewSchemaHandler(BaseSchemaHandler):
 register_schema_handler("NewSchema", NewSchemaHandler)
 ```
 
-#### 4.5. Test the Schema
-Modify `paths_config.yaml` for your schema’s custom I/O paths.
+#### 5.5. (Optional) Add Schema-Specific Context
+Create a file in the `additional_context` directory with the same name as your schema:
+```
+# additional_context/NewSchema.txt
+This text provides additional context to guide extraction for NewSchema documents.
+It can include domain knowledge, specific terminology, or extraction guidelines.
+```
+
+#### 5.6. Test the Schema
+Modify `paths_config.yaml` for your schema's custom I/O paths.
 
 Run:
 ```bash
@@ -315,6 +351,9 @@ Once completed, your schema is fully integrated and ready for use.
   - **Configuration Errors:**  
     Confirm that all required keys are present in the YAML configuration files. Logs may provide hints if a 
     configuration file is missing or misconfigured.
+  - **Path Resolution Issues:**  
+    If using relative paths, ensure `allow_relative_paths` is set to `true` in `paths_config.yaml` and that 
+    `base_directory` is correctly set.
 
 - **Where to Find Logs:**  
   Log files are stored in the directory specified by `logs_dir` in `paths_config.yaml` (e.g., `logs/application.log`).
@@ -343,6 +382,9 @@ Once completed, your schema is fully integrated and ready for use.
 - **Resource Usage:**  
   Processing extremely large text files can consume significant memory. Adjust concurrency settings in 
   `concurrency_config.yaml` to optimize performance based on your system's capabilities.
+- **Context Window Utilization:**  
+  The token-based chunking strategy can be adjusted to better utilize the context window of newer models like o3-mini,
+  which supports up to 200,000 tokens.
 
 ## Extending and Customizing
 
@@ -355,6 +397,8 @@ Once completed, your schema is fully integrated and ready for use.
 - **Supporting Additional Output Formats:**  
   You can add new converters in `modules/data_processing.py` and `modules/text_processing.py` to generate other 
   output formats like XML or HTML.
+- **Enhancing Extraction Context:**  
+  Create custom context files to improve extraction for specific domains or document types.
 
 ## Future Enhancements
 
@@ -364,6 +408,8 @@ Once completed, your schema is fully integrated and ready for use.
   Enhancing recovery from API errors and ensuring more robust processing of partially structured data.
 - **User Interface Improvements:**  
   Developing a graphical user interface (GUI) for non-technical users.
+- **Enhanced Context Integration:**  
+  More sophisticated context integration options, potentially with vector database support for relevant document retrieval.
 
 ## Contributing
 
@@ -371,7 +417,7 @@ Contributions are welcome! When contributing:
 - Contact the main developer before adding any new features.
 - Ensure that any new schema JSON files and developer messages work as intended before submission.
 - (Optionally) Register any custom schema handlers in `modules/schema_handlers.py`.
-- Follow the repository’s coding style and contribution guidelines.
+- Follow the repository's coding style and contribution guidelines.
 
 ## Contact and Support
 
