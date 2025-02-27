@@ -7,7 +7,6 @@ general: # General processing settings
   allow_relative_paths: false  # Set to true to enable relative path support
   base_directory: "."  # Base directory for resolving relative paths (used when allow_relative_paths is true)
 
-
 schemas_paths: # Schema specific input and output paths and settings
   BibliographicEntries:
     input: "C:/path"
