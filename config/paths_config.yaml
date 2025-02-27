@@ -1,7 +1,12 @@
+# paths_config.yaml
+
 general: # General processing settings
-  retain_temporary_jsonl: false
-  input_paths_is_output_path: false
+  retain_temporary_jsonl: true
+  input_paths_is_output_path: true
   logs_dir: "C:/path"
+  allow_relative_paths: false  # Set to true to enable relative path support
+  base_directory: "."  # Base directory for resolving relative paths (used when allow_relative_paths is true)
+
 
 schemas_paths: # Schema specific input and output paths and settings
   BibliographicEntries:
