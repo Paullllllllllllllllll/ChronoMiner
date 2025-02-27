@@ -1,147 +1,270 @@
-"""
-Script to check whether batch jobs have finished successfully (i.e.,
-are marked as completed) and—if so—to download and process them.
-Temporary .jsonl files and image folders will only be deleted if the final
-output is successfully written.
-"""
+# main/check_batches.py
 
+"""
+Script to retrieve and process batch results.
+
+This script scans all schema-specific repositories for temporary batch results, aggregates tracking
+and response records, retrieves missing responses via OpenAI's API, and writes a final JSON output.
+If enabled in paths_config.yaml, additional .csv, .txt, or .docx outputs are generated.
+"""
 import json
 from pathlib import Path
-from typing import Tuple, Dict, Any, List
+from typing import Any, Dict, List, Tuple
+import datetime
 
 from openai import OpenAI
 from modules.config_loader import ConfigLoader
 from modules.logger import setup_logger
-from modules.text_processing import process_batch_output
+from modules.schema_handlers import get_schema_handler
 
 logger = setup_logger(__name__)
 
-def console_print(message: str) -> None:
-    print(message)
 
-def load_config() -> Tuple[List[Path], Dict[str, Any]]:
-    """
-    Load and parse configuration YAML files. Identify directories to scan and
-    retrieve general processing settings (e.g., concurrency limits, keep_raw_images flag).
-    """
-    config_loader = ConfigLoader()
-    config_loader.load_configs()
-    paths_config = config_loader.get_paths_config()
-    processing_settings = paths_config.get("general", {})
+def is_batch_finished(batch_id: str, client: OpenAI) -> bool:
+	try:
+		batch_info: Any = client.batches.retrieve(batch_id)
+		status: str = batch_info.status.lower()
+		if status in {"completed", "expired", "cancelled", "failed"}:
+			return True
+		else:
+			logger.info(
+				f"Batch {batch_id} status is '{status}', not finished yet.")
+			return False
+	except Exception as e:
+		logger.error(f"Error retrieving batch {batch_id}: {e}")
+		return False
 
-    file_paths = paths_config.get("file_paths", {})
-    scan_dirs: List[Path] = []
-    for key, folders in file_paths.items():
-        for folder_key in ["input", "output"]:
-            folder_path = folders.get(folder_key)
-            if folder_path:
-                dir_path = Path(folder_path)
-                dir_path.mkdir(parents=True, exist_ok=True)
-                scan_dirs.append(dir_path.resolve())
-    scan_dirs = list(set(scan_dirs))
-    return scan_dirs, processing_settings
 
-def process_all_batches(root_folder: Path, processing_settings: Dict[str, Any], client: OpenAI) -> None:
-    """
-    Scans the root folder for *_transcription.jsonl files, locates batch IDs
-    within those files, checks if the batch is completed, and if so, downloads
-    the results and writes them to a final text file.
-    """
-    console_print(f"\n[INFO] Scanning directory '{root_folder}' for temporary batch files...")
-    temp_files = list(root_folder.rglob("*_transcription.jsonl"))
-    if not temp_files:
-        console_print(f"[INFO] No temporary batch files found in {root_folder}.")
-        logger.info(f"No temporary batch files found in {root_folder}.")
-        return
+def load_config() -> Tuple[
+	List[Tuple[str, Path, Dict[str, Any]]], Dict[str, Any]]:
+	config_loader = ConfigLoader()
+	config_loader.load_configs()
+	paths_config: Dict[str, Any] = config_loader.get_paths_config()
+	general: Dict[str, Any] = paths_config["general"]
+	input_paths_is_output_path: bool = general["input_paths_is_output_path"]
+	schemas_paths: Dict[str, Any] = paths_config["schemas_paths"]
+	repo_info_list: List[Tuple[str, Path, Dict[str, Any]]] = []
+	for schema, schema_config in schemas_paths.items():
+		folder: Path = Path(
+			schema_config["input"]) if input_paths_is_output_path else Path(
+			schema_config["output"])
+		repo_info_list.append((schema, folder, schema_config))
+	processing_settings: Dict[str, Any] = {
+		"retain_temporary_jsonl": general["retain_temporary_jsonl"]}
+	return repo_info_list, processing_settings
 
-    batch_map: Dict[str, Path] = {}
-    for temp_file in temp_files:
-        with temp_file.open("r", encoding="utf-8") as f:
-            for line in f:
-                try:
-                    record = json.loads(line)
-                    if "batch_tracking" in record:
-                        batch_id = record["batch_tracking"].get("batch_id")
-                        if batch_id:
-                            batch_map[batch_id] = temp_file
-                except json.JSONDecodeError:
-                    continue
 
-    console_print("[INFO] Retrieving list of submitted batches from OpenAI...")
-    try:
-        batches = list(client.batches.list(limit=50))
-    except Exception as e:
-        console_print(f"[ERROR] Failed to retrieve batches from OpenAI: {e}")
-        logger.exception(f"Error retrieving batches: {e}")
-        return
+def process_batch_output_file(file_path: Path) -> Dict[str, List[Any]]:
+	responses: List[Any] = []
+	tracking: List[Any] = []
+	with file_path.open("r", encoding="utf-8") as f:
+		for line in f:
+			line = line.strip()
+			if not line:
+				continue
+			try:
+				record: Dict[str, Any] = json.loads(line)
+				if "response" in record:
+					responses.append(record["response"])
+				elif "batch_tracking" in record:
+					tracking.append(record["batch_tracking"])
+			except Exception as e:
+				logger.error(f"Error processing line in {file_path}: {e}")
+	return {"responses": responses, "tracking": tracking}
 
-    if not batches:
-        console_print("[INFO] No batch jobs found online.")
-    else:
-        console_print(f"[INFO] Found {len(batches)} batch(es) online:")
-        for batch in batches:
-            info = f"  Batch ID: {batch.id} | Status: {batch.status}"
-            console_print(info)
-            logger.info(info)
 
-    for batch in batches:
-        if batch.id in batch_map and batch.status.lower() == "completed":
-            temp_file = batch_map[batch.id]
-            console_print(f"\n[PROCESS] Processing temporary batch file: {temp_file.name} for Batch ID: {batch.id}")
-            try:
-                file_obj = client.files.content(batch.output_file_id)
-                file_content = file_obj.content
-            # Raw response logging
-            except Exception as e:
-                logger.exception(f"Error downloading batch {batch.id}: {e}")
-                console_print(f"[ERROR] Failed to download output for Batch ID {batch.id}: {e}")
-                continue
+def retrieve_responses_from_batch(tracking_record: Dict[str, Any],
+                                  client: OpenAI) -> List[Any]:
+	responses: List[Any] = []
+	batch_id: Any = tracking_record.get("batch_id")
+	if not batch_id:
+		logger.error("No batch_id found in tracking record.")
+		return responses
+	try:
+		batch_info: Any = client.batches.retrieve(batch_id)
+		if isinstance(batch_info, dict):
+			output_file_id = batch_info.get("output_file_id") or batch_info.get(
+				"result_file_id")
+		else:
+			output_file_id = getattr(batch_info, "output_file_id",
+			                         None) or getattr(batch_info,
+			                                          "result_file_id", None)
+		if not output_file_id:
+			logger.error(f"No output file id found for batch {batch_id}.")
+			return responses
+		output_file_content: str = client.files.content(output_file_id).text
+		for line in output_file_content.splitlines():
+			line = line.strip()
+			if not line:
+				continue
+			try:
+				out_record: Dict[str, Any] = json.loads(line)
+				if "response" in out_record:
+					responses.append(out_record["response"])
+			except Exception as e:
+				logger.error(
+					f"Error processing a line from batch output file: {e}")
+	except Exception as e:
+		logger.error(f"Error retrieving batch {batch_id}: {e}")
+	if not responses:
+		logger.warning(f"No responses retrieved for batch {batch_id}.")
+	return responses
 
-            transcriptions = process_batch_output(file_content)
-            if not transcriptions:
-                logger.info(f"No transcriptions extracted for batch {batch.id}.")
-                console_print(f"[WARN] No transcriptions extracted for Batch ID {batch.id}. Skipping this batch.")
-                continue
 
-            # Build the final text file path
-            identifier = temp_file.stem.replace("_transcription", "")
-            final_txt_path = temp_file.parent / f"{identifier}_transcription.txt"
+def process_all_batches(
+		root_folder: Path,
+		processing_settings: Dict[str, Any],
+		client: OpenAI,
+		schema_name: str,
+		schema_config: Dict[str, Any]
+) -> None:
+	temp_files: List[Path] = list(root_folder.rglob("*_temp.jsonl"))
+	if not temp_files:
+		print(f"No temporary batch files found in {root_folder}.")
+		logger.info(f"No temporary batch files found in {root_folder}.")
+		return
 
-            processing_success = False
-            try:
-                with final_txt_path.open("w", encoding="utf-8") as fout:
-                    for text in transcriptions:
-                        fout.write(text + "\n")
-                logger.info(f"Batch {batch.id} results processed and saved to {final_txt_path}")
-                console_print(f"[SUCCESS] Processed Batch ID {batch.id}. Results saved to {final_txt_path.name}")
-                processing_success = True
-            except Exception as e:
-                logger.exception(f"Error writing final output for batch {batch.id}: {e}")
-                console_print(f"[ERROR] Failed to write final output for Batch ID {batch.id}: {e}")
+	for temp_file in temp_files:
+		try:
+			print(f"Processing batch file: {temp_file.name}")
+			logger.info(f"Processing temporary batch file: {temp_file}")
 
-            # Delete temporary JSONL file if we successfully wrote the final output
-            if processing_success and not processing_settings.get("retain_temporary_jsonl", True):
-                try:
-                    temp_file.unlink()
-                    logger.info(f"Deleted temporary file after processing: {temp_file}")
-                    console_print(f"[CLEANUP] Deleted temporary file: {temp_file.name}")
-                except Exception as e:
-                    logger.exception(f"Error deleting temporary file {temp_file}: {e}")
-                    console_print(f"[ERROR] Could not delete temporary file {temp_file.name}: {e}")
+			# Load batch tracking info and responses
+			results: Dict[str, Any] = process_batch_output_file(temp_file)
+			responses: List[Any] = results.get("responses", [])
+			tracking: List[Any] = results.get("tracking", [])
 
-    console_print(f"\n[INFO] Completed processing batches in directory: {root_folder}")
-    logger.info(f"Batch results processing complete for directory: {root_folder}")
+			if not tracking:
+				print(
+					f"Tracking information missing in {temp_file.name}. Skipping final output.")
+				logger.warning(
+					f"Tracking information missing in {temp_file}. Skipping final output.")
+				continue
+
+			# Check batch status and retrieve completed results
+			all_finished: bool = True
+			completed_batches = []
+			failed_batches = []
+
+			for track in tracking:
+				batch_id: Any = track.get("batch_id")
+				if not batch_id:
+					logger.error(
+						f"Missing batch_id in tracking record in {temp_file}")
+					continue
+
+				try:
+					batch_info = client.batches.retrieve(batch_id)
+					status: str = batch_info.status.lower()
+
+					if status in {"completed"}:
+						completed_batches.append(track)
+					elif status in {"expired", "failed", "cancelled"}:
+						failed_batches.append((track, status))
+						all_finished = False
+					else:
+						print(
+							f"Batch {batch_id} is still in progress (status: {status}). Skipping for now.")
+						logger.info(
+							f"Batch {batch_id} is still in progress (status: {status}).")
+						all_finished = False
+				except Exception as e:
+					logger.error(f"Error retrieving batch {batch_id}: {e}")
+					failed_batches.append((track, f"error: {e}"))
+					all_finished = False
+
+			# Process completed batches
+			if not completed_batches and not all_finished:
+				print(
+					f"No completed batches found for {temp_file.name}. Try running this script again later.")
+				continue
+
+			# Retrieve responses from completed batches
+			for track in completed_batches:
+				batch_responses = retrieve_responses_from_batch(track, client)
+				responses.extend(batch_responses)
+
+			if not responses:
+				print(
+					f"No responses retrieved for {temp_file.name}. Check for errors in the batch processing.")
+				continue
+
+			# Generate final output files
+			identifier: str = temp_file.stem.replace("_temp", "")
+			final_json_path: Path = temp_file.parent / f"{identifier}_final_output.json"
+
+			final_results: Dict[str, Any] = {
+				"responses": responses,
+				"tracking": tracking,
+				"processing_metadata": {
+					"fully_completed": all_finished,
+					"processed_at": datetime.datetime.now().isoformat(),
+					"completed_batches": len(completed_batches),
+					"failed_batches": len(failed_batches)
+				}
+			}
+
+			with final_json_path.open("w", encoding="utf-8") as fout:
+				json.dump(final_results, fout, indent=2)
+
+			print(f"Saved final output to {final_json_path.name}")
+			logger.info(f"Final batch results saved to {final_json_path}")
+
+			# Generate additional output formats if configured
+			handler = get_schema_handler(schema_name)
+			if schema_config.get("csv_output", False):
+				output_csv_path: Path = final_json_path.with_suffix(".csv")
+				handler.convert_to_csv_safely(final_json_path, output_csv_path)
+			if schema_config.get("docx_output", False):
+				output_docx_path: Path = final_json_path.with_suffix(".docx")
+				handler.convert_to_docx_safely(final_json_path, output_docx_path)
+			if schema_config.get("txt_output", False):
+				output_txt_path: Path = final_json_path.with_suffix(".txt")
+				handler.convert_to_txt_safely(final_json_path, output_txt_path)
+
+			# Clean up temporary files if configured
+			if not processing_settings.get("retain_temporary_jsonl",
+			                               True) and all_finished:
+				try:
+					temp_file.unlink()
+					logger.info(f"Deleted temporary file: {temp_file}")
+				except Exception as e:
+					logger.error(
+						f"Error deleting temporary file {temp_file}: {e}")
+
+		except Exception as e:
+			logger.error(f"Error processing batch file {temp_file}: {e}")
+			print(f"Error processing batch file {temp_file.name}: {e}")
+
 
 def main() -> None:
-    """
-    Entrypoint for checking all directories for batch outputs and finalizing them.
-    """
-    scan_dirs, processing_settings = load_config()
-    client = OpenAI()
-    for directory in scan_dirs:
-        process_all_batches(directory, processing_settings, client)
-    console_print("\n[INFO] Batch results processing complete across all directories.")
-    logger.info("Batch results processing complete across all directories.")
+	repo_info_list, processing_settings = load_config()
+	client: OpenAI = OpenAI()
+	print("Retrieving list of submitted batches...")
+	try:
+		batches: List[Any] = list(client.batches.list(limit=50))
+	except Exception as e:
+		print(f"Error retrieving batches: {e}")
+		logger.error(f"Error retrieving batches: {e}")
+		return
+	if not batches:
+		print("No batch jobs found online.")
+	else:
+		print(f"Found {len(batches)} batch(es) online.")
+		for batch in batches:
+			info: str = f"Batch ID: {batch.id} | Status: {batch.status}"
+			print(info)
+			logger.info(info)
+	for schema_name, repo_dir, schema_config in repo_info_list:
+		print(
+			f"\nProcessing batches for schema: {schema_name} in directory: {repo_dir}")
+		logger.info(
+			f"Starting batch processing for schema: {schema_name} in {repo_dir}")
+		process_all_batches(repo_dir, processing_settings, client, schema_name,
+		                    schema_config)
+	print("Batch results processing complete.")
+	logger.info("Batch results processing complete.")
+
 
 if __name__ == "__main__":
-    main()
+	main()
