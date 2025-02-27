@@ -378,10 +378,8 @@ Once completed, your schema is fully integrated and ready for use.
 ## Performance & Limitations
 
 - **API Limitations:**  
-  The system is dependent on OpenAI API rate limits and may experience delays when processing very large batches.
-- **Resource Usage:**  
-  Processing extremely large text files can consume significant memory. Adjust concurrency settings in 
-  `concurrency_config.yaml` to optimize performance based on your system's capabilities.
+  The system is dependent on OpenAI API rate limits. Ensure you adjust the settings in concurrency_config.yaml to correspond
+  to your OpenAI API tier.
 - **Context Window Utilization:**  
   The token-based chunking strategy can be adjusted to better utilize the context window of newer models like o3-mini,
   which supports up to 200,000 tokens.
