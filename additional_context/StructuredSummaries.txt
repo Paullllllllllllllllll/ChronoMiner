@@ -1,0 +1,35 @@
+ADDITIONAL CONTEXT FOR ACADEMIC TEXT SUMMARIES
+
+When extracting structured data from academic texts, please consider:
+
+1. Academic formatting conventions:
+   - Page numbers may appear in various positions (headers, footers, margins)
+   - Footnote and endnote systems vary by discipline and publication era
+   - Different citation styles (APA, Chicago, MLA, etc.) use distinct formats
+   - Section headings and subheadings follow disciplinary conventions
+
+2. Citation practices:
+   - References may be abbreviated in specialized ways by field
+   - Author name conventions vary across regions and time periods
+   - Journal abbreviations follow field-specific standards
+   - Citation numbers may refer to footnotes, endnotes, or bibliographies
+
+3. Content organization:
+   - Key findings may be highlighted in abstracts, conclusions, or throughout
+   - Theoretical frameworks are typically established early in the text
+   - Methodological details may be separated into dedicated sections
+   - Disciplinary jargon and specialized terminology require careful attention
+
+4. Academic significance indicators:
+   - Language signaling importance varies by discipline
+   - Statistical significance is reported using field-specific conventions
+   - Hedging language indicates levels of certainty or speculation
+   - Contrasting positions may be signaled by specific transition phrases
+
+5. Visual elements:
+   - Tables, figures, and charts contain concentrated information
+   - Captions may provide critical context or findings
+   - Equations and formulas should be preserved in mathematical notation
+   - Diagrams may represent conceptual frameworks or relationships
+
+This additional context should help you extract structured summaries that accurately represent the academic content and its significance.

@@ -1,0 +1,23 @@
+When extracting address book data, consider these historical aspects:
+
+1. Street naming conventions:
+   - Historical street names often changed over time due to political shifts
+   - Many streets were named after local notables, professions, or geographical features
+   - Some streets had unofficial local names alongside official designations
+
+2. Occupation classifications:
+   - Pre-industrial occupations may not match modern job categories
+   - Many occupations were highly specialized (e.g., different types of smiths)
+   - Status indicators were often embedded in occupation descriptions
+
+3. Addressing formats:
+   - House numbers were not universally used until the late 18th/early 19th century
+   - Some locations used plot numbers or local landmarks instead of street numbers
+   - Multiple families or businesses often shared a single address
+
+4. Honorifics and titles:
+   - Honorifics indicated social class, profession, and sometimes marital status
+   - Academic titles were highly prestigious and always noted
+   - Religious and military titles were commonly used alongside civilian ones
+
+This additional context should help you better interpret and extract historical address book entries with greater accuracy.
