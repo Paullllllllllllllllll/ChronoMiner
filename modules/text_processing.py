@@ -78,7 +78,6 @@ class DocumentConverter:
         converters = {
             "structuredsummaries": self._convert_structured_summaries_to_txt,
             "bibliographicentries": self._convert_bibliographic_entries_to_txt,
-            "recipes": self._convert_recipes_to_txt,
             "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_txt,
             "brazilianoccupationrecords": self._convert_brazilianoccupationrecords_to_txt
         }
@@ -96,123 +95,141 @@ class DocumentConverter:
             print(f"Error saving TXT file {output_file}: {e}")
 
     # --- Schema-Specific DOCX Converters ---
-    def _convert_structured_summaries_to_docx(self, entries: List[Any], document: Document) -> None:
+    def _convert_structured_summaries_to_docx(self, entries: list,
+                                              document: "Document") -> None:
+        """
+        Converts structured summaries entries to a DOCX document.
+        For each entry, writes the page number in bold (as simple text) followed by bullet-pointed summaries.
+        The keywords are formatted in italic (without asterisks).
+        """
         literature_set = set()
         for entry in entries:
             page = entry.get("page")
             bullet_points = entry.get("bullet_points")
+            keywords = entry.get("keywords")
             literature = entry.get("literature")
-            if page is not None:
-                document.add_heading(f"Page {page}", level=1)
-            else:
-                document.add_heading("Page Unknown", level=1)
+
+            # Instead of adding a heading, add a paragraph with bold text for the page number.
+            p_page = document.add_paragraph()
+            run_page = p_page.add_run(
+                f"Page {page}" if page is not None else "Page Unknown")
+            run_page.bold = True
+
+            # For keywords: add a bullet point with italic text, without asterisks.
+            if keywords and isinstance(keywords, list):
+                formatted_keywords = ", ".join(kw for kw in keywords if kw)
+                p_keyword = document.add_paragraph(style='List Bullet')
+                p_keyword.add_run("Keywords: ")
+                run_keywords = p_keyword.add_run(formatted_keywords)
+                run_keywords.italic = True
+
+            # Add each bullet point as a separate bullet item.
             if bullet_points and isinstance(bullet_points, list):
                 for bp in bullet_points:
                     if bp:
-                        p = document.add_paragraph(style='List Bullet')
-                        p.add_run(str(bp))
+                        p_bp = document.add_paragraph(style='List Bullet')
+                        p_bp.add_run(str(bp))
             else:
                 document.add_paragraph("No bullet points available.")
+
+            # Add literature references if available.
+            if literature and isinstance(literature, list):
+                formatted_refs = ", ".join(
+                    str(ref) for ref in literature if ref)
+                p_ref = document.add_paragraph(style='List Bullet')
+                p_ref.add_run(f"References: {formatted_refs}")
+
+            # Accumulate literature for the consolidated literature section.
             if literature and isinstance(literature, list):
                 for lit in literature:
                     if lit:
                         literature_set.add(lit)
+
+            # Add an empty paragraph for spacing.
             document.add_paragraph("")
+
+        # If any literature was found, add a final section.
         if literature_set:
             document.add_page_break()
             document.add_heading("Literature", level=1)
             for lit in sorted(literature_set):
                 document.add_paragraph(str(lit), style='List Bullet')
 
-    def _convert_bibliographic_entries_to_docx(self, entries: List[Any], document: Document) -> None:
+    def _convert_bibliographic_entries_to_docx(self, entries: List[Any],
+                                               document: Document) -> None:
         for entry in entries:
+            # Extract primary entry data
             full_title = entry.get("full_title", "Unknown Title")
             short_title = entry.get("short_title", "")
-            bibliography_number = entry.get("bibliography_number", "")
-            authors = entry.get("authors", [])
-            roles = entry.get("roles", [])
             culinary_focus = entry.get("culinary_focus", [])
             book_format = entry.get("format", "")
             pages = entry.get("pages", "")
             edition_info = entry.get("edition_info", [])
             total_editions = entry.get("total_editions", "")
+
+            # Add entry header and basic information
             document.add_heading(full_title, level=1)
             document.add_paragraph(f"Short Title: {short_title}")
-            document.add_paragraph(f"Bibliography Number: {bibliography_number}")
-            document.add_paragraph(f"Authors: {', '.join(authors) if authors else 'Anonymous'}")
-            document.add_paragraph(f"Roles: {', '.join(roles)}")
-            document.add_paragraph(f"Culinary Focus: {', '.join(culinary_focus)}")
-            document.add_paragraph(f"Format: {book_format}")
-            document.add_paragraph(f"Pages: {pages}")
-            document.add_paragraph(f"Total Editions: {total_editions}")
-            document.add_heading("Edition Information", level=2)
-            for edition in edition_info:
-                year = edition.get("year", "Unknown")
-                edition_number = edition.get("edition_number", "Unknown")
-                location = edition.get("location", {})
-                country = location.get("country", "Unknown")
-                city = location.get("city", "Unknown")
-                ed_roles = edition.get("roles", [])
-                short_note = edition.get("short_note", "")
-                edition_category = edition.get("edition_category", "")
-                language = edition.get("language", "")
-                original_language = edition.get("original_language", "")
-                translated_from = edition.get("translated_from", "")
-                edition_text = (
-                    f"Year: {year}, Edition: {edition_number}, "
-                    f"Location: {city}, {country}, Roles: {', '.join(ed_roles)}, "
-                    f"Note: {short_note}, Category: {edition_category}, "
-                    f"Language: {language}, Orig Lang: {original_language}, "
-                    f"Translated From: {translated_from}"
-                )
-                document.add_paragraph(edition_text, style='List Bullet')
-            document.add_page_break()
 
-    def _convert_recipes_to_docx(self, entries: List[Any], document: Document) -> None:
-        for entry in entries:
-            name = entry.get("Name", "Unknown")
-            original_text = entry.get("Original_Text", "")
-            translated_text = entry.get("Translated_Text", "")
-            ingredients = entry.get("Ingredients", [])
-            servings = entry.get("Servings", "")
-            category = entry.get("Category", "")
-            original_language = entry.get("Original_Language", "")
-            cooking_methods = entry.get("cooking_methods", [])
-            cooking_utensils = entry.get("cooking_utensils", [])
-            document.add_heading(name, level=1)
-            document.add_paragraph("Original Text:")
-            document.add_paragraph(original_text)
-            document.add_paragraph("Translated Text:")
-            document.add_paragraph(translated_text)
-            document.add_paragraph(f"Servings: {servings}")
-            document.add_paragraph(f"Category: {category}")
-            document.add_paragraph(f"Original Language: {original_language}")
-            document.add_heading("Ingredients", level=2)
-            for ingredient in ingredients:
-                historical_name = ingredient.get("historical_name", "")
-                modern_name = ingredient.get("modern_name", "")
-                quantity = ingredient.get("quantity", "")
-                unit = ingredient.get("unit", "")
+            # Add culinary focus areas
+            if culinary_focus and isinstance(culinary_focus, list):
                 document.add_paragraph(
-                    f"{historical_name} ({modern_name}), Qty: {quantity} {unit}",
-                    style='List Bullet'
-                )
-            document.add_heading("Cooking Methods", level=2)
-            for method in cooking_methods:
-                historical_method = method.get("historical_method", "")
-                modern_method = method.get("modern_method", "")
-                document.add_paragraph(
-                    f"{historical_method} -> {modern_method}",
-                    style='List Bullet'
-                )
-            document.add_heading("Cooking Utensils", level=2)
-            for utensil in cooking_utensils:
-                historical_utensil = utensil.get("historical_utensil", "")
-                modern_utensil = utensil.get("modern_utensil", "")
-                document.add_paragraph(
-                    f"{historical_utensil} -> {modern_utensil}",
-                    style='List Bullet'
-                )
+                    f"Culinary Focus: {', '.join(culinary_focus)}")
+            else:
+                document.add_paragraph("Culinary Focus: Unknown")
+
+            # Add format and page information
+            document.add_paragraph(
+                f"Format: {book_format if book_format else 'Unknown'}")
+            document.add_paragraph(
+                f"Pages: {pages if pages is not None else 'Unknown'}")
+            document.add_paragraph(
+                f"Total Editions: {total_editions if total_editions is not None else 'Unknown'}")
+
+            # Add edition information
+            document.add_heading("Edition Information", level=2)
+            if edition_info and isinstance(edition_info, list):
+                for edition in edition_info:
+                    # Extract edition data
+                    edition_number = edition.get("edition_number", "Unknown")
+                    year = edition.get("year", "Unknown")
+
+                    # Extract location data
+                    location = edition.get("location", {})
+                    country = location.get("country",
+                                           "Unknown") if location else "Unknown"
+                    city = location.get("city",
+                                        "Unknown") if location else "Unknown"
+
+                    # Get contributors
+                    contributors = edition.get("contributors", [])
+                    contributors_str = ", ".join(
+                        contributors) if contributors and isinstance(
+                        contributors, list) else "Unknown"
+
+                    # Get other edition details
+                    language = edition.get("language", "")
+                    short_note = edition.get("short_note", "")
+                    edition_category = edition.get("edition_category", "")
+
+                    # Format edition text
+                    edition_text = (
+                        f"Edition: {edition_number if edition_number is not None else 'Unknown'}, "
+                        f"Year: {year if year is not None else 'Unknown'}, "
+                        f"Location: {city}, {country}, "
+                        f"Language: {language if language else 'Unknown'}, "
+                        f"Contributors: {contributors_str}, "
+                        f"Category: {edition_category if edition_category else 'Unknown'}"
+                    )
+
+                    if short_note:
+                        edition_text += f"\nNote: {short_note}"
+
+                    document.add_paragraph(edition_text, style='List Bullet')
+            else:
+                document.add_paragraph("No edition information available.",
+                                       style='List Bullet')
+
             document.add_page_break()
 
     def _convert_historicaladdressbookentries_to_docx(self, entries: List[Any],
@@ -294,20 +311,32 @@ class DocumentConverter:
             document.add_page_break()
 
     # --- Schema-Specific TXT Converters ---
-    def _convert_structured_summaries_to_txt(self, entries: List[Any]) -> List[str]:
+    def _convert_structured_summaries_to_txt(self,
+                                             entries: List[Any]) -> List[str]:
         lines: List[str] = []
         literature_set = set()
         for entry in entries:
             page = entry.get("page", "Unknown")
             bullet_points = entry.get("bullet_points", [])
+            keywords = entry.get("keywords", [])
             literature = entry.get("literature", [])
             lines.append(f"Page {page}")
+            # Add keywords bullet point.
+            if keywords and isinstance(keywords, list):
+                formatted_keywords = ", ".join(f"*{kw}*" for kw in keywords if kw)
+                lines.append(f" - Keywords: {formatted_keywords}")
+            # List the bullet points.
             if bullet_points and isinstance(bullet_points, list):
                 for bp in bullet_points:
                     if bp:
                         lines.append(f" - {bp}")
             else:
                 lines.append("No bullet points available.")
+            # Append a bullet point for literature references.
+            if literature and isinstance(literature, list):
+                formatted_refs = ", ".join(str(ref) for ref in literature if ref)
+                lines.append(f" - References: {formatted_refs}")
+            # Collect literature for the final consolidated section.
             if literature and isinstance(literature, list):
                 for lit in literature:
                     if lit:
@@ -319,40 +348,90 @@ class DocumentConverter:
                 lines.append(f" - {lit}")
         return lines
 
-    def _convert_bibliographic_entries_to_txt(self, entries: List[Any]) -> List[str]:
+    def _convert_bibliographic_entries_to_txt(self, entries: List[Any]) -> List[
+        str]:
         lines: List[str] = []
+
         for entry in entries:
-            lines.append(f"Full Title: {entry.get('full_title', 'Unknown Title')}")
-            lines.append(f"Short Title: {entry.get('short_title', '')}")
-            lines.append(f"Bibliography Number: {entry.get('bibliography_number', '')}")
-            authors = entry.get("authors", [])
-            lines.append(f"Authors: {', '.join(authors) if authors else 'Anonymous'}")
-            lines.append(f"Roles: {', '.join(entry.get('roles', []))}")
-            lines.append(f"Culinary Focus: {', '.join(entry.get('culinary_focus', []))}")
-            lines.append(f"Format: {entry.get('format', '')}")
-            lines.append(f"Pages: {entry.get('pages', '')}")
-            lines.append(f"Total Editions: {entry.get('total_editions', '')}")
-            lines.append("Edition Information:")
-            for edition in entry.get("edition_info", []):
-                edition_text = (
-                    f"Year: {edition.get('year', 'Unknown')}, "
-                    f"Edition: {edition.get('edition_number', 'Unknown')}, "
-                    f"Location: {edition.get('location', {}).get('city', 'Unknown')}, "
-                    f"{edition.get('location', {}).get('country', 'Unknown')}, "
-                    f"Roles: {', '.join(edition.get('roles', []))}, "
-                    f"Note: {edition.get('short_note', '')}, "
-                    f"Category: {edition.get('edition_category', '')}, "
-                    f"Language: {edition.get('language', '')}, "
-                    f"Orig Lang: {edition.get('original_language', '')}, "
-                    f"Translated From: {edition.get('translated_from', '')}"
-                )
-                lines.append(f" - {edition_text}")
-            lines.append("\n" + "=" * 40 + "\n")
+            # Extract primary entry data
+            full_title = entry.get("full_title", "Unknown Title")
+            short_title = entry.get("short_title", "")
+            culinary_focus = entry.get("culinary_focus", [])
+            book_format = entry.get("format", "")
+            pages = entry.get("pages", "")
+            edition_info = entry.get("edition_info", [])
+            total_editions = entry.get("total_editions", "")
+
+            # Add entry header and basic information
+            lines.append(f"TITLE: {full_title}")
+            lines.append(f"Short Title: {short_title}")
+
+            # Add culinary focus areas
+            if culinary_focus and isinstance(culinary_focus, list):
+                lines.append(f"Culinary Focus: {', '.join(culinary_focus)}")
+            else:
+                lines.append("Culinary Focus: Unknown")
+
+            # Add format and page information
+            lines.append(f"Format: {book_format if book_format else 'Unknown'}")
+            lines.append(f"Pages: {pages if pages is not None else 'Unknown'}")
+            lines.append(
+                f"Total Editions: {total_editions if total_editions is not None else 'Unknown'}")
+
+            # Add edition information
+            lines.append("\nEDITION INFORMATION:")
+            if edition_info and isinstance(edition_info, list):
+                for i, edition in enumerate(edition_info, 1):
+                    # Extract edition data
+                    edition_number = edition.get("edition_number", "Unknown")
+                    year = edition.get("year", "Unknown")
+
+                    # Extract location data
+                    location = edition.get("location", {})
+                    country = location.get("country",
+                                           "Unknown") if location else "Unknown"
+                    city = location.get("city",
+                                        "Unknown") if location else "Unknown"
+
+                    # Get contributors
+                    contributors = edition.get("contributors", [])
+                    contributors_str = ", ".join(
+                        contributors) if contributors and isinstance(
+                        contributors, list) else "Unknown"
+
+                    # Get other edition details
+                    language = edition.get("language", "")
+                    short_note = edition.get("short_note", "")
+                    edition_category = edition.get("edition_category", "")
+
+                    # Format edition text
+                    lines.append(f"  Edition {i}:")
+                    lines.append(
+                        f"    Edition Number: {edition_number if edition_number is not None else 'Unknown'}")
+                    lines.append(
+                        f"    Year: {year if year is not None else 'Unknown'}")
+                    lines.append(f"    Location: {city}, {country}")
+                    lines.append(
+                        f"    Language: {language if language else 'Unknown'}")
+                    lines.append(f"    Contributors: {contributors_str}")
+                    lines.append(
+                        f"    Category: {edition_category if edition_category else 'Unknown'}")
+
+                    if short_note:
+                        lines.append(f"    Note: {short_note}")
+
+                    lines.append("")
+            else:
+                lines.append("  No edition information available.")
+
+            lines.append("=" * 50)
+            lines.append("")
+
         return lines
-    
+
     def _convert_historicaladdressbookentries_to_txt(self,
                                                      entries: List[Any]) -> \
-    List[str]:
+        List[str]:
         lines: List[str] = []
         for entry in entries:
             last_name = entry.get("last_name", "Unknown")
