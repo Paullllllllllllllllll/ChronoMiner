@@ -1,10 +1,13 @@
 # modules/schema_handlers.py
 
 import json
+import logging
 from pathlib import Path
 from typing import Optional
 from modules.data_processing import CSVConverter
 from modules.text_processing import DocumentConverter
+
+logger = logging.getLogger(__name__)
 
 
 class BaseSchemaHandler:
@@ -71,6 +74,52 @@ class BaseSchemaHandler:
 	def convert_to_txt(self, json_file: Path, output_txt: Path) -> None:
 		doc_converter = DocumentConverter(self.schema_name)
 		doc_converter.convert_to_txt(json_file, output_txt)
+
+	def convert_to_csv_safely(self, json_file: Path, output_csv: Path) -> None:
+		"""
+		Safely convert JSON to CSV with error handling.
+
+		:param json_file: Input JSON file path
+		:param output_csv: Output CSV file path
+		"""
+		try:
+			csv_converter = CSVConverter(self.schema_name)
+			csv_converter.convert_to_csv(json_file, output_csv)
+			print(f"CSV file generated at {output_csv}")
+		except Exception as e:
+			print(f"Error converting to CSV: {e}")
+			logger.error(f"Error converting {json_file} to CSV: {e}")
+
+	def convert_to_docx_safely(self, json_file: Path,
+	                           output_docx: Path) -> None:
+		"""
+		Safely convert JSON to DOCX with error handling.
+
+		:param json_file: Input JSON file path
+		:param output_docx: Output DOCX file path
+		"""
+		try:
+			doc_converter = DocumentConverter(self.schema_name)
+			doc_converter.convert_to_docx(json_file, output_docx)
+			print(f"DOCX file generated at {output_docx}")
+		except Exception as e:
+			print(f"Error converting to DOCX: {e}")
+			logger.error(f"Error converting {json_file} to DOCX: {e}")
+
+	def convert_to_txt_safely(self, json_file: Path, output_txt: Path) -> None:
+		"""
+		Safely convert JSON to TXT with error handling.
+
+		:param json_file: Input JSON file path
+		:param output_txt: Output TXT file path
+		"""
+		try:
+			doc_converter = DocumentConverter(self.schema_name)
+			doc_converter.convert_to_txt(json_file, output_txt)
+			print(f"TXT file generated at {output_txt}")
+		except Exception as e:
+			print(f"Error converting to TXT: {e}")
+			logger.error(f"Error converting {json_file} to TXT: {e}")
 
 
 # Registry for schema handlers
