@@ -58,7 +58,6 @@ class CSVConverter:
 
         converters = {
             "bibliographicentries": self._convert_bibliographic_entries_to_df,
-            "recipes": self._convert_recipes_to_df,
             "structuredsummaries": self._convert_structured_summaries_to_df,
             "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_df,
             "brazilianoccupationrecords": self._convert_brazilianoccupationrecords_to_df
@@ -74,49 +73,122 @@ class CSVConverter:
         except Exception as e:
             print(f"Error saving CSV file {output_csv}: {e}")
 
-    def _convert_bibliographic_entries_to_df(self, entries: List[Any]) -> pd.DataFrame:
-        df = pd.json_normalize(entries, sep='_')
-        for col in ['authors', 'roles', 'culinary_focus']:
-            if col in df.columns:
-                df[col] = df[col].apply(lambda x: ', '.join(x) if isinstance(x, list) else x)
-        if 'edition_info' in df.columns:
-            def summarize_editions(editions: Any) -> str:
-                if not editions or not isinstance(editions, list):
-                    return ""
-                summaries = []
-                for edition in editions:
-                    year = edition.get("year", "Unknown")
-                    edition_number = edition.get("edition_number", "Unknown")
-                    location = edition.get("location", {})
-                    city = location.get("city", "Unknown")
-                    country = location.get("country", "Unknown")
-                    roles = edition.get("roles", [])
-                    roles_str = ', '.join(roles) if isinstance(roles, list) else str(roles)
-                    short_note = edition.get("short_note", "")
-                    edition_category = edition.get("edition_category", "")
-                    language = edition.get("language", "")
-                    original_language = edition.get("original_language", "")
-                    translated_from = edition.get("translated_from", "")
-                    summary = (
-                        f"Year: {year}, Edition: {edition_number}, "
-                        f"Location: {city}, {country}, Roles: {roles_str}, "
-                        f"Note: {short_note}, Category: {edition_category}, "
-                        f"Language: {language}, Orig Lang: {original_language}, "
-                        f"Translated From: {translated_from}"
-                    )
-                    summaries.append(summary)
-                return " | ".join(summaries)
-            df["edition_info_summary"] = df["edition_info"].apply(summarize_editions)
-            df.drop(columns=["edition_info"], inplace=True)
+    def _convert_bibliographic_entries_to_df(self, entries: List[
+        Any]) -> pd.DataFrame:
+        """
+        Converts bibliographic entries to a pandas DataFrame according to schema version 2.9.
+
+        :param entries: List of bibliographic entry dictionaries
+        :return: pandas DataFrame with normalized bibliographic data
+        """
+        rows = []
+
+        for entry in entries:
+            # Extract primary entry data
+            full_title = entry.get("full_title", "")
+            short_title = entry.get("short_title", "")
+            culinary_focus = entry.get("culinary_focus", [])
+            book_format = entry.get("format", None)
+            pages = entry.get("pages", None)
+            total_editions = entry.get("total_editions", None)
+
+            # Normalize culinary_focus to string
+            culinary_focus_str = ", ".join(culinary_focus) if isinstance(
+                culinary_focus, list) else str(culinary_focus)
+
+            # Process edition info
+            edition_info = entry.get("edition_info", [])
+            if not edition_info or not isinstance(edition_info, list):
+                edition_info = []
+
+            # Create edition summary
+            edition_summaries = []
+            for edition in edition_info:
+                # Extract edition data
+                edition_number = edition.get("edition_number", None)
+                year = edition.get("year", None)
+
+                # Extract location data
+                location = edition.get("location", {})
+                country = location.get("country", None) if location else None
+                city = location.get("city", None) if location else None
+
+                # Get contributors
+                contributors = edition.get("contributors", [])
+                contributors_str = ", ".join(
+                    contributors) if contributors and isinstance(contributors,
+                                                                 list) else ""
+
+                # Get other edition details
+                language = edition.get("language", None)
+                short_note = edition.get("short_note", None)
+                edition_category = edition.get("edition_category", None)
+
+                # Format edition summary
+                summary_parts = []
+                if edition_number is not None:
+                    summary_parts.append(f"Edition: {edition_number}")
+                if year is not None:
+                    summary_parts.append(f"Year: {year}")
+                if city or country:
+                    location_str = f"{city or 'Unknown'}, {country or 'Unknown'}"
+                    summary_parts.append(f"Location: {location_str}")
+                if language:
+                    summary_parts.append(f"Language: {language}")
+                if contributors_str:
+                    summary_parts.append(f"Contributors: {contributors_str}")
+                if edition_category:
+                    summary_parts.append(f"Category: {edition_category}")
+                if short_note:
+                    summary_parts.append(f"Note: {short_note}")
+
+                edition_summaries.append(" | ".join(summary_parts))
+
+            # Create a row for the main entry
+            main_row = {
+                "full_title": full_title,
+                "short_title": short_title,
+                "culinary_focus": culinary_focus_str,
+                "format": book_format,
+                "pages": pages,
+                "total_editions": total_editions,
+                "edition_info_summary": " || ".join(
+                    edition_summaries) if edition_summaries else "",
+            }
+
+            # Add the main row
+            rows.append(main_row)
+
+            for idx, edition in enumerate(edition_info, 1):
+                edition_row = {**main_row}  # Copy the main entry data
+                edition_row["edition_number"] = edition.get("edition_number")
+                edition_row["year"] = edition.get("year")
+                edition_row["city"] = edition.get("location", {}).get("city")
+                edition_row["country"] = edition.get("location", {}).get("country")
+                edition_row["language"] = edition.get("language")
+                edition_row["contributors"] = ", ".join(edition.get("contributors", []))
+                edition_row["edition_category"] = edition.get("edition_category")
+                edition_row["short_note"] = edition.get("short_note")
+                rows.append(edition_row)
+
+        # Create DataFrame from all rows
+        df = pd.DataFrame(rows)
+
         return df
-    
-    def _convert_structured_summaries_to_df(self, entries: List[Any]) -> pd.DataFrame:
+
+    def _convert_structured_summaries_to_df(self,
+                                            entries: List[Any]) -> pd.DataFrame:
         df = pd.json_normalize(entries, sep='_')
         if "bullet_points" in df.columns:
             df["bullet_points_summary"] = df["bullet_points"].apply(
                 lambda x: "; ".join(x) if isinstance(x, list) else x
             )
             df.drop(columns=["bullet_points"], inplace=True)
+        if "keywords" in df.columns:
+            df["keywords_summary"] = df["keywords"].apply(
+                lambda x: "; ".join(x) if isinstance(x, list) else x
+            )
+            df.drop(columns=["keywords"], inplace=True)
         if "literature" in df.columns:
             df["literature_summary"] = df["literature"].apply(
                 lambda x: "; ".join(x) if isinstance(x, list) else x
