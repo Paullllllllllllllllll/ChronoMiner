@@ -13,42 +13,110 @@ class DocumentConverter:
         self.schema_name: str = schema_name.lower()
 
     def extract_entries(self, json_file: Path) -> List[Any]:
+        """
+        Extract entries from JSON file.
+
+        :param json_file: Path to the JSON file
+        :return: List of entries extracted from the JSON file
+        """
         try:
             with json_file.open("r", encoding="utf-8") as f:
                 data = json.load(f)
         except Exception as e:
             print(f"Error reading JSON file {json_file}: {e}")
             return []
+
         entries: List[Any] = []
+
         if isinstance(data, dict):
             if "entries" in data:
                 entries = data["entries"]
             elif "responses" in data:
-                for resp in data["responses"]:
+                for resp in data.get("responses", []):
+                    if resp is None:
+                        continue  # Skip None responses
+
                     try:
-                        body = resp.get("body", {})
-                        choices = body.get("choices", [])
-                        if choices:
-                            message = choices[0].get("message", {})
-                            content = message.get("content", "")
-                            content_json = json.loads(content)
-                            if isinstance(content_json, dict) and "entries" in content_json:
-                                entries.extend(content_json["entries"])
+                        if isinstance(resp, str):
+                            # Try to parse response string as JSON
+                            content_json = json.loads(resp)
+                            if isinstance(content_json,
+                                          dict) and "entries" in content_json:
+                                # Filter out None entries
+                                valid_entries = [entry for entry in
+                                                 content_json.get("entries", [])
+                                                 if entry is not None]
+                                entries.extend(valid_entries)
+                        elif isinstance(resp, dict):
+                            # Handle batch response structure
+                            body = resp.get("body", {})
+                            choices = body.get("choices", []) if body else []
+                            if choices:
+                                message = choices[0].get("message", {}) if \
+                                choices[0] else {}
+                                content = message.get("content",
+                                                      "") if message else ""
+                                if content:
+                                    try:
+                                        content_json = json.loads(content)
+                                        if isinstance(content_json,
+                                                      dict) and "entries" in content_json:
+                                            # Filter out None entries
+                                            valid_entries = [entry for entry in
+                                                             content_json.get(
+                                                                 "entries", [])
+                                                             if
+                                                             entry is not None]
+                                            entries.extend(valid_entries)
+                                    except json.JSONDecodeError:
+                                        print(
+                                            f"Failed to parse response content as JSON: {content[:100]}...")
                     except Exception as e:
                         print(f"Error processing response: {e}")
         elif isinstance(data, list):
             for item in data:
-                response = item.get("response")
+                if item is None:
+                    continue  # Skip None items
+
+                response = item.get("response") if isinstance(item,
+                                                              dict) else None
+                if response is None:
+                    continue  # Skip items with None response
+
                 if isinstance(response, str):
                     try:
                         response_obj = json.loads(response)
-                        if isinstance(response_obj, dict) and "entries" in response_obj:
-                            entries.extend(response_obj["entries"])
+                        if isinstance(response_obj,
+                                      dict) and "entries" in response_obj:
+                            # Filter out None entries
+                            valid_entries = [entry for entry in
+                                             response_obj.get("entries", []) if
+                                             entry is not None]
+                            entries.extend(valid_entries)
+                    except json.JSONDecodeError:
+                        print(
+                            f"Error parsing response string as JSON: {response[:100]}...")
                     except Exception as e:
-                        print(f"Error parsing response string: {e}")
+                        print(f"Error processing string response: {e}")
                 elif isinstance(response, dict) and "entries" in response:
-                    entries.extend(response["entries"])
+                    # Filter out None entries
+                    valid_entries = [entry for entry in
+                                     response.get("entries", []) if
+                                     entry is not None]
+                    entries.extend(valid_entries)
+
         return entries
+
+    def _safe_str(self, value) -> str:
+        """
+        Safely convert a value to string, handling None values.
+
+        :param value: Any value that might be None
+        :return: String representation or empty string if None
+        """
+        if value is None:
+            return ""
+        return str(value)
 
     def convert_to_docx(self, json_file: Path, output_file: Path) -> None:
         entries: List[Any] = self.extract_entries(json_file)
@@ -73,26 +141,50 @@ class DocumentConverter:
             print(f"Error saving DOCX file {output_file}: {e}")
 
     def convert_to_txt(self, json_file: Path, output_file: Path) -> None:
+        """
+        Convert JSON entries to a plain text file with improved null handling.
+
+        :param json_file: Input JSON file path
+        :param output_file: Output text file path
+        """
         entries: List[Any] = self.extract_entries(json_file)
-        lines: List[str] = []
+
+        # Filter out None entries
+        entries = [entry for entry in entries if entry is not None]
+
+        if not entries:
+            print(f"Warning: No valid entries found in {json_file.name}")
+            # Create an empty file with a message
+            with output_file.open("w", encoding="utf-8") as f:
+                f.write(f"No valid entries found in {json_file.name}\n")
+            return
+
         converters = {
             "structuredsummaries": self._convert_structured_summaries_to_txt,
             "bibliographicentries": self._convert_bibliographic_entries_to_txt,
             "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_txt,
-            "brazilianoccupationrecords": self._convert_brazilianoccupationrecords_to_txt
+            "brazilianmilitaryrecords": self._convert_brazilianoccupationrecords_to_txt
         }
-        key = self.schema_name.lower()
-        if key in converters:
-            lines = converters[key](entries)
-        else:
-            for entry in entries:
-                lines.append(str(entry))
+
         try:
+            key = self.schema_name.lower()
+            if key in converters:
+                lines = converters[key](entries)
+            else:
+                # Default conversion with null handling
+                lines = []
+                for entry in entries:
+                    if entry is not None:
+                        lines.append(self._safe_str(entry))
+
+            # Filter out None values in lines
+            lines = [line for line in lines if line is not None]
+
             with output_file.open("w", encoding="utf-8") as f:
                 f.write("\n".join(lines))
             print(f"TXT file generated at {output_file}")
         except Exception as e:
-            print(f"Error saving TXT file {output_file}: {e}")
+            print(f"Error writing TXT file {output_file}: {e}")
 
     # --- Schema-Specific DOCX Converters ---
     def _convert_structured_summaries_to_docx(self, entries: list,
@@ -351,81 +443,77 @@ class DocumentConverter:
     def _convert_bibliographic_entries_to_txt(self, entries: List[Any]) -> List[
         str]:
         lines: List[str] = []
-
         for entry in entries:
-            # Extract primary entry data
-            full_title = entry.get("full_title", "Unknown Title")
-            short_title = entry.get("short_title", "")
-            culinary_focus = entry.get("culinary_focus", [])
-            book_format = entry.get("format", "")
-            pages = entry.get("pages", "")
-            edition_info = entry.get("edition_info", [])
-            total_editions = entry.get("total_editions", "")
+            if entry is None:
+                continue  # Skip None entries
 
-            # Add entry header and basic information
-            lines.append(f"TITLE: {full_title}")
-            lines.append(f"Short Title: {short_title}")
-
-            # Add culinary focus areas
-            if culinary_focus and isinstance(culinary_focus, list):
-                lines.append(f"Culinary Focus: {', '.join(culinary_focus)}")
-            else:
-                lines.append("Culinary Focus: Unknown")
-
-            # Add format and page information
-            lines.append(f"Format: {book_format if book_format else 'Unknown'}")
-            lines.append(f"Pages: {pages if pages is not None else 'Unknown'}")
             lines.append(
-                f"Total Editions: {total_editions if total_editions is not None else 'Unknown'}")
+                f"Full Title: {self._safe_str(entry.get('full_title', 'Unknown Title'))}")
+            lines.append(
+                f"Short Title: {self._safe_str(entry.get('short_title', ''))}")
+            lines.append(
+                f"Bibliography Number: {self._safe_str(entry.get('bibliography_number', ''))}")
 
-            # Add edition information
-            lines.append("\nEDITION INFORMATION:")
-            if edition_info and isinstance(edition_info, list):
-                for i, edition in enumerate(edition_info, 1):
-                    # Extract edition data
-                    edition_number = edition.get("edition_number", "Unknown")
-                    year = edition.get("year", "Unknown")
+            authors = entry.get("authors", [])
+            if authors is None:
+                authors = []
+            # Filter out None values in authors list
+            authors = [author for author in authors if author is not None]
+            lines.append(
+                f"Authors: {', '.join(authors) if authors else 'Anonymous'}")
 
-                    # Extract location data
-                    location = edition.get("location", {})
-                    country = location.get("country",
-                                           "Unknown") if location else "Unknown"
-                    city = location.get("city",
-                                        "Unknown") if location else "Unknown"
+            roles = entry.get("roles", [])
+            if roles is None:
+                roles = []
+            # Filter out None values in roles list
+            roles = [role for role in roles if role is not None]
+            lines.append(f"Roles: {', '.join(roles)}")
 
-                    # Get contributors
-                    contributors = edition.get("contributors", [])
-                    contributors_str = ", ".join(
-                        contributors) if contributors and isinstance(
-                        contributors, list) else "Unknown"
+            culinary_focus = entry.get("culinary_focus", [])
+            if culinary_focus is None:
+                culinary_focus = []
+            # Filter out None values in culinary_focus list
+            culinary_focus = [focus for focus in culinary_focus if
+                              focus is not None]
+            lines.append(f"Culinary Focus: {', '.join(culinary_focus)}")
 
-                    # Get other edition details
-                    language = edition.get("language", "")
-                    short_note = edition.get("short_note", "")
-                    edition_category = edition.get("edition_category", "")
+            lines.append(f"Format: {self._safe_str(entry.get('format', ''))}")
+            lines.append(f"Pages: {self._safe_str(entry.get('pages', ''))}")
+            lines.append(
+                f"Total Editions: {self._safe_str(entry.get('total_editions', ''))}")
 
-                    # Format edition text
-                    lines.append(f"  Edition {i}:")
-                    lines.append(
-                        f"    Edition Number: {edition_number if edition_number is not None else 'Unknown'}")
-                    lines.append(
-                        f"    Year: {year if year is not None else 'Unknown'}")
-                    lines.append(f"    Location: {city}, {country}")
-                    lines.append(
-                        f"    Language: {language if language else 'Unknown'}")
-                    lines.append(f"    Contributors: {contributors_str}")
-                    lines.append(
-                        f"    Category: {edition_category if edition_category else 'Unknown'}")
+            lines.append("Edition Information:")
+            editions = entry.get("edition_info", [])
+            if editions is None:
+                editions = []
 
-                    if short_note:
-                        lines.append(f"    Note: {short_note}")
+            for edition in editions:
+                if edition is None:
+                    continue  # Skip None editions
 
-                    lines.append("")
-            else:
-                lines.append("  No edition information available.")
+                # Safely get location info with null checks
+                location = edition.get("location", {}) or {}
+                city = self._safe_str(location.get("city", "Unknown"))
+                country = self._safe_str(location.get("country", "Unknown"))
 
-            lines.append("=" * 50)
-            lines.append("")
+                # Safely get roles with null checks
+                ed_roles = edition.get("roles", []) or []
+                ed_roles = [role for role in ed_roles if role is not None]
+
+                edition_text = (
+                    f"Year: {self._safe_str(edition.get('year', 'Unknown'))}, "
+                    f"Edition: {self._safe_str(edition.get('edition_number', 'Unknown'))}, "
+                    f"Location: {city}, {country}, "
+                    f"Roles: {', '.join(ed_roles)}, "
+                    f"Note: {self._safe_str(edition.get('short_note', ''))}, "
+                    f"Category: {self._safe_str(edition.get('edition_category', ''))}, "
+                    f"Language: {self._safe_str(edition.get('language', ''))}, "
+                    f"Orig Lang: {self._safe_str(edition.get('original_language', ''))}, "
+                    f"Translated From: {self._safe_str(edition.get('translated_from', ''))}"
+                )
+                lines.append(f" - {edition_text}")
+
+            lines.append("\n" + "=" * 40 + "\n")
 
         return lines
 
