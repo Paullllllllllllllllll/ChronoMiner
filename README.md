@@ -66,20 +66,23 @@ ChronoMiner/
 │   ├── cancel_batches.py             # Script to cancel ongoing batch jobs
 │   ├── check_batches.py              # Script to process batch responses and generate final outputs
 │   ├── generate_line_ranges.py       # Generates token-based _line_ranges.txt files
+│   ├── metadata_retriever.py         # Utility to fetch metadata from DOIs and ISBNs
 │   └── process_text_files.py         # Main script to process text files using schema-based extraction
 ├── modules/
 │   ├── batching.py                   # Batch request file creation and submission logic
 │   ├── config_loader.py              # Loads and validates YAML configuration files
+│   ├── config_manager.py             # Manages configuration validation and preparation
 │   ├── concurrency.py                # Asynchronous task processing with concurrency limits
 │   ├── context_manager.py            # Manages additional context for improved extraction
 │   ├── data_processing.py            # CSV conversion routines (schema-specific converters included)
+│   ├── file_processor.py             # Handles all file processing operations
 │   ├── logger.py                     # Logger configuration for consistent logging across modules
 │   ├── openai_utils.py               # OpenAI API wrapper and asynchronous request handling
 │   ├── schema_manager.py             # Loads and manages JSON schemas and developer messages
 │   ├── schema_handlers.py            # Central registry and base class for schema-specific processing
 │   ├── text_processing.py            # DOCX and TXT conversion routines (schema-specific converters included)
 │   ├── text_utils.py                 # Text normalization, encoding detection, token estimation, and chunking
-│   └── user_interface.py             # Functions for interactive user prompts and selections
+│   └── user_interface.py             # UI class and functions for interactive user prompts and selections
 └── schemas/
     ├── address_schema.json           # JSON schema for Swiss Historical Address Book Entries
     ├── bibliographic_schema.json     # JSON schema for European Culinary Bibliography Entries
@@ -157,18 +160,39 @@ Run the main extraction script to process text files according to the selected s
 python main/process_text_files.py
 ```
 
-- **Interactive Prompts:**  
-  The script will prompt you to select a schema, choose a processing mode (single file with manual adjustments or 
-  bulk processing), and select the chunking strategy.
+- **Interactive UI:**  
+  The script provides a user-friendly interface that guides you through:
+  - Selecting a schema
+  - Choosing a chunking strategy
+  - Selecting between synchronous or batch processing
+  - Adding additional context (optional)
+  - Selecting input files
+  - Confirming processing settings
 
-- **Additional Context:**  
-  You can optionally provide additional context to improve extraction quality:
-  - Schema-specific context files in the `additional_context` directory
-  - File-specific context with a corresponding `{filename}_context.txt` file
+- **Processing Modes:**
+  - **Synchronous:** Process data in real-time with immediate results
+  - **Batch:** Submit all chunks as a batch job (50% cost reduction, results processed within 24h)
 
 - **Output:**  
   The final structured JSON output is saved along with optional CSV, DOCX, or TXT outputs (as configured in 
   `paths_config.yaml`).
+
+### Managing Batch Jobs
+
+After submitting batch jobs, use these scripts to check status or cancel jobs:
+
+```bash
+# To check batch status and process completed batches
+python main/check_batches.py
+
+# To cancel all in-progress batches
+python main/cancel_batches.py
+```
+
+Both scripts now provide clear summaries of batch statuses:
+- A count of batches by status (completed, in progress, failed, etc.)
+- Detailed information only for in-progress batches 
+- Clear operation results for each action
 
 ### Generating Line Ranges
 
@@ -180,14 +204,6 @@ python main/generate_line_ranges.py
 
 Follow the on-screen instructions to select a schema and generate a `_line_ranges.txt` file for manual adjustment 
 if needed.
-
-### Batch Processing
-
-Use the following script to check and process batch jobs, retrieve missing responses, and generate final outputs:
-
-```bash
-python main/check_batches.py
-```
 
 ## Workflow and Processing Options
 
@@ -378,8 +394,10 @@ Once completed, your schema is fully integrated and ready for use.
 ## Performance & Limitations
 
 - **API Limitations:**  
-  The system is dependent on OpenAI API rate limits. Ensure you adjust the settings in concurrency_config.yaml to correspond
-  to your OpenAI API tier.
+  The system is dependent on OpenAI API rate limits and may experience delays when processing very large batches.
+- **Resource Usage:**  
+  Processing extremely large text files can consume significant memory. Adjust concurrency settings in 
+  `concurrency_config.yaml` to optimize performance based on your system's capabilities.
 - **Context Window Utilization:**  
   The token-based chunking strategy can be adjusted to better utilize the context window of newer models like o3-mini,
   which supports up to 200,000 tokens.
@@ -389,9 +407,15 @@ Once completed, your schema is fully integrated and ready for use.
 - **Adding New Schemas:**  
   Refer to the "Introducing New Schemas" section above for detailed steps on creating new JSON schemas and developer 
   message files.
-- **Customizing Chunking and Post-Processing:**  
-  The project can be extended by modifying modules such as `modules/text_utils.py` or 
-  `modules/schema_handlers.py`. Inline comments in these modules provide guidance.
+- **Customizing User Interface:**  
+  The project uses a dedicated `UserInterface` class in `modules/user_interface.py` that can be extended to customize
+  user interactions and provide additional feedback options.
+- **Extending File Processing:**  
+  The `FileProcessor` class in `modules/file_processor.py` handles all file operations and can be extended to support
+  new file formats or processing methods.
+- **Configuration Management:**  
+  The `ConfigManager` class in `modules/config_manager.py` provides a central place to handle configuration validation
+  and loading.
 - **Supporting Additional Output Formats:**  
   You can add new converters in `modules/data_processing.py` and `modules/text_processing.py` to generate other 
   output formats like XML or HTML.
