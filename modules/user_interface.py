@@ -357,6 +357,62 @@ class UserInterface:
 				"Invalid selection, defaulting to automatic chunking.")
 			return "auto"
 
+	def display_batch_summary(self, batches: List[Any]) -> None:
+		"""
+		Display a summary of batch job statuses.
+
+		:param batches: List of batch objects from OpenAI API
+		"""
+		# Count batches by status
+		status_counts = {}
+		in_progress_batches = []
+
+		for batch in batches:
+			status = batch.status.lower()
+			status_counts[status] = status_counts.get(status, 0) + 1
+
+			# Keep track of non-terminal batches for detailed display
+			if status not in {"completed", "expired", "cancelled", "failed"}:
+				in_progress_batches.append(batch)
+
+		# Display summary
+		self.console_print("\n" + "=" * 80)
+		self.console_print("  BATCH JOBS SUMMARY")
+		self.console_print("=" * 80)
+		self.console_print(f"Total batches found: {len(batches)}")
+
+		# Display counts by status
+		for status, count in sorted(status_counts.items()):
+			self.console_print(f"  - {status.capitalize()}: {count}")
+
+		# Display in-progress batches if any
+		if in_progress_batches:
+			self.console_print("\nBatches still in progress:")
+			for batch in in_progress_batches:
+				created_time = batch.created_at if hasattr(batch,
+				                                           'created_at') else "Unknown"
+				self.console_print(
+					f"  - Batch ID: {batch.id} | Status: {batch.status} | Created: {created_time}")
+
+	def display_batch_operation_result(self, batch_id: str, operation: str,
+	                                   success: bool,
+	                                   message: str = None) -> None:
+		"""
+		Display the result of a batch operation (checking, cancelling, etc.).
+
+		:param batch_id: The ID of the batch
+		:param operation: The operation performed (e.g., "cancel", "process")
+		:param success: Whether the operation was successful
+		:param message: Optional message to display
+		"""
+		status = "[SUCCESS]" if success else "[ERROR]"
+		result = f"{status} {operation.capitalize()}ed batch {batch_id}"
+
+		if message:
+			result += f": {message}"
+
+		self.console_print(result)
+
 
 # Maintain backward compatibility with existing functions
 def select_folders(directory: Path) -> List[Path]:
