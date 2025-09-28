@@ -1,0 +1,304 @@
+{
+  "name": "CulinaryPersonsEntries",
+  "schema_version": "1.1",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "entries": {
+        "type": "array",
+        "description": "List of persons of culinary importance. If no persons are found, return an empty array. Each item must follow the structure below.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "canonical_name_original": {
+              "type": ["string", "null"],
+              "description": "Person’s canonical name as it appears in the source (preserve spelling and diacritics)."
+            },
+            "canonical_name_modern_english": {
+              "type": ["string", "null"],
+              "description": "Modern English or standardized form of the name for linkage. If no standardized form exists, repeat the original."
+            },
+            "name_variants": {
+              "type": "array",
+              "description": "Additional historical or orthographic variants of the person’s name. Provide both the original and modern English forms for each variant when possible.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name_original": {
+                    "type": "string",
+                    "description": "Variant name form as found in the source (preserve spelling)."
+                  },
+                  "name_modern_english": {
+                    "type": ["string", "null"],
+                    "description": "Modern English or standardized form of the variant for linkage; null if not applicable."
+                  }
+                },
+                "required": ["name_original", "name_modern_english"],
+                "additionalProperties": false
+              }
+            },
+            "gender": {
+              "type": ["string", "null"],
+              "enum": ["Female", "Male", "Unknown", "Other"],
+              "description": "Person’s gender as indicated or inferable from the source. Use Unknown if not stated or unclear; use Other when not covered by the listed values."
+            },
+            "roles": {
+              "type": "array",
+              "description": "Occupational or social roles relevant to culinary history. Select all that apply; use Other if not listed.",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "Cook",
+                  "Steward",
+                  "Butler",
+                  "Carver",
+                  "Author",
+                  "Editor",
+                  "Publisher",
+                  "Printer",
+                  "Winesteward",
+                  "Physician",
+                  "Innkeeper",
+                  "Pâtissier",
+                  "Confectioner",
+                  "Pastry Chef",
+                  "Gastronome",
+                  "Housewife",
+                  "Female Cook",
+                  "Male Cook",
+                  "Monk",
+                  "Cardinal",
+                  "Pope",
+                  "Noble",
+                  "Industrialist",
+                  "Manufacturer",
+                  "Scientist",
+                  "Restaurant Chef",
+                  "Other"
+                ],
+                "description": "One role value from the controlled list."
+              }
+            },
+            "period": {
+              "type": "object",
+              "description": "Active period or relevant timeframe for the person (e.g., professional activity window).",
+              "properties": {
+                "start_year": {
+                  "type": ["integer", "null"],
+                  "description": "Earliest relevant year (four-digit Gregorian). Use null if unknown."
+                },
+                "end_year": {
+                  "type": ["integer", "null"],
+                  "description": "Latest relevant year (four-digit Gregorian). Use null if unknown."
+                },
+                "notation": {
+                  "type": ["string", "null"],
+                  "description": "Human-readable note about the timeframe (e.g., 'fl. 1465–1475'; 'early 17th c.')."
+                }
+              },
+              "required": ["start_year", "end_year", "notation"],
+              "additionalProperties": false
+            },
+            "associated_places": {
+              "type": "array",
+              "description": "Places connected to the person (e.g., birthplace, residence, court, workplace). Use the standardized place object and specify the association role.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "place": {
+                    "type": "object",
+                    "properties": {
+                      "name_original": {
+                        "type": ["string", "null"],
+                        "description": "Place name as recorded in the source (preserve spelling)."
+                      },
+                      "name_modern_english": {
+                        "type": ["string", "null"],
+                        "description": "Modern English place name for linkage (e.g., Milano → Milan)."
+                      },
+                      "place_type": {
+                        "type": "string",
+                        "enum": [
+                          "City",
+                          "Region",
+                          "Country",
+                          "Market",
+                          "Harbor",
+                          "Restaurant",
+                          "CulinarySchool",
+                          "Court",
+                          "MonasticCenter",
+                          "Inn",
+                          "Other"
+                        ],
+                        "description": "Best-fitting category for the place."
+                      },
+                      "country_modern": {
+                        "type": ["string", "null"],
+                        "description": "Modern country name in English (e.g., Italy; Germany)."
+                      }
+                    },
+                    "required": [
+                      "name_original",
+                      "name_modern_english",
+                      "place_type",
+                      "country_modern"
+                    ],
+                    "additionalProperties": false
+                  },
+                  "association_role": {
+                    "type": ["string", "null"],
+                    "enum": [
+                      "Birthplace",
+                      "Residence",
+                      "Employer",
+                      "Court",
+                      "Workplace",
+                      "Training",
+                      "Other"
+                    ],
+                    "description": "Nature of the person–place link. Choose the closest match (e.g., Birthplace; Residence). Use Other if not listed."
+                  }
+                },
+                "required": ["place", "association_role"],
+                "additionalProperties": false
+              }
+            },
+            "notable_works": {
+              "type": "array",
+              "description": "Key works associated with the person, referenced by label (no identifiers).",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title_original": {
+                    "type": ["string", "null"],
+                    "description": "Work title as given in the source (preserve spelling)."
+                  },
+                  "title_modern_english": {
+                    "type": ["string", "null"],
+                    "description": "Modern English or standardized title for linkage; repeat original if no standard form exists."
+                  },
+                  "role": {
+                    "type": ["string", "null"],
+                    "description": "Person’s role in relation to the work (e.g., Author; Editor). Free text; keep concise."
+                  }
+                },
+                "required": ["title_original", "title_modern_english", "role"],
+                "additionalProperties": false
+              }
+            },
+            "contributions": {
+              "type": ["string", "null"],
+              "description": "1–2 sentences noting the person’s innovations or historical importance (neutral, factual). Use null if not provided."
+            },
+            "social_class": {
+              "type": ["string", "null"],
+              "enum": [
+                "Aristocracy",
+                "Clergy",
+                "Bourgeoisie",
+                "Peasantry",
+                "Mixed/Other",
+                "Unknown"
+              ],
+              "description": "Primary social stratum associated with the person, if inferable. Use Unknown when not stated; use Mixed/Other if ambiguous or mixed."
+            },
+            "sources": {
+              "type": "array",
+              "description": "Secondary sources supporting the information about this person.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "work_citation": {
+                    "type": "string",
+                    "description": "Abbreviated source reference (e.g., 'Capatti & Montanari 2003')."
+                  },
+                  "pages": {
+                    "type": ["string", "null"],
+                    "description": "Exact page(s) or section (e.g., 'pp. 40–45'; 'ch. 2'); use null if not specified."
+                  },
+                  "quotation": {
+                    "type": ["string", "null"],
+                    "description": "Short supporting quote (≤ 500 characters) if the input provides one; otherwise null."
+                  }
+                },
+                "required": ["work_citation", "pages", "quotation"],
+                "additionalProperties": false
+              }
+            },
+            "links": {
+              "type": "array",
+              "description": "Lightweight cross-references to related entities using labels (no identifiers).",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "target_type": {
+                    "type": "string",
+                    "enum": ["Work", "Person", "Place", "Event", "Other"],
+                    "description": "Type of the referenced entity."
+                  },
+                  "label_original": {
+                    "type": ["string", "null"],
+                    "description": "Exact label of the referenced entity as it appears in the source."
+                  },
+                  "label_modern_english": {
+                    "type": ["string", "null"],
+                    "description": "Modern English label for the referenced entity for linkage."
+                  },
+                  "relationship": {
+                    "type": "string",
+                    "enum": [
+                      "SameAs",
+                      "DerivedFrom",
+                      "InfluencedBy",
+                      "Precedes",
+                      "Follows",
+                      "VariantOf",
+                      "PartOf",
+                      "Contains",
+                      "AssociatedWith",
+                      "CitedBy",
+                      "Cites",
+                      "EmployedAt",
+                      "Other"
+                    ],
+                    "description": "Nature of the relationship to the referenced entity (choose the closest match)."
+                  }
+                },
+                "required": [
+                  "target_type",
+                  "label_original",
+                  "label_modern_english",
+                  "relationship"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "description": {
+              "type": ["string", "null"],
+              "description": "1–3 sentences summarizing the person’s culinary-historical significance (neutral, factual). Use null if the input provides no summary."
+            }
+          },
+          "required": [
+            "canonical_name_original",
+            "canonical_name_modern_english",
+            "name_variants",
+            "gender",
+            "roles",
+            "period",
+            "associated_places",
+            "notable_works",
+            "contributions",
+            "social_class",
+            "sources",
+            "links",
+            "description"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["entries"],
+    "additionalProperties": false
+  }
+}

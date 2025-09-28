@@ -16,14 +16,7 @@
             "short_title": {
               "type": "string",
               "description": "A concise title or reference name in plain text. Example: 'Art of Cooking'."
-            },
-            "bibliography_number": {
-              "type": ["string", "null"],
-              "description": "A unique identifier or reference number assigned to the work in the bibliography. This number is typically found at the beginning of the bibliographic entry. If no such number is present in the text, use `null`. Do not infer or generate a number from dates or other metadata."
-            },
-            "physical_location": {
-              "type": ["string", "null"],
-              "description": "Physical location (library, city, etc.) or null if unknown."
+            }
             },
             "authors": {
               "type": "array",
@@ -119,11 +112,11 @@
                     "properties": {
                       "country": {
                         "type": ["string", "null"],
-                        "description": "Country of publication. Use a string or `null` if unknown. Example: 'Italy'."
+                        "description": "Country of publication, modern english. Use a string or `null` if unknown. Example: 'Italy'."
                       },
                       "city": {
                         "type": ["string", "null"],
-                        "description": "City of publication. Use a string or `null` if unknown. Example: 'Rome'."
+                        "description": "City of publication, modern english. Use a string or `null` if unknown. Example: 'Rome'."
                       }
                     },
                     "required": ["country", "city"],
@@ -210,24 +203,17 @@
                 "additionalProperties": false
               },
               "description": "Detailed information about each edition."
-            },
-            "total_editions": {
-              "type": ["integer", "null"],
-              "description": "Number of distinct editions, or null if unknown. Can be deduced from the edition_info array."
             }
           },
           "required": [
             "full_title",
             "short_title",
-            "bibliography_number",
-            "physical_location",
             "authors",
             "roles",
             "culinary_focus",
             "format",
             "pages",
-            "edition_info",
-            "total_editions"
+            "edition_info"
           ],
           "additionalProperties": false
         }
@@ -236,4 +222,3 @@
     "required": ["entries"],
     "additionalProperties": false
   }
-}
