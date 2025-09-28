@@ -98,6 +98,44 @@ def detect_capabilities(model_name: str) -> Capabilities:
             supports_sampler_controls=False,
         )
 
+    # o1 (full reasoning; no sampler controls; allow Responses)
+    if m == "o1" or m.startswith("o1-20") or (m.startswith("o1") and not m.startswith("o1-mini")):
+        return Capabilities(
+            model=model_name,
+            family="o1",
+            supports_responses_api=True,
+            supports_chat_completions=True,
+            api_preference="either",
+            is_reasoning_model=True,
+            supports_reasoning_effort=False,
+            supports_developer_messages=True,
+            supports_image_input=True,
+            supports_image_detail=True,
+            default_ocr_detail="high",
+            supports_structured_outputs=False,
+            supports_function_calling=True,
+            supports_sampler_controls=False,
+        )
+
+    # o1-mini (small reasoning; prefer Chat Completions; no vision)
+    if m.startswith("o1-mini"):
+        return Capabilities(
+            model=model_name,
+            family="o1-mini",
+            supports_responses_api=False,
+            supports_chat_completions=True,
+            api_preference="chat_completions",
+            is_reasoning_model=True,
+            supports_reasoning_effort=False,
+            supports_developer_messages=False,
+            supports_image_input=False,
+            supports_image_detail=False,
+            default_ocr_detail="high",
+            supports_structured_outputs=False,
+            supports_function_calling=False,
+            supports_sampler_controls=False,
+        )
+
     # GPT-4o family (multimodal; structured outputs; sampler controls)
     if m.startswith("gpt-4o"):
         return Capabilities(

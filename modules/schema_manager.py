@@ -3,7 +3,7 @@
 import json
 import logging
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +22,7 @@ class SchemaManager:
         else:
             self.dev_messages_dir = dev_messages_dir
         self.schemas: Dict[str, dict] = {}
+        self.schema_paths: Dict[str, Path] = {}
         self.dev_messages: Dict[str, str] = {}
 
     def load_schemas(self) -> None:
@@ -35,6 +36,7 @@ class SchemaManager:
                 schema_name: Optional[str] = schema_content.get("name")
                 if schema_name:
                     self.schemas[schema_name] = schema_content
+                    self.schema_paths[schema_name] = schema_file.resolve()
                     logger.info(f"Loaded schema '{schema_name}' from {schema_file.name}")
                 else:
                     logger.warning(f"Schema file {schema_file.name} does not contain a 'name' field.")
@@ -77,6 +79,13 @@ class SchemaManager:
         :return: Dictionary mapping schema names to schema content.
         """
         return self.schemas
+
+    def list_schema_options(self) -> List[Tuple[str, Path]]:
+        """Return schema names paired with their source file paths."""
+        return sorted(
+            [(name, self.schema_paths[name]) for name in self.schemas if name in self.schema_paths],
+            key=lambda item: item[0].lower(),
+        )
 
     def get_dev_message(self, schema_name: str) -> Optional[str]:
         """

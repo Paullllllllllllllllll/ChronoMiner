@@ -8,6 +8,8 @@ from typing import List, Dict, Any, Optional, Tuple
 from modules.text_utils import TextProcessor, perform_chunking
 from modules.openai_utils import open_extractor, process_text_chunk
 from modules.schema_handlers import get_schema_handler
+from modules.batching import build_batch_files, submit_batch
+from modules.prompt_utils import render_prompt_with_schema
 import logging
 
 logger = logging.getLogger(__name__)
@@ -211,6 +213,15 @@ class FileProcessor:
 			console_print(f"[ERROR] Failed to set up output paths: {e}")
 			return
 
+		inject_schema = self.model_config.get("transcription_model", {}).get(
+			"inject_schema_into_prompt", True
+		)
+		effective_dev_message = (
+			render_prompt_with_schema(dev_message, selected_schema["schema"])
+			if inject_schema and dev_message
+			else dev_message
+		)
+
 		results: List[Dict[str, Any]] = []
 		try:
 			handler = get_schema_handler(selected_schema["name"])
@@ -225,54 +236,61 @@ class FileProcessor:
 			console_print(
 				f"[INFO] Preparing batch processing for {len(chunks)} chunks...")
 			# Batch processing: Prepare batch requests and submit
+			request_lines: List[str] = []
 			try:
-				from modules.batching import submit_batch
-				batch_requests: List[Dict[str, Any]] = []
 				for idx, chunk in enumerate(chunks, 1):
 					request_obj = handler.prepare_payload(
-						chunk, dev_message, self.model_config,
+						chunk, effective_dev_message, self.model_config,
 						selected_schema["schema"],
 						additional_context=additional_context
 					)
 					request_obj["custom_id"] = f"{file_path.stem}-chunk-{idx}"
-					batch_requests.append(request_obj)
+					request_lines.append(json.dumps(request_obj))
 
-				with temp_jsonl_path.open("w", encoding="utf-8") as tempf:
-					for req in batch_requests:
-						tempf.write(json.dumps(req) + "\n")
+				batch_files = build_batch_files(request_lines, temp_jsonl_path)
+				if not batch_files:
+					console_print(
+						f"[ERROR] No batch files were generated for {file_path.name}.")
+					return
 
 				logger.info(
-					f"Wrote {len(batch_requests)} batch request(s) to {temp_jsonl_path}")
+					f"Created {len(request_lines)} batch request(s) across {len(batch_files)} file(s) for {file_path.name}")
 				console_print(
-					f"[INFO] Created {len(batch_requests)} batch requests for {file_path.name}")
+					f"[INFO] Created {len(request_lines)} batch requests split into {len(batch_files)} file(s).")
 			except Exception as e:
 				logger.error(
 					f"Error preparing batch requests for {file_path.name}: {e}")
 				console_print(f"[ERROR] Failed to prepare batch requests: {e}")
 				return
 
-			try:
-				console_print(
-					f"[INFO] Submitting batch job for {file_path.name}...")
-				batch_response: Any = submit_batch(temp_jsonl_path)
-				tracking_record: Dict[str, Any] = {
-					"batch_tracking": {
-						"batch_id": batch_response.id,
-						"timestamp": batch_response.created_at,
-						"batch_file": str(temp_jsonl_path)
+			submitted_batches: List[str] = []
+			for batch_file in batch_files:
+				try:
+					console_print(
+						f"[INFO] Submitting batch file {batch_file.name}...")
+					batch_response: Any = submit_batch(batch_file)
+					tracking_record: Dict[str, Any] = {
+						"batch_tracking": {
+							"batch_id": batch_response.id,
+							"timestamp": batch_response.created_at,
+							"batch_file": str(batch_file)
+						}
 					}
-				}
-				with temp_jsonl_path.open("a", encoding="utf-8") as tempf:
-					tempf.write(json.dumps(tracking_record) + "\n")
-				console_print(
-					f"[SUCCESS] Batch submitted successfully. Batch ID: {batch_response.id}")
-				logger.info(
-					f"Batch submitted successfully. Tracking record appended to {temp_jsonl_path}")
-			except Exception as e:
-				logger.error(
-					f"Error during batch submission for {file_path.name}: {e}")
-				console_print(f"[ERROR] Failed to submit batch: {e}")
-				return
+					with batch_file.open("a", encoding="utf-8") as tempf:
+						tempf.write(json.dumps(tracking_record) + "\n")
+					submitted_batches.append(batch_response.id)
+					console_print(
+						f"[SUCCESS] Batch submitted successfully. Batch ID: {batch_response.id}")
+					logger.info(
+						f"Batch submitted successfully. Tracking record appended to {batch_file}")
+				except Exception as e:
+					logger.error(
+						f"Error during batch submission for file {batch_file}: {e}")
+					console_print(f"[ERROR] Failed to submit batch file {batch_file.name}: {e}")
+					return
+
+			logger.info(
+				f"Submitted {len(submitted_batches)} batch file(s) for {file_path.name}: {submitted_batches}")
 		else:
 			# Synchronous processing: Process each chunk using async API calls
 			api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
@@ -298,7 +316,7 @@ class FileProcessor:
 								console_print(
 									f"[INFO] Processing chunk {idx}/{len(chunks)}...")
 								final_payload = handler.get_json_schema_payload(
-									dev_message, self.model_config,
+									effective_dev_message, self.model_config,
 									selected_schema["schema"]
 								)
 
@@ -310,7 +328,7 @@ class FileProcessor:
 								response: str = await process_text_chunk(
 									text_chunk=text_to_process,
 									extractor=extractor,
-									system_message=dev_message,
+									system_message=effective_dev_message,
 									json_schema=final_payload
 								)
 								result_record: Dict[str, Any] = {

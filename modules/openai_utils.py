@@ -129,28 +129,67 @@ class OpenAIExtractor:
         self.text_params: Dict[str, Any] = tm.get("text", {"verbosity": "medium"})
         # Optional service tier from concurrency config
         try:
-            self.service_tier: Optional[str] = (
-                (self.concurrency_config.get("concurrency", {}) or {})
-                .get("transcription", {})
-                .get("service_tier")
-            )
+            trans_cfg = (self.concurrency_config.get("concurrency", {}) or {}).get("transcription", {}) or {}
         except Exception:
-            self.service_tier = None
+            trans_cfg = {}
+
+        raw_tier = trans_cfg.get("service_tier")
+        service_tier_normalized: Optional[str]
+        if raw_tier is None:
+            service_tier_normalized = None
+        else:
+            tier_str = str(raw_tier).lower().strip()
+            if tier_str in {"auto", "default", "flex", "priority"}:
+                service_tier_normalized = tier_str
+            else:
+                logger.warning("Ignoring unsupported service_tier value '%s' in concurrency_config.yaml", raw_tier)
+                service_tier_normalized = None
+        self.service_tier: Optional[str] = service_tier_normalized
 
         # Capabilities gating
         self.caps = detect_capabilities(self.model)
 
         # Configure aiohttp timeouts and connector pool based on concurrency settings
         try:
-            trans_cfg = (self.concurrency_config.get("concurrency", {}) or {}).get("transcription", {}) or {}
             conn_limit = int(trans_cfg.get("concurrency_limit", 100))
             if conn_limit <= 0:
                 conn_limit = 100
         except Exception:
             conn_limit = 100
 
-        # Mildly generous timeouts for longer Responses requests
-        client_timeout = aiohttp.ClientTimeout(total=900.0, connect=120.0, sock_connect=120.0, sock_read=600.0)
+        default_timeouts = {
+            "total": 900.0,
+            "connect": 120.0,
+            "sock_connect": 120.0,
+            "sock_read": 600.0,
+        }
+        if self.service_tier == "flex":
+            default_timeouts = {
+                "total": 1800.0,
+                "connect": 180.0,
+                "sock_connect": 180.0,
+                "sock_read": 1200.0,
+            }
+        elif self.service_tier == "priority":
+            default_timeouts = {
+                "total": 600.0,
+                "connect": 90.0,
+                "sock_connect": 90.0,
+                "sock_read": 420.0,
+            }
+
+        timeout_overrides = trans_cfg.get("timeouts", {}) if isinstance(trans_cfg.get("timeouts"), dict) else {}
+        total_timeout = float(timeout_overrides.get("total", default_timeouts["total"]))
+        connect_timeout = float(timeout_overrides.get("connect", default_timeouts["connect"]))
+        sock_connect_timeout = float(timeout_overrides.get("sock_connect", default_timeouts["sock_connect"]))
+        sock_read_timeout = float(timeout_overrides.get("sock_read", default_timeouts["sock_read"]))
+
+        client_timeout = aiohttp.ClientTimeout(
+            total=total_timeout,
+            connect=connect_timeout,
+            sock_connect=sock_connect_timeout,
+            sock_read=sock_read_timeout,
+        )
         connector = aiohttp.TCPConnector(limit=conn_limit, limit_per_host=conn_limit)
         self.session: aiohttp.ClientSession = aiohttp.ClientSession(timeout=client_timeout, connector=connector)
 

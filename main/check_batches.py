@@ -10,18 +10,26 @@ def _extract_chunk_index(custom_id: Any) -> int:
             return 10**9
     return 10**9
 
-def _order_responses(responses: List[Any]) -> List[Any]:
-    """Return responses sorted by chunk index when custom_id is available."""
+def _order_responses(responses: List[Any], order_map: Optional[Dict[str, int]] = None) -> List[Any]:
+    """Return responses sorted using explicit order_map, then chunk index."""
     try:
-        # responses may be strings or dicts; if dict, expect {'response': ..., 'custom_id': ...}
-        sortable = []
-        nonsortable = []
+        sortable: List[Any] = []
+        nonsortable: List[Any] = []
         for item in responses:
             if isinstance(item, dict) and ("custom_id" in item):
                 sortable.append(item)
             else:
                 nonsortable.append(item)
-        sortable.sort(key=lambda x: _extract_chunk_index(x.get("custom_id")))
+
+        def _sort_key(entry: Dict[str, Any]) -> Tuple[int, int]:
+            cid = entry.get("custom_id")
+            order_val = 10**9
+            if isinstance(cid, str) and order_map and cid in order_map:
+                order_val = order_map[cid]
+            chunk_val = _extract_chunk_index(cid)
+            return order_val, chunk_val
+
+        sortable.sort(key=_sort_key)
         return sortable + nonsortable
     except Exception:
         return responses
@@ -38,7 +46,7 @@ If enabled in paths_config.yaml, additional .csv, .txt, or .docx outputs are gen
 import json
 import re
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 import datetime
 
 from openai import OpenAI
@@ -46,8 +54,139 @@ from modules.config_loader import ConfigLoader
 from modules.logger import setup_logger
 from modules.schema_handlers import get_schema_handler
 from modules.user_interface import UserInterface
+from modules.openai_sdk_utils import list_all_batches, sdk_to_dict, coerce_file_id
+from modules.batch_utils import diagnose_batch_failure, extract_custom_id_mapping
 
 logger = setup_logger(__name__)
+
+OUTPUT_FILE_KEYS = [
+    "output_file_id",
+    "output_file",
+    "output_file_ids",
+    "response_file_id",
+    "response_file",
+    "response_file_ids",
+    "result_file_id",
+    "result_file",
+    "result_file_ids",
+    "results_file_id",
+    "results_file_ids",
+]
+
+ERROR_FILE_KEYS = [
+    "error_file_id",
+    "error_file",
+    "error_file_ids",
+    "errors_file_id",
+    "errors_file_ids",
+]
+
+
+def _response_to_text(response_obj: Any) -> str:
+    """Normalize a Responses API payload into a plain text string."""
+    if isinstance(response_obj, str):
+        return response_obj
+    if not isinstance(response_obj, dict):
+        return ""
+
+    if isinstance(response_obj.get("output_text"), str):
+        return response_obj["output_text"].strip()
+
+    parts: List[str] = []
+    output = response_obj.get("output")
+    if isinstance(output, list):
+        for item in output:
+            if isinstance(item, dict) and item.get("type") == "message":
+                for content_part in item.get("content", []):
+                    text_val = content_part.get("text") if isinstance(content_part, dict) else None
+                    if isinstance(text_val, str):
+                        parts.append(text_val)
+    return "".join(parts).strip()
+
+
+def _normalize_response_entry(entry: Dict[str, Any]) -> Dict[str, Any]:
+    """Ensure a response entry has consistent text/raw keys."""
+    normalized = dict(entry)
+    response_payload = normalized.get("response")
+    normalized.setdefault("raw_response", response_payload)
+    if isinstance(response_payload, dict):
+        normalized["response"] = _response_to_text(response_payload)
+        normalized.setdefault("raw_response", response_payload)
+    return normalized
+
+
+def _resolve_file_id_by_keys(batch: Dict[str, Any], keys: List[str]) -> Optional[str]:
+    for key in keys:
+        if key in batch:
+            file_id = coerce_file_id(batch.get(key))
+            if file_id:
+                return file_id
+    return None
+
+
+def _download_error_file(
+    client: OpenAI, error_file_id: str, target_dir: Path, batch_id: str
+) -> Optional[Path]:
+    """Download an error file for diagnostics if available."""
+    try:
+        response = client.files.content(error_file_id)
+        blob = response.read()
+        error_text = (
+            blob.decode("utf-8")
+            if isinstance(blob, (bytes, bytearray))
+            else str(blob)
+        )
+        target_dir.mkdir(parents=True, exist_ok=True)
+        short_batch = batch_id.replace("batch_", "")[:16]
+        error_path = target_dir / f"errors_{short_batch}.jsonl"
+        with error_path.open("w", encoding="utf-8") as handle:
+            handle.write(error_text)
+        logger.info("Saved error details for batch %s to %s", batch_id, error_path)
+        return error_path
+    except Exception as exc:
+        logger.warning("Failed to download error file %s for batch %s: %s", error_file_id, batch_id, exc)
+    return None
+
+
+def _recover_missing_batch_ids(
+    temp_file: Path,
+    identifier: str,
+    persist: bool,
+) -> Set[str]:
+    recovered: Set[str] = set()
+    debug_artifact = temp_file.parent / f"{identifier}_batch_submission_debug.json"
+    if not debug_artifact.exists():
+        return recovered
+
+    try:
+        artifact = json.loads(debug_artifact.read_text(encoding="utf-8"))
+        for candidate in artifact.get("batch_ids", []) or []:
+            if isinstance(candidate, str) and candidate:
+                recovered.add(candidate)
+    except Exception as exc:
+        logger.warning("Failed to read batch debug artifact %s: %s", debug_artifact, exc)
+        return recovered
+
+    if recovered and persist:
+        try:
+            timestamp = datetime.datetime.now().isoformat()
+            with temp_file.open("a", encoding="utf-8") as handle:
+                for batch_id in recovered:
+                    record = {
+                        "batch_tracking": {
+                            "batch_id": batch_id,
+                            "timestamp": timestamp,
+                            "batch_file": str(temp_file),
+                        }
+                    }
+                    handle.write(json.dumps(record) + "\n")
+            logger.info(
+                "Persisted %s recovered batch id(s) into %s", len(recovered), temp_file.name
+            )
+        except Exception as exc:
+            logger.warning("Failed to persist recovered batch ids for %s: %s", temp_file.name, exc)
+
+    return recovered
 
 
 def is_batch_finished(batch_id: str, client: OpenAI) -> bool:
@@ -95,12 +234,15 @@ def process_batch_output_file(file_path: Path) -> Dict[str, List[Any]]:
 			try:
 				record: Dict[str, Any] = json.loads(line)
 				if "response" in record:
-					# Preserve custom_id and chunk_range if present (sync mode writes these)
-					responses.append({
-						"response": record.get("response"),
-						"custom_id": record.get("custom_id"),
-						"chunk_range": record.get("chunk_range"),
-					})
+					responses.append(
+						_normalize_response_entry(
+							{
+								"response": record.get("response"),
+								"custom_id": record.get("custom_id"),
+								"chunk_range": record.get("chunk_range"),
+							}
+						)
+					)
 				elif "batch_tracking" in record:
 					tracking.append(record["batch_tracking"])
 			except Exception as e:
@@ -108,45 +250,74 @@ def process_batch_output_file(file_path: Path) -> Dict[str, List[Any]]:
 	return {"responses": responses, "tracking": tracking}
 
 
-def retrieve_responses_from_batch(tracking_record: Dict[str, Any],
-                                  client: OpenAI) -> List[Any]:
-	responses: List[Any] = []
-	batch_id: Any = tracking_record.get("batch_id")
-	if not batch_id:
-		logger.error("No batch_id found in tracking record.")
-		return responses
-	try:
-		batch_info: Any = client.batches.retrieve(batch_id)
-		if isinstance(batch_info, dict):
-			output_file_id = batch_info.get("output_file_id") or batch_info.get(
-				"result_file_id")
-		else:
-			output_file_id = getattr(batch_info, "output_file_id",
-			                         None) or getattr(batch_info,
-			                                          "result_file_id", None)
-		if not output_file_id:
-			logger.error(f"No output file id found for batch {batch_id}.")
-			return responses
-		output_file_content: str = client.files.content(output_file_id).text
-		for line in output_file_content.splitlines():
-			line = line.strip()
-			if not line:
-				continue
-			try:
-				out_record: Dict[str, Any] = json.loads(line)
-				if "response" in out_record:
-					responses.append({
-						"response": out_record.get("response"),
-						"custom_id": out_record.get("custom_id"),
-					})
-			except Exception as e:
-				logger.error(
-					f"Error processing a line from batch output file: {e}")
-	except Exception as e:
-		logger.error(f"Error retrieving batch {batch_id}: {e}")
-	if not responses:
-		logger.warning(f"No responses retrieved for batch {batch_id}.")
-	return responses
+def retrieve_responses_from_batch(
+    tracking_record: Dict[str, Any],
+    client: OpenAI,
+    temp_dir: Path,
+    batch_cache: Dict[str, Dict[str, Any]],
+) -> List[Dict[str, Any]]:
+    responses: List[Dict[str, Any]] = []
+    batch_id: Any = tracking_record.get("batch_id")
+    if not batch_id:
+        logger.error("No batch_id found in tracking record.")
+        return responses
+
+    batch_id = str(batch_id)
+    batch: Optional[Dict[str, Any]] = batch_cache.get(batch_id)
+    if not batch:
+        try:
+            batch_obj = client.batches.retrieve(batch_id)
+            batch = sdk_to_dict(batch_obj)
+            batch_cache[batch_id] = batch
+        except Exception as exc:
+            logger.error(f"Error retrieving batch {batch_id}: {exc}")
+            return responses
+
+    output_file_id = _resolve_file_id_by_keys(batch, OUTPUT_FILE_KEYS)
+    if not output_file_id:
+        error_file_id = _resolve_file_id_by_keys(batch, ERROR_FILE_KEYS)
+        if error_file_id:
+            _download_error_file(client, error_file_id, temp_dir, batch_id)
+        logger.error(f"No output file id found for batch {batch_id}.")
+        return responses
+
+    try:
+        file_stream = client.files.content(output_file_id)
+        blob = file_stream.read()
+        text = (
+            blob.decode("utf-8")
+            if isinstance(blob, (bytes, bytearray))
+            else str(blob)
+        )
+    except Exception as exc:
+        logger.error(f"Error downloading batch output for {batch_id}: {exc}")
+        return responses
+
+    for line in text.splitlines():
+        payload = line.strip()
+        if not payload:
+            continue
+        try:
+            out_record: Dict[str, Any] = json.loads(payload)
+        except json.JSONDecodeError:
+            logger.error(
+                "Error parsing a line from batch output %s for batch %s", output_file_id, batch_id
+            )
+            continue
+
+        if "response" in out_record:
+            responses.append(
+                _normalize_response_entry(
+                    {
+                        "response": out_record.get("response"),
+                        "custom_id": out_record.get("custom_id"),
+                    }
+                )
+            )
+
+    if not responses:
+        logger.warning(f"No responses retrieved for batch {batch_id}.")
+    return responses
 
 
 def process_all_batches(
@@ -163,6 +334,15 @@ def process_all_batches(
 		logger.info(f"No temporary batch files found in {root_folder}.")
 		return
 
+	try:
+		batch_listing = list_all_batches(client)
+		batch_dict: Dict[str, Dict[str, Any]] = {
+			b.get("id"): b for b in batch_listing if isinstance(b, dict) and b.get("id")
+		}
+	except Exception as exc:
+		logger.warning("Unable to list all batches (falling back to on-demand retrieval): %s", exc)
+		batch_dict = {}
+
 	for temp_file in temp_files:
 		try:
 			ui.console_print(f"\nProcessing batch file: {temp_file.name}")
@@ -172,6 +352,7 @@ def process_all_batches(
 			results: Dict[str, Any] = process_batch_output_file(temp_file)
 			responses: List[Any] = results.get("responses", [])
 			tracking: List[Any] = results.get("tracking", [])
+			custom_id_map, order_map = extract_custom_id_mapping(temp_file)
 
 			if not tracking:
 				ui.console_print(
@@ -180,10 +361,31 @@ def process_all_batches(
 					f"Tracking information missing in {temp_file}. Skipping final output.")
 				continue
 
+			persist_recovered = processing_settings.get("persist_recovered_batch_ids", True)
+			batch_ids: Set[str] = {
+				str(track.get("batch_id"))
+				for track in tracking
+				if track.get("batch_id")
+			}
+			recovered_ids = set()
+			if not batch_ids:
+				recovered_ids = _recover_missing_batch_ids(temp_file, temp_file.stem.replace("_temp", ""), persist_recovered)
+				for recovered in recovered_ids:
+					tracking.append({"batch_id": recovered})
+					batch_ids.add(recovered)
+
+			if not batch_ids:
+				ui.console_print(
+					f"[WARN] No batch IDs found for {temp_file.name}. Unable to finalize this file.")
+				logger.warning("No batch IDs recovered for %s", temp_file)
+				continue
+
 			# Check batch status and retrieve completed results
 			all_finished: bool = True
 			completed_batches = []
 			failed_batches = []
+			missing_batches: List[str] = []
+			local_batch_cache: Dict[str, Dict[str, Any]] = batch_dict.copy()
 
 			for track in tracking:
 				batch_id: Any = track.get("batch_id")
@@ -192,24 +394,35 @@ def process_all_batches(
 						f"Missing batch_id in tracking record in {temp_file}")
 					continue
 
-				try:
-					batch_info = client.batches.retrieve(batch_id)
-					status: str = batch_info.status.lower()
+				batch_id = str(batch_id)
+				batch: Optional[Dict[str, Any]] = local_batch_cache.get(batch_id)
+				if not batch:
+					try:
+						batch_obj = client.batches.retrieve(batch_id)
+						batch = sdk_to_dict(batch_obj)
+						local_batch_cache[batch_id] = batch
+					except Exception as exc:
+						logger.error(f"Error retrieving batch {batch_id}: {exc}")
+						failed_batches.append((track, f"error: {exc}"))
+						all_finished = False
+						missing_batches.append(batch_id)
+						continue
 
-					if status in {"completed"}:
-						completed_batches.append(track)
-					elif status in {"expired", "failed", "cancelled"}:
-						failed_batches.append((track, status))
-						all_finished = False
-					else:
-						ui.console_print(
-							f"[INFO] Batch {batch_id} is still in progress (status: {status}). Skipping for now.")
-						logger.info(
-							f"Batch {batch_id} is still in progress (status: {status}).")
-						all_finished = False
-				except Exception as e:
-					logger.error(f"Error retrieving batch {batch_id}: {e}")
-					failed_batches.append((track, f"error: {e}"))
+				status: str = str(batch.get("status", "")).lower()
+
+				if status in {"completed"}:
+					completed_batches.append(track)
+				elif status in {"expired", "failed", "cancelled"}:
+					if status == "failed":
+						diagnosis = diagnose_batch_failure(batch_id, client)
+						logger.warning("Batch %s failed: %s", batch_id, diagnosis)
+					failed_batches.append((track, status))
+					all_finished = False
+				else:
+					ui.console_print(
+						f"[INFO] Batch {batch_id} is still in progress (status: {status}). Skipping for now.")
+					logger.info(
+						f"Batch {batch_id} is still in progress (status: {status}).")
 					all_finished = False
 
 			# Process completed batches
@@ -220,7 +433,7 @@ def process_all_batches(
 
 			# Retrieve responses from completed batches
 			for track in completed_batches:
-				batch_responses = retrieve_responses_from_batch(track, client)
+				batch_responses = retrieve_responses_from_batch(track, client, temp_file.parent, local_batch_cache)
 				responses.extend(batch_responses)
 
 			if not responses:
@@ -232,7 +445,7 @@ def process_all_batches(
 			identifier: str = temp_file.stem.replace("_temp", "")
 			final_json_path: Path = temp_file.parent / f"{identifier}_final_output.json"
 
-			ordered_responses: List[Any] = _order_responses(responses)
+			ordered_responses: List[Any] = _order_responses(responses, order_map)
 
 			final_results: Dict[str, Any] = {
 				"responses": ordered_responses,
@@ -242,9 +455,13 @@ def process_all_batches(
 					"processed_at": datetime.datetime.now().isoformat(),
 					"completed_batches": len(completed_batches),
 					"failed_batches": len(failed_batches),
-					"ordered_by_custom_id": True
-				}
+					"ordered_by_custom_id": True,
+					"missing_batches": missing_batches,
+					"recovered_batch_ids": sorted(recovered_ids),
+				},
 			}
+			if custom_id_map:
+				final_results["custom_id_map"] = custom_id_map
 
 			with final_json_path.open("w", encoding="utf-8") as fout:
 				json.dump(final_results, fout, indent=2)
@@ -290,7 +507,7 @@ def main() -> None:
 	ui.console_print("Retrieving list of submitted batches...")
 
 	try:
-		batches: List[Any] = list(client.batches.list(limit=50))
+		batches: List[Dict[str, Any]] = list_all_batches(client, limit=100)
 	except Exception as e:
 		ui.console_print(f"[ERROR] Error retrieving batches: {e}")
 		logger.error(f"Error retrieving batches: {e}")
@@ -299,7 +516,6 @@ def main() -> None:
 	if not batches:
 		ui.console_print("No batch jobs found online.")
 	else:
-		# Display batch summary instead of listing all batches
 		ui.display_batch_summary(batches)
 
 	for schema_name, repo_dir, schema_config in repo_info_list:

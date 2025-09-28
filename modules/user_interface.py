@@ -87,8 +87,13 @@ class UserInterface:
 		self.console_print("  SCHEMA SELECTION")
 		self.console_print("=" * 80)
 
-		schema_list = list(available_schemas.keys())
-		schema_options = [(name, name) for name in schema_list]
+		schema_options_with_paths = schema_manager.list_schema_options()
+		if schema_options_with_paths:
+			schema_options = [
+				(name, f"{name} ({path.name})") for name, path in schema_options_with_paths
+			]
+		else:
+			schema_options = [(name, name) for name in available_schemas.keys()]
 
 		selected_schema_name = self.select_option(
 			"Select a schema to use for extraction:",
@@ -368,12 +373,19 @@ class UserInterface:
 		in_progress_batches = []
 
 		for batch in batches:
-			status = batch.status.lower()
+			if isinstance(batch, dict):
+				status = str(batch.get("status", "unknown")).lower()
+				batch_id = batch.get("id", "unknown")
+				created_time = batch.get("created_at") or batch.get("created") or "Unknown"
+			else:
+				status = str(getattr(batch, "status", "unknown")).lower()
+				batch_id = getattr(batch, "id", "unknown")
+				created_time = getattr(batch, "created_at", getattr(batch, "created", "Unknown"))
 			status_counts[status] = status_counts.get(status, 0) + 1
 
 			# Keep track of non-terminal batches for detailed display
 			if status not in {"completed", "expired", "cancelled", "failed"}:
-				in_progress_batches.append(batch)
+				in_progress_batches.append((batch_id, status, created_time))
 
 		# Display summary
 		self.console_print("\n" + "=" * 80)
@@ -388,11 +400,34 @@ class UserInterface:
 		# Display in-progress batches if any
 		if in_progress_batches:
 			self.console_print("\nBatches still in progress:")
-			for batch in in_progress_batches:
-				created_time = batch.created_at if hasattr(batch,
-				                                           'created_at') else "Unknown"
+			for batch_id, status, created_time in in_progress_batches:
 				self.console_print(
-					f"  - Batch ID: {batch.id} | Status: {batch.status} | Created: {created_time}")
+					f"  - Batch ID: {batch_id} | Status: {status} | Created: {created_time}")
+
+	def display_batch_processing_progress(
+		self,
+		temp_file: Path,
+		batch_ids: List[str],
+		completed_batches: int,
+		missing_batches: int,
+		failed_batches: List[Tuple[Dict[str, Any], str]],
+	) -> None:
+		"""Print a concise progress summary for a temp batch file."""
+		total_batches = len(batch_ids)
+		self.console_print(
+			f"[INFO] {temp_file.name}: {completed_batches}/{total_batches} batches completed"
+		)
+		if missing_batches:
+			self.console_print(
+				f"[WARN] {missing_batches} batch id(s) missing from OpenAI responses."
+			)
+		if failed_batches:
+			self.console_print(
+				"[WARN] Failed or terminal batches detected:"
+			)
+			for track, status in failed_batches:
+				bid = track.get("batch_id", "unknown")
+				self.console_print(f"  - Batch ID: {bid} | Status: {status}")
 
 	def display_batch_operation_result(self, batch_id: str, operation: str,
 	                                   success: bool,

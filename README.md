@@ -54,7 +54,7 @@ ChronoMiner processes large historical or academic texts by:
 ChronoMiner/
 ├── config/
 │   ├── chunking_and_context.yaml      # Chunking strategy settings and context configuration
-│   ├── concurrency_config.yaml       # Concurrency limits for asynchronous processing
+│   ├── concurrency_config.yaml       # Concurrency, timeout, and retry settings for processing
 │   ├── model_config.yaml             # OpenAI model settings (name, tokens, reasoning effort)
 │   └── paths_config.yaml             # Global and schema-specific I/O paths and output flags
 ├── developer_messages/               # Exemplary developer messages matching the exemplary .json schemas

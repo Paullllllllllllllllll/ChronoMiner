@@ -8,3 +8,13 @@ concurrency:
     concurrency_limit: 100     # HTTP connector pool sizing hint
     delay_between_tasks: 0.0   # Optional delay between sequential tasks
     service_tier: default      # One of: auto, default, flex, priority
+    timeouts:                  # Optional overrides per request stage (seconds)
+      total: 900               # Overall request timeout
+      connect: 120             # Connection acquisition timeout
+      sock_connect: 120        # TCP handshake timeout
+      sock_read: 600           # Server response timeout
+    retry:                     # Retry policy for transient failures
+      attempts: 5
+      wait_min_seconds: 4
+      wait_max_seconds: 60
+      jitter_max_seconds: 1
