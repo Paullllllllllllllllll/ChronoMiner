@@ -4,3 +4,7 @@ concurrency:
   text_processing:
     concurrency_limit: 500 # Max number of concurrent requests
     delay_between_tasks: 0.1 # Delay between single requests
+  transcription:
+    concurrency_limit: 100     # HTTP connector pool sizing hint
+    delay_between_tasks: 0.0   # Optional delay between sequential tasks
+    service_tier: default      # One of: auto, default, flex, priority

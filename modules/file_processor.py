@@ -124,7 +124,7 @@ class FileProcessor:
 		# -- Perform Text Chunking --
 		try:
 			openai_config_task: Dict[str, Any] = {
-				"model_name": self.model_config["extraction_model"]["name"],
+				"model_name": self.model_config["transcription_model"]["name"],
 				"default_tokens_per_chunk": self.chunking_config["chunking"][
 					"default_tokens_per_chunk"]
 			}
@@ -290,7 +290,7 @@ class FileProcessor:
 						api_key=api_key,
 						prompt_path=Path(
 							"prompts/structured_output_prompt.txt"),
-						model=self.model_config["extraction_model"]["name"]
+						model=self.model_config["transcription_model"]["name"]
 				) as extractor:
 					with temp_jsonl_path.open("w", encoding="utf-8") as tempf:
 						for idx, chunk in enumerate(chunks, 1):

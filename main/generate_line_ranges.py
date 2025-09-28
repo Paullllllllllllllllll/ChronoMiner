@@ -8,7 +8,6 @@ on token-based chunking. The line ranges are written to a '_line_ranges.txt' fil
 """
 
 import sys
-import yaml
 from pathlib import Path
 from typing import List, Tuple
 
@@ -91,15 +90,10 @@ def main() -> None:
     config_loader = ConfigLoader()
     config_loader.load_configs()
     paths_config = config_loader.get_paths_config()
-
-    chunking_config_path: Path = Path(__file__).resolve().parent.parent / "config" / "chunking_config.yaml"
-    with chunking_config_path.open('r', encoding='utf-8') as f:
-        chunking_config = yaml.safe_load(f)["chunking"]
-
-    model_config_path: Path = Path(__file__).resolve().parent.parent / "config" / "model_config.yaml"
-    with model_config_path.open('r', encoding='utf-8') as f:
-        model_config = yaml.safe_load(f)["extraction_model"]
-    model_name: str = model_config.get("name", "o3-mini")
+    chunking_and_context_config = config_loader.get_chunking_and_context_config()
+    chunking_config = chunking_and_context_config.get("chunking", {})
+    model_cfg = config_loader.get_model_config().get("transcription_model", {})
+    model_name: str = model_cfg.get("name", "o3-mini")
 
     selected_schema_name: str = select_schema_for_line_ranges()
     schemas_paths = config_loader.get_schemas_paths()

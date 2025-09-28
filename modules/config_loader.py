@@ -19,7 +19,7 @@ class ConfigLoader:
 	  - concurrency_config.yaml
 	"""
 	REQUIRED_PATHS_KEYS = ['general', 'schemas_paths']
-	REQUIRED_MODEL_CONFIG = ['extraction_model']
+	REQUIRED_MODEL_CONFIG = ['transcription_model']
 	REQUIRED_CONCURRENCY = ['concurrency']
 	REQUIRED_CHUNKING_AND_CONTEXT_KEYS = ['chunking', 'context']
 

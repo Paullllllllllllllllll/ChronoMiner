@@ -1,3 +1,31 @@
+def _extract_chunk_index(custom_id: Any) -> int:
+    """Extract numeric chunk index from a custom_id like '<stem>-chunk-<n>' or 'req-<n>'."""
+    if not isinstance(custom_id, str):
+        return 10**9  # push unknowns to end
+    m = re.search(r"(?:-chunk-|req-)(\d+)$", custom_id)
+    if m:
+        try:
+            return int(m.group(1))
+        except Exception:
+            return 10**9
+    return 10**9
+
+def _order_responses(responses: List[Any]) -> List[Any]:
+    """Return responses sorted by chunk index when custom_id is available."""
+    try:
+        # responses may be strings or dicts; if dict, expect {'response': ..., 'custom_id': ...}
+        sortable = []
+        nonsortable = []
+        for item in responses:
+            if isinstance(item, dict) and ("custom_id" in item):
+                sortable.append(item)
+            else:
+                nonsortable.append(item)
+        sortable.sort(key=lambda x: _extract_chunk_index(x.get("custom_id")))
+        return sortable + nonsortable
+    except Exception:
+        return responses
+
 # main/check_batches.py
 
 """
@@ -8,6 +36,7 @@ and response records, retrieves missing responses via OpenAI's API, and writes a
 If enabled in paths_config.yaml, additional .csv, .txt, or .docx outputs are generated.
 """
 import json
+import re
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 import datetime
@@ -66,7 +95,12 @@ def process_batch_output_file(file_path: Path) -> Dict[str, List[Any]]:
 			try:
 				record: Dict[str, Any] = json.loads(line)
 				if "response" in record:
-					responses.append(record["response"])
+					# Preserve custom_id and chunk_range if present (sync mode writes these)
+					responses.append({
+						"response": record.get("response"),
+						"custom_id": record.get("custom_id"),
+						"chunk_range": record.get("chunk_range"),
+					})
 				elif "batch_tracking" in record:
 					tracking.append(record["batch_tracking"])
 			except Exception as e:
@@ -101,7 +135,10 @@ def retrieve_responses_from_batch(tracking_record: Dict[str, Any],
 			try:
 				out_record: Dict[str, Any] = json.loads(line)
 				if "response" in out_record:
-					responses.append(out_record["response"])
+					responses.append({
+						"response": out_record.get("response"),
+						"custom_id": out_record.get("custom_id"),
+					})
 			except Exception as e:
 				logger.error(
 					f"Error processing a line from batch output file: {e}")
@@ -195,14 +232,17 @@ def process_all_batches(
 			identifier: str = temp_file.stem.replace("_temp", "")
 			final_json_path: Path = temp_file.parent / f"{identifier}_final_output.json"
 
+			ordered_responses: List[Any] = _order_responses(responses)
+
 			final_results: Dict[str, Any] = {
-				"responses": responses,
+				"responses": ordered_responses,
 				"tracking": tracking,
 				"processing_metadata": {
 					"fully_completed": all_finished,
 					"processed_at": datetime.datetime.now().isoformat(),
 					"completed_batches": len(completed_batches),
-					"failed_batches": len(failed_batches)
+					"failed_batches": len(failed_batches),
+					"ordered_by_custom_id": True
 				}
 			}
 

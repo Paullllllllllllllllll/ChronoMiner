@@ -1,7 +1,13 @@
 # model_config.yaml
-
-extraction_model: # the large-language model that will be used for extraction
-  name: "o3-mini" # default model, for more information refer to OpenAI's documentation
-  max_completion_tokens: 100000 # max number of tokens the model can use to respond, includes reasoning tokens
-  temperature: 0.0 # temperature (currently not supported for o3-mini)
-  reasoning_effort: "medium" # reasoning effort -> higher reasoning effort will yield better results but produce more tokens
+transcription_model:  # Model used with the OpenAI Responses API
+  name: "o3-mini"  # default model; change per OpenAI documentation
+  max_output_tokens: 100000  # budget for model outputs
+  reasoning:  # used for GPT-5 family; ignored for o-series
+    effort: medium
+  text:  # GPT-5 family control
+    verbosity: medium
+  # Classic sampler controls apply to non-reasoning families (e.g., GPT-4o/4.1)
+  temperature: 0.0
+  top_p: 1.0
+  frequency_penalty: 0.0
+  presence_penalty: 0.0

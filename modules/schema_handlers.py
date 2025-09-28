@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional
 from modules.data_processing import CSVConverter
 from modules.text_processing import DocumentConverter
+from modules.structured_outputs import build_structured_text_format
 
 logger = logging.getLogger(__name__)
 
@@ -35,25 +36,35 @@ class BaseSchemaHandler:
 
 		json_schema_payload = self.get_json_schema_payload(dev_message,
 		                                                   model_config, schema)
+		# Build typed input and structured outputs for Responses API
+		model_cfg = model_config.get("transcription_model", {})
+		fmt = build_structured_text_format(json_schema_payload, self.schema_name, True)
+		body = {
+			"model": model_cfg.get("name"),
+			"max_output_tokens": model_cfg.get("max_output_tokens", 4096),
+			"input": [
+				{
+					"role": "system",
+					"content": [{"type": "input_text", "text": dev_message}]
+				},
+				{
+					"role": "user",
+					"content": [{"type": "input_text", "text": text_chunk}]
+				}
+			]
+		}
+		if fmt is not None:
+			body.setdefault("text", {})["format"] = fmt
+		# Optional classic sampler controls (safe for non-reasoning families)
+		for k in ("temperature", "top_p", "frequency_penalty", "presence_penalty"):
+			if k in model_cfg and model_cfg[k] is not None:
+				body[k] = model_cfg[k]
+
 		request_obj = {
 			"custom_id": None,
 			"method": "POST",
-			"url": "/v1/chat/completions",
-			"body": {
-				"model": model_config["extraction_model"]["name"],
-				"messages": [
-					{"role": "system", "content": dev_message},
-					{"role": "user", "content": text_chunk}
-				],
-				"max_completion_tokens": model_config["extraction_model"][
-					"max_completion_tokens"],
-				"reasoning_effort": model_config["extraction_model"][
-					"reasoning_effort"],
-				"response_format": {
-					"type": "json_schema",
-					"json_schema": json_schema_payload
-				}
-			}
+			"url": "/v1/responses",
+			"body": body,
 		}
 		return request_obj
 

@@ -41,9 +41,9 @@ def submit_batch(batch_file_path: Path) -> Dict[str, Any]:
     logger.info(f"Uploaded batch file, file id: {file_id}")
     batch_response = client.batches.create(
         input_file_id=file_id,
-        endpoint="/v1/chat/completions",
+        endpoint="/v1/responses",
         completion_window="24h",
-        metadata={"description": "Batch text processing job"}
+        metadata={"description": "Batch text processing job (Responses API)"}
     )
     logger.info(f"Batch submitted, batch id: {batch_response.id}")
     return batch_response
