@@ -50,12 +50,12 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import datetime
 
 from openai import OpenAI
-from modules.config_loader import ConfigLoader
-from modules.logger import setup_logger
+from modules.config.loader import ConfigLoader
+from modules.core.logger import setup_logger
 from modules.schema_handlers import get_schema_handler
-from modules.user_interface import UserInterface
-from modules.openai_sdk_utils import list_all_batches, sdk_to_dict, coerce_file_id
-from modules.batch_utils import diagnose_batch_failure, extract_custom_id_mapping
+from modules.ui.core import UserInterface
+from modules.llm.openai_sdk_utils import list_all_batches, sdk_to_dict, coerce_file_id
+from modules.core.batch_utils import diagnose_batch_failure, extract_custom_id_mapping
 
 logger = setup_logger(__name__)
 

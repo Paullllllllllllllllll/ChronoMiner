@@ -10,8 +10,8 @@ Terminal statuses are assumed to be: completed, expired, cancelled, or failed.
 from typing import Any, Set, List
 
 from openai import OpenAI
-from modules.logger import setup_logger
-from modules.user_interface import UserInterface
+from modules.core.logger import setup_logger
+from modules.ui.core import UserInterface
 
 logger = setup_logger(__name__)
 

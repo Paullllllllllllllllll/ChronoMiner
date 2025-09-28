@@ -1,15 +1,15 @@
-# modules/file_processor.py
+# modules/operations/extraction/file_processor.py
 
 import os
 import json
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
-from modules.text_utils import TextProcessor, perform_chunking
-from modules.openai_utils import open_extractor, process_text_chunk
-from modules.schema_handlers import get_schema_handler
-from modules.batching import build_batch_files, submit_batch
-from modules.prompt_utils import render_prompt_with_schema
+from modules.core.text_utils import TextProcessor, perform_chunking
+from modules.llm.openai_utils import open_extractor, process_text_chunk
+from modules.operations.extraction.schema_handlers import get_schema_handler
+from modules.llm.batching import build_batch_files, submit_batch
+from modules.llm.prompt_utils import render_prompt_with_schema
 import logging
 
 logger = logging.getLogger(__name__)

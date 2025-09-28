@@ -11,9 +11,9 @@ import sys
 from pathlib import Path
 from typing import List, Tuple
 
-from modules.config_loader import ConfigLoader
+from modules.config.loader import ConfigLoader
 from modules.text_utils import TextProcessor, TokenBasedChunking
-from modules.schema_manager import SchemaManager
+from modules.core.schema_manager import SchemaManager
 
 
 def select_schema_for_line_ranges() -> str:

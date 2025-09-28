@@ -15,13 +15,13 @@ import sys
 import traceback
 from pathlib import Path
 
-from modules.config_loader import ConfigLoader
-from modules.logger import setup_logger
-from modules.schema_manager import SchemaManager
-from modules.context_manager import ContextManager
-from modules.user_interface import UserInterface
-from modules.file_processor import FileProcessor
-from modules.config_manager import ConfigManager
+from modules.config.loader import ConfigLoader
+from modules.core.logger import setup_logger
+from modules.core.schema_manager import SchemaManager
+from modules.core.context_manager import ContextManager
+from modules.ui.core import UserInterface
+from modules.operations.extraction.file_processor import FileProcessor
+from modules.config.manager import ConfigManager
 
 # Initialize logger
 logger = setup_logger(__name__)
