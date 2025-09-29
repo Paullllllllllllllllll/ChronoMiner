@@ -1,6 +1,8 @@
 {
   "name": "CulinaryPersonsEntries",
   "schema_version": "1.1",
+  "type": "json_schema",
+  "strict": true,
   "schema": {
     "type": "object",
     "properties": {
@@ -38,7 +40,7 @@
               }
             },
             "gender": {
-              "type": ["string", "null"],
+              "type": "string",
               "enum": ["Female", "Male", "Unknown", "Other"],
               "description": "Person’s gender as indicated or inferable from the source. Use Unknown if not stated or unclear; use Other when not covered by the listed values."
             },
@@ -74,9 +76,10 @@
                   "Manufacturer",
                   "Scientist",
                   "Restaurant Chef",
-                  "Other"
+                  "Other",
+                  "Unknown"
                 ],
-                "description": "One role value from the controlled list."
+                "description": "One role value from the controlled list. Use Other if not listed and Unknown when the source does not specify a role."
               }
             },
             "period": {
@@ -129,9 +132,10 @@
                           "Court",
                           "MonasticCenter",
                           "Inn",
-                          "Other"
+                          "Other",
+                          "Unknown"
                         ],
-                        "description": "Best-fitting category for the place."
+                        "description": "Best-fitting category for the place. Use Unknown when the source provides no classification."
                       },
                       "country_modern": {
                         "type": ["string", "null"],
@@ -147,7 +151,7 @@
                     "additionalProperties": false
                   },
                   "association_role": {
-                    "type": ["string", "null"],
+                    "type": "string",
                     "enum": [
                       "Birthplace",
                       "Residence",
@@ -155,9 +159,10 @@
                       "Court",
                       "Workplace",
                       "Training",
-                      "Other"
+                      "Other",
+                      "Unknown"
                     ],
-                    "description": "Nature of the person–place link. Choose the closest match (e.g., Birthplace; Residence). Use Other if not listed."
+                    "description": "Nature of the person–place link. Choose the closest match (e.g., Birthplace; Residence). Use Other if not listed, Unknown if unspecified."
                   }
                 },
                 "required": ["place", "association_role"],
@@ -192,7 +197,7 @@
               "description": "1–2 sentences noting the person’s innovations or historical importance (neutral, factual). Use null if not provided."
             },
             "social_class": {
-              "type": ["string", "null"],
+              "type": "string",
               "enum": [
                 "Aristocracy",
                 "Clergy",

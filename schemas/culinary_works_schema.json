@@ -1,6 +1,8 @@
 {
   "name": "CulinaryWorksEntries",
   "schema_version": "1.1",
+  "type": "json_schema",
+  "strict": true,
   "schema": {
     "type": "object",
     "properties": {
@@ -41,7 +43,7 @@
                     "description": "Modern English or standardized form of the contributor’s name for linkage. If not applicable, repeat the original."
                   },
                   "role": {
-                    "type": ["string", "null"],
+                    "type": "string",
                     "enum": [
                       "Author",
                       "Editor",
@@ -54,7 +56,7 @@
                       "Unknown",
                       "Other"
                     ],
-                    "description": "Contributor’s function with respect to the work. If uncertain, choose Unknown; if not listed, choose Other. Do not use null unless the role is missing in the input."
+                    "description": "Contributor’s function with respect to the work. If uncertain, choose Unknown; if not listed, choose Other."
                   }
                 },
                 "required": ["name_original", "name_modern_english", "role"],
@@ -74,13 +76,14 @@
                   "English",
                   "Spanish",
                   "Dutch",
-                  "Other"
+                  "Other",
+                  "Unknown"
                 ],
                 "description": "One language value from the controlled list."
               }
             },
             "genre": {
-              "type": ["string", "null"],
+              "type": "string",
               "enum": [
                 "Cookbook",
                 "Household Manual",
@@ -91,9 +94,10 @@
                 "Bibliography",
                 "Culinary History",
                 "Magazine/Periodical",
-                "Other"
+                "Other",
+                "Unknown"
               ],
-              "description": "Select the single best-fitting genre from the controlled list. Use Other when none fits. Do not use null unless the genre is not stated in the input."
+              "description": "Select the single best-fitting genre from the controlled list. Use Other when none fits and Unknown when the source does not specify a genre."
             },
             "culinary_focus": {
               "type": "array",
@@ -129,7 +133,7 @@
             },
             "edition_years": {
               "type": "array",
-              "description": "All known publication or edition years as integers when available. Use null for uncertain or unspecified years.",
+              "description": "All known publication or edition years as integers when available. Use nulls for uncertain or unspecified years.",
               "items": {
                 "type": ["integer", "null"],
                 "description": "Four-digit Gregorian year (e.g., 1549) or null when unknown."
@@ -162,9 +166,10 @@
                       "Court",
                       "MonasticCenter",
                       "Inn",
-                      "Other"
+                      "Other",
+                      "Unknown"
                     ],
-                    "description": "Select the best-fitting category for the place."
+                    "description": "Select the best-fitting category for the place. Use Unknown when the source provides no classification."
                   },
                   "country_modern": {
                     "type": ["string", "null"],
@@ -207,9 +212,10 @@
                       "Court",
                       "MonasticCenter",
                       "Inn",
-                      "Other"
+                      "Other",
+                      "Unknown"
                     ],
-                    "description": "Select the best-fitting category for the associated place."
+                    "description": "Select the best-fitting category for the associated place. Use Unknown when the source provides no classification."
                   },
                   "country_modern": {
                     "type": ["string", "null"],
@@ -303,7 +309,8 @@
                       "Cites",
                       "LocatedAt",
                       "EmployedAt",
-                      "Other"
+                      "Other",
+                      "Unknown"
                     ],
                     "description": "Nature of the relationship to the referenced entity (choose the closest match)."
                   }

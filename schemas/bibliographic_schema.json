@@ -1,6 +1,8 @@
 {
   "name": "BibliographicEntries",
   "schema_version": "2.8",
+  "type": "json_schema",
+  "strict": true,
   "schema": {
     "type": "object",
     "properties": {
@@ -16,7 +18,6 @@
             "short_title": {
               "type": "string",
               "description": "A concise title or reference name in plain text. Example: 'Art of Cooking'."
-            }
             },
             "authors": {
               "type": "array",
@@ -76,19 +77,23 @@
               "description": "An array indicating the specific culinary areas the book focuses on."
             },
             "format": {
-              "type": ["string", "null"],
-              "enum": [
-                "Folio",
-                "Quarto",
-                "Octavo",
-                "Duodecimo",
-                "Pocket-Sized",
-                "Miniature",
-                "Unknown",
-                "Other",
-                null
+              "anyOf": [
+                {
+                  "type": "string",
+                  "enum": [
+                    "Folio",
+                    "Quarto",
+                    "Octavo",
+                    "Duodecimo",
+                    "Pocket-Sized",
+                    "Miniature",
+                    "Unknown",
+                    "Other"
+                  ]
+                },
+                { "type": "null" }
               ],
-              "description": "Physical format of the book, or null if unknown."
+              "description": "Physical format of the book. Use a listed value, or null if not provided."
             },
             "pages": {
               "type": ["integer", "null"],
@@ -128,66 +133,85 @@
                     "description": "A brief note of any important information. Example: 'Second edition with added chapters.'"
                   },
                   "edition_category": {
-                    "type": ["string", "null"],
-                    "enum": [
-                      "Original",
-                      "Reprint",
-                      "Translation",
-                      "Plagiarism",
-                      "Modified Edition",
-                      "Compilation",
-                      "Facsimile",
-                      "Critical Edition",
-                      "Unknown",
-                      "Other",
-                      null
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "Original",
+                          "Reprint",
+                          "Translation",
+                          "Plagiarism",
+                          "Modified Edition",
+                          "Compilation",
+                          "Facsimile",
+                          "Critical Edition",
+                          "Unknown",
+                          "Other"
+                        ]
+                      },
+                      { "type": "null" }
                     ],
-                    "description": "The category of the edition. Use `null` if unknown. Example: 'Original'."
+                    "description": "The category of the edition. Use a listed value, or null if the source omits it. Example: 'Original'."
                   },
                   "language": {
-                    "type": ["string", "null"],
-                    "enum": [
-                      "German",
-                      "Spanish",
-                      "English",
-                      "French",
-                      "Italian",
-                      "Dutch",
-                      "Latin",
-                      "Other",
-                      null
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "German",
+                          "Spanish",
+                          "English",
+                          "French",
+                          "Italian",
+                          "Dutch",
+                          "Latin",
+                          "Unknown",
+                          "Other"
+                        ]
+                      },
+                      { "type": "null" }
                     ],
-                    "description": "Language of this edition. Use `null` if unknown. Example: 'Italian'.."
+                    "description": "Language of this edition. Use a listed value, or null if not stated. Example: 'Italian'."
                   },
                   "original_language": {
-                    "type": ["string", "null"],
-                    "enum": [
-                      "German",
-                      "Spanish",
-                      "English",
-                      "French",
-                      "Italian",
-                      "Dutch",
-                      "Latin",
-                      "Other",
-                      null
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "German",
+                          "Spanish",
+                          "English",
+                          "French",
+                          "Italian",
+                          "Dutch",
+                          "Latin",
+                          "Unknown",
+                          "Other"
+                        ]
+                      },
+                      { "type": "null" }
                     ],
-                    "description": "The original language of the work if it has been translated. Use `null` if not applicable. Example: 'English'."
+                    "description": "The original language of the work if it has been translated. Use a listed value, or null if not specified. Example: 'English'."
                   },
                   "translated_from": {
-                    "type": ["string", "null"],
-                    "enum": [
-                      "German",
-                      "Spanish",
-                      "English",
-                      "French",
-                      "Italian",
-                      "Dutch",
-                      "Latin",
-                      "Other",
-                      null
+                    "anyOf": [
+                      {
+                        "type": "string",
+                        "enum": [
+                          "German",
+                          "Spanish",
+                          "English",
+                          "French",
+                          "Italian",
+                          "Dutch",
+                          "Latin",
+                          "Unknown",
+                          "Other"
+                        ]
+                      },
+                      { "type": "null" }
                     ],
-                    "description": "The language from which the work was translated. Use `null` if not applicable. Example: 'English'."
+                    "description": "The language from which the work was translated. Use a listed value, or null if not applicable. Example: 'English'."
                   }
                 },
                 "required": [
@@ -222,3 +246,4 @@
     "required": ["entries"],
     "additionalProperties": false
   }
+}

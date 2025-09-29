@@ -1,6 +1,8 @@
 {
   "name": "HistoricalAddressBookEntries",
   "schema_version": "1.5",
+  "type": "json_schema",
+  "strict": true,
   "schema": {
     "type": "object",
     "properties": {
@@ -40,25 +42,16 @@
               "description": "The occupation of the person. Example: 'Bäcker' or 'Lehrer'. This field is required. Never use placeholders."
             },
             "section": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "description": "The section or group the person belongs to. Use null if not applicable."
+              "type": "string",
+              "description": "The section or group the person belongs to. Use 'Unknown' if not applicable."
             },
             "honorific": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "description": "Any honorific or title associated with the person. Example: 'Dr.' or 'Prof.'. Use null if not applicable."
+              "type": "string",
+              "description": "Any honorific or title associated with the person. Example: 'Dr.' or 'Prof.'. Use 'Unknown' if not applicable."
             },
             "additional_notes": {
-              "type": [
-                "string",
-                "null"
-              ],
-              "description": "Any additional notes about the person. Example: Witwe, Waise, etc."
+              "type": "string",
+              "description": "Any additional notes about the person. Example: Witwe, Waise, etc. Use 'None' if no notes are available."
             }
           },
           "required": [

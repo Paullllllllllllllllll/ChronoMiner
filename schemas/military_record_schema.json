@@ -1,6 +1,8 @@
 {
   "name": "BrazilianMilitaryRecords",
   "schema_version": "1.2",
+  "type": "json_schema",
+  "strict": true,
   "schema": {
     "type": "object",
     "properties": {
