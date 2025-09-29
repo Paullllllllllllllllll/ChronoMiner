@@ -283,7 +283,7 @@ async def process_text_chunk(
     extractor: OpenAIExtractor,
     system_message: Optional[str] = None,
     json_schema: Optional[dict] = None
-) -> str:
+) -> Dict[str, Any]:
     """
     Process a text chunk by sending a request to the OpenAI Responses API.
 
@@ -291,7 +291,8 @@ async def process_text_chunk(
     :param extractor: An instance of OpenAIExtractor.
     :param system_message: Optional system message.
     :param json_schema: Optional JSON schema for response formatting.
-    :return: Processed text response.
+    :return: Dictionary containing the model output text, raw response payload,
+        and request metadata used for the call.
     :raises Exception: If the API call fails.
     """
     if system_message is None:
@@ -346,5 +347,15 @@ async def process_text_chunk(
         "Authorization": f"Bearer {extractor.api_key}",
         "Content-Type": "application/json",
     }
-    data: Dict[str, Any] = await _post_with_handling(extractor.session, extractor.endpoint, headers, payload)
-    return _collect_output_text(data)
+    data: Dict[str, Any] = await _post_with_handling(
+        extractor.session, extractor.endpoint, headers, payload
+    )
+    output_text = _collect_output_text(data)
+    request_metadata: Dict[str, Any] = {"payload": payload}
+    if json_schema is not None:
+        request_metadata["json_schema"] = json_schema
+    return {
+        "output_text": output_text,
+        "response_data": data,
+        "request_metadata": request_metadata,
+    }

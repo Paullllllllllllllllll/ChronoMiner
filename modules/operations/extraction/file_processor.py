@@ -2,6 +2,7 @@
 
 import os
 import json
+import asyncio
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
@@ -27,13 +28,15 @@ class FileProcessor:
 
 	def __init__(self, paths_config: Dict[str, Any],
 	             model_config: Dict[str, Any],
-	             chunking_config: Dict[str, Any]):
+	             chunking_config: Dict[str, Any],
+	             concurrency_config: Optional[Dict[str, Any]] = None):
 		"""
 		Initialize with configuration
 		"""
 		self.paths_config = paths_config
 		self.model_config = model_config
 		self.chunking_config = chunking_config
+		self.concurrency_config = concurrency_config or {}
 		self.text_processor = TextProcessor()
 
 	async def process_file(self, file_path: Path,
@@ -311,39 +314,105 @@ class FileProcessor:
 						model=self.model_config["transcription_model"]["name"]
 				) as extractor:
 					with temp_jsonl_path.open("w", encoding="utf-8") as tempf:
-						for idx, chunk in enumerate(chunks, 1):
-							try:
-								console_print(
-									f"[INFO] Processing chunk {idx}/{len(chunks)}...")
-								final_payload = handler.get_json_schema_payload(
-									effective_dev_message, self.model_config,
-									selected_schema["schema"]
-								)
+						total_chunks: int = len(chunks)
+						transcription_cfg: Dict[str, Any] = (
+							(self.concurrency_config.get("concurrency", {}) or {}).get("transcription", {}) or {}
+						)
+						try:
+							configured_limit = int(transcription_cfg.get("concurrency_limit", total_chunks or 1))
+						except Exception:
+							configured_limit = total_chunks or 1
+						concurrency_limit = max(1, min(configured_limit, total_chunks or 1))
+						delay_between_tasks = float(transcription_cfg.get("delay_between_tasks", 0.0) or 0.0)
 
-								text_to_process = f"Input text:\n{chunk}"
+						semaphore = asyncio.Semaphore(concurrency_limit)
+						write_lock = asyncio.Lock()
+						results_map: Dict[int, Dict[str, Any]] = {}
 
-								response: str = await process_text_chunk(
-									text_chunk=text_to_process,
-									extractor=extractor,
-									system_message=effective_dev_message,
-									json_schema=final_payload
-								)
-								result_record: Dict[str, Any] = {
-									"custom_id": f"{file_path.stem}-chunk-{idx}",
-									"response": response,
-									"chunk_range": ranges[idx - 1]
-								}
-								tempf.write(json.dumps(result_record) + "\n")
-								results.append(result_record)
+						async def handle_chunk(idx: int, chunk_text: str, chunk_range: Any) -> None:
+							async with semaphore:
 								console_print(
-									f"[SUCCESS] Processed chunk {idx}/{len(chunks)}")
-								logger.info(
-									f"Processed chunk {idx} for file {file_path.name} with range {ranges[idx - 1]}")
-							except Exception as e:
-								logger.error(
-									f"Error processing chunk {idx} of {file_path.name}: {e}")
-								console_print(
-									f"[ERROR] Failed to process chunk {idx}: {e}")
+									f"[INFO] Processing chunk {idx}/{total_chunks}...")
+								if delay_between_tasks > 0:
+									await asyncio.sleep(delay_between_tasks)
+
+								try:
+									final_payload = handler.get_json_schema_payload(
+										effective_dev_message, self.model_config,
+										selected_schema["schema"]
+									)
+
+									text_to_process = f"Input text:\n{chunk_text}"
+
+									response_payload: Dict[str, Any] = await process_text_chunk(
+										text_chunk=text_to_process,
+										extractor=extractor,
+										system_message=effective_dev_message,
+										json_schema=final_payload
+									)
+									output_text: Any = response_payload.get("output_text")
+									response_data: Dict[str, Any] = response_payload.get("response_data", {})
+									request_metadata: Dict[str, Any] = response_payload.get("request_metadata", {})
+
+									temp_record: Dict[str, Any] = {
+										"custom_id": f"{file_path.stem}-chunk-{idx}",
+										"chunk_index": idx,
+										"chunk_range": chunk_range,
+										"response": output_text,
+										"output_text": output_text,
+										"response_data": response_data,
+										"request_metadata": request_metadata,
+										"status": "success",
+									}
+
+									async with write_lock:
+										tempf.write(json.dumps(temp_record) + "\n")
+										tempf.flush()
+
+									results_map[idx] = {
+										"custom_id": f"{file_path.stem}-chunk-{idx}",
+										"chunk_index": idx,
+										"chunk_range": chunk_range,
+										"response": output_text,
+										"output_text": output_text,
+										"response_data": response_data,
+										"request_metadata": request_metadata,
+										"status": "success",
+									}
+
+									console_print(
+										f"[SUCCESS] Processed chunk {idx}/{total_chunks}")
+									logger.info(
+										f"Processed chunk {idx} for file {file_path.name} with range {chunk_range}")
+								except Exception as exc:
+									logger.error(
+										f"Error processing chunk {idx} of {file_path.name}: {exc}")
+									error_record: Dict[str, Any] = {
+										"custom_id": f"{file_path.stem}-chunk-{idx}",
+										"chunk_index": idx,
+										"chunk_range": chunk_range,
+										"response": None,
+										"output_text": None,
+										"response_data": {},
+										"request_metadata": {},
+										"error": str(exc),
+										"status": "error",
+									}
+									async with write_lock:
+										tempf.write(json.dumps(error_record) + "\n")
+										tempf.flush()
+									results_map[idx] = error_record
+									console_print(
+										f"[ERROR] Failed to process chunk {idx}: {exc}")
+
+						tasks = [
+							asyncio.create_task(handle_chunk(idx, chunk, ranges[idx - 1]))
+							for idx, chunk in enumerate(chunks, 1)
+						]
+						if tasks:
+							await asyncio.gather(*tasks)
+
+						results = [results_map[idx] for idx in sorted(results_map.keys())]
 			except Exception as e:
 				logger.error(
 					f"Error during synchronous processing for {file_path.name}: {e}")
