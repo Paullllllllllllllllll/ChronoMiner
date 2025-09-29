@@ -25,10 +25,9 @@ class ConfigLoader:
 
 	def __init__(self, config_dir: Optional[Path] = None) -> None:
 		if config_dir is None:
-			self.config_dir: Path = Path(
-				__file__).resolve().parent.parent / 'config'
+			self.config_dir: Path = Path(__file__).resolve().parents[2] / 'config'
 		else:
-			self.config_dir = config_dir
+			self.config_dir = Path(config_dir)
 		self.paths_config: Optional[Dict[str, Any]] = None
 		self.model_config: Optional[Dict[str, Any]] = None
 		self.concurrency_config: Optional[Dict[str, Any]] = None

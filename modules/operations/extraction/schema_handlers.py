@@ -4,9 +4,9 @@ import json
 import logging
 from pathlib import Path
 from typing import Optional
-from modules.data_processing import CSVConverter
-from modules.text_processing import DocumentConverter
-from modules.structured_outputs import build_structured_text_format
+from modules.core.data_processing import CSVConverter
+from modules.core.text_processing import DocumentConverter
+from modules.llm.structured_outputs import build_structured_text_format
 
 logger = logging.getLogger(__name__)
 

@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 from openai import OpenAI
-from modules.config_loader import ConfigLoader
+from modules.config.loader import ConfigLoader
 
 logger = logging.getLogger(__name__)
 

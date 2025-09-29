@@ -13,14 +13,15 @@ class SchemaManager:
     Manages loading and retrieval of JSON schemas and developer messages.
     """
     def __init__(self, schemas_dir: Optional[Path] = None, dev_messages_dir: Optional[Path] = None) -> None:
+        project_root = Path(__file__).resolve().parents[2]
         if schemas_dir is None:
-            self.schemas_dir: Path = Path(__file__).resolve().parent.parent / "schemas"
+            self.schemas_dir: Path = project_root / "schemas"
         else:
-            self.schemas_dir = schemas_dir
+            self.schemas_dir = Path(schemas_dir).resolve()
         if dev_messages_dir is None:
-            self.dev_messages_dir: Path = Path(__file__).resolve().parent.parent / "developer_messages"
+            self.dev_messages_dir: Path = project_root / "developer_messages"
         else:
-            self.dev_messages_dir = dev_messages_dir
+            self.dev_messages_dir = Path(dev_messages_dir).resolve()
         self.schemas: Dict[str, dict] = {}
         self.schema_paths: Dict[str, Path] = {}
         self.dev_messages: Dict[str, str] = {}
