@@ -16,15 +16,20 @@ import argparse
 import asyncio
 import sys
 from pathlib import Path
-from typing import Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Dict, List, Optional, Sequence, Tuple
 
-from modules.config.loader import ConfigLoader
 from modules.core.logger import setup_logger
 from modules.core.schema_manager import SchemaManager
 from modules.core.context_manager import ContextManager
 from modules.core.prompt_context import load_basic_context
 from modules.ui.core import UserInterface
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
+from modules.core.workflow_utils import (
+    collect_text_files,
+    load_core_resources,
+    load_schema_manager,
+    prepare_context_manager,
+)
 
 logger = setup_logger(__name__)
 
@@ -75,19 +80,6 @@ def parse_arguments() -> argparse.Namespace:
         help="When using additional context, prefer schema-specific defaults from additional_context/.",
     )
     return parser.parse_args()
-
-
-def _find_text_files(root: Path) -> List[Path]:
-    if root.is_file():
-        return [root]
-    files = [
-        candidate
-        for candidate in sorted(root.rglob("*.txt"))
-        if not candidate.name.endswith("_line_ranges.txt")
-        and not candidate.name.endswith("_line_range.txt")
-        and not candidate.name.endswith("_context.txt")
-    ]
-    return files
 
 
 def _resolve_line_ranges_file(text_file: Path) -> Optional[Path]:
@@ -260,15 +252,18 @@ async def _adjust_files(
 async def main_async() -> None:
     args = parse_arguments()
 
-    config_loader = ConfigLoader()
-    config_loader.load_configs()
-    paths_config = config_loader.get_paths_config()
-    chunking_config = (config_loader.get_chunking_and_context_config() or {}).get("chunking", {})
-    model_config = config_loader.get_model_config()
-    schema_manager = SchemaManager()
-    schema_manager.load_schemas()
-    if not schema_manager.get_available_schemas():
-        print("[ERROR] No schemas found in the schemas directory; cannot select boundary type.")
+    (
+        config_loader,
+        paths_config,
+        model_config,
+        chunking_and_context_config,
+        schemas_paths,
+    ) = load_core_resources()
+    chunking_config = (chunking_and_context_config or {}).get("chunking", {})
+    try:
+        schema_manager = load_schema_manager()
+    except RuntimeError as exc:
+        print(f"[ERROR] {exc}; cannot select boundary type.")
         sys.exit(1)
 
     basic_context = load_basic_context()
@@ -289,7 +284,7 @@ async def main_async() -> None:
             logger.error("Specified path does not exist: %s", target)
             print(f"[ERROR] Path does not exist: {target}")
             sys.exit(1)
-        selected_files = _find_text_files(target)
+        selected_files = collect_text_files(target)
         if not selected_files:
             print(f"[WARN] No eligible text files found under {target}.")
             sys.exit(0)
@@ -311,16 +306,13 @@ async def main_async() -> None:
             "use_additional_context": use_additional,
             "use_default_context": bool(args.use_default_context),
         }
-        if context_settings["use_additional_context"] and context_settings["use_default_context"]:
-            context_manager = ContextManager()
-            context_manager.load_additional_context()
+        context_manager = prepare_context_manager(context_settings)
     else:
         ui = UserInterface(logger)
         ui.display_banner()
 
         selected_schema, selected_schema_name = ui.select_schema(schema_manager)
 
-        schemas_paths = config_loader.get_schemas_paths()
         if selected_schema_name in schemas_paths:
             base_dir = Path(schemas_paths[selected_schema_name].get("input", ""))
         else:
@@ -339,9 +331,7 @@ async def main_async() -> None:
             _, boundary_type = ui.select_schema(schema_manager)
 
         context_settings = ui.ask_additional_context_mode()
-        if context_settings.get("use_additional_context", False) and context_settings.get("use_default_context", False):
-            context_manager = ContextManager()
-            context_manager.load_additional_context()
+        context_manager = prepare_context_manager(context_settings)
 
     if not selected_files:
         if ui:

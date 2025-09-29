@@ -15,14 +15,16 @@ import sys
 import traceback
 from pathlib import Path
 
-from modules.config.loader import ConfigLoader
 from modules.core.logger import setup_logger
-from modules.core.schema_manager import SchemaManager
-from modules.core.context_manager import ContextManager
 from modules.ui.core import UserInterface
 from modules.operations.extraction.file_processor import FileProcessor
 from modules.config.manager import ConfigManager
 from modules.llm.prompt_utils import load_prompt_template
+from modules.core.workflow_utils import (
+    load_core_resources,
+    load_schema_manager,
+    prepare_context_manager,
+)
 
 # Initialize logger
 logger = setup_logger(__name__)
@@ -37,11 +39,15 @@ async def main() -> None:
 
 		# Load configuration
 		ui.console_print("[INFO] Loading configuration...")
-		config_loader = ConfigLoader()
-		config_loader.load_configs()
+		(
+			config_loader,
+			paths_config,
+			model_config,
+			chunking_and_context_config,
+			schemas_paths,
+		) = load_core_resources()
 
 		config_manager = ConfigManager(config_loader)
-		paths_config = config_loader.get_paths_config()
 
 		# Validate paths
 		try:
@@ -51,10 +57,8 @@ async def main() -> None:
 			sys.exit(1)
 
 		# Load other configs
-		model_config = config_loader.get_model_config()
-		chunking_and_context_config = config_loader.get_chunking_and_context_config()
 		chunking_config = {
-			'chunking': chunking_and_context_config.get('chunking', {})}
+			'chunking': (chunking_and_context_config or {}).get('chunking', {})}
 
 		# Initialize file processor
 		file_processor = FileProcessor(
@@ -64,8 +68,11 @@ async def main() -> None:
 		)
 
 		# Schema selection
-		schema_manager = SchemaManager()
-		schema_manager.load_schemas()
+		try:
+			schema_manager = load_schema_manager()
+		except RuntimeError as exc:
+			ui.console_print(f"[ERROR] {exc}.")
+			sys.exit(1)
 		selected_schema, selected_schema_name = ui.select_schema(schema_manager)
 
 		# Load unified prompt template
@@ -84,14 +91,9 @@ async def main() -> None:
 		context_settings = ui.ask_additional_context_mode()
 
 		# Initialize context manager when default context is requested
-		context_manager = None
-		if context_settings.get("use_additional_context", False) and context_settings.get(
-			"use_default_context", False):
-			context_manager = ContextManager()
-			context_manager.load_additional_context()
+		context_manager = prepare_context_manager(context_settings)
 
 		# Select input files
-		schemas_paths = config_loader.get_schemas_paths()
 		if selected_schema_name in schemas_paths:
 			raw_text_dir = Path(
 				schemas_paths[selected_schema_name].get("input"))
