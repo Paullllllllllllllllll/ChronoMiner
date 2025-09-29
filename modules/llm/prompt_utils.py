@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+from modules.core.prompt_context import apply_context_placeholders
+
 
 def render_prompt_with_schema(
     prompt_text: str,
@@ -11,6 +13,7 @@ def render_prompt_with_schema(
     schema_name: str | None = None,
     inject_schema: bool = True,
     additional_context: Optional[str] = None,
+    basic_context: Optional[str] = None,
 ) -> str:
     """Inject schema metadata and optional schema name into a system prompt."""
 
@@ -18,12 +21,11 @@ def render_prompt_with_schema(
     if schema_name_token in prompt_text:
         prompt_text = prompt_text.replace(schema_name_token, schema_name or "")
 
-    context_token = "{{ADDITIONAL_CONTEXT}}"
-    if context_token in prompt_text:
-        context_value = (additional_context or "").strip()
-        if not context_value:
-            context_value = "Empty (no additional context)"
-        prompt_text = prompt_text.replace(context_token, context_value)
+    prompt_text = apply_context_placeholders(
+        prompt_text,
+        basic_context=basic_context,
+        additional_context=additional_context,
+    )
 
     schema_placeholder = "{{TRANSCRIPTION_SCHEMA}}"
     if not inject_schema or not schema_obj:

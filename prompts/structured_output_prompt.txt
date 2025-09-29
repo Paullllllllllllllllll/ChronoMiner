@@ -8,6 +8,9 @@ Instructions
 - If additional context is supplied below, treat it as authoritative when extracting data. Otherwise, reason about the input text to extract the required data properly.
 - Ensure that you extract *all the data in the input text and properly sort it into the entries array**.
 
+Basic context:
+{{BASIC_CONTEXT}}
+
 The JSON schema:
 {{TRANSCRIPTION_SCHEMA}}
 

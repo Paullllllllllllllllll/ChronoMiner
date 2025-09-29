@@ -6,11 +6,13 @@ import asyncio
 from pathlib import Path
 from typing import List, Dict, Any, Optional, Tuple
 
+from modules.core.prompt_context import load_basic_context, resolve_additional_context
 from modules.core.text_utils import TextProcessor, perform_chunking
 from modules.llm.openai_utils import open_extractor, process_text_chunk
 from modules.operations.extraction.schema_handlers import get_schema_handler
 from modules.llm.batching import build_batch_files, submit_batch
 from modules.llm.prompt_utils import render_prompt_with_schema
+from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 import logging
 
 logger = logging.getLogger(__name__)
@@ -38,6 +40,21 @@ class FileProcessor:
 		self.chunking_config = chunking_config
 		self.concurrency_config = concurrency_config or {}
 		self.text_processor = TextProcessor()
+		self.basic_context = load_basic_context()
+		self._line_range_readjuster: Optional[LineRangeReadjuster] = None
+
+	def _get_line_range_readjuster(self) -> LineRangeReadjuster:
+		chunk_settings = self.chunking_config.get("chunking", {}) if isinstance(self.chunking_config, dict) else {}
+		context_window = int(chunk_settings.get("line_range_context_window", 6) or 6)
+		prompt_path_value = chunk_settings.get("line_range_prompt_path")
+		prompt_path = Path(prompt_path_value) if prompt_path_value else None
+		if self._line_range_readjuster is None:
+			self._line_range_readjuster = LineRangeReadjuster(
+				self.model_config,
+				context_window=context_window,
+				prompt_path=prompt_path,
+			)
+		return self._line_range_readjuster
 
 	async def process_file(self, file_path: Path,
 	                       use_batch: bool,
@@ -130,6 +147,35 @@ class FileProcessor:
 			chunk_choice = "auto"
 			line_ranges_file = None
 
+		if chunk_choice == "line_ranges.txt" and line_ranges_file is not None:
+			try:
+				readjuster = self._get_line_range_readjuster()
+				await readjuster.ensure_adjusted_line_ranges(
+					text_file=file_path,
+					line_ranges_file=line_ranges_file,
+					boundary_type=schema_name,
+					basic_context=self.basic_context,
+					context_settings=context_settings,
+					context_manager=context_manager,
+				)
+				logger.info(
+					"Refined line ranges for %s using semantic boundary detection",
+					file_path.name,
+				)
+				console_print(
+					f"[INFO] Refined line ranges for {file_path.name} using semantic boundaries."
+				)
+			except Exception as exc:
+				logger.warning(
+					"Failed to refine line ranges for %s: %s",
+					file_path.name,
+					exc,
+					exc_info=exc,
+				)
+				console_print(
+					f"[WARN] Could not refine line ranges for {file_path.name}: {exc}"
+				)
+
 		# -- Perform Text Chunking --
 		try:
 			openai_config_task: Dict[str, Any] = {
@@ -154,43 +200,34 @@ class FileProcessor:
 
 		# -- Get Additional Context if Enabled --
 		context_settings = context_settings or {}
-		additional_context: Optional[str] = None
+		additional_context: Optional[str] = resolve_additional_context(
+			schema_name,
+			context_settings=context_settings,
+			context_manager=context_manager,
+			text_file=file_path,
+		)
+
 		if context_settings.get("use_additional_context", False):
 			if context_settings.get("use_default_context", False):
-				if context_manager is not None:
-					try:
-						additional_context = context_manager.get_additional_context(schema_name)
-						if additional_context:
-							console_print(
-								f"[INFO] Using default additional context for schema: {schema_name}")
-							logger.info(
-								f"Using default additional context for schema: {schema_name}")
-						else:
-							console_print(
-								f"[INFO] No default additional context found for schema: {schema_name}")
-							logger.info(
-								f"No default additional context found for schema: {schema_name}")
-					except Exception as e:
-						logger.error(
-							f"Error loading default context for {schema_name}: {e}")
-						console_print(
-							f"[ERROR] Failed to load default context: {e}")
+				if additional_context:
+					console_print(
+						f"[INFO] Using default additional context for schema: {schema_name}")
+					logger.info(
+						f"Using default additional context for schema: {schema_name}")
 				else:
 					console_print(
-						f"[WARN] Default context requested but no context manager was provided for schema: {schema_name}")
+						f"[INFO] No default additional context found for schema: {schema_name}")
+					logger.info(
+						f"No default additional context found for schema: {schema_name}")
 			else:
-				try:
-					additional_context = self.load_file_specific_context(file_path)
-					if additional_context:
-						console_print(
-							f"[INFO] Using file-specific context for: {file_path.name}")
-						logger.info(
-							f"Using file-specific context for: {file_path.name}")
-				except Exception as e:
-					logger.error(
-						f"Error loading file-specific context for {file_path.name}: {e}")
+				if additional_context:
 					console_print(
-						f"[ERROR] Failed to load file-specific context: {e}")
+						f"[INFO] Using file-specific context for: {file_path.name}")
+					logger.info(
+						f"Using file-specific context for: {file_path.name}")
+				else:
+					logger.info(
+						f"No file-specific context found for: {file_path.name}")
 
 		# -- Render System Prompt --
 		schema_definition = selected_schema.get("schema", {})
@@ -200,6 +237,7 @@ class FileProcessor:
 			schema_name=schema_name,
 			inject_schema=inject_schema,
 			additional_context=additional_context,
+			basic_context=self.basic_context,
 		)
 
 		results: List[Dict[str, Any]] = []
@@ -475,29 +513,6 @@ class FileProcessor:
 
 		console_print(
 			f"[SUCCESS] Completed processing of file: {file_path.name}")
-
-	def load_file_specific_context(self, file_path: Path) -> Optional[str]:
-		"""
-		Load file-specific context from a corresponding _context.txt file.
-
-		:param file_path: Path to the original text file
-		:return: Context string if available, None otherwise
-		"""
-		context_file_path = file_path.with_name(f"{file_path.stem}_context.txt")
-		if context_file_path.exists():
-			try:
-				with context_file_path.open("r", encoding="utf-8") as f:
-					context = f.read().strip()
-				logger.info(
-					f"Loaded file-specific context from {context_file_path}")
-				return context
-			except Exception as e:
-				logger.error(
-					f"Error reading context file {context_file_path}: {e}")
-		else:
-			logger.info(
-				f"No file-specific context file found at {context_file_path}")
-		return None
 
 	def _default_ask_file_chunking_method(self, file_name: str) -> str:
 		"""Default implementation if UI not provided"""
