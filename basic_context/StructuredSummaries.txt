@@ -1,0 +1,1 @@
+The input text contains excerpts from academic papers across the humanities and social sciences. Passages typically include section headings, thesis statements, methodological notes, and concise findings quoted verbatim. Expect formal scholarly tone, citations, and occasional footnote markers that should remain intact.
