@@ -22,6 +22,7 @@ from modules.core.context_manager import ContextManager
 from modules.ui.core import UserInterface
 from modules.operations.extraction.file_processor import FileProcessor
 from modules.config.manager import ConfigManager
+from modules.llm.prompt_utils import load_prompt_template
 
 # Initialize logger
 logger = setup_logger(__name__)
@@ -67,9 +68,14 @@ async def main() -> None:
 		schema_manager.load_schemas()
 		selected_schema, selected_schema_name = ui.select_schema(schema_manager)
 
-		# Load developer message
-		dev_message = config_manager.load_developer_message(
-			selected_schema_name)
+		# Load unified prompt template
+		prompt_path = Path("prompts/structured_output_prompt.txt")
+		try:
+			prompt_template = load_prompt_template(prompt_path)
+		except FileNotFoundError as exc:
+			ui.console_print(f"[ERROR] {exc}")
+			logger.error("Prompt template missing", exc_info=exc)
+			sys.exit(1)
 
 		# Get user preferences
 		global_chunking_method = ui.ask_global_chunking_mode(
@@ -77,11 +83,10 @@ async def main() -> None:
 		use_batch = ui.ask_batch_processing()
 		context_settings = ui.ask_additional_context_mode()
 
-		# Initialize context manager if needed
+		# Initialize context manager when default context is requested
 		context_manager = None
-		if context_settings.get("use_additional_context",
-		                        False) and context_settings.get(
-				"use_default_context", False):
+		if context_settings.get("use_additional_context", False) and context_settings.get(
+			"use_default_context", False):
 			context_manager = ContextManager()
 			context_manager.load_additional_context()
 
@@ -115,12 +120,18 @@ async def main() -> None:
 		ui.console_print("=" * 80)
 
 		tasks = []
+		inject_schema = model_config.get("transcription_model", {}).get(
+			"inject_schema_into_prompt", True
+		)
+
 		for file_path in files:
 			tasks.append(file_processor.process_file(
 				file_path=file_path,
 				use_batch=use_batch,
 				selected_schema=selected_schema,
-				dev_message=dev_message,
+				prompt_template=prompt_template,
+				schema_name=selected_schema_name,
+				inject_schema=inject_schema,
 				schema_paths=schemas_paths.get(selected_schema_name, {}),
 				global_chunking_method=global_chunking_method,
 				context_settings=context_settings,

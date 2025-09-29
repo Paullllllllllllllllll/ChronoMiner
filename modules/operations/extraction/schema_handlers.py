@@ -24,15 +24,8 @@ class BaseSchemaHandler:
 		}
 
 	def prepare_payload(self, text_chunk: str, dev_message: str,
-	                    model_config: dict, schema: dict,
-	                    additional_context: Optional[str] = None) -> dict:
-		instruction = "Please extract data from the following text according to the provided instructions.\n\n"
-
-		# If additional_context is provided, prepend it to the text_chunk
-		if additional_context:
-			text_chunk = f"{additional_context}\n\n{text_chunk}"
-
-		text_chunk = instruction + text_chunk
+	                    model_config: dict, schema: dict) -> dict:
+		user_message = f"Input text:\n{text_chunk}"
 
 		json_schema_payload = self.get_json_schema_payload(dev_message,
 		                                                   model_config, schema)
@@ -49,7 +42,7 @@ class BaseSchemaHandler:
 				},
 				{
 					"role": "user",
-					"content": [{"type": "input_text", "text": text_chunk}]
+					"content": [{"type": "input_text", "text": user_message}]
 				}
 			]
 		}

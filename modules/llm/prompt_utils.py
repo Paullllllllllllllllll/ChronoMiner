@@ -1,19 +1,43 @@
 from __future__ import annotations
 
 import json
-from typing import Any, Dict
+from pathlib import Path
+from typing import Any, Dict, Optional
 
 
-def render_prompt_with_schema(prompt_text: str, schema_obj: Dict[str, Any]) -> str:
-    """Inject a JSON schema into a system prompt using flexible heuristics."""
+def render_prompt_with_schema(
+    prompt_text: str,
+    schema_obj: Dict[str, Any],
+    schema_name: str | None = None,
+    inject_schema: bool = True,
+    additional_context: Optional[str] = None,
+) -> str:
+    """Inject schema metadata and optional schema name into a system prompt."""
+
+    schema_name_token = "{{SCHEMA_NAME}}"
+    if schema_name_token in prompt_text:
+        prompt_text = prompt_text.replace(schema_name_token, schema_name or "")
+
+    context_token = "{{ADDITIONAL_CONTEXT}}"
+    if context_token in prompt_text:
+        context_value = (additional_context or "").strip()
+        if not context_value:
+            context_value = "Empty (no additional context)"
+        prompt_text = prompt_text.replace(context_token, context_value)
+
+    schema_placeholder = "{{TRANSCRIPTION_SCHEMA}}"
+    if not inject_schema or not schema_obj:
+        if schema_placeholder in prompt_text:
+            return prompt_text.replace(schema_placeholder, "")
+        return prompt_text
+
     try:
         schema_str = json.dumps(schema_obj, indent=2, ensure_ascii=False)
     except Exception:
         schema_str = str(schema_obj)
 
-    token = "{{TRANSCRIPTION_SCHEMA}}"
-    if token in prompt_text:
-        return prompt_text.replace(token, schema_str)
+    if schema_placeholder in prompt_text:
+        return prompt_text.replace(schema_placeholder, schema_str)
 
     marker = "The JSON schema:"
     if marker in prompt_text:
@@ -26,3 +50,13 @@ def render_prompt_with_schema(prompt_text: str, schema_obj: Dict[str, Any]) -> s
         return prompt_text + "\n" + schema_str
 
     return prompt_text + "\n\nThe JSON schema:\n" + schema_str
+
+
+def load_prompt_template(prompt_path: Path) -> str:
+    """Load and return the stripped prompt template text."""
+
+    if not prompt_path.exists():
+        raise FileNotFoundError(f"Prompt file does not exist: {prompt_path}")
+
+    with prompt_path.open("r", encoding="utf-8") as prompt_file:
+        return prompt_file.read().strip()

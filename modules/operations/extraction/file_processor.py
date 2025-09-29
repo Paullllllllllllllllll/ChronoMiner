@@ -39,10 +39,12 @@ class FileProcessor:
 	async def process_file(self, file_path: Path,
 	                       use_batch: bool,
 	                       selected_schema: Dict[str, Any],
-	                       dev_message: str,
+	                       prompt_template: str,
+	                       schema_name: str,
+	                       inject_schema: bool,
 	                       schema_paths: Dict[str, Any],
 	                       global_chunking_method: Optional[str] = None,
-	                       context_settings: Dict[str, Any] = None,
+	                       context_settings: Optional[Dict[str, Any]] = None,
 	                       context_manager: Optional[Any] = None,
 	                       ui=None) -> None:
 		"""
@@ -56,7 +58,9 @@ class FileProcessor:
 		:param file_path: Path to the file to process
 		:param use_batch: Whether to use batch processing
 		:param selected_schema: The selected schema dictionary
-		:param dev_message: Developer message for the schema
+		:param prompt_template: Base system prompt template text
+		:param schema_name: Name of the selected schema
+		:param inject_schema: Whether to inject the JSON schema into the system prompt
 		:param schema_paths: Schema-specific paths
 		:param global_chunking_method: Global chunking method if specified
 		:param context_settings: Additional context settings
@@ -146,50 +150,63 @@ class FileProcessor:
 			return
 
 		# -- Get Additional Context if Enabled --
-		additional_context = None
-		if context_settings and context_settings.get("use_additional_context",
-		                                             False):
-			if context_settings.get("use_default_context",
-			                        False) and context_manager:
-				# Use context from the schema-specific file
-				try:
-					additional_context = context_manager.get_additional_context(
-						selected_schema["name"])
-					if additional_context:
+		context_settings = context_settings or {}
+		additional_context: Optional[str] = None
+		if context_settings.get("use_additional_context", False):
+			if context_settings.get("use_default_context", False):
+				if context_manager is not None:
+					try:
+						additional_context = context_manager.get_additional_context(schema_name)
+						if additional_context:
+							console_print(
+								f"[INFO] Using default additional context for schema: {schema_name}")
+							logger.info(
+								f"Using default additional context for schema: {schema_name}")
+						else:
+							console_print(
+								f"[INFO] No default additional context found for schema: {schema_name}")
+							logger.info(
+								f"No default additional context found for schema: {schema_name}")
+					except Exception as e:
+						logger.error(
+							f"Error loading default context for {schema_name}: {e}")
 						console_print(
-							f"[INFO] Using default additional context for schema: {selected_schema['name']}")
-						logger.info(
-							f"Using default additional context for schema: {selected_schema['name']}")
-					else:
-						console_print(
-							f"[INFO] No default additional context found for schema: {selected_schema['name']}")
-						logger.info(
-							f"No default additional context found for schema: {selected_schema['name']}")
-				except Exception as e:
-					logger.error(
-						f"Error loading default context for {selected_schema['name']}: {e}")
+							f"[ERROR] Failed to load default context: {e}")
+				else:
 					console_print(
-						f"[ERROR] Failed to load default context: {e}")
+						f"[WARN] Default context requested but no context manager was provided for schema: {schema_name}")
 			else:
-				# Use file-specific context if available
 				try:
-					additional_context = self.load_file_specific_context(
-						file_path)
+					additional_context = self.load_file_specific_context(file_path)
 					if additional_context:
 						console_print(
 							f"[INFO] Using file-specific context for: {file_path.name}")
 						logger.info(
 							f"Using file-specific context for: {file_path.name}")
-					else:
-						console_print(
-							f"[INFO] No file-specific context found for: {file_path.name}")
-						logger.info(
-							f"No file-specific context found for: {file_path.name}")
 				except Exception as e:
 					logger.error(
 						f"Error loading file-specific context for {file_path.name}: {e}")
 					console_print(
 						f"[ERROR] Failed to load file-specific context: {e}")
+
+		# -- Render System Prompt --
+		schema_definition = selected_schema.get("schema", {})
+		effective_dev_message = render_prompt_with_schema(
+			prompt_template,
+			schema_definition,
+			schema_name=schema_name,
+			inject_schema=inject_schema,
+			additional_context=additional_context,
+		)
+
+		results: List[Dict[str, Any]] = []
+		try:
+			handler = get_schema_handler(schema_name)
+		except Exception as e:
+			logger.error(
+				f"Error getting schema handler for {schema_name}: {e}")
+			console_print(f"[ERROR] Failed to get schema handler: {e}")
+			return
 
 		# -- Determine Working Folders and Output Paths --
 		try:
@@ -213,24 +230,6 @@ class FileProcessor:
 			console_print(f"[ERROR] Failed to set up output paths: {e}")
 			return
 
-		inject_schema = self.model_config.get("transcription_model", {}).get(
-			"inject_schema_into_prompt", True
-		)
-		effective_dev_message = (
-			render_prompt_with_schema(dev_message, selected_schema["schema"])
-			if inject_schema and dev_message
-			else dev_message
-		)
-
-		results: List[Dict[str, Any]] = []
-		try:
-			handler = get_schema_handler(selected_schema["name"])
-		except Exception as e:
-			logger.error(
-				f"Error getting schema handler for {selected_schema['name']}: {e}")
-			console_print(f"[ERROR] Failed to get schema handler: {e}")
-			return
-
 		# -- Process API Requests --
 		if use_batch:
 			console_print(
@@ -240,9 +239,10 @@ class FileProcessor:
 			try:
 				for idx, chunk in enumerate(chunks, 1):
 					request_obj = handler.prepare_payload(
-						chunk, effective_dev_message, self.model_config,
+						chunk,
+						effective_dev_message,
+						self.model_config,
 						selected_schema["schema"],
-						additional_context=additional_context
 					)
 					request_obj["custom_id"] = f"{file_path.stem}-chunk-{idx}"
 					request_lines.append(json.dumps(request_obj))
@@ -320,10 +320,7 @@ class FileProcessor:
 									selected_schema["schema"]
 								)
 
-								# Prepend additional context if available
-								text_to_process = chunk
-								if additional_context:
-									text_to_process = f"{additional_context}\n\n{chunk}"
+								text_to_process = f"Input text:\n{chunk}"
 
 								response: str = await process_text_chunk(
 									text_chunk=text_to_process,
