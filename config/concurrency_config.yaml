@@ -7,7 +7,7 @@ concurrency:
   transcription:
     concurrency_limit: 100     # HTTP connector pool sizing hint
     delay_between_tasks: 0.0   # Optional delay between sequential tasks
-    service_tier: default      # One of: auto, default, flex, priority
+    service_tier: flex      # One of: auto, default, flex, priority
     timeouts:                  # Optional overrides per request stage (seconds)
       total: 900               # Overall request timeout
       connect: 120             # Connection acquisition timeout

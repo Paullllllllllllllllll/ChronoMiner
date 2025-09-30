@@ -8,9 +8,9 @@ from typing import Any, Dict, List, Tuple
 
 from openai import OpenAI
 
-from modules.logger import setup_logger
-from modules.user_interface import UserInterface
-from modules.schema_handlers import get_schema_handler
+from modules.core.logger import setup_logger
+from modules.ui.core import UserInterface
+from modules.operations.extraction.schema_handlers import get_schema_handler
 from main.check_batches import (
     load_config,
     process_batch_output_file,
@@ -18,8 +18,8 @@ from main.check_batches import (
     _order_responses,
     _recover_missing_batch_ids,
 )
-from modules.batch_utils import extract_custom_id_mapping, diagnose_batch_failure
-from modules.openai_sdk_utils import list_all_batches, sdk_to_dict
+from modules.core.batch_utils import extract_custom_id_mapping, diagnose_batch_failure
+from modules.llm.openai_sdk_utils import list_all_batches, sdk_to_dict
 
 logger = setup_logger(__name__)
 

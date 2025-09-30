@@ -54,40 +54,62 @@ ChronoMiner processes large historical or academic texts by:
 ChronoMiner/
 ├── config/
 │   ├── chunking_and_context.yaml      # Chunking strategy settings and context configuration
-│   ├── concurrency_config.yaml       # Concurrency, timeout, and retry settings for processing
-│   ├── model_config.yaml             # OpenAI model settings (name, tokens, reasoning effort)
-│   └── paths_config.yaml             # Global and schema-specific I/O paths and output flags
-├── developer_messages/               # Exemplary developer messages matching the exemplary .json schemas
+│   ├── concurrency_config.yaml        # Concurrency, timeout, and retry settings for processing
+│   ├── model_config.yaml              # OpenAI model settings (name, tokens, reasoning effort)
+│   └── paths_config.yaml              # Global and schema-specific I/O paths and output flags
+├── additional_context/                 # Schema-specific context files for improved extraction
 │   ├── BibliographicEntries.txt
 │   ├── BrazilianMilitaryRecords.txt
 │   ├── HistoricalAddressBookEntries.txt
 │   └── StructuredSummaries.txt
+├── basic_context/                      # Basic context examples for demonstration
+├── example_files/                      # Example input and output files by schema type
 ├── main/
-│   ├── cancel_batches.py             # Script to cancel ongoing batch jobs
-│   ├── check_batches.py              # Script to process batch responses and generate final outputs
-│   ├── generate_line_ranges.py       # Generates token-based _line_ranges.txt files
-│   ├── metadata_retriever.py         # Utility to fetch metadata from DOIs and ISBNs
-│   └── process_text_files.py         # Main script to process text files using schema-based extraction
+│   ├── cancel_batches.py              # Script to cancel ongoing batch jobs
+│   ├── check_batches.py               # Script to process batch responses and generate final outputs
+│   ├── generate_line_ranges.py        # Generates token-based _line_ranges.txt files
+│   ├── line_range_readjuster.py       # Interactive tool to refine line ranges using semantic boundaries
+│   ├── process_text_files.py          # Main script to process text files using schema-based extraction
+│   └── repair_extractions.py          # Helper for repairing incomplete batch extractions
 ├── modules/
-│   ├── batching.py                   # Batch request file creation and submission logic
-│   ├── config_loader.py              # Loads and validates YAML configuration files
-│   ├── config_manager.py             # Manages configuration validation and preparation
-│   ├── concurrency.py                # Asynchronous task processing with concurrency limits
-│   ├── context_manager.py            # Manages additional context for improved extraction
-│   ├── data_processing.py            # CSV conversion routines (schema-specific converters included)
-│   ├── file_processor.py             # Handles all file processing operations
-│   ├── logger.py                     # Logger configuration for consistent logging across modules
-│   ├── openai_utils.py               # OpenAI API wrapper and asynchronous request handling
-│   ├── schema_manager.py             # Loads and manages JSON schemas and developer messages
-│   ├── schema_handlers.py            # Central registry and base class for schema-specific processing
-│   ├── text_processing.py            # DOCX and TXT conversion routines (schema-specific converters included)
-│   ├── text_utils.py                 # Text normalization, encoding detection, token estimation, and chunking
-│   └── user_interface.py             # UI class and functions for interactive user prompts and selections
+│   ├── config/                         # Configuration management
+│   │   ├── loader.py                   # Loads and validates YAML configuration files
+│   │   └── manager.py                  # Manages configuration validation and preparation
+│   ├── core/                           # Core utilities and business logic
+│   │   ├── batch_utils.py              # Batch processing utilities
+│   │   ├── concurrency.py              # Asynchronous task processing with concurrency limits
+│   │   ├── context_manager.py          # Manages additional context for improved extraction
+│   │   ├── data_processing.py          # CSV conversion routines (schema-specific converters)
+│   │   ├── json_utils.py               # Shared JSON entry extraction utilities
+│   │   ├── logger.py                   # Logger configuration for consistent logging
+│   │   ├── prompt_context.py           # Context loading and preparation for prompts
+│   │   ├── schema_manager.py           # Loads and manages JSON schemas and developer messages
+│   │   ├── text_processing.py          # DOCX and TXT conversion routines
+│   │   ├── text_utils.py               # Text normalization, encoding detection, token estimation, chunking
+│   │   └── workflow_utils.py           # Common workflow helper functions
+│   ├── llm/                            # LLM interaction and API management
+│   │   ├── batching.py                 # Batch request file creation and submission logic
+│   │   ├── model_capabilities.py       # Model capability checks and validation
+│   │   ├── openai_sdk_utils.py         # OpenAI SDK utility functions
+│   │   ├── openai_utils.py             # OpenAI API wrapper and asynchronous request handling
+│   │   ├── prompt_utils.py             # Prompt template loading and management
+│   │   └── structured_outputs.py       # Structured output format handling
+│   ├── operations/                     # High-level operations and workflows
+│   │   ├── extraction/
+│   │   │   ├── file_processor.py       # Handles all file processing operations
+│   │   │   └── schema_handlers.py      # Central registry for schema-specific processing
+│   │   └── line_ranges/
+│   │       └── readjuster.py           # Line range adjustment logic
+│   └── ui/                             # User interface and interaction
+│       └── core.py                     # UI class and functions for interactive prompts
+├── prompts/
+│   ├── semantic_boundary_prompt.txt    # Prompt for detecting semantic boundaries
+│   └── structured_output_prompt.txt    # Unified prompt template for data extraction
 └── schemas/
-    ├── address_schema.json           # JSON schema for Swiss Historical Address Book Entries
-    ├── bibliographic_schema.json     # JSON schema for European Culinary Bibliography Entries
-    ├── military_record_schema.json   # JSON schema for Brazilian Military Records
-    └── summary_schema.json           # JSON schema for Structured Summaries of Academic Texts
+    ├── address_schema.json             # JSON schema for Swiss Historical Address Book Entries
+    ├── bibliographic_schema.json       # JSON schema for European Culinary Bibliography Entries
+    ├── military_record_schema.json     # JSON schema for Brazilian Military Records
+    └── summary_schema.json             # JSON schema for Structured Summaries of Academic Texts
 ```
 
 ## System Requirements & Dependencies
@@ -179,7 +201,7 @@ python main/process_text_files.py
 
 ### Managing Batch Jobs
 
-After submitting batch jobs, use these scripts to check status or cancel jobs:
+After submitting batch jobs, use these scripts to check status, cancel jobs, or repair incomplete extractions:
 
 ```bash
 # To check batch status and process completed batches
@@ -187,23 +209,21 @@ python main/check_batches.py
 
 # To cancel all in-progress batches
 python main/cancel_batches.py
+
+# To repair incomplete or failed batch extractions
+python main/repair_extractions.py
 ```
 
-Both scripts now provide clear summaries of batch statuses:
-- A count of batches by status (completed, in progress, failed, etc.)
-- Detailed information only for in-progress batches 
-- Clear operation results for each action
+**Batch Management Features:**
+- **check_batches.py** - Retrieves completed batch results, processes responses, and generates final outputs (JSON, CSV, DOCX, TXT as configured)
+- **cancel_batches.py** - Cancels all non-terminal batch jobs with clear status summaries
+- **repair_extractions.py** - Interactive tool to repair incomplete batch extractions by:
+  - Discovering temporary batch files that need repair
+  - Recovering missing batch IDs from debug artifacts
+  - Retrieving responses from completed batches
+  - Regenerating final outputs with all available data
 
-### Generating Line Ranges
-
-Generate or adjust token-based line ranges for chunking:
-
-```bash
-python main/generate_line_ranges.py
-```
-
-Follow the on-screen instructions to select a schema and generate a `_line_ranges.txt` file for manual adjustment 
-if needed.
+All scripts provide clear summaries of batch statuses and detailed information for operations.
 
 ## Workflow and Processing Options
 
@@ -218,9 +238,21 @@ if needed.
   - **Automatic:** The file is divided automatically.
   - **Automatic with Manual Adjustments:** Users can interactively adjust chunk boundaries.
   - **Pre-Defined Line Ranges:** If a `_line_ranges.txt` file is available, it is used to determine chunk boundaries.
-    - line_ranges.txt files can be generated for the folders defined for each schema in `paths_config.yaml`. This 
-      allows for the preparation of chunking in advance if large amounts of `.txt` files have to be processed and 
-      automatic chunking runs the risk of splitting semantic units.
+  
+  **Generating Line Ranges:**  
+  Use `python main/generate_line_ranges.py` to create `_line_ranges.txt` files for your input files. This allows 
+  preparation of chunking in advance when processing large amounts of `.txt` files where automatic chunking might 
+  split semantic units.
+  
+  **Adjusting Line Ranges with Semantic Boundaries:**  
+  Use `python main/line_range_readjuster.py` to refine line ranges by aligning chunk boundaries with semantic 
+  sections detected by the LLM. This tool:
+  - Examines text around existing chunk boundaries
+  - Uses the configured LLM to detect natural break points (e.g., document headers, paragraph breaks)
+  - Proposes boundary adjustments that preserve semantic coherence
+  - Supports both interactive and CLI modes with options like `--dry-run`, `--context-window`, and `--boundary-type`
+  
+  This is particularly useful for documents with clear structural divisions that should not be split across chunks.
 
 ### 2. Additional Context Integration
 
@@ -237,7 +269,7 @@ if needed.
 ### 3. API Request Construction and Data Extraction
 
 - **Schema-Specific Payloads:**  
-  The system uses a schema handler registry (implemented in `modules/schema_handlers.py`) to prepare API request 
+  The system uses a schema handler registry (implemented in `modules/operations/extraction/schema_handlers.py`) to prepare API request 
   payloads. Each handler returns a JSON payload based on the selected schema and its corresponding developer message.
 
 - **Processing Modes:**  
@@ -254,8 +286,8 @@ if needed.
 - **Output Formats:**  
   Based on settings in `paths_config.yaml`, final outputs are generated in:
   - JSON (always produced)
-  - CSV (via schema-specific converters in `modules/data_processing.py`)
-  - DOCX and TXT (via schema-specific converters in `modules/text_processing.py`)
+  - CSV (via schema-specific converters in `modules/core/data_processing.py`)
+  - DOCX and TXT (via schema-specific converters in `modules/core/text_processing.py`)
 
 - **Batch Output Checking:**  
   The script `main/check_batches.py` retrieves and aggregates responses from batch jobs and dynamically invokes the 
@@ -309,16 +341,14 @@ You are a structured data extraction expert. Extract structured data and return 
 Ensure the JSON strictly follows the schema.
 ```
 
-#### 5.3. Register the Schema
-Add the schema to `SCHEMA_REGISTRY` in `modules/schema_manager.py`:
-```python
-SCHEMA_REGISTRY["NewSchema"] = "schemas/new_schema.json"
-```
+#### 5.3. Place Your Schema
+Ensure your schema JSON file is in the `schemas/` directory. The `SchemaManager` class automatically loads all 
+JSON files from this directory - no manual registration is required.
 
 #### 5.4. (Optional) Implement a Custom Handler
-If special post-processing is needed, create a class in `modules/schema_handlers.py`:
+If special post-processing is needed, create a class in `modules/operations/extraction/schema_handlers.py`:
 ```python
-from modules.schema_handlers import BaseSchemaHandler, register_schema_handler
+from modules.operations.extraction.schema_handlers import BaseSchemaHandler, register_schema_handler
 
 class NewSchemaHandler(BaseSchemaHandler):
     schema_name = "NewSchema"
@@ -377,10 +407,10 @@ Once completed, your schema is fully integrated and ready for use.
 ## Logging and Debugging
 
 - **Log Files:**  
-  All log messages are written to a file specified in `paths_config.yaml`.
+  All log messages are written to a file specified in `paths_config.yaml` (default: `logs/application.log`).
 
 - **Adjusting Log Level:**  
-  To increase verbosity, modify the logging level in `modules/logger.py` as required for more detailed output during 
+  To increase verbosity, modify the logging level in `modules/core/logger.py` as required for more detailed output during 
   troubleshooting.
 
 ## Security Considerations
@@ -408,16 +438,16 @@ Once completed, your schema is fully integrated and ready for use.
   Refer to the "Introducing New Schemas" section above for detailed steps on creating new JSON schemas and developer 
   message files.
 - **Customizing User Interface:**  
-  The project uses a dedicated `UserInterface` class in `modules/user_interface.py` that can be extended to customize
+  The project uses a dedicated `UserInterface` class in `modules/ui/core.py` that can be extended to customize
   user interactions and provide additional feedback options.
 - **Extending File Processing:**  
-  The `FileProcessor` class in `modules/file_processor.py` handles all file operations and can be extended to support
+  The `FileProcessor` class in `modules/operations/extraction/file_processor.py` handles all file operations and can be extended to support
   new file formats or processing methods.
 - **Configuration Management:**  
-  The `ConfigManager` class in `modules/config_manager.py` provides a central place to handle configuration validation
+  The `ConfigManager` class in `modules/config/manager.py` provides a central place to handle configuration validation
   and loading.
 - **Supporting Additional Output Formats:**  
-  You can add new converters in `modules/data_processing.py` and `modules/text_processing.py` to generate other 
+  You can add new converters in `modules/core/data_processing.py` and `modules/core/text_processing.py` to generate other 
   output formats like XML or HTML.
 - **Enhancing Extraction Context:**  
   Create custom context files to improve extraction for specific domains or document types.
@@ -438,8 +468,10 @@ Once completed, your schema is fully integrated and ready for use.
 Contributions are welcome! When contributing:
 - Contact the main developer before adding any new features.
 - Ensure that any new schema JSON files and developer messages work as intended before submission.
-- (Optionally) Register any custom schema handlers in `modules/schema_handlers.py`.
+- (Optionally) Register any custom schema handlers in `modules/operations/extraction/schema_handlers.py`.
 - Follow the repository's coding style and contribution guidelines.
+- All Python code should follow PEP 8 conventions.
+- Test thoroughly before submitting pull requests.
 
 ## Contact and Support
 

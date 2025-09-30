@@ -95,20 +95,3 @@ class ConfigManager:
 		:return: Dictionary of schema paths
 		"""
 		return self.config_loader.get_schemas_paths()
-
-
-# Backward compatibility functions
-def validate_paths(paths_config: Dict[str, Any]) -> None:
-	"""
-	Legacy function maintained for backward compatibility.
-	"""
-	config_manager = ConfigManager(None)
-	return config_manager.validate_paths(paths_config)
-
-
-def load_developer_message(schema_name: str) -> str:
-	"""
-	Legacy function maintained for backward compatibility.
-	"""
-	config_manager = ConfigManager(None)
-	return config_manager.load_developer_message(schema_name)

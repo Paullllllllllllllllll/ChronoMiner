@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import List, Tuple
 
 from modules.config.loader import ConfigLoader
-from modules.text_utils import TextProcessor, TokenBasedChunking
+from modules.core.text_utils import TextProcessor, TokenBasedChunking
 from modules.core.schema_manager import SchemaManager
 
 

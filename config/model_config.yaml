@@ -1,8 +1,8 @@
 # model_config.yaml
 transcription_model:  # Model used with the OpenAI Responses API
-  name: "o3-mini"  # default model; change per OpenAI documentation
-  max_output_tokens: 100000  # budget for model outputs
-  reasoning:  # used for GPT-5 family; ignored for o-series
+  name: "gpt-5-mini"  # default model; change per OpenAI documentation
+  max_output_tokens: 128000  # budget for model outputs
+  reasoning:  # used for GPT-5 and o-series
     effort: medium
   text:  # GPT-5 family control
     verbosity: medium

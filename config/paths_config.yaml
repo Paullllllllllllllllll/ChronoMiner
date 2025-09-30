@@ -9,8 +9,8 @@ general: # General processing settings
 
 schemas_paths: # Schema specific input and output paths and settings
   BibliographicEntries:
-    input: "C:/path"
-    output: "C:/path"
+    input: "C:\Users\pagoetz\Documents\Arbeit\Doktor\Forschung\Data\culinary_bibliographies\test_input"
+    output: "C:\Users\pagoetz\Documents\Arbeit\Doktor\Forschung\Data\culinary_bibliographies\test_output"
     csv_output: True
     docx_output: True
     txt_output: True
@@ -27,6 +27,24 @@ schemas_paths: # Schema specific input and output paths and settings
     docx_output: True
     txt_output: True
   BrazilianMilitaryRecords:
+    input: "C:/path"
+    output: "C:/path"
+    csv_output: True
+    docx_output: True
+    txt_output: True
+  CulinaryWorksEntries:
+    input: "C:/path"
+    output: "C:/path"
+    csv_output: True
+    docx_output: True
+    txt_output: True
+  CulinaryPersonsEntries:
+    input: "C:/path"
+    output: "C:/path"
+    csv_output: True
+    docx_output: True
+    txt_output: True
+  CulinaryPlacesEntries:
     input: "C:/path"
     output: "C:/path"
     csv_output: True

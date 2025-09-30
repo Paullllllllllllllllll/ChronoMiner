@@ -52,7 +52,7 @@ import datetime
 from openai import OpenAI
 from modules.config.loader import ConfigLoader
 from modules.core.logger import setup_logger
-from modules.schema_handlers import get_schema_handler
+from modules.operations.extraction.schema_handlers import get_schema_handler
 from modules.ui.core import UserInterface
 from modules.llm.openai_sdk_utils import list_all_batches, sdk_to_dict, coerce_file_id
 from modules.core.batch_utils import diagnose_batch_failure, extract_custom_id_mapping

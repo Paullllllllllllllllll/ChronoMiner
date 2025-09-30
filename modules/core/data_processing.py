@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import json
+from modules.core.json_utils import extract_entries_from_json
 import pandas as pd
 from typing import Any, List, Dict
 
@@ -19,126 +20,7 @@ class CSVConverter:
         :param json_file: Path to the JSON file
         :return: List of entries extracted from the JSON file
         """
-        try:
-            with json_file.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-        except Exception as e:
-            print(f"Error reading JSON file {json_file}: {e}")
-            return []
-
-        entries: List[Any] = []
-
-        if isinstance(data, dict):
-            if "entries" in data:
-                entries = data["entries"]
-            elif "responses" in data:
-                for resp in data.get("responses", []):
-                    if resp is None:
-                        continue  # Skip None responses
-
-                    try:
-                        if isinstance(resp, str):
-                            # Try to parse response string as JSON
-                            content_json = json.loads(resp)
-                            if isinstance(content_json, dict) and "entries" in content_json:
-                                # Filter out None entries
-                                valid_entries = [entry for entry in content_json.get("entries", []) if entry is not None]
-                                entries.extend(valid_entries)
-                        elif isinstance(resp, dict):
-                            # Handle batch response structure (Chat Completions and Responses API)
-                            body = resp.get("body", {}) if isinstance(resp, dict) else {}
-                            content = ""
-                            if body:
-                                # Chat Completions path
-                                choices = body.get("choices", []) if isinstance(body, dict) else []
-                                if choices:
-                                    message = choices[0].get("message", {}) if choices[0] else {}
-                                    content = message.get("content", "") if message else ""
-                                else:
-                                    # Responses API path: prefer output_text, else concatenate output message texts
-                                    if isinstance(body.get("output_text"), str):
-                                        content = body.get("output_text", "")
-                                    elif isinstance(body.get("output"), list):
-                                        parts = []
-                                        for item in body.get("output", []):
-                                            if isinstance(item, dict) and item.get("type") == "message":
-                                                for c in item.get("content", []):
-                                                    txt = c.get("text") if isinstance(c, dict) else None
-                                                    if isinstance(txt, str):
-                                                        parts.append(txt)
-                                        content = "".join(parts)
-                            if content:
-                                try:
-                                    content_json = json.loads(content)
-                                    if isinstance(content_json, dict) and "entries" in content_json:
-                                        # Filter out None entries
-                                        valid_entries = [entry for entry in content_json.get("entries", []) if entry is not None]
-                                        entries.extend(valid_entries)
-                                except json.JSONDecodeError:
-                                    print(f"Failed to parse response content as JSON: {content[:100]}...")
-                    except Exception as e:
-                        print(f"Error processing response: {e}")
-        elif isinstance(data, list):
-            for item in data:
-                if item is None:
-                    continue  # Skip None items
-
-                response = item.get("response") if isinstance(item,
-                                                              dict) else None
-                if response is None:
-                    continue  # Skip items with None response
-
-                if isinstance(response, str):
-                    try:
-                        response_obj = json.loads(response)
-                        if isinstance(response_obj,
-                                      dict) and "entries" in response_obj:
-                            # Filter out None entries
-                            valid_entries = [entry for entry in
-                                             response_obj.get("entries", []) if
-                                             entry is not None]
-                            entries.extend(valid_entries)
-                    except json.JSONDecodeError:
-                        print(
-                            f"Error parsing response string as JSON: {response[:100]}...")
-                    except Exception as e:
-                        print(f"Error processing string response: {e}")
-                elif isinstance(response, dict):
-                    # Handle dict responses: either already parsed entries or raw API body
-                    if "entries" in response:
-                        # Filter out None entries
-                        valid_entries = [entry for entry in response.get("entries", []) if entry is not None]
-                        entries.extend(valid_entries)
-                    else:
-                        body = response.get("body", {}) if isinstance(response, dict) else {}
-                        content = ""
-                        if body:
-                            choices = body.get("choices", []) if isinstance(body, dict) else []
-                            if choices:
-                                message = choices[0].get("message", {}) if choices[0] else {}
-                                content = message.get("content", "") if message else ""
-                            else:
-                                if isinstance(body.get("output_text"), str):
-                                    content = body.get("output_text", "")
-                                elif isinstance(body.get("output"), list):
-                                    parts = []
-                                    for item in body.get("output", []):
-                                        if isinstance(item, dict) and item.get("type") == "message":
-                                            for c in item.get("content", []):
-                                                txt = c.get("text") if isinstance(c, dict) else None
-                                                if isinstance(txt, str):
-                                                    parts.append(txt)
-                                    content = "".join(parts)
-                        if content:
-                            try:
-                                content_json = json.loads(content)
-                                if isinstance(content_json, dict) and "entries" in content_json:
-                                    valid_entries = [entry for entry in content_json.get("entries", []) if entry is not None]
-                                    entries.extend(valid_entries)
-                            except json.JSONDecodeError:
-                                print(f"Error parsing response content as JSON: {content[:100]}...")
-
-        return entries
+        return extract_entries_from_json(json_file)
 
     def convert_to_csv(self, json_file: Path, output_csv: Path) -> None:
         entries: List[Any] = self.extract_entries(json_file)
