@@ -17,6 +17,7 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
     - Batch responses: {"responses": [...]}
     - Chat Completions API format
     - Responses API format
+    - Chunk-based output format
 
     :param json_file: Path to the JSON file
     :return: List of entries extracted from the JSON file
@@ -93,8 +94,18 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
                     continue
 
     elif isinstance(data, list):
+        # Chunk-based output format
+        for chunk in data:
+            if isinstance(chunk, dict) and "response" in chunk:
+                chunk_data = chunk["response"]
+                if isinstance(chunk_data, dict) and "entries" in chunk_data:
+                    entries.extend(chunk_data["entries"])
+                elif isinstance(chunk_data, list):
+                    entries.extend(chunk_data)
+
         # Direct list of entries
-        entries = data
+        if not entries:
+            entries = data
 
     # Filter out any None entries from the final list
     entries = [entry for entry in entries if entry is not None]

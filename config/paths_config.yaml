@@ -3,7 +3,7 @@
 general: # General processing settings
   retain_temporary_jsonl: true
   input_paths_is_output_path: true
-  logs_dir: "C:/path"
+  logs_dir: "C:\Users\pagoetz\Desktop\working_dir\python_repo_logs\chrono_transcriber_logs"
   allow_relative_paths: false  # Set to true to enable relative path support
   base_directory: "."  # Base directory for resolving relative paths (used when allow_relative_paths is true)
 

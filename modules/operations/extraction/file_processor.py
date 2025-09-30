@@ -392,12 +392,18 @@ class FileProcessor:
 									response_data: Dict[str, Any] = response_payload.get("response_data", {})
 									request_metadata: Dict[str, Any] = response_payload.get("request_metadata", {})
 
+									# Parse the output_text JSON string into an actual object
+									try:
+										parsed_response = json.loads(output_text) if isinstance(output_text, str) else output_text
+									except json.JSONDecodeError:
+										logger.warning(f"Failed to parse output_text as JSON for chunk {idx}")
+										parsed_response = output_text
+
 									temp_record: Dict[str, Any] = {
 										"custom_id": f"{file_path.stem}-chunk-{idx}",
 										"chunk_index": idx,
 										"chunk_range": chunk_range,
 										"response": output_text,
-										"output_text": output_text,
 										"response_data": response_data,
 										"request_metadata": request_metadata,
 										"status": "success",
@@ -411,17 +417,8 @@ class FileProcessor:
 										"custom_id": f"{file_path.stem}-chunk-{idx}",
 										"chunk_index": idx,
 										"chunk_range": chunk_range,
-										"response": output_text,
-										"output_text": output_text,
-										"response_data": response_data,
-										"request_metadata": request_metadata,
-										"status": "success",
+										"response": parsed_response,
 									}
-
-									console_print(
-										f"[SUCCESS] Processed chunk {idx}/{total_chunks}")
-									logger.info(
-										f"Processed chunk {idx} for file {file_path.name} with range {chunk_range}")
 								except Exception as exc:
 									logger.error(
 										f"Error processing chunk {idx} of {file_path.name}: {exc}")
@@ -430,18 +427,17 @@ class FileProcessor:
 										"chunk_index": idx,
 										"chunk_range": chunk_range,
 										"response": None,
-										"output_text": None,
-										"response_data": {},
-										"request_metadata": {},
 										"error": str(exc),
-										"status": "error",
 									}
 									async with write_lock:
 										tempf.write(json.dumps(error_record) + "\n")
 										tempf.flush()
-									results_map[idx] = error_record
-									console_print(
-										f"[ERROR] Failed to process chunk {idx}: {exc}")
+									results_map[idx] = {
+										"custom_id": f"{file_path.stem}-chunk-{idx}",
+										"chunk_index": idx,
+										"chunk_range": chunk_range,
+										"response": None,
+									}
 
 						tasks = [
 							asyncio.create_task(handle_chunk(idx, chunk, ranges[idx - 1]))
@@ -450,23 +446,65 @@ class FileProcessor:
 						if tasks:
 							await asyncio.gather(*tasks)
 
-						results = [results_map[idx] for idx in sorted(results_map.keys())]
+						# Write final JSON output by reading from temp JSONL file
+						try:
+							console_print(f"[INFO] Constructing final output from temporary file...")
+							results = []
+							
+							# Read from the temp JSONL file
+							if temp_jsonl_path.exists():
+								with temp_jsonl_path.open("r", encoding="utf-8") as tempf:
+									for line in tempf:
+										line = line.strip()
+										if not line:
+											continue
+										try:
+											record = json.loads(line)
+											# Extract only the essential fields for the final output
+											if "custom_id" in record:
+												# Parse the response field if it's a string
+												response_field = record.get("response")
+												if isinstance(response_field, str):
+													try:
+														response_field = json.loads(response_field)
+													except json.JSONDecodeError:
+														logger.warning(f"Failed to parse response field for {record.get('custom_id')}")
+												
+												output_record = {
+													"custom_id": record.get("custom_id"),
+													"chunk_index": record.get("chunk_index"),
+													"chunk_range": record.get("chunk_range"),
+													"response": response_field,
+												}
+												results.append(output_record)
+										except json.JSONDecodeError as e:
+											logger.warning(f"Failed to parse line in temp file: {e}")
+											continue
+							
+							# Sort results by chunk_index
+							results.sort(key=lambda x: x.get("chunk_index", 0))
+							
+							# Write the final output JSON
+							with output_json_path.open("w", encoding="utf-8") as outf:
+								json.dump(results, outf, indent=2)
+							console_print(
+								f"[SUCCESS] Final structured JSON output saved to {output_json_path}")
+							logger.info(
+								f"Structured JSON output saved to {output_json_path}")
+						except Exception as e:
+							logger.error(
+								f"Error writing final output for {file_path.name}: {e}")
+							console_print(f"[ERROR] Failed to write final output: {e}")
+							return
+
 			except Exception as e:
 				logger.error(
 					f"Error during synchronous processing for {file_path.name}: {e}")
 				console_print(f"[ERROR] Error during processing: {e}")
 				return
 
-			# Write final JSON output and optionally convert to additional formats
+			# Generate additional output formats if configured
 			try:
-				with output_json_path.open("w", encoding="utf-8") as outf:
-					json.dump(results, outf, indent=2)
-				console_print(
-					f"[SUCCESS] Final structured JSON output saved to {output_json_path}")
-				logger.info(
-					f"Structured JSON output saved to {output_json_path}")
-
-				# Generate additional output formats if configured
 				if schema_paths.get("csv_output", False):
 					output_csv_path: Path = output_json_path.with_suffix(".csv")
 					handler.convert_to_csv(output_json_path, output_csv_path)
