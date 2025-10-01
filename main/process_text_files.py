@@ -28,6 +28,7 @@ from modules.core.workflow_utils import (
 )
 from modules.core.prompt_context import load_basic_context
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
+from modules.core.text_utils import TextProcessor, TokenBasedChunking
 
 # Initialize logger
 logger = setup_logger(__name__)
@@ -45,6 +46,37 @@ def _resolve_line_ranges_file(text_file: Path) -> Optional[Path]:
         if candidate.exists():
             return candidate
     return None
+
+
+def _generate_line_ranges_for_file(
+    text_file: Path,
+    default_tokens_per_chunk: int,
+    model_name: str,
+) -> Path:
+    """
+    Generate line ranges for a text file and write them to a file.
+    
+    Returns the path to the created line ranges file.
+    """
+    encoding = TextProcessor.detect_encoding(text_file)
+    with text_file.open('r', encoding=encoding) as f:
+        lines = f.readlines()
+    normalized_lines = [TextProcessor.normalize_text(line) for line in lines]
+    text_processor = TextProcessor()
+    strategy = TokenBasedChunking(
+        tokens_per_chunk=default_tokens_per_chunk,
+        model_name=model_name,
+        text_processor=text_processor
+    )
+    line_ranges = strategy.get_line_ranges(normalized_lines)
+    
+    # Write line ranges to file
+    line_ranges_file = text_file.with_name(f"{text_file.stem}_line_ranges.txt")
+    with line_ranges_file.open("w", encoding="utf-8") as f:
+        for r in line_ranges:
+            f.write(f"({r[0]}, {r[1]})\n")
+    
+    return line_ranges_file
 
 
 def _prompt_int(ui: UserInterface, message: str, default: int) -> int:
@@ -99,67 +131,65 @@ async def _adjust_line_ranges_workflow(
     ui.console_print("\n" + "=" * 80)
     ui.console_print("  LINE RANGE ADJUSTMENT WORKFLOW")
     ui.console_print("=" * 80)
-
-    # Ask if user wants to use schema name as boundary type
-    use_same_schema = _prompt_yes_no(
-        ui,
-        f"Use schema '{selected_schema_name}' as the semantic boundary type?",
-        default=True,
-    )
-
-    if use_same_schema:
-        boundary_type = selected_schema_name
-    else:
-        ui.console_print("\nEnter the semantic boundary type name: ")
-        try:
-            boundary_type = input().strip()
-            if not boundary_type:
-                ui.console_print("[WARN] No boundary type provided; using schema name.")
-                boundary_type = selected_schema_name
-        except EOFError:
-            boundary_type = selected_schema_name
-
+    
+    # First, check which files need line ranges generated
+    files_needing_generation = []
+    for text_file in files:
+        line_ranges_file = _resolve_line_ranges_file(text_file)
+        if not line_ranges_file:
+            files_needing_generation.append(text_file)
+    
+    # Generate line ranges for files that don't have them
+    if files_needing_generation:
+        ui.console_print(f"\n[INFO] Generating line ranges for {len(files_needing_generation)} file(s) that don't have them yet...")
+        
+        # Get model and chunking settings
+        model_name = model_config.get("transcription_model", {}).get("name", "gpt-4o-mini")
+        default_tokens_per_chunk = chunking_config.get("chunking", {}).get("default_tokens_per_chunk", 7500)
+        
+        for text_file in files_needing_generation:
+            try:
+                ui.console_print(f"[INFO] Generating line ranges for {text_file.name}...")
+                line_ranges_file = _generate_line_ranges_for_file(
+                    text_file,
+                    default_tokens_per_chunk,
+                    model_name
+                )
+                ui.console_print(f"[SUCCESS] Created {line_ranges_file.name}")
+            except Exception as exc:
+                ui.console_print(f"[ERROR] Failed to generate line ranges for {text_file.name}: {exc}")
+                logger.exception("Error generating line ranges for %s", text_file, exc_info=exc)
+    
+    # Use schema name as boundary type
+    boundary_type = selected_schema_name
+    
     # Get context window size
-    default_context_window = int(
-        chunking_config.get("chunking", {}).get("line_range_context_window", 6) or 6
-    )
+    default_context_window = int(chunking_config.get("chunking", {}).get("line_range_context_window", 6) or 6)
     context_window = _prompt_int(
         ui,
         "Enter context window size (lines to inspect around boundaries)",
         default_context_window,
     )
-
-    # Ask about dry run
-    dry_run = _prompt_yes_no(
-        ui,
-        "Perform a dry run (preview adjustments without modifying files)?",
-        default=False,
-    )
-
+    
     # Get prompt path override if configured
     prompt_override = chunking_config.get("chunking", {}).get("line_range_prompt_path")
     prompt_path: Optional[Path] = Path(prompt_override).resolve() if prompt_override else None
-
+    
     # Display summary
     ui.console_print("\n" + "-" * 80)
     ui.console_print(f"Selected files: {len(files)}")
     ui.console_print(f"Boundary type: {boundary_type}")
     ui.console_print(f"Context window: {context_window}")
-    ui.console_print(f"Dry run: {'yes' if dry_run else 'no'}")
     if prompt_path:
         ui.console_print(f"Prompt override: {prompt_path}")
-
+    
     if context_settings.get("use_additional_context", False):
-        context_source = (
-            "Default boundary-type-specific"
-            if context_settings.get("use_default_context", False)
-            else "File-specific"
-        )
+        context_source = "Default boundary-type-specific" if context_settings.get("use_default_context", False) else "File-specific"
     else:
         context_source = "None"
     ui.console_print(f"Additional context: {context_source}")
     ui.console_print("-" * 80)
-
+    
     # Initialize readjuster
     readjuster = LineRangeReadjuster(
         model_config,
@@ -168,44 +198,40 @@ async def _adjust_line_ranges_workflow(
         matching_config=matching_config,
         retry_config=retry_config,
     )
-
+    
     # Process each file
     successes = 0
     skipped = 0
     failures = 0
-
+    
     for text_file in files:
         line_ranges_file = _resolve_line_ranges_file(text_file)
         if not line_ranges_file:
             ui.console_print(
-                f"[WARN] Skipping {text_file.name}: no associated line range file found."
-            )
+                f"[WARN] Skipping {text_file.name}: no associated line range file found (this shouldn't happen).")
             skipped += 1
             continue
-
+        
         ui.console_print(
-            f"[INFO] Adjusting line ranges for {text_file.name} (context window: {context_window}, boundary: {boundary_type})..."
-        )
+            f"[INFO] Adjusting line ranges for {text_file.name} (context window: {context_window}, boundary: {boundary_type})...")
         try:
             await readjuster.ensure_adjusted_line_ranges(
                 text_file=text_file,
                 line_ranges_file=line_ranges_file,
-                dry_run=dry_run,
+                dry_run=False,
                 boundary_type=boundary_type,
                 basic_context=basic_context,
                 context_settings=context_settings,
                 context_manager=context_manager,
             )
-            status = "previewed" if dry_run else "updated"
             ui.console_print(
-                f"[SUCCESS] Line ranges for {text_file.name} {status} using {line_ranges_file.name}."
-            )
+                f"[SUCCESS] Line ranges for {text_file.name} adjusted using {line_ranges_file.name}.")
             successes += 1
         except Exception as exc:
             logger.exception("Error adjusting %s", text_file, exc_info=exc)
             ui.console_print(f"[ERROR] Failed to adjust {text_file.name}: {exc}")
             failures += 1
-
+    
     # Display results
     ui.console_print("\n" + "=" * 80)
     ui.console_print("  ADJUSTMENT SUMMARY")
@@ -213,11 +239,6 @@ async def _adjust_line_ranges_workflow(
     ui.console_print(f"Successful adjustments: {successes}")
     ui.console_print(f"Skipped (no line ranges): {skipped}")
     ui.console_print(f"Failures: {failures}")
-
-    if dry_run and successes > 0:
-        ui.console_print(
-            "\n[INFO] Dry run enabled; no files were modified. The line ranges shown are previews only."
-        )
 
 
 async def main() -> None:

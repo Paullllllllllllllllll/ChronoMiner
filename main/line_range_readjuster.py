@@ -60,16 +60,6 @@ def parse_arguments() -> argparse.Namespace:
         help="Override the prompt template used when calling the model.",
     )
     parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Preview adjustments without rewriting the line range files.",
-    )
-    parser.add_argument(
-        "--boundary-type",
-        type=str,
-        help="Name of the semantic boundary type to detect.",
-    )
-    parser.add_argument(
         "--use-additional-context",
         action="store_true",
         help="Include additional context (default or file-specific).",
@@ -96,24 +86,6 @@ def _resolve_line_ranges_file(text_file: Path) -> Optional[Path]:
     return None
 
 
-def _prompt_boundary_type_cli(*, default: Optional[str] = None) -> str:
-    """Prompt the user to enter a boundary type name."""
-    prompt_suffix = f" [default: {default}]" if default else ""
-    
-    while True:
-        try:
-            selection = input(f"Enter the semantic boundary type name{prompt_suffix}: ").strip()
-        except EOFError:
-            selection = ""
-
-        if not selection and default:
-            return default
-        if selection:
-            return selection
-
-        print("[WARN] Boundary type cannot be empty. Please try again.")
-
-
 def _prompt_int(ui: Optional[UserInterface], message: str, default: int) -> int:
     if ui:
         ui.console_print(f"\n{message} (press Enter to keep {default}): ")
@@ -132,32 +104,12 @@ def _prompt_int(ui: Optional[UserInterface], message: str, default: int) -> int:
         return default
 
 
-def _prompt_yes_no(ui: Optional[UserInterface], message: str, default: bool) -> bool:
-    hint = "Y/n" if default else "y/N"
-    if ui:
-        ui.console_print(f"\n{message} ({hint}): ")
-    try:
-        response = input().strip().lower()
-    except EOFError:
-        response = ""
-    if not response:
-        return default
-    if response in {"y", "yes"}:
-        return True
-    if response in {"n", "no"}:
-        return False
-    if ui:
-        ui.console_print(f"[WARN] Unrecognized response '{response}'; using default.")
-    return default
-
-
 async def _adjust_files(
     *,
     text_files: Sequence[Path],
     model_config: Dict[str, any],
     context_window: int,
     prompt_path: Optional[Path],
-    dry_run: bool,
     boundary_type: str,
     basic_context: Optional[str],
     context_settings: Optional[Dict[str, any]],
@@ -192,15 +144,14 @@ async def _adjust_files(
             await readjuster.ensure_adjusted_line_ranges(
                 text_file=text_file,
                 line_ranges_file=line_ranges_file,
-                dry_run=dry_run,
+                dry_run=False,
                 boundary_type=boundary_type,
                 basic_context=basic_context,
                 context_settings=context_settings,
                 context_manager=context_manager,
             )
-            status = "previewed" if dry_run else "updated"
             notifier(
-                f"[SUCCESS] Line ranges for {text_file.name} {status} using {line_ranges_file.name}.")
+                f"[SUCCESS] Line ranges for {text_file.name} adjusted using {line_ranges_file.name}.")
             successes.append((text_file, line_ranges_file))
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.exception("Error adjusting %s", text_file, exc_info=exc)
@@ -241,7 +192,7 @@ async def main_async() -> None:
 
     ui: Optional[UserInterface] = None
     selected_files: List[Path] = []
-    boundary_type: Optional[str] = None
+    boundary_type: str
 
     if args.path:
         target = args.path.expanduser().resolve()
@@ -254,10 +205,20 @@ async def main_async() -> None:
             print(f"[WARN] No eligible text files found under {target}.")
             sys.exit(0)
 
-        if args.boundary_type:
-            boundary_type = args.boundary_type
-        else:
-            boundary_type = _prompt_boundary_type_cli(default=None)
+        # When using CLI without interactive mode, we need a schema for boundary type
+        print("[INFO] Available schemas for boundary type detection:")
+        available_schemas = schema_manager.get_available_schemas()
+        schema_list = list(available_schemas.keys())
+        for idx, schema_name in enumerate(schema_list, 1):
+            print(f"  {idx}. {schema_name}")
+        
+        try:
+            selection = input("Select a schema by number: ").strip()
+            schema_index = int(selection) - 1
+            boundary_type = schema_list[schema_index]
+        except (ValueError, IndexError, EOFError):
+            print("[ERROR] Invalid schema selection.")
+            sys.exit(1)
 
         use_additional = bool(args.use_additional_context or args.use_default_context)
         context_settings = {
@@ -271,22 +232,13 @@ async def main_async() -> None:
 
         # Select schema to determine input directory and boundary type
         selected_schema, selected_schema_name = ui.select_schema(schema_manager)
+        boundary_type = selected_schema_name
 
         if selected_schema_name in schemas_paths:
             base_dir = Path(schemas_paths[selected_schema_name].get("input", ""))
         else:
             base_dir = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
         selected_files = ui.select_input_source(base_dir)
-
-        use_same_schema = _prompt_yes_no(
-            ui,
-            f"Use schema '{selected_schema_name}' as the semantic boundary type?",
-            default=True,
-        )
-        if use_same_schema:
-            boundary_type = selected_schema_name
-        else:
-            boundary_type = _prompt_boundary_type_cli()
 
         context_settings = ui.ask_additional_context_mode()
         context_manager = prepare_context_manager(context_settings)
@@ -304,26 +256,13 @@ async def main_async() -> None:
             default_context_window,
         )
 
-    dry_run = bool(args.dry_run)
-    if ui and not args.dry_run:
-        dry_run = _prompt_yes_no(
-            ui,
-            "Perform a dry run (do not overwrite line range files)?",
-            default=False,
-        )
-
     notifier = ui.console_print if ui else print
-
-    if boundary_type is None:
-        print("[ERROR] Semantic boundary type selection failed; exiting.")
-        sys.exit(1)
 
     notifier("\n" + "=" * 80)
     notifier("  LINE RANGE READJUSTMENT")
     notifier("=" * 80)
     notifier(f"Selected {len(selected_files)} file(s) for adjustment.")
     notifier(f"Context window: {context_window}")
-    notifier(f"Dry run: {'yes' if dry_run else 'no'}")
     notifier(f"Boundary type: {boundary_type}")
     if prompt_path:
         notifier(f"Prompt override: {prompt_path}")
@@ -339,7 +278,6 @@ async def main_async() -> None:
         model_config=model_config,
         context_window=context_window,
         prompt_path=prompt_path,
-        dry_run=dry_run,
         boundary_type=boundary_type,
         basic_context=basic_context,
         context_settings=context_settings,
@@ -364,11 +302,6 @@ async def main_async() -> None:
         notifier("\nFiles that encountered errors:")
         for failed_file, error in failures:
             notifier(f"  - {failed_file}: {error}")
-
-    if dry_run and successes:
-        notifier(
-            "\n[INFO] Dry run enabled; no files were modified. Re-run without --dry-run to persist adjustments."
-        )
 
 
 def main() -> None:
