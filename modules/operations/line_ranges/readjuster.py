@@ -169,6 +169,8 @@ class LineRangeReadjuster:
                         decision.semantic_marker,
                     )
 
+        adjusted_ranges = self._remove_overlaps(adjusted_ranges)
+
         if not dry_run:
             self._write_line_ranges(line_ranges_file, adjusted_ranges)
 
@@ -552,6 +554,69 @@ class LineRangeReadjuster:
         with line_ranges_file.open("w", encoding="utf-8") as handle:
             for start, end in ranges:
                 handle.write(f"({start}, {end})\n")
+
+    @staticmethod
+    def _remove_overlaps(ranges: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+        """
+        Remove overlaps from a list of line ranges by adjusting end boundaries.
+        
+        When range[i].end >= range[i+1].start, we have an overlap.
+        This is resolved by setting range[i].end = range[i+1].start - 1.
+        
+        This preserves the semantic start boundaries identified by the LLM
+        while ensuring no overlaps exist. Gaps are acceptable and expected.
+        
+        Args:
+            ranges: List of (start, end) tuples, assumed to be in sequential order
+            
+        Returns:
+            List of non-overlapping (start, end) tuples
+        """
+        if not ranges:
+            return []
+        
+        if len(ranges) == 1:
+            return list(ranges)
+        
+        adjusted_ranges: List[Tuple[int, int]] = []
+        
+        for i in range(len(ranges)):
+            start, end = ranges[i]
+            
+            # Check if this range overlaps with the next range
+            if i < len(ranges) - 1:
+                next_start, next_end = ranges[i + 1]
+                
+                if end >= next_start:
+                    # Overlap detected - adjust this range's end
+                    original_end = end
+                    end = next_start - 1
+                    
+                    # Ensure the range is still valid (start <= end)
+                    if end < start:
+                        logger.warning(
+                            "Range (%d, %d) would become invalid after overlap removal. "
+                            "Adjusting start to %d.",
+                            start,
+                            original_end,
+                            end,
+                        )
+                        start = end
+                    
+                    logger.info(
+                        "Overlap removed: range (%d, %d) adjusted to (%d, %d) "
+                        "to avoid overlap with next range (%d, %d)",
+                        start,
+                        original_end,
+                        start,
+                        end,
+                        next_start,
+                        next_end,
+                    )
+            
+            adjusted_ranges.append((start, end))
+        
+        return adjusted_ranges
 
 
 async def adjust_line_ranges_for_paths(
