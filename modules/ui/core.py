@@ -114,13 +114,15 @@ class UserInterface:
 
 		chunking_options = [
 			("auto",
-			 "Automatic - System determines optimal chunk boundaries based on token limits"),
+			 "Automatic - System automatically splits text into chunks based on token limits (simplest option)"),
 			("auto-adjust",
-			 "Auto-adjust - Like automatic, but with adjustments for better context retention"),
+			 "Auto-adjust - Automatic chunking with intelligent boundary adjustments for better semantic coherence"),
 			("line_ranges.txt",
-			 "Manual - Use predefined line ranges from corresponding _line_ranges.txt files"),
+			 "Use existing line ranges - Process files using pre-defined _line_ranges.txt files (must already exist)"),
+			("adjust-line-ranges",
+			 "Adjust & use line ranges - First refine existing line ranges with AI-detected semantic boundaries, then process"),
 			("per-file",
-			 "Per-file - Choose chunking method individually for each file")
+			 "Per-file selection - Manually choose chunking method for each individual file during processing")
 		]
 
 		return self.select_option(
@@ -324,6 +326,7 @@ class UserInterface:
 			"auto": "Automatic chunking",
 			"auto-adjust": "Auto-adjusted chunking",
 			"line_ranges.txt": "Manual chunking (using line_ranges.txt files)",
+			"adjust-line-ranges": "Adjust line ranges - Refine existing line ranges using semantic boundary detection, then use them",
 			"per-file": "Per-file chunking selection"
 		}
 
@@ -393,7 +396,7 @@ class UserInterface:
 			if isinstance(batch, dict):
 				status = str(batch.get("status", "unknown")).lower()
 				batch_id = batch.get("id", "unknown")
-				created_time = batch.get("created_at") or batch.get("created") or "Unknown"
+				created_time = batch.get("created_at") or batch.get("created", "Unknown")
 			else:
 				status = str(getattr(batch, "status", "unknown")).lower()
 				batch_id = getattr(batch, "id", "unknown")

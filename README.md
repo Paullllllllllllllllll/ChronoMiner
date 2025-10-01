@@ -188,13 +188,17 @@ Chunking methods:
 1. Automatic (auto)
 2. Automatic with manual adjustments (auto-adjust)
 3. Use pre-defined line ranges (line_ranges.txt)
+4. Adjust and use line ranges (adjust-line-ranges)
+5. Per-file selection (per-file)
 
-Select chunking method [1-3]:
+Select chunking method [1-5]:
 ```
 
-- **Option 1**: Fully automatic, best for quick tests
-- **Option 2**: Automatic with opportunity to refine boundaries interactively
-- **Option 3**: Uses pre-generated `_line_ranges.txt` files (most reliable for production)
+- **Option 1**: Fully automatic chunking based on token limits, best for quick tests
+- **Option 2**: Automatic chunking with opportunity to refine boundaries interactively
+- **Option 3**: Uses pre-generated line ranges from existing `_line_ranges.txt` files
+- **Option 4**: Refines existing line ranges using AI-detected semantic boundaries, then uses them for processing
+- **Option 5**: Choose chunking method individually for each file during processing
 
 #### 4. Select Processing Mode
 
@@ -372,6 +376,29 @@ input_file_line_ranges.txt:
 [Chunk 2: lines 343-689]
 [Chunk 3: lines 690-1024]
 ```
+
+**d) Adjust and Use Line Ranges (`adjust-line-ranges`):**
+```
+input_file.txt + input_file_line_ranges.txt
+    ↓
+LLM analyzes boundaries for semantic coherence
+    ↓
+Adjusted line ranges:
+    1-315 (boundary moved to section break)
+    316-702 (boundary moved to paragraph end)
+    703-1024
+    ↓
+[Chunk 1: lines 1-315]
+[Chunk 2: lines 316-702]
+[Chunk 3: lines 703-1024]
+    ↓
+Processing continues with refined chunks
+```
+
+This strategy first invokes the line range readjuster workflow to optimize existing chunk boundaries using AI-detected semantic markers such as section headers, paragraph breaks, or entry boundaries. After refinement, processing continues automatically using the adjusted line ranges. This approach combines the reliability of pre-defined ranges with intelligent boundary optimization for improved extraction quality.
+
+**e) Per-file Selection (`per-file`):**
+During processing, you will be prompted to select a chunking method for each file individually. This allows mixing strategies within a single batch when different files have different structural characteristics.
 
 ### Phase 2: Context Integration
 
@@ -1037,7 +1064,7 @@ python main/generate_line_ranges.py
 # Refine with semantic boundaries
 python main/line_range_readjuster.py
 
-# Use in production - select "line_ranges.txt" when prompted for chunking method
+# Use in production
 ```
 
 **Benefits**:
@@ -1455,20 +1482,3 @@ If you find ChronoMiner useful, please consider giving it a star on GitHub!
 [Home](https://github.com/Paullllllllllllllllll/ChronoMiner) · [Docs](#table-of-contents) · [Issues](https://github.com/Paullllllllllllllllll/ChronoMiner/issues) · [Contribute](#contributing)
 
 </div>
-
-```
-{{ ... }}
-# Refine with semantic boundaries
-python main/line_range_readjuster.py
-
-# Use in production - select "line_ranges.txt" when prompted for chunking method
-{{ ... }}
-```
-becomes
-```
-{{ ... }}
-# Refine with semantic boundaries
-python main/line_range_readjuster.py
-
-# Use in production
-{{ ... }}
