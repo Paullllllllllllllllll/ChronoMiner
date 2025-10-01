@@ -85,8 +85,7 @@ async def main() -> None:
 			sys.exit(1)
 
 		# Get user preferences
-		global_chunking_method = ui.ask_global_chunking_mode(
-			chunking_config["chunking"]["chunking_method"])
+		global_chunking_method = ui.ask_global_chunking_mode()
 		use_batch = ui.ask_batch_processing()
 		context_settings = ui.ask_additional_context_mode()
 

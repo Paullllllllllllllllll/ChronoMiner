@@ -102,11 +102,10 @@ class UserInterface:
 
 		return available_schemas[selected_schema_name], selected_schema_name
 
-	def ask_global_chunking_mode(self, default_method: str) -> Optional[str]:
+	def ask_global_chunking_mode(self) -> Optional[str]:
 		"""
 		Present enhanced options for global chunking strategy.
 
-		:param default_method: Default chunking method from config
 		:return: Selected chunking method or None
 		"""
 		self.console_print("\n" + "=" * 80)
@@ -124,7 +123,6 @@ class UserInterface:
 			 "Per-file - Choose chunking method individually for each file")
 		]
 
-		self.console_print(f"\nDefault method (from config): {default_method}")
 		return self.select_option(
 			"Select how you would like to chunk the text for processing:",
 			chunking_options

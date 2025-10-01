@@ -1037,8 +1037,7 @@ python main/generate_line_ranges.py
 # Refine with semantic boundaries
 python main/line_range_readjuster.py
 
-# Use in production
-# Set chunking_method: "line_ranges.txt" in chunking_and_context.yaml
+# Use in production - select "line_ranges.txt" when prompted for chunking method
 ```
 
 **Benefits**:
@@ -1456,3 +1455,20 @@ If you find ChronoMiner useful, please consider giving it a star on GitHub!
 [Home](https://github.com/Paullllllllllllllllll/ChronoMiner) · [Docs](#table-of-contents) · [Issues](https://github.com/Paullllllllllllllllll/ChronoMiner/issues) · [Contribute](#contributing)
 
 </div>
+
+```
+{{ ... }}
+# Refine with semantic boundaries
+python main/line_range_readjuster.py
+
+# Use in production - select "line_ranges.txt" when prompted for chunking method
+{{ ... }}
+```
+becomes
+```
+{{ ... }}
+# Refine with semantic boundaries
+python main/line_range_readjuster.py
+
+# Use in production
+{{ ... }}
