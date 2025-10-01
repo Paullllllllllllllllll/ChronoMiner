@@ -4,12 +4,12 @@ import asyncio
 import json
 import logging
 import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from modules.core.prompt_context import apply_context_placeholders, resolve_additional_context
-from modules.core.schema_manager import SchemaManager
 from modules.core.text_utils import TextProcessor, load_line_ranges
 from modules.llm.openai_utils import open_extractor, process_text_chunk
 from modules.llm.prompt_utils import load_prompt_template
@@ -40,18 +40,8 @@ SEMANTIC_BOUNDARY_SCHEMA: Dict[str, Any] = {
                 "description": "Optional explanation of the decision.",
             },
         },
-        "required": ["no_semantic_boundary"],
+        "required": ["no_semantic_boundary", "boundary_text", "closing_boundary_text", "notes"],
         "additionalProperties": False,
-        "allOf": [
-            {
-                "if": {
-                    "properties": {"no_semantic_boundary": {"const": False}},
-                },
-                "then": {
-                    "required": ["boundary_text"],
-                },
-            }
-        ],
     },
 }
 
@@ -92,9 +82,6 @@ class LineRangeReadjuster:
         self.prompt_path = prompt_path or Path("prompts/semantic_boundary_prompt.txt")
         self.prompt_template = load_prompt_template(self.prompt_path)
         self.text_processor = TextProcessor()
-        self._schema_manager = SchemaManager()
-        self._schema_manager.load_schemas()
-        self._schema_cache: Dict[str, Dict[str, Any]] = {}
 
     async def ensure_adjusted_line_ranges(
         self,
@@ -118,8 +105,6 @@ class LineRangeReadjuster:
 
         if not boundary_type:
             raise ValueError("boundary_type must be provided when readjusting line ranges")
-
-        schema_context = self._get_schema_context(boundary_type)
 
         ranges = load_line_ranges(line_ranges_file)
         if not ranges:
@@ -154,7 +139,6 @@ class LineRangeReadjuster:
                     original_range=original_range,
                     range_index=index,
                     boundary_type=boundary_type,
-                    schema_context=schema_context,
                     basic_context=basic_context,
                     additional_context=additional_context,
                 )
@@ -186,7 +170,6 @@ class LineRangeReadjuster:
         original_range: Tuple[int, int],
         range_index: int,
         boundary_type: str,
-        schema_context: str,
         basic_context: Optional[str],
         additional_context: Optional[str],
     ) -> Tuple[BoundaryDecision, Tuple[int, int]]:
@@ -203,7 +186,6 @@ class LineRangeReadjuster:
                 context_window=window,
                 window_index=window_idx,
                 boundary_type=boundary_type,
-                schema_context=schema_context,
                 basic_context=basic_context,
                 additional_context=additional_context,
             )
@@ -234,7 +216,6 @@ class LineRangeReadjuster:
         context_window: Tuple[int, int],
         window_index: int,
         boundary_type: str,
-        schema_context: str,
         basic_context: Optional[str],
         additional_context: Optional[str],
     ) -> Dict[str, Any]:
@@ -243,7 +224,6 @@ class LineRangeReadjuster:
         context_block = self._format_context(raw_lines, context_start, context_end)
         instruction_body = (
             f"Task: locate a closed semantic boundary of type '{boundary_type}'.\n"
-            "- Use the schema description to understand what constitutes a boundary.\n"
             "- Provide only the verbatim text that marks the boundary.\n"
             "- Optionally provide verbatim closing text when it clearly marks the end of the same unit.\n"
             "- If no boundary exists, set no_semantic_boundary to true.\n"
@@ -262,7 +242,9 @@ class LineRangeReadjuster:
             additional_context=additional_context,
         )
 
-        system_prompt = system_prompt.replace("{{TRANSCRIPTION_SCHEMA}}", schema_context)
+        # Inject the semantic boundary schema into the prompt
+        schema_json = json.dumps(SEMANTIC_BOUNDARY_SCHEMA["schema"], indent=2, ensure_ascii=False)
+        system_prompt = system_prompt.replace("{{TRANSCRIPTION_SCHEMA}}", schema_json)
 
         response_payload = await process_text_chunk(
             text_chunk=f"{instruction_body}\n\n{chunk_text}",
@@ -422,14 +404,6 @@ class LineRangeReadjuster:
             if line_text == needle:
                 matches.append(line_number)
         return matches
-
-    def _get_schema_context(self, boundary_type: str) -> str:
-        if boundary_type not in self._schema_cache:
-            schema = self._schema_manager.get_available_schemas().get(boundary_type)
-            if not schema:
-                raise ValueError(f"Unknown boundary type '{boundary_type}'. Ensure schema exists in the schemas directory.")
-            self._schema_cache[boundary_type] = schema
-        return json.dumps(self._schema_cache[boundary_type], indent=2, ensure_ascii=False)
 
     def _coerce_json(self, raw_output: str) -> Optional[Dict[str, Any]]:
         text = raw_output.strip()

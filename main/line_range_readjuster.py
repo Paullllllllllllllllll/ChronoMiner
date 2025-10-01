@@ -46,7 +46,7 @@ def parse_arguments() -> argparse.Namespace:
         type=Path,
         help=(
             "Optional path to a text file or directory. When omitted, an "
-            "interactive workflow is used to select schema and files."
+            "interactive workflow is used to select files."
         ),
     )
     parser.add_argument(
@@ -67,7 +67,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--boundary-type",
         type=str,
-        help="Name of the schema defining the semantic boundary type to detect.",
+        help="Name of the semantic boundary type to detect.",
     )
     parser.add_argument(
         "--use-additional-context",
@@ -77,7 +77,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--use-default-context",
         action="store_true",
-        help="When using additional context, prefer schema-specific defaults from additional_context/.",
+        help="When using additional context, prefer boundary-type-specific defaults from additional_context/.",
     )
     return parser.parse_args()
 
@@ -96,64 +96,22 @@ def _resolve_line_ranges_file(text_file: Path) -> Optional[Path]:
     return None
 
 
-def _validate_boundary_type(boundary_type: str, schema_manager: SchemaManager) -> str:
-    schemas = schema_manager.get_available_schemas()
-    if not schemas:
-        raise ValueError("No schemas available for boundary selection.")
-
-    if boundary_type in schemas:
-        return boundary_type
-
-    lowered_map = {name.lower(): name for name in schemas}
-    canonical = lowered_map.get(boundary_type.lower())
-    if canonical:
-        return canonical
-
-    raise ValueError(f"Unknown boundary type: {boundary_type}")
-
-
-def _prompt_boundary_type_cli(
-    schema_manager: SchemaManager,
-    *,
-    default: Optional[str] = None,
-) -> str:
-    schemas = schema_manager.get_available_schemas()
-    if not schemas:
-        raise RuntimeError("No schemas available to select a semantic boundary type.")
-
-    names: List[str] = sorted(schemas.keys())
-    canonical_default: Optional[str] = None
-    if default:
-        try:
-            canonical_default = _validate_boundary_type(default, schema_manager)
-        except ValueError:
-            canonical_default = None
-
+def _prompt_boundary_type_cli(*, default: Optional[str] = None) -> str:
+    """Prompt the user to enter a boundary type name."""
+    prompt_suffix = f" [default: {default}]" if default else ""
+    
     while True:
-        print("\nAvailable semantic boundary types:")
-        for idx, name in enumerate(names, 1):
-            default_mark = " (default)" if canonical_default == name else ""
-            print(f"  {idx}. {name}{default_mark}")
-
-        prompt_suffix = f" [default: {canonical_default}]" if canonical_default else ""
         try:
-            selection = input(f"Select a boundary type by number or name{prompt_suffix}: ").strip()
+            selection = input(f"Enter the semantic boundary type name{prompt_suffix}: ").strip()
         except EOFError:
             selection = ""
 
-        if not selection and canonical_default:
-            return canonical_default
-        if selection in names:
+        if not selection and default:
+            return default
+        if selection:
             return selection
-        if selection.isdigit():
-            idx = int(selection)
-            if 1 <= idx <= len(names):
-                return names[idx - 1]
-        for name in names:
-            if selection.lower() == name.lower():
-                return name
 
-        print(f"[WARN] '{selection}' is not a valid boundary type. Please try again.")
+        print("[WARN] Boundary type cannot be empty. Please try again.")
 
 
 def _prompt_int(ui: Optional[UserInterface], message: str, default: int) -> int:
@@ -260,10 +218,11 @@ async def main_async() -> None:
         schemas_paths,
     ) = load_core_resources()
     chunking_config = (chunking_and_context_config or {}).get("chunking", {})
+
     try:
         schema_manager = load_schema_manager()
     except RuntimeError as exc:
-        print(f"[ERROR] {exc}; cannot select boundary type.")
+        print(f"[ERROR] {exc}; cannot select schema for input paths.")
         sys.exit(1)
 
     basic_context = load_basic_context()
@@ -289,17 +248,10 @@ async def main_async() -> None:
             print(f"[WARN] No eligible text files found under {target}.")
             sys.exit(0)
 
-        single_file = len(selected_files) == 1 and selected_files[0].is_file()
-        if single_file:
-            boundary_type = _prompt_boundary_type_cli(schema_manager, default=args.boundary_type)
-        elif args.boundary_type:
-            try:
-                boundary_type = _validate_boundary_type(args.boundary_type, schema_manager)
-            except ValueError:
-                print(f"[ERROR] Boundary type '{args.boundary_type}' not found in schemas directory.")
-                sys.exit(1)
+        if args.boundary_type:
+            boundary_type = args.boundary_type
         else:
-            boundary_type = _prompt_boundary_type_cli(schema_manager)
+            boundary_type = _prompt_boundary_type_cli(default=None)
 
         use_additional = bool(args.use_additional_context or args.use_default_context)
         context_settings = {
@@ -311,6 +263,7 @@ async def main_async() -> None:
         ui = UserInterface(logger)
         ui.display_banner()
 
+        # Select schema to determine input directory and boundary type
         selected_schema, selected_schema_name = ui.select_schema(schema_manager)
 
         if selected_schema_name in schemas_paths:
@@ -327,8 +280,7 @@ async def main_async() -> None:
         if use_same_schema:
             boundary_type = selected_schema_name
         else:
-            ui.console_print("\nSelect the semantic boundary type to align line ranges:")
-            _, boundary_type = ui.select_schema(schema_manager)
+            boundary_type = _prompt_boundary_type_cli()
 
         context_settings = ui.ask_additional_context_mode()
         context_manager = prepare_context_manager(context_settings)
@@ -360,12 +312,6 @@ async def main_async() -> None:
         print("[ERROR] Semantic boundary type selection failed; exiting.")
         sys.exit(1)
 
-    try:
-        boundary_type = _validate_boundary_type(boundary_type, schema_manager)
-    except ValueError as exc:
-        print(f"[ERROR] {exc}")
-        sys.exit(1)
-
     notifier("\n" + "=" * 80)
     notifier("  LINE RANGE READJUSTMENT")
     notifier("=" * 80)
@@ -377,7 +323,7 @@ async def main_async() -> None:
         notifier(f"Prompt override: {prompt_path}")
 
     if context_settings.get("use_additional_context", False):
-        context_source = "Default schema-specific" if context_settings.get("use_default_context", False) else "File-specific"
+        context_source = "Default boundary-type-specific" if context_settings.get("use_default_context", False) else "File-specific"
     else:
         context_source = "None"
     notifier(f"Additional context: {context_source}")
