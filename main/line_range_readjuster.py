@@ -162,12 +162,16 @@ async def _adjust_files(
     basic_context: Optional[str],
     context_settings: Optional[Dict[str, any]],
     context_manager: Optional[ContextManager],
+    matching_config: Optional[Dict[str, any]],
+    retry_config: Optional[Dict[str, any]],
     notifier,
 ) -> Tuple[List[Tuple[Path, Path]], List[Path], List[Tuple[Path, Exception]]]:
     readjuster = LineRangeReadjuster(
         model_config,
         context_window=context_window,
         prompt_path=prompt_path,
+        matching_config=matching_config,
+        retry_config=retry_config,
     )
 
     successes: List[Tuple[Path, Path]] = []
@@ -218,6 +222,8 @@ async def main_async() -> None:
         schemas_paths,
     ) = load_core_resources()
     chunking_config = (chunking_and_context_config or {}).get("chunking", {})
+    matching_config = (chunking_and_context_config or {}).get("matching", {})
+    retry_config = (chunking_and_context_config or {}).get("retry", {})
 
     try:
         schema_manager = load_schema_manager()
@@ -338,6 +344,8 @@ async def main_async() -> None:
         basic_context=basic_context,
         context_settings=context_settings,
         context_manager=context_manager,
+        matching_config=matching_config,
+        retry_config=retry_config,
         notifier=notifier,
     )
 

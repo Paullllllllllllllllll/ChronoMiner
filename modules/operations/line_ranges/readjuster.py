@@ -5,6 +5,7 @@ import json
 import logging
 import os
 import re
+import unicodedata
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -23,42 +24,36 @@ SEMANTIC_BOUNDARY_SCHEMA: Dict[str, Any] = {
     "schema": {
         "type": "object",
         "properties": {
-            "no_semantic_boundary": {
+            "no_semantic_marker": {
                 "type": "boolean",
-                "description": "Set to true when no reliable semantic boundary exists in the provided context.",
+                "description": "Set to true when no reliable semantic marker exists in the provided context.",
             },
-            "boundary_text": {
-                "type": "string",
-                "description": "Verbatim text that starts the semantic boundary.",
+            "unsure": {
+                "type": "boolean",
+                "description": "Set to true when uncertain about the semantic marker identification.",
             },
-            "closing_boundary_text": {
+            "semantic_marker": {
                 "type": "string",
-                "description": "Optional verbatim text that signals where the semantic span ends.",
-            },
-            "notes": {
-                "type": "string",
-                "description": "Optional explanation of the decision.",
+                "description": "A precise 10-15 character verbatim substring that marks the semantic boundary. Leave empty if no_semantic_marker or unsure is true.",
             },
         },
-        "required": ["no_semantic_boundary", "boundary_text", "closing_boundary_text", "notes"],
+        "required": ["no_semantic_marker", "unsure", "semantic_marker"],
         "additionalProperties": False,
     },
 }
 
 @dataclass
 class BoundaryDecision:
-    no_boundary: bool
-    boundary_text: Optional[str] = None
-    closing_boundary_text: Optional[str] = None
-    notes: Optional[str] = None
+    no_semantic_marker: bool
+    unsure: bool
+    semantic_marker: Optional[str] = None
 
     @classmethod
     def from_payload(cls, payload: Dict[str, Any]) -> "BoundaryDecision":
         return cls(
-            no_boundary=bool(payload.get("no_semantic_boundary", False)),
-            boundary_text=payload.get("boundary_text"),
-            closing_boundary_text=payload.get("closing_boundary_text"),
-            notes=payload.get("notes"),
+            no_semantic_marker=bool(payload.get("no_semantic_marker", False)),
+            unsure=bool(payload.get("unsure", False)),
+            semantic_marker=payload.get("semantic_marker") or None,
         )
 
 
@@ -71,6 +66,8 @@ class LineRangeReadjuster:
         *,
         context_window: int = 6,
         prompt_path: Optional[Path] = None,
+        matching_config: Optional[Dict[str, Any]] = None,
+        retry_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         transcription_cfg = model_config.get("transcription_model", {})
         model_name: str = transcription_cfg.get("name", "")
@@ -82,6 +79,21 @@ class LineRangeReadjuster:
         self.prompt_path = prompt_path or Path("prompts/semantic_boundary_prompt.txt")
         self.prompt_template = load_prompt_template(self.prompt_path)
         self.text_processor = TextProcessor()
+        
+        # Load matching configuration with defaults
+        self.matching_config = matching_config or {}
+        self.normalize_whitespace = self.matching_config.get("normalize_whitespace", True)
+        self.case_sensitive = self.matching_config.get("case_sensitive", False)
+        self.normalize_diacritics = self.matching_config.get("normalize_diacritics", True)
+        self.strip_punctuation = self.matching_config.get("strip_punctuation", False)
+        self.allow_substring_match = self.matching_config.get("allow_substring_match", True)
+        self.min_substring_length = self.matching_config.get("min_substring_length", 8)
+        
+        # Load retry configuration with defaults
+        self.retry_config = retry_config or {}
+        self.max_retries_on_unsure = self.retry_config.get("max_retries_on_unsure", 2)
+        self.max_retries_on_no_marker = self.retry_config.get("max_retries_on_no_marker", 1)
+        self.expand_context_on_retry = self.retry_config.get("expand_context_on_retry", True)
 
     async def ensure_adjusted_line_ranges(
         self,
@@ -143,7 +155,7 @@ class LineRangeReadjuster:
                     additional_context=additional_context,
                 )
                 adjusted_ranges.append(updated_range)
-                if decision.no_boundary:
+                if decision.no_semantic_marker:
                     logger.info(
                         "[Range %d] No semantic boundary detected; kept original %s",
                         index,
@@ -154,7 +166,7 @@ class LineRangeReadjuster:
                         "[Range %d] Adjusted to %s via boundary '%s'",
                         index,
                         updated_range,
-                        decision.boundary_text,
+                        decision.semantic_marker,
                     )
 
         if not dry_run:
@@ -178,6 +190,9 @@ class LineRangeReadjuster:
         decision: Optional[BoundaryDecision] = None
         adjusted_range = original_range
 
+        unsure_retries = 0
+        no_marker_retries = 0
+
         for window_idx, window in enumerate(windows):
             payload = await self._run_model(
                 extractor=extractor,
@@ -190,9 +205,48 @@ class LineRangeReadjuster:
                 additional_context=additional_context,
             )
             decision = BoundaryDecision.from_payload(payload)
-            if decision.no_boundary:
-                continue
+            
+            # Handle unsure responses with retry
+            if decision.unsure:
+                if unsure_retries < self.max_retries_on_unsure:
+                    unsure_retries += 1
+                    logger.info(
+                        "[Range %d, Window %d] Model is unsure; retry %d/%d",
+                        range_index,
+                        window_idx,
+                        unsure_retries,
+                        self.max_retries_on_unsure,
+                    )
+                    continue  # Try next window or retry
+                else:
+                    logger.warning(
+                        "[Range %d] Model remains unsure after %d retries; keeping original range",
+                        range_index,
+                        self.max_retries_on_unsure,
+                    )
+                    break
+            
+            # Handle no_semantic_marker responses with retry
+            if decision.no_semantic_marker:
+                if no_marker_retries < self.max_retries_on_no_marker:
+                    no_marker_retries += 1
+                    logger.info(
+                        "[Range %d, Window %d] No semantic marker found; retry %d/%d",
+                        range_index,
+                        window_idx,
+                        no_marker_retries,
+                        self.max_retries_on_no_marker,
+                    )
+                    continue  # Try next window
+                else:
+                    logger.info(
+                        "[Range %d] No semantic marker found after %d attempts; keeping original range",
+                        range_index,
+                        no_marker_retries + 1,
+                    )
+                    break
 
+            # Try to validate and apply the decision
             candidate_range = self._validate_and_apply_decision(
                 decision=decision,
                 raw_lines=raw_lines,
@@ -201,10 +255,30 @@ class LineRangeReadjuster:
             )
             if candidate_range:
                 adjusted_range = candidate_range
+                logger.info(
+                    "[Range %d] Successfully adjusted to %s using semantic marker '%s'",
+                    range_index,
+                    adjusted_range,
+                    decision.semantic_marker,
+                )
                 break
+            else:
+                # Marker found but couldn't match in text - continue searching
+                logger.debug(
+                    "[Range %d, Window %d] Semantic marker '%s' could not be matched in text",
+                    range_index,
+                    window_idx,
+                    decision.semantic_marker,
+                )
 
         if decision is None:
-            decision = BoundaryDecision(no_boundary=True)
+            decision = BoundaryDecision(no_semantic_marker=True, unsure=False)
+            logger.info(
+                "[Range %d] No windows examined; keeping original range %s",
+                range_index,
+                original_range,
+            )
+        
         return decision, adjusted_range
 
     async def _run_model(
@@ -222,18 +296,10 @@ class LineRangeReadjuster:
         start, end = original_range
         context_start, context_end = context_window
         context_block = self._format_context(raw_lines, context_start, context_end)
-        instruction_body = (
-            f"Task: locate a closed semantic boundary of type '{boundary_type}'.\n"
-            "- Provide only the verbatim text that marks the boundary.\n"
-            "- Optionally provide verbatim closing text when it clearly marks the end of the same unit.\n"
-            "- If no boundary exists, set no_semantic_boundary to true.\n"
-            "- Respond with JSON only matching the provided schema."
-        )
-
+        
         chunk_text = (
-            f"Window index: {window_index}\n"
-            f"Original range: {start}-{end}\n"
-            f"Context snippet:\n{context_block}\n"
+            f"Input text:\n\n"
+            f"{context_block}\n"
         )
 
         system_prompt = apply_context_placeholders(
@@ -247,7 +313,7 @@ class LineRangeReadjuster:
         system_prompt = system_prompt.replace("{{TRANSCRIPTION_SCHEMA}}", schema_json)
 
         response_payload = await process_text_chunk(
-            text_chunk=f"{instruction_body}\n\n{chunk_text}",
+            text_chunk=chunk_text,
             extractor=extractor,
             system_message=system_prompt,
             json_schema=SEMANTIC_BOUNDARY_SCHEMA,
@@ -257,10 +323,10 @@ class LineRangeReadjuster:
         parsed = self._coerce_json(raw_output)
         if parsed is None:
             logger.warning(
-                "Model response could not be parsed as JSON; treating as no boundary. Raw: %s",
+                "Model response could not be parsed as JSON; treating as unsure. Raw: %s",
                 raw_output,
             )
-            return {"no_semantic_boundary": True, "notes": "Unparseable JSON response."}
+            return {"no_semantic_marker": False, "unsure": True, "semantic_marker": ""}
         return parsed
 
     def _validate_and_apply_decision(
@@ -271,30 +337,23 @@ class LineRangeReadjuster:
         context_window: Tuple[int, int],
         fallback_range: Tuple[int, int],
     ) -> Optional[Tuple[int, int]]:
-        if decision.boundary_text is None:
+        if decision.semantic_marker is None or not decision.semantic_marker.strip():
             return None
 
         context_start, context_end = context_window
         matched_line = self._match_boundary_text(
-            boundary_text=decision.boundary_text,
+            boundary_text=decision.semantic_marker,
             raw_lines=raw_lines,
             search_start=context_start,
             search_end=context_end,
+            substring_match=decision.semantic_marker,
         )
         if matched_line is None:
             return None
 
+        # For now, keep the original end line - we only adjust the start boundary
         new_start = matched_line
         new_end = fallback_range[1]
-        if decision.closing_boundary_text:
-            closing_line = self._match_boundary_text(
-                boundary_text=decision.closing_boundary_text,
-                raw_lines=raw_lines,
-                search_start=matched_line,
-                search_end=len(raw_lines),
-            )
-            if closing_line is not None and closing_line >= new_start:
-                new_end = closing_line
 
         return new_start, new_end
 
@@ -355,6 +414,68 @@ class LineRangeReadjuster:
             snippet.append(text)
         return "\n".join(snippet)
 
+    def _normalize_text(self, text: str) -> str:
+        """Apply normalization rules to text according to matching configuration."""
+        normalized = text
+        
+        # Strip leading/trailing whitespace
+        normalized = normalized.strip()
+        
+        # Normalize whitespace (collapse multiple spaces)
+        if self.normalize_whitespace:
+            normalized = re.sub(r'\s+', ' ', normalized)
+        
+        # Normalize diacritics (remove accents, umlauts, etc.)
+        if self.normalize_diacritics:
+            # Decompose unicode characters and filter out combining marks
+            normalized = ''.join(
+                char for char in unicodedata.normalize('NFD', normalized)
+                if unicodedata.category(char) != 'Mn'
+            )
+        
+        # Case normalization
+        if not self.case_sensitive:
+            normalized = normalized.lower()
+        
+        # Strip punctuation
+        if self.strip_punctuation:
+            # Remove common punctuation while preserving alphanumeric and spaces
+            normalized = re.sub(r'[^\w\s]', '', normalized)
+        
+        return normalized
+
+    def _collect_normalized_matches(
+        self,
+        raw_lines: Sequence[str],
+        needle: str,
+        search_range: Tuple[int, int],
+    ) -> List[int]:
+        """
+        Collect line numbers where the needle matches, applying configured normalization.
+        
+        Supports both exact line matching and substring matching based on configuration.
+        """
+        start_line, end_line = search_range
+        end_line = min(len(raw_lines), max(start_line, end_line))
+        matches: List[int] = []
+        
+        normalized_needle = self._normalize_text(needle)
+        
+        for line_number in range(start_line, end_line + 1):
+            line_text = raw_lines[line_number - 1]
+            normalized_line = self._normalize_text(line_text)
+            
+            if self.allow_substring_match:
+                # Check if needle appears as substring in the line
+                if normalized_needle in normalized_line:
+                    matches.append(line_number)
+            else:
+                # Require exact match (after normalization)
+                if normalized_line == normalized_needle:
+                    matches.append(line_number)
+        
+        return matches
+
     def _match_boundary_text(
         self,
         *,
@@ -362,24 +483,38 @@ class LineRangeReadjuster:
         raw_lines: Sequence[str],
         search_start: int,
         search_end: int,
+        substring_match: Optional[str] = None,
     ) -> Optional[int]:
-        needle = boundary_text.strip()
+        """
+        Match boundary text in the source lines using configured normalization.
+        
+        Prefers substring_match if provided, otherwise falls back to boundary_text.
+        """
+        # Prefer the precise substring_match if provided and meets minimum length
+        if substring_match and len(substring_match.strip()) >= self.min_substring_length:
+            needle = substring_match.strip()
+        else:
+            needle = boundary_text.strip()
+        
         if not needle:
             return None
 
-        matches = self._collect_exact_matches(
+        # First, try to match within the specified search range
+        matches = self._collect_normalized_matches(
             raw_lines,
             needle,
             (max(1, search_start), min(len(raw_lines), search_end)),
         )
 
+        # If no match found in the search range, expand to the entire document
         if not matches:
-            matches = self._collect_exact_matches(
+            matches = self._collect_normalized_matches(
                 raw_lines,
                 needle,
                 (1, len(raw_lines)),
             )
 
+        # Return unique match, or None if ambiguous/not found
         if len(matches) == 1:
             return matches[0]
         if len(matches) > 1:
@@ -389,21 +524,6 @@ class LineRangeReadjuster:
                 matches,
             )
         return None
-
-    def _collect_exact_matches(
-        self,
-        raw_lines: Sequence[str],
-        needle: str,
-        search_range: Tuple[int, int],
-    ) -> List[int]:
-        start_line, end_line = search_range
-        end_line = min(len(raw_lines), max(start_line, end_line))
-        matches: List[int] = []
-        for line_number in range(start_line, end_line + 1):
-            line_text = raw_lines[line_number - 1].strip()
-            if line_text == needle:
-                matches.append(line_number)
-        return matches
 
     def _coerce_json(self, raw_output: str) -> Optional[Dict[str, Any]]:
         text = raw_output.strip()

@@ -12,3 +12,40 @@ chunking:
 
 context: # Define whether or not to pass additional context to the model
   use_additional_context: true
+
+matching:
+  # Configuration for semantic boundary text matching in line range readjustment
+  
+  # normalize_whitespace: Collapse multiple whitespace characters into single spaces
+  normalize_whitespace: true
+  
+  # case_sensitive: If false, perform case-insensitive matching
+  case_sensitive: false
+  
+  # normalize_diacritics: Remove or normalize diacritical marks (accents, umlauts, etc.)
+  # Useful for historical texts with inconsistent diacritic usage
+  normalize_diacritics: true
+  
+  # strip_punctuation: Remove common punctuation marks before matching
+  # Set to false if punctuation is semantically important (e.g., "§ 1." vs "§ 2.")
+  strip_punctuation: false
+  
+  # allow_substring_match: If true, boundary text can match as a substring within a line
+  # If false, the entire line (after normalization) must match exactly
+  allow_substring_match: true
+  
+  # min_substring_length: Minimum character length for a valid boundary substring match
+  # Prevents false positives from very short strings
+  min_substring_length: 8
+
+retry:
+  # Configuration for retrying semantic boundary detection when model is unsure or finds no marker
+  
+  # max_retries_on_unsure: Maximum number of retries when model returns unsure=true
+  max_retries_on_unsure: 2
+  
+  # max_retries_on_no_marker: Maximum number of retries when model returns no_semantic_marker=true
+  max_retries_on_no_marker: 1
+  
+  # expand_context_on_retry: If true, expand the context window on each retry attempt
+  expand_context_on_retry: true
