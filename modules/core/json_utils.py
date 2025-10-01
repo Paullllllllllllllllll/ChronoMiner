@@ -55,7 +55,10 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
                             entries.extend(valid_entries)
                     elif isinstance(resp, dict):
                         # Handle batch response structure (Chat Completions and Responses API)
-                        body = resp.get("body", {}) if isinstance(resp, dict) else {}
+                        # First check for raw_response (normalized format from check_batches.py)
+                        body = resp.get("raw_response") if "raw_response" in resp else resp.get("body", {})
+                        if not isinstance(body, dict):
+                            body = {}
                         content = ""
 
                         # Extract content from different API response formats
