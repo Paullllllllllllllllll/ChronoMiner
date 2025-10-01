@@ -7,6 +7,7 @@ from typing import Optional
 from modules.core.data_processing import CSVConverter
 from modules.core.text_processing import DocumentConverter
 from modules.llm.structured_outputs import build_structured_text_format
+from modules.llm.model_capabilities import detect_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -31,9 +32,14 @@ class BaseSchemaHandler:
 		                                                   model_config, schema)
 		# Build typed input and structured outputs for Responses API
 		model_cfg = model_config.get("transcription_model", {})
+		model_name = model_cfg.get("name")
+		
+		# Detect model capabilities to determine which parameters are supported
+		caps = detect_capabilities(model_name) if model_name else None
+		
 		fmt = build_structured_text_format(json_schema_payload, self.schema_name, True)
 		body = {
-			"model": model_cfg.get("name"),
+			"model": model_name,
 			"max_output_tokens": model_cfg.get("max_output_tokens", 4096),
 			"input": [
 				{
@@ -48,10 +54,17 @@ class BaseSchemaHandler:
 		}
 		if fmt is not None:
 			body.setdefault("text", {})["format"] = fmt
-		# Optional classic sampler controls (safe for non-reasoning families)
-		for k in ("temperature", "top_p", "frequency_penalty", "presence_penalty"):
-			if k in model_cfg and model_cfg[k] is not None:
-				body[k] = model_cfg[k]
+		
+		# Sampler controls only for non-reasoning families
+		if caps and caps.supports_sampler_controls:
+			for k in ("temperature", "top_p"):
+				if k in model_cfg and model_cfg[k] is not None:
+					body[k] = model_cfg[k]
+			# Only include penalties if non-zero to keep payload tidy
+			if model_cfg.get("frequency_penalty"):
+				body["frequency_penalty"] = model_cfg["frequency_penalty"]
+			if model_cfg.get("presence_penalty"):
+				body["presence_penalty"] = model_cfg["presence_penalty"]
 
 		request_obj = {
 			"custom_id": None,

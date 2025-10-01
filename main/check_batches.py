@@ -1,3 +1,24 @@
+"""
+Script to retrieve and process batch results.
+
+This script scans all schema-specific repositories for temporary batch results, aggregates tracking
+and response records, retrieves missing responses via OpenAI's API, and writes a final JSON output.
+If enabled in paths_config.yaml, additional .csv, .txt, or .docx outputs are generated.
+"""
+import json
+import re
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Set, Tuple
+import datetime
+
+from openai import OpenAI
+from modules.config.loader import ConfigLoader
+from modules.core.logger import setup_logger
+from modules.operations.extraction.schema_handlers import get_schema_handler
+from modules.ui.core import UserInterface
+from modules.llm.openai_sdk_utils import list_all_batches, sdk_to_dict, coerce_file_id
+from modules.core.batch_utils import diagnose_batch_failure, extract_custom_id_mapping
+
 def _extract_chunk_index(custom_id: Any) -> int:
     """Extract numeric chunk index from a custom_id like '<stem>-chunk-<n>' or 'req-<n>'."""
     if not isinstance(custom_id, str):
@@ -43,20 +64,6 @@ This script scans all schema-specific repositories for temporary batch results, 
 and response records, retrieves missing responses via OpenAI's API, and writes a final JSON output.
 If enabled in paths_config.yaml, additional .csv, .txt, or .docx outputs are generated.
 """
-import json
-import re
-from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
-import datetime
-
-from openai import OpenAI
-from modules.config.loader import ConfigLoader
-from modules.core.logger import setup_logger
-from modules.operations.extraction.schema_handlers import get_schema_handler
-from modules.ui.core import UserInterface
-from modules.llm.openai_sdk_utils import list_all_batches, sdk_to_dict, coerce_file_id
-from modules.core.batch_utils import diagnose_batch_failure, extract_custom_id_mapping
-
 logger = setup_logger(__name__)
 
 OUTPUT_FILE_KEYS = [

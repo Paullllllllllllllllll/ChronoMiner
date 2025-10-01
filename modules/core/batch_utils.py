@@ -5,7 +5,7 @@ import logging
 from pathlib import Path
 from typing import Any, Dict, Tuple
 
-from modules.openai_sdk_utils import sdk_to_dict
+from modules.llm.openai_sdk_utils import sdk_to_dict
 
 logger = logging.getLogger(__name__)
 
