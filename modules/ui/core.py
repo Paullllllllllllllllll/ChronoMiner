@@ -219,18 +219,37 @@ class UserInterface:
 		files = []
 
 		if mode == "single":
-			file_input = input(
-				"\nEnter the filename to process (with or without .txt extension): ").strip()
-			if not file_input.lower().endswith(".txt"):
-				file_input += ".txt"
+			self.console_print(
+				"\nEnter the filename to process (with or without .txt)."
+			)
+			self.console_print(
+				"  • Enter the base text filename; the matching line range file will be used automatically."
+			)
+			self.console_print(
+				"  • Or enter the line range filename ending in '_line_ranges' to work with it directly."
+			)
+			file_input = input("> ").strip()
+			normalized_input = (
+				file_input if file_input.lower().endswith(".txt") else f"{file_input}.txt"
+			)
 
-			file_candidates = [f for f in raw_text_dir.rglob(file_input)
-			                   if not (f.name.endswith("_line_ranges.txt") or
-			                           f.name.endswith("_context.txt"))]
+			wants_line_range = normalized_input.lower().endswith(
+				("_line_ranges.txt", "_line_range.txt")
+			)
+			excluded_suffixes = ["_context.txt"]
+			if not wants_line_range:
+				excluded_suffixes.extend(["_line_ranges.txt", "_line_range.txt"])
+
+			file_candidates = [
+				f
+				for f in raw_text_dir.rglob(normalized_input)
+				if not any(f.name.endswith(suffix) for suffix in excluded_suffixes)
+			]
 
 			if not file_candidates:
 				self.console_print(
-					f"[ERROR] File {file_input} does not exist in {raw_text_dir}")
+					f"[ERROR] File {normalized_input} does not exist in {raw_text_dir}"
+				)
 				sys.exit(0)
 			elif len(file_candidates) == 1:
 				files.append(file_candidates[0])
