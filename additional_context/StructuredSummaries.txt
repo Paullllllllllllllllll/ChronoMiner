@@ -1,35 +1,72 @@
-ADDITIONAL CONTEXT FOR ACADEMIC TEXT SUMMARIES
+ADDITIONAL CONTEXT FOR STRUCTURED SUMMARIES
 
-When extracting structured data from academic texts, please consider:
+When extracting structured data from academic papers and scholarly literature, please consider:
 
-1. Academic formatting conventions:
-   - Page numbers may appear in various positions (headers, footers, margins)
-   - Footnote and endnote systems vary by discipline and publication era
-   - Different citation styles (APA, Chicago, MLA, etc.) use distinct formats
-   - Section headings and subheadings follow disciplinary conventions
+1. Academic document structure and conventions:
+   - Standard sections: Abstract, Introduction, Literature Review, Methodology, Results, Discussion, Conclusion
+   - Humanities papers often use thematic sections rather than rigid scientific structure
+   - Page numbers may appear in headers, footers, or margins; format varies by journal/publisher
+   - Footnotes vs. endnotes systems vary by discipline (humanities prefer footnotes, sciences endnotes)
+   - Section numbering schemes vary: some use decimal (1.1, 1.2), others use outline format
+   - Appendices, supplementary materials, and data tables may contain critical information
 
-2. Citation practices:
-   - References may be abbreviated in specialized ways by field
-   - Author name conventions vary across regions and time periods
-   - Journal abbreviations follow field-specific standards
-   - Citation numbers may refer to footnotes, endnotes, or bibliographies
+2. Citation practices and reference systems:
+   - Citation styles vary by discipline: APA (psychology, education), Chicago (history, humanities), 
+     MLA (literature), Harvard (sciences), Vancouver (medicine)
+   - Author-date systems (Smith 2020) vs. numbered references [1] vs. footnote citations
+   - Abbreviated journal names follow field-specific conventions (e.g., "J. Am. Hist." for 
+     Journal of American History)
+   - "Ibid.," "op. cit.," and other Latin abbreviations in older or humanities scholarship
+   - Digital Object Identifiers (DOIs) increasingly standard in recent publications
+   - Archive citations in history papers require special attention to location and collection names
 
-3. Content organization:
-   - Key findings may be highlighted in abstracts, conclusions, or throughout
-   - Theoretical frameworks are typically established early in the text
-   - Methodological details may be separated into dedicated sections
-   - Disciplinary jargon and specialized terminology require careful attention
+3. Discipline-specific content patterns:
+   - Sciences: hypothesis-driven, statistical methods, quantitative results, replicability emphasis
+   - Social sciences: theoretical frameworks, empirical data, qualitative or mixed methods
+   - Humanities: interpretive analysis, primary source engagement, theoretical perspectives
+   - Historical papers: chronological narratives, archival sources, historiographic debates
+   - Interdisciplinary work combines methodologies and citation practices from multiple fields
 
-4. Academic significance indicators:
-   - Language signaling importance varies by discipline
-   - Statistical significance is reported using field-specific conventions
-   - Hedging language indicates levels of certainty or speculation
-   - Contrasting positions may be signaled by specific transition phrases
+4. Significance and argument indicators:
+   - Key claims often signaled by phrases: "we argue that," "this demonstrates," "significantly"
+   - Limitations acknowledged: "however," "despite," "it should be noted that"
+   - Future research directions: "further study," "remains to be investigated," "warrants examination"
+   - Theoretical contributions: "we propose," "our framework," "this model suggests"
+   - Empirical findings: "our results show," "we found that," "data indicate"
+   - Hedging language indicates uncertainty: "may," "might," "possibly," "suggests"
 
-5. Visual elements:
-   - Tables, figures, and charts contain concentrated information
-   - Captions may provide critical context or findings
-   - Equations and formulas should be preserved in mathematical notation
-   - Diagrams may represent conceptual frameworks or relationships
+5. Methodological details:
+   - Quantitative: sample sizes, statistical tests, confidence intervals, p-values, effect sizes
+   - Qualitative: interview methods, coding schemes, thematic analysis, case selection
+   - Mixed methods: integration points, triangulation, complementary data sources
+   - Archival research: repositories visited, document types, selection criteria
+   - Experimental: control groups, randomization, variables, instruments
+   - Computational: algorithms, datasets, preprocessing, validation methods
 
-This additional context should help you extract structured summaries that accurately represent the academic content and its significance.
+6. Visual elements and data presentation:
+   - Tables contain concentrated quantitative or comparative information with row/column headers
+   - Figures include graphs, charts, diagrams, photographs with descriptive captions
+   - Equations and formulas use specialized mathematical notation to be preserved exactly
+   - Maps and geographic visualizations in historical, geographical, or social science work
+   - Conceptual diagrams represent theoretical models, frameworks, or relationships
+   - Captions often contain essential context, definitions, or interpretive guidance
+
+7. Contextual and temporal markers:
+   - Publication date indicates scholarly conversation context and methodological currency
+   - Acknowledgments may reveal funding sources, collaborations, institutional affiliations
+   - Author affiliations indicate disciplinary home and methodological traditions
+   - Journal prestige and peer review processes affect credibility assessment
+   - Conference vs. journal publication indicates stage of research development
+   - Preprint vs. published version may have significant content differences
+
+8. Critical reading considerations:
+   - Distinguish between authors' claims and cited sources' claims
+   - Note when authors critique, support, or extend previous scholarship
+   - Identify gaps or limitations acknowledged by authors
+   - Recognize disciplinary debates and positioning within scholarly conversations
+   - Track definitions of key terms, which may differ across papers
+   - Notice when findings contradict or support previous research
+
+This additional context should help you extract structured summaries that accurately represent academic
+content, capture methodological specifics, and preserve the scholarly argumentation and significance of the
+work.

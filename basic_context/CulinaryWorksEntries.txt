@@ -1,4 +1,4 @@
 The input text consists of excerpts from secondary literature (e.g., culinary history works, food magazines,
-gastronomic studies) discussing historical cooks, gastronomes, and culinary instructors. The text may appear in
+gastronomic studies) discussing historical culinary works, publications, and written sources. The text may appear in
 different languages and use various scholarly or journalistic conventions. Natural semantic markers for this type of
-text are the beginnings of specific discussions or references to specific culinary figures.
+text are the beginnings of discussions about specific culinary works or publications.

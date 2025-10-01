@@ -1,0 +1,4 @@
+The input text consists of Brazilian military records documenting recruit transcriptions. Entries typically contain
+personal information about recruits including names, physical descriptions, origins, and service details. The text will
+be in Brazilian Portuguese and use period-specific military terminology and administrative conventions. Natural semantic
+markers for this type of text are the beginnings of individual recruit records.

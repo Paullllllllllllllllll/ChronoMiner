@@ -1,23 +1,60 @@
-When extracting address book data, consider these historical aspects:
+ADDITIONAL CONTEXT FOR SWISS HISTORICAL ADDRESS BOOK ENTRIES
 
-1. Street naming conventions:
-   - Historical street names often changed over time due to political shifts
-   - Many streets were named after local notables, professions, or geographical features
-   - Some streets had unofficial local names alongside official designations
+When extracting data from Swiss historical address books (circa 1800-1960), please consider:
 
-2. Occupation classifications:
-   - Pre-industrial occupations may not match modern job categories
-   - Many occupations were highly specialized (e.g., different types of smiths)
-   - Status indicators were often embedded in occupation descriptions
+1. Swiss linguistic and regional context:
+   - Switzerland has four language regions: German (majority), French, Italian, Romansh
+   - Swiss German dialects differ significantly from High German in spelling and terminology
+   - Many personal names reflect multilingual heritage (German, French, Italian origins)
+   - Foreign surnames common due to immigration (particularly Italian, French workers)
+   - Address books typically used the dominant local language (Zürich: German, Geneva: French, etc.)
 
-3. Addressing formats:
-   - House numbers were not universally used until the late 18th/early 19th century
-   - Some locations used plot numbers or local landmarks instead of street numbers
-   - Multiple families or businesses often shared a single address
+2. Street naming conventions and evolution:
+   - Early 19th-century streets often named after professions or local features
+   - Political changes led to street renamings (e.g., revolutionary periods, WWI, WWII)
+   - Some streets had dual names: official designation and colloquial local names
+   - Religious influences in street names (saints, churches) especially in Catholic regions
+   - Industrial development created new neighborhoods with distinctive naming patterns
 
-4. Honorifics and titles:
-   - Honorifics indicated social class, profession, and sometimes marital status
-   - Academic titles were highly prestigious and always noted
-   - Religious and military titles were commonly used alongside civilian ones
+3. Addressing systems and house numbering:
+   - Early 1800s: many locations used plot numbers or building names rather than street numbers
+   - House numbering systems gradually standardized throughout 19th century
+   - Some cities used district-based numbering before adopting street-specific systems
+   - Commercial buildings and residential addresses sometimes distinguished differently
+   - Large buildings or courtyards often housed multiple families or businesses at single address
 
-This additional context should help you better interpret and extract historical address book entries with greater accuracy.
+4. Occupation classifications and terminology:
+   - Highly specialized craft designations (e.g., different types of metalworkers, textile workers)
+   - Guild-based occupations remained important into 19th century
+   - Professional titles indicated social status and education (Dr., Prof., Ingenieur)
+   - Commercial occupations increasingly detailed as industrialization progressed
+   - Women's occupations often underreported; married women listed by husband's profession
+   - Retired individuals sometimes listed with "pensioniert" or "retraité" designation
+
+5. Honorifics and social indicators:
+   - "Herr" (Mr.), "Frau" (Mrs.), "Fräulein" (Miss) standard German-language honorifics
+   - "Monsieur," "Madame," "Mademoiselle" in French-speaking regions
+   - Academic titles highly prestigious: "Dr." (doctorate), "Prof." (professor)
+   - Military ranks often retained in civilian life (Major, Oberst, Capitaine)
+   - Nobility titles rare in republican Switzerland but occasionally appear
+   - Religious titles: "Pfarrer" (pastor), "Abbé" (abbé), "Kaplan" (chaplain)
+   - Guild masters and civic officials sometimes indicated (Meister, Ratsherr)
+
+6. Temporal and organizational patterns:
+   - Annual publication cycles meant information could be up to a year old
+   - Alphabetical ordering by surname standard, but organization varied by city
+   - Some directories included separate business/trade sections
+   - Later editions (20th century) began including telephone numbers
+   - Cross-referencing by street addresses became more common after 1850
+   - Commercial advertisements increasingly included in margins or appendices
+
+7. Historical discontinuities and special considerations:
+   - WWI period (1914-1918): reduced publication frequency in some cities
+   - WWII period (1939-1945): rationing affected paper quality and publication regularity
+   - Refugee populations during WWII may appear with temporary addresses
+   - Industrial boom periods show rapid urban growth and new neighborhoods
+   - Standardization of Swiss postal system (1849) gradually improved address consistency
+
+This additional context should help you accurately extract and interpret information from Swiss historical
+address books, accounting for linguistic diversity, administrative evolution, and social structures of the
+period.

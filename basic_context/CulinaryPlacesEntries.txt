@@ -1,0 +1,4 @@
+The input text consists of excerpts from secondary literature (e.g., culinary history works, food magazines,
+gastronomic studies) discussing historical places related to food culture, production, and consumption. The text may
+appear in different languages and use various scholarly or journalistic conventions. Natural semantic markers for this
+type of text are the beginnings of distinct place descriptions or geographical references.

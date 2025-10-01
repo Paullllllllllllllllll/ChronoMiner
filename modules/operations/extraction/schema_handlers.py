@@ -140,6 +140,14 @@ def get_schema_handler(schema_name: str):
 
 
 # Register existing schema handlers with the default implementation.
-for schema in ["BibliographicEntries", "StructuredSummaries",
-               "HistoricalAddressBookEntries", "BrazilianMilitaryRecords"]:
+for schema in [
+	"BibliographicEntries",
+	"StructuredSummaries",
+	"HistoricalAddressBookEntries",
+	"BrazilianMilitaryRecords",
+	"CulinaryPersonsEntries",
+	"CulinaryPlacesEntries",
+	"CulinaryWorksEntries",
+	"MilitaryRecordEntries"
+]:
 	register_schema_handler(schema, BaseSchemaHandler)

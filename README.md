@@ -375,34 +375,79 @@ input_file_line_ranges.txt:
 
 ### Phase 2: Context Integration
 
-#### 2.1 Schema-Specific Context
-Located in `additional_context/{SchemaName}.txt`, this provides:
-- Domain-specific terminology
-- Historical context
-- Extraction guidelines
-- Common patterns and edge cases
+#### 2.1 Basic Context (Always Included)
 
-**Example**: `additional_context/BibliographicEntries.txt` might contain:
-```
-Historical culinary publications often use archaic spelling and Latin phrases.
-Pay attention to:
-- Variant author name spellings (e.g., "François" vs "Francois")
-- Roman numerals for edition numbers
-- Multiple publication locations separated by commas
-- Corporate publishers vs. individual printers
-```
+Basic context files are located in `basic_context/` and are automatically loaded and included in every API request, regardless of user settings. Each schema requires a corresponding basic context file named `{SchemaName}Entries.txt` (e.g., `BibliographicEntries.txt`, `CulinaryPersonsEntries.txt`).
 
-#### 2.2 File-Specific Context
-Create `{filename}_context.txt` in the same directory as your input file for file-specific instructions:
+Basic context files provide fundamental information about the input source:
+- A brief description of the input text type and characteristics
+- Language and formatting expectations
+- Historical time period or geographic scope
+- Natural semantic markers for text chunking
+
+Basic context is designed to be concise and general, typically 4-6 lines with a 120-character line wrap for readability.
+
+**Example**: `basic_context/BibliographicEntries.txt`
 ```
-This address book contains entries from 1850-1870 in Zurich.
-- Occupations are listed in German
-- Addresses use old street names (refer to historical map)
-- Some entries span multiple lines
+The input text consists of a snippet of bibliographic records describing historical culinary and household
+literature (e.g., cookbooks, household manuals, foodstuff guides, food production regulations, etc.) dating
+from approximately 1470 to 1950. The text may appear in different languages and use historical spelling
+and diacritics. When extracting edition information, ensure that later or revised editions of the same work are
+grouped together under the entry for the first (original) edition in the `edition_info` array. Natural semantic
+markers for this type of text are the beginnings of full bibliographic entries.
 ```
 
-#### 2.3 Context Prepending
-Additional context is prepended to each text chunk before API submission, giving the LLM comprehensive information to guide extraction decisions.
+#### 2.2 Additional Context (User-Selected)
+
+Additional context files are located in `additional_context/` and are only included when the user selects to use additional context during the interactive workflow. These files provide detailed, domain-specific guidance for extraction.
+
+The user can choose between two additional context modes:
+- **Default context**: Uses the schema-specific file from `additional_context/{SchemaName}.txt`
+- **File-specific context**: Uses `{filename}_context.txt` files located next to the input files
+
+Additional context is more detailed than basic context and typically includes:
+- Domain-specific terminology and conventions
+- Historical context and background information
+- Detailed extraction guidelines and edge cases
+- Common patterns and data quality considerations
+
+**Example**: `additional_context/BibliographicEntries.txt` (excerpt)
+```
+ADDITIONAL CONTEXT FOR BIBLIOGRAPHIC ENTRIES
+
+When extracting data from historical culinary and household literature bibliographies, please consider:
+
+1. Bibliographic conventions and evolution:
+   - Pre-1800 bibliographies often follow Short Title Catalogue conventions
+   - Modern bibliographic standards (e.g., Chicago, MLA) emerged in late 19th/early 20th century
+   - Title pages may contain extensive subtitles describing contents and intended audience
+
+2. Edition tracking and identification:
+   - First editions are bibliographically distinct from reprints and revised editions
+   - Edition statements may appear in various forms: "tweede druk," "2nd edition," "revised and enlarged"
+```
+
+#### 2.3 File-Specific Context (Optional)
+
+For input files requiring specific instructions, users can create `{filename}_context.txt` files in the same directory as the input file. This provides the most granular level of context customization.
+
+**Example**: `zurich_addressbook_1850_context.txt`
+```
+This address book contains entries from 1850-1870 in Zurich, Switzerland.
+- Occupations are listed in Swiss German
+- Addresses use old street names that no longer exist (refer to historical city maps)
+- Some entries span multiple lines due to long professional titles
+- Family businesses often list multiple family members at the same address
+```
+
+#### 2.4 Context Hierarchy and Integration
+
+All applicable context levels are combined and injected into the system prompt via placeholders:
+1. Basic context always inserted via `{{BASIC_CONTEXT}}` placeholder
+2. Additional or file-specific context inserted via `{{ADDITIONAL_CONTEXT}}` placeholder (if selected)
+3. User message remains clean: `"Input text:\n{chunk_text}"`
+
+This approach ensures the language model has comprehensive background knowledge while keeping the actual text chunk clearly separated in the user message.
 
 ### Phase 3: API Request Construction
 
@@ -463,11 +508,11 @@ Creates human-readable plain text reports with structured formatting.
 
 ## Adding Custom Schemas
 
-ChronoMiner's extensible architecture allows easy integration of new extraction schemas tailored to your specific research needs.
+ChronoMiner's extensible architecture allows easy integration of new extraction schemas tailored to your specific research needs. Adding a new schema requires creating several coordinated files to ensure proper functionality.
 
 ### Step 1: Create the JSON Schema
 
-Place a new schema file in `schemas/` (e.g., `my_custom_schema.json`):
+Place a new schema file in `schemas/` (e.g., `my_custom_schema.json`). The schema name should match the pattern used throughout the system.
 
 ```json
 {
@@ -502,41 +547,113 @@ Place a new schema file in `schemas/` (e.g., `my_custom_schema.json`):
 
 **Schema Design Best Practices:**
 - Use an `entries` array where each entry represents one unit of analysis
-- Include clear field descriptions for the LLM
+- Include clear field descriptions for the LLM to understand extraction requirements
 - Mark required fields explicitly
 - Use appropriate data types and formats
 - Set `strict: true` for robust validation
 - Refer to [OpenAI's structured outputs documentation](https://platform.openai.com/docs/guides/structured-outputs)
 
-### Step 2: Add a Developer Message (Optional)
+### Step 2: Create Basic Context File (Required)
 
-Create `developer_messages/MyCustomSchema.txt` with extraction instructions:
+Create a basic context file in `basic_context/` named `MyCustomSchemaEntries.txt`. This file is mandatory and will be automatically loaded and included in every API request for this schema.
+
+The basic context should be concise (typically 4-6 lines) with a 120-character line wrap. It should describe:
+- The type and nature of the input text
+- Expected languages, time periods, or geographic scope
+- Historical spelling or formatting considerations
+- Natural semantic markers for chunking
+
+**Example**: `basic_context/MyCustomSchemaEntries.txt`
+```
+The input text consists of excerpts from historical legal documents dating from approximately 1700 to 1900.
+The text may appear in different languages including English, Latin, and French, with period-specific legal
+terminology and archaic spelling. Documents typically contain party names, case descriptions, judgments, and
+dates. Natural semantic markers for this type of text are the beginnings of individual case entries or legal
+proceedings.
+```
+
+**Important:** The basic context file name must follow the pattern `{SchemaName}Entries.txt` where `{SchemaName}` matches the `name` field in your JSON schema.
+
+### Step 3: Create Additional Context File (Optional but Recommended)
+
+Create a detailed additional context file in `additional_context/` named `MyCustomSchemaEntries.txt`. This file provides comprehensive domain-specific guidance and is only loaded when users select to use additional context.
+
+The additional context should be detailed and structured, typically including:
+- Multiple sections with numbered headings
+- Domain-specific terminology explanations
+- Historical context and background
+- Extraction guidelines and edge cases
+- Common patterns and quality considerations
+
+**Example**: `additional_context/MyCustomSchemaEntries.txt`
+```
+ADDITIONAL CONTEXT FOR MY CUSTOM SCHEMA ENTRIES
+
+When extracting data from historical legal documents, please consider:
+
+1. Legal terminology considerations:
+   - Latin phrases were standard in legal documents through the 19th century
+   - Terms like "whereas," "heretofore," and "aforesaid" indicate legal language
+   - Party designations (plaintiff, defendant) may use archaic terms
+
+2. Date formats and calendars:
+   - Dates may use regnal years (e.g., "3rd year of George III")
+   - Old Style vs. New Style calendar differences (pre-1752 in British territories)
+   - Format: "day Month year" common in legal documents
+
+3. Name conventions:
+   - Full formal names with titles and honorifics
+   - Married women identified by husband's name
+   - Corporate or institutional entities as parties
+
+This additional context should help you accurately extract and structure legal document information.
+```
+
+### Step 4: Register Schema in Handler Registry
+
+Add your schema name to the registry in `modules/operations/extraction/schema_handlers.py`. Locate the schema registration section near the end of the file and add your schema name to the list:
+
+```python
+# Register existing schema handlers with the default implementation.
+for schema in [
+    "BibliographicEntries",
+    "StructuredSummaries",
+    "HistoricalAddressBookEntries",
+    "BrazilianMilitaryRecords",
+    "CulinaryPersonsEntries",
+    "CulinaryPlacesEntries",
+    "CulinaryWorksEntries",
+    "MilitaryRecordEntries",
+    "MyCustomSchemaEntries"  # Add your schema here
+]:
+    register_schema_handler(schema, BaseSchemaHandler)
+```
+
+**Note:** The schema name in the registry should match the `name` field in your JSON schema and the base name of your context files.
+
+### Step 5: Add Developer Message (Optional)
+
+Create `developer_messages/MyCustomSchema.txt` with custom extraction instructions. If not provided, the system uses the default prompt template from `prompts/structured_output_prompt.txt`.
 
 ```
-You are a structured data extraction expert. Extract information from historical documents and return JSON in the specified format.
+You are a structured data extraction expert. Extract information from historical legal documents and return JSON in the specified format.
 
 Instructions:
-- Extract all entries from the input text
-- Use the 'id' field for unique identification (generate if not present)
-- Preserve original spelling and formatting in 'title' and 'author' fields
-- Parse dates into YYYY-MM-DD format (use null if date is unavailable)
-- Extract the main content accurately
+- Extract all case entries from the input text
+- Use the 'id' field for unique case identification
+- Preserve original spelling and legal terminology
+- Parse dates according to historical calendar systems
+- Extract party names with titles and honorifics
 
 Quality guidelines:
 - Ensure completeness: extract ALL entries from the text
-- Maintain accuracy: verify data against the source
+- Maintain accuracy: verify data against the source text
 - Handle edge cases: missing data should be null, not omitted
 ```
 
-**Note:** If no custom developer message is provided, ChronoMiner uses the unified prompt template from `prompts/structured_output_prompt.txt`.
+### Step 6: Implement Custom Handler (Optional)
 
-### Step 3: Register the Schema
-
-The `SchemaManager` class automatically loads all JSON files from the `schemas/` directory - **no manual registration is required**. Simply placing your schema file in the directory makes it available.
-
-### Step 4: (Optional) Implement a Custom Handler
-
-For specialized post-processing, create a handler in `modules/operations/extraction/schema_handlers.py`:
+For specialized post-processing or custom output formatting, create a handler class in `modules/operations/extraction/schema_handlers.py`:
 
 ```python
 from modules.operations.extraction.schema_handlers import BaseSchemaHandler, register_schema_handler
@@ -565,32 +682,13 @@ class MyCustomSchemaHandler(BaseSchemaHandler):
         except (ValueError, TypeError):
             return None
 
-# Register the handler
+# Register the custom handler (replaces the default BaseSchemaHandler)
 register_schema_handler("MyCustomSchema", MyCustomSchemaHandler)
 ```
 
-### Step 5: (Optional) Add Schema-Specific Context
+### Step 7: Configure Paths
 
-Create `additional_context/MyCustomSchema.txt` with domain knowledge:
-
-```
-This schema is designed for extracting data from 19th-century legal documents.
-
-Key considerations:
-- Legal terminology may be archaic or in Latin
-- Dates may use old calendar systems
-- Names often include titles and honorifics
-- Documents may reference historical jurisdictions
-
-Common patterns:
-- "In the year of our Lord [year]" indicates dates
-- "Whereas..." typically introduces background information
-- "Be it resolved..." introduces the main content
-```
-
-### Step 6: Configure Paths
-
-Add your schema to `config/paths_config.yaml`:
+Add your schema to `config/paths_config.yaml` to specify input/output directories and output format preferences:
 
 ```yaml
 schemas_paths:
@@ -598,11 +696,9 @@ schemas_paths:
     input: "C:/path/to/my_custom_data/input"
     output: "C:/path/to/my_custom_data/output"
     csv_output: true
-    docx_output: true
-    txt_output: true
 ```
 
-### Step 7: Test the Schema
+### Step 8: Test the Schema
 
 Run the main script and select your new schema:
 

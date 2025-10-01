@@ -1,1 +1,4 @@
-The input text contains excerpts from academic papers across the humanities and social sciences. Passages typically include section headings, thesis statements, methodological notes, and concise findings quoted verbatim. Expect formal scholarly tone, citations, and occasional footnote markers that should remain intact.
+The input text consists of excerpts from academic papers and scholarly literature across the humanities and social
+sciences. Passages typically include section headings, thesis statements, methodological notes, and actual semantic
+content. The text may appear in different languages and use formal scholarly tone with citations and footnote markers.
+Natural semantic markers for this type of text are the beginnings of new pages.

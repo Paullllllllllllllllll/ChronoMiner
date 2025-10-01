@@ -1,75 +1,48 @@
-Here is some additional context for the task at hand, specifically, the beginning of the bibliography containing an explanation of how it is structured. You can use this to extract the relevant information.
-# Hors d'oeuvre
+ADDITIONAL CONTEXT FOR BIBLIOGRAPHIC ENTRIES
 
-Dit overzicht behelst Nederlandse kookboeken – in welke taal ook – uitgegeven in de zuidelijke Nederlanden tot de afscheiding in 1830, in Nederlands Oost-Indië tot de Japanse inval in 1942 en in Nederland tot het jaar van de bevrijding in 1945. Een kookboek is volgens Van Dale ‘een handboek voor de bereiding van spijzen’. Kookboeken dragen niet alleen de naam van Aaltje, Betje, Cornelia, Daatje enz., maar ze werden ook uitgegeven door industrie en handel, gemeentelijke energiebedrijven en verenigingen, bijvoorbeeld van vegetariërs, huisvrouwen, Mazdanaan-aanhangers enz. Deze verscheidenheid kwam reeds tot uitdrukking in de tentoonstelling *Kookboeken door de eeuwen heen* in 1991 van de Koninklijke Bibliotheek te ’s-Gravenhage. In de gelijknamige catalogus komen ook secundaire kookboeken voor, nl. secreet- of kwakzalverij-boekjes, enkele voorsnijboekjes en boeken voor de boerenstand, waarin onder de vele huismiddeltjes kook-, bak- en braadrecepten voorkomen. De uiteraard beperkte keuze die is gemaakt voor de tentoonstelling en de catalogus werd mede aanleiding om een oude gedachte tot uitvoering te brengen: het maken van een overzicht van het Nederlandse kookboek.
+When extracting data from historical culinary and household literature bibliographies, please consider:
 
-Bijzondere dank ben ik verschuldigd aan mijn echtgenote voor haar daadwerkelijke assistentie en inspiratie. Mijn dank gaat ook uit naar de directie van het museum Flehite, dat het Culinair Museum in oprichting beheert; eveneens aan de directie van het Banketbakkersmuseum, voorts aan de curator van oude drukken van de Landbouwuniversiteit, waar men nog plezier heeft in het werk en begrip voor bibliografische slavenarbeid. Dan verdient tevens dank mijn vriend Max Israel, die evenals drs. F.N. Ferro bibliografieën, catalogi en andere boeken toonde en uitleende. Verder dank ik onze vrienden Piet en Lin Buynsters: zij toch spoorden ons aan om kookboeken te gaan verzamelen en beschrijven.
+1. Bibliographic conventions and evolution:
+   - Pre-1800 bibliographies often follow Short Title Catalogue conventions
+   - Modern bibliographic standards (e.g., Chicago, MLA) emerged in late 19th/early 20th century
+   - Title pages may contain extensive subtitles describing contents and intended audience
+   - Printer and publisher information varied significantly across periods and regions
+   - Place of publication often indicated by city name in Latin or vernacular languages
 
-Tenslotte: het kookboek als gebruiksboek is moeilijk traceerbaar zodat hetgeen U nu opgedist krijgt, mogelijk gevolgd zal worden door een entremet en zelfs een dessert: bij HES uitgevers, die er altijd een delicatesse van weet te maken.
+2. Edition tracking and identification:
+   - First editions are bibliographically distinct from reprints and revised editions
+   - Edition statements may appear in various forms: "tweede druk," "2nd edition," "revised and enlarged"
+   - Later editions often indicate changes: "with additions," "corrected edition," "newly revised"
+   - Posthumous editions may include editorial notes or additional material
+   - Translation editions require careful tracking of both original and translated publication details
 
-Tiel, najaar 1994
-### Enkele aanwijzingen voor het gebruik
+3. Historical cookbook characteristics:
+   - Early cookbooks (1470-1700) were often compiled from manuscript sources
+   - 18th-century works frequently claimed noble or aristocratic authorship for prestige
+   - 19th-century domestic manuals combined recipes with household management advice
+   - Commercial promotional cookbooks emerged with industrial food production
+   - Regional and ethnic cookbooks became distinct categories in late 19th/early 20th century
 
-**Keuze:** Kookboeken volgens de op blz. 7 genoemde definitie. Van de rubriek 'Reclame, receptenboekjes enz.' zijn alleen kookboekjes en pamfletten opgenomen als ze minstens tien recepten bevatten.
+4. Language and orthography considerations:
+   - Historical spelling varies significantly (e.g., Dutch "kookboek" vs. "cock-boeck")
+   - Multilingual regions produced works in multiple languages (Dutch, French, German, Latin)
+   - Diacritics and special characters must be preserved for accurate identification
+   - Title capitalization conventions changed over time and across languages
+   - Abbreviations in titles and imprint information follow period-specific patterns
 
-**Volgorde:** Deze is om de ontwikkeling te kunnen volgen chronologisch. In de rubriek 'Reclame receptenboekjes enz.' zijn de titels alfabetisch geordend omdat het jaar van uitgave vaak ontbreekt.
+5. Special categories to recognize:
+   - Household manuals (combining cookery with medicine, household management)
+   - Confectionery and pastry-specific works (banketbakkers-boeken)
+   - Commercial recipe pamphlets and promotional booklets
+   - Regional compilations (e.g., Dutch East Indies cookbooks)
+   - Professional vs. domestic audience works (guild cookbooks vs. family manuals)
 
-**Nummering:** Evenals dat bij kinderboeken het geval is, zijn soms hele oplagen van kookboeken in het niet verdwenen. Van titels die tot dusverre hun sporen alleen maar achterlieten in Brinkmans *Alphabetische naamlijst* zijn de nummers voorzien van een asterisk (*), terwijl van secundaire kookboeken de nummers tussen teksthaken ([]) geplaatst zijn.
+6. Common bibliographic challenges:
+   - Cookbooks as "use books" often lost or damaged, making surviving copies rare
+   - Anonymous or pseudonymous authorship (e.g., "by a Lady," "by an experienced cook")
+   - Undated editions, especially in commercial promotional materials
+   - Variant issues within same edition with different title pages or bindings
+   - Series publications that spanned multiple years or volumes
 
-**Beschrijving:** De titel van de eerste druk wordt onverkort weergegeven en weggelaten bij herdrukken met gelijkluidende titel. Voor boeken uitgegeven vóór 1800 zijn de regels van de Short Title Catalogue zo veel mogelijk gevolgd.
-
-**Exemplaren:** Het merendeel van de geraadpleegde exemplaren bevindt zich in openbaar bezit. Incidenteel worden plaatsnummers opgegeven. Gelukkig kon ook geput worden uit privébezit.
-### Literatuurverwijzingen
-
-**Brinkman:**
-Brinkman. *Alphabetische naamlijst van boeken, plaat en kaartwerken, die van 1833 (tot 1945) in Nederland uitgegeven of herdrukt zijn.*
-
-**Ferro:**
-R.N. Ferro. Nederlandse gedrukte kookboeken tot het jaar 1850. In: *Voeding* 41(1980), nr. 9 en 42(1981), nr. 10.
-
-**Kookb.:**
-*Kookboeken door de eeuwen heen en Moge het U bekomen. Catalogus van de tentoonstellingen.* Den Haag, Koninklijke Bibliotheek, 1991.
-
-**Gerritsen:**
-H. Gerritsen. *Martine Wittop Koning 1870-1963. Bibliografie.* Amsterdam, 1987.
-
-**van ’t Veer:**
-A. van ’t Veer, *Oud-Hollands kookboek.* Utrecht, Antwerpen, 1960.
-
-**Vicaire:**
-G. Vicaire, *Bibliographie gastronomique.* Paris 1890 (Herdruk: Genève, 1993).
-
-### Verklaring van gebruikte symbolen
-
-**[n]**
-Secundaire kookboeken.
-
-**\*n**
-Titels ontleend aan Brinkman (zie boven).
-
-### Afkortingen
-
-- **Artis**: Amsterdam, Artis Bibliotheek
-- **BMWL**: Hattem, Nederlands Bakkerij Museum ‘Het Warme Land’
-- **Cul.Mus.**: Amersfoort, Culinair Museum, Museum Flehite
-- **GA**: Gemeentearchief *(volgt plaats)*
-- **GBR**: Rotterdam, Gemeentebibliotheek
-- **KB**: Den Haag, Koninklijke Bibliotheek
-- **KBB**: Brussel, Koninklijke Bibliotheek Albert I
-- **KIT**: Amsterdam, Koninklijk Instituut voor de Tropen
-- **KITLV**: Leiden, Koninklijk Instituut voor Taal-, Land- en Volkenkunde
-- **LUW**: Wageningen, Landbouwuniversiteit
-- **MPM**: Antwerpen, Museum Plantin-Moretus
-- **NBM**: Wageningen, Nederlands Banketbakkersmuseum
-- **NOM**: Arnhem, Nederlands Openluchtmuseum
-- **OLB**: Den Haag, Openbare Leeszaal en Bibliotheek
-- **OGWB**: Arnhem, Openbare en Gelderse Wetenschappelijke Bibliotheek
-- **PBL**: Leeuwarden, Provinciale Bibliotheek
-- **UBA**: Amsterdam, Universiteitsbibliotheek
-- **UBG**: Groningen, Universiteitsbibliotheek
-- **UBGent**: Gent, Universiteitsbibliotheek
-- **UBL**: Leiden, Universiteitsbibliotheek
-- **UBN**: Nijmegen, Universiteitsbibliotheek
-- **UBT**: Tilburg, Universiteitsbibliotheek
-- **UBU**: Utrecht, Universiteitsbibliotheek
-- **VV**: Den Haag, Voorlichtingsbureau voor de Voeding
+This additional context should help you accurately extract and structure bibliographic information from
+historical culinary literature sources.

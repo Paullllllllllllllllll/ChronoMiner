@@ -1,0 +1,72 @@
+ADDITIONAL CONTEXT FOR CULINARY PLACES ENTRIES
+
+When extracting data from secondary culinary literature about historical places related to food culture,
+please consider:
+
+1. Types of culinary places discussed:
+   - Restaurants, cafés, taverns, and eating establishments (fine dining, popular eateries, ethnic restaurants)
+   - Markets and food halls (covered markets, farmers markets, specialty food markets)
+   - Production sites (breweries, distilleries, dairies, bakeries, confectioneries, mills)
+   - Agricultural regions and terroirs (wine regions, fruit-growing areas, specialty crop zones)
+   - Institutional kitchens (royal/aristocratic, monastic, military, hospital, school)
+   - Food retail locations (groceries, specialty shops, delicatessens, food halls)
+   - Sites of culinary education (cooking schools, apprenticeship sites, demonstration kitchens)
+
+2. Geographic and locational information:
+   - Place names may change over time due to political shifts or urban development
+   - Historical addresses may no longer exist or may have been renumbered
+   - Regional identifications important for understanding culinary traditions
+   - Urban vs. rural contexts affect food production and consumption patterns
+   - Transportation networks (ports, rail, roads) relevant to food distribution
+   - Micro-geographic details: neighborhoods, districts, street-level locations
+
+3. Temporal dimensions and change over time:
+   - Founding dates, periods of operation, closure or transformation dates
+   - Evolution of establishments (ownership changes, renovations, concept shifts)
+   - Impact of historical events (wars, economic crises, social changes) on places
+   - Seasonal operations or periodic markets
+   - Long-duration institutions vs. ephemeral establishments
+   - Historical reputation vs. contemporary assessments
+
+4. Culinary and cultural significance:
+   - Signature dishes, specialties, or products associated with the place
+   - Regional or ethnic culinary traditions represented or developed
+   - Social and cultural functions (elite dining, working-class sustenance, immigrant community gathering)
+   - Innovations or contributions to culinary development
+   - Role in broader food systems (production, distribution, consumption)
+   - Cultural and social memory attached to places
+
+5. Physical and spatial characteristics:
+   - Architectural features and interior design relevant to function
+   - Capacity, scale, and organization of space
+   - Equipment and technology employed (ovens, machinery, storage)
+   - Relationship to surrounding urban or rural landscape
+   - Visibility and accessibility to different social groups
+
+6. Social and economic contexts:
+   - Ownership patterns (family businesses, corporate, cooperative, state-owned)
+   - Clientele and social composition of users/customers
+   - Economic models (pricing, labor relations, supply chains)
+   - Regulatory contexts (licensing, health regulations, guild controls)
+   - Labor conditions and workforce composition
+   - Gender and ethnic dimensions of work and ownership
+
+7. Secondary literature approaches:
+   - Urban history perspectives emphasize places in city development
+   - Social history examines class, gender, and ethnic dimensions
+   - Business history focuses on economic organization and entrepreneurship
+   - Cultural history explores meanings, representations, and memory
+   - Food history connects places to broader culinary systems and traditions
+   - Local history provides detailed micro-level documentation
+
+8. Documentation and source considerations:
+   - Visual sources (photographs, drawings, maps, advertisements) often discussed
+   - Business records, menus, price lists may be cited or quoted
+   - Contemporary descriptions from travelers, journalists, or diarists
+   - Official records (tax documents, licenses, censuses) provide factual data
+   - Oral histories and memories add personal perspectives
+   - Archaeological evidence for historical production sites
+
+This additional context should help you accurately extract information about culinary places from secondary
+literature, capturing both factual details and broader historical significance while recognizing the
+interpretive nature of scholarly discussions.

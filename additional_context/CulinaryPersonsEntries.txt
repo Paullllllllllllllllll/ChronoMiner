@@ -1,0 +1,64 @@
+ADDITIONAL CONTEXT FOR CULINARY PERSONS ENTRIES
+
+When extracting data from secondary culinary literature about historical culinary figures, please consider:
+
+1. Types of culinary figures discussed:
+   - Professional cooks and chefs (court cooks, restaurant chefs, institutional cooks)
+   - Cookbook authors and culinary writers (may overlap with cooks or be separate)
+   - Gastronomes and food critics (writers, journalists, cultural commentators)
+   - Domestic instructors and home economics educators
+   - Food entrepreneurs and restaurateurs
+   - Culinary reformers and dietary advocates
+   - Guild masters and craft instructors (confectioners, bakers, butchers)
+
+2. Biographical information patterns:
+   - Name variants across languages and time periods (birth names, professional names, pseudonyms)
+   - Dates may be approximate or contested in secondary literature
+   - Geographic mobility: training locations, career moves, emigration patterns
+   - Social origins and class backgrounds often discussed for historical context
+   - Gender considerations: women's culinary work often underrepresented in historical sources
+   - Ethnic and national identities relevant to culinary traditions and influences
+
+3. Professional activities and achievements:
+   - Career positions: court appointments, restaurant ownership, institutional roles
+   - Publications: cookbooks, articles, periodical contributions, translations
+   - Innovations: recipe development, technique refinement, ingredient introductions
+   - Training and mentorship: apprenticeships, schools established, notable students
+   - Awards, recognition, and professional memberships
+   - Business ventures: restaurants, catering services, product endorsements
+
+4. Culinary contributions and influence:
+   - Signature dishes or techniques attributed to the figure
+   - Recipe collections or culinary styles associated with their work
+   - Influence on regional, national, or international cuisine development
+   - Adaptations or innovations of traditional practices
+   - Cross-cultural culinary exchanges and fusion developments
+   - Educational or reformist impacts on culinary practices
+
+5. Secondary literature characteristics:
+   - Modern scholarly works may contextualize figures within broader social/cultural history
+   - Popular culinary histories often emphasize narrative and anecdotal elements
+   - Biographical dictionaries provide condensed factual summaries
+   - Magazine articles may focus on specific aspects (recipes, restaurants, innovations)
+   - Academic research emphasizes archival sources and historiographic debates
+   - Contemporary assessments may differ from historical reputation
+
+6. Contextual information to extract:
+   - Historical period and geographic location of activity
+   - Social and cultural contexts (class structures, gender norms, economic conditions)
+   - Culinary traditions and regional food cultures engaged with
+   - Professional networks and institutional affiliations
+   - Relationships with patrons, employers, audiences, or students
+   - Legacy and continued influence on later culinary developments
+
+7. Common challenges in secondary sources:
+   - Conflicting information across different secondary sources
+   - Mythologizing or romanticizing of historical culinary figures
+   - Attribution debates for recipes, techniques, or innovations
+   - Limited primary source documentation for some figures
+   - Bias toward elite or male culinary professionals in older scholarship
+   - Translation issues when discussing figures across multiple language traditions
+
+This additional context should help you accurately extract biographical and professional information about
+culinary figures from secondary literature, while maintaining awareness of historiographic complexities and
+scholarly debates.

@@ -14,7 +14,7 @@ class UserInterface:
 	Provides a consistent interface for prompts, selections, and feedback.
 	"""
 
-	def __init__(self, logger=None):
+	def __init__(self, logger: Optional[logging.Logger] = None) -> None:
 		"""
 		Initialize the user interface.
 

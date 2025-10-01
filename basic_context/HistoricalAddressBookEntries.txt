@@ -1,1 +1,5 @@
-The input text comprises historical address book snippets from roughly 1800–1950, describing residents, tradespeople, and civic officials. Passages usually contain personal names, street references, occupations, and occasional honorifics captured in period spelling. Expect multilingual variants, archaic abbreviations, and inconsistent punctuation preserved from the original sources.
+The input text consists of historical address book entries from Swiss cities dating from approximately 1800 to 1960.
+Entries typically contain personal names, street addresses, occupations, and occasional honorifics captured in period
+spelling. The text will appear mostly in Swiss German, although many names will be of foreign origin (French, Italian, etc.).
+Use historical spelling and diacritics. Natural semantic markers for this type
+of text are the beginnings of individual address book entries.

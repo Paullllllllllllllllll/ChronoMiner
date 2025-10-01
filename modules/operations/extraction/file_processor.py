@@ -104,7 +104,7 @@ class FileProcessor:
 			console_print(
 				f"[INFO] Successfully read and normalized {len(lines)} lines from {file_path.name}")
 		except Exception as e:
-			logger.error(f"Error reading file {file_path}: {e}")
+			logger.error("Error reading file %s: %s", file_path, e)
 			console_print(f"[ERROR] Failed to read file {file_path.name}: {e}")
 			return
 
@@ -189,11 +189,14 @@ class FileProcessor:
 				openai_config_task, chunk_choice, 1, line_ranges_file
 			)
 			logger.info(
-				f"Total chunks generated from {file_path.name}: {len(chunks)}")
+				"Total chunks generated from %s: %s",
+				file_path.name,
+				len(chunks)
+			)
 			console_print(
 				f"[INFO] Generated {len(chunks)} text chunks from {file_path.name}")
 		except Exception as e:
-			logger.error(f"Error chunking text from {file_path.name}: {e}")
+			logger.error("Error chunking text from %s: %s", file_path.name, e)
 			console_print(
 				f"[ERROR] Failed to chunk text from {file_path.name}: {e}")
 			return
@@ -213,21 +216,29 @@ class FileProcessor:
 					console_print(
 						f"[INFO] Using default additional context for schema: {schema_name}")
 					logger.info(
-						f"Using default additional context for schema: {schema_name}")
+						"Using default additional context for schema: %s",
+						schema_name
+					)
 				else:
 					console_print(
 						f"[INFO] No default additional context found for schema: {schema_name}")
 					logger.info(
-						f"No default additional context found for schema: {schema_name}")
+						"No default additional context found for schema: %s",
+						schema_name
+					)
 			else:
 				if additional_context:
 					console_print(
 						f"[INFO] Using file-specific context for: {file_path.name}")
 					logger.info(
-						f"Using file-specific context for: {file_path.name}")
+						"Using file-specific context for: %s",
+						file_path.name
+					)
 				else:
 					logger.info(
-						f"No file-specific context found for: {file_path.name}")
+						"No file-specific context found for: %s",
+						file_path.name
+					)
 
 		# -- Render System Prompt --
 		schema_definition = selected_schema.get("schema", {})
@@ -245,7 +256,10 @@ class FileProcessor:
 			handler = get_schema_handler(schema_name)
 		except Exception as e:
 			logger.error(
-				f"Error getting schema handler for {schema_name}: {e}")
+				"Error getting schema handler for %s: %s",
+				schema_name,
+				e
+			)
 			console_print(f"[ERROR] Failed to get schema handler: {e}")
 			return
 
@@ -267,7 +281,10 @@ class FileProcessor:
 			console_print(f"[INFO] Output will be saved to: {output_json_path}")
 		except Exception as e:
 			logger.error(
-				f"Error setting up output paths for {file_path.name}: {e}")
+				"Error setting up output paths for %s: %s",
+				file_path.name,
+				e
+			)
 			console_print(f"[ERROR] Failed to set up output paths: {e}")
 			return
 
@@ -295,12 +312,19 @@ class FileProcessor:
 					return
 
 				logger.info(
-					f"Created {len(request_lines)} batch request(s) across {len(batch_files)} file(s) for {file_path.name}")
+					"Created %s batch request(s) across %s file(s) for %s",
+					len(request_lines),
+					len(batch_files),
+					file_path.name
+				)
 				console_print(
 					f"[INFO] Created {len(request_lines)} batch requests split into {len(batch_files)} file(s).")
 			except Exception as e:
 				logger.error(
-					f"Error preparing batch requests for {file_path.name}: {e}")
+					"Error preparing batch requests for %s: %s",
+					file_path.name,
+					e
+				)
 				console_print(f"[ERROR] Failed to prepare batch requests: {e}")
 				return
 
@@ -323,15 +347,24 @@ class FileProcessor:
 					console_print(
 						f"[SUCCESS] Batch submitted successfully. Batch ID: {batch_response.id}")
 					logger.info(
-						f"Batch submitted successfully. Tracking record appended to {batch_file}")
+						f"Batch submitted successfully. Tracking record appended to %s",
+						batch_file
+					)
 				except Exception as e:
 					logger.error(
-						f"Error during batch submission for file {batch_file}: {e}")
+						"Error during batch submission for file %s: %s",
+						batch_file,
+						e
+					)
 					console_print(f"[ERROR] Failed to submit batch file {batch_file.name}: {e}")
 					return
 
 			logger.info(
-				f"Submitted {len(submitted_batches)} batch file(s) for {file_path.name}: {submitted_batches}")
+				"Submitted %s batch file(s) for %s: %s",
+				len(submitted_batches),
+				file_path.name,
+				submitted_batches
+			)
 		else:
 			# Synchronous processing: Process each chunk using async API calls
 			api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
@@ -397,8 +430,7 @@ class FileProcessor:
 										parsed_response = json.loads(output_text) if isinstance(output_text, str) else output_text
 									except json.JSONDecodeError:
 										logger.warning(f"Failed to parse output_text as JSON for chunk {idx}")
-										parsed_response = output_text
-
+												
 									temp_record: Dict[str, Any] = {
 										"custom_id": f"{file_path.stem}-chunk-{idx}",
 										"chunk_index": idx,
@@ -421,7 +453,11 @@ class FileProcessor:
 									}
 								except Exception as exc:
 									logger.error(
-										f"Error processing chunk {idx} of {file_path.name}: {exc}")
+										"Error processing chunk %s of %s: %s",
+										idx,
+										file_path.name,
+										exc
+									)
 									error_record: Dict[str, Any] = {
 										"custom_id": f"{file_path.stem}-chunk-{idx}",
 										"chunk_index": idx,
@@ -490,16 +526,24 @@ class FileProcessor:
 							console_print(
 								f"[SUCCESS] Final structured JSON output saved to {output_json_path}")
 							logger.info(
-								f"Structured JSON output saved to {output_json_path}")
+								f"Structured JSON output saved to %s",
+								output_json_path
+							)
 						except Exception as e:
 							logger.error(
-								f"Error writing final output for {file_path.name}: {e}")
+								"Error writing final output for %s: %s",
+								file_path.name,
+								e
+							)
 							console_print(f"[ERROR] Failed to write final output: {e}")
 							return
 
 			except Exception as e:
 				logger.error(
-					f"Error during synchronous processing for {file_path.name}: {e}")
+					"Error during synchronous processing for %s: %s",
+					file_path.name,
+					e
+				)
 				console_print(f"[ERROR] Error during processing: {e}")
 				return
 
@@ -525,7 +569,10 @@ class FileProcessor:
 						f"[INFO] TXT output saved to {output_txt_path}")
 			except Exception as e:
 				logger.error(
-					f"Error writing output files for {file_path.name}: {e}")
+					"Error writing output files for %s: %s",
+					file_path.name,
+					e
+				)
 				console_print(f"[ERROR] Failed to write output files: {e}")
 
 		# -- Cleanup Temporary Files if Not Needed --

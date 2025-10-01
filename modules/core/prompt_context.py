@@ -12,34 +12,49 @@ _BASIC_CONTEXT_DIR = _PROJECT_ROOT / "basic_context"
 
 
 def _normalize_directory(path: Optional[Path]) -> Path:
+    """Normalize a directory path, returning default if None."""
     if path is None:
         return _BASIC_CONTEXT_DIR
     return Path(path).resolve()
 
 
 def _read_text_file(file_path: Path) -> Optional[str]:
+    """
+    Read text from a file with proper error handling.
+
+    Parameters
+    ----------
+    file_path : Path
+        Path to the text file to read.
+
+    Returns
+    -------
+    Optional[str]
+        The file content if successful, None otherwise.
+    """
     try:
         text = file_path.read_text(encoding="utf-8").strip()
         return text if text else None
-    except Exception as exc:  # pragma: no cover - filesystem guard
+    except (OSError, UnicodeDecodeError) as exc:
         logger.warning("Failed to read context file %s: %s", file_path, exc)
         return None
 
 
 @lru_cache(maxsize=4)
 def load_basic_context(basic_context_dir: Optional[str] = None) -> str:
-    """Load and concatenate all basic context files.
+    """
+    Load and concatenate all basic context files.
 
     Parameters
     ----------
-    basic_context_dir:
+    basic_context_dir : Optional[str]
         Optional directory containing ``*.txt`` files with reusable context.
 
     Returns
     -------
     str
-        The aggregated basic context separated by blank lines. Empty string when
-        no files are present.
+        The aggregated basic context separated by blank lines. Empty string
+        when no files are present.
     """
     directory = _normalize_directory(Path(basic_context_dir) if basic_context_dir else None)
     if not directory.exists():
@@ -56,7 +71,20 @@ def load_basic_context(basic_context_dir: Optional[str] = None) -> str:
 
 
 def load_file_specific_context(file_path: Path) -> Optional[str]:
-    """Return context from ``<stem>_context.txt`` next to ``file_path`` if present."""
+    """
+    Return context from ``<stem>_context.txt`` next to ``file_path`` if
+    present.
+
+    Parameters
+    ----------
+    file_path : Path
+        The input file path.
+
+    Returns
+    -------
+    Optional[str]
+        File-specific context if found, None otherwise.
+    """
     context_file = file_path.with_name(f"{file_path.stem}_context.txt")
     if not context_file.exists():
         return None
@@ -64,6 +92,20 @@ def load_file_specific_context(file_path: Path) -> Optional[str]:
 
 
 def combine_contexts(*parts: Optional[str]) -> Optional[str]:
+    """
+    Combine multiple context strings into one.
+
+    Parameters
+    ----------
+    *parts : Optional[str]
+        Variable number of context strings to combine.
+
+    Returns
+    -------
+    Optional[str]
+        Combined context separated by blank lines, or None if all parts
+        are empty.
+    """
     snippets = [part.strip() for part in parts if part and part.strip()]
     if not snippets:
         return None
@@ -76,7 +118,23 @@ def apply_context_placeholders(
     basic_context: Optional[str] = None,
     additional_context: Optional[str] = None,
 ) -> str:
-    """Replace context placeholders in *text* with provided snippets."""
+    """
+    Replace context placeholders in *text* with provided snippets.
+
+    Parameters
+    ----------
+    text : str
+        The template text containing placeholders.
+    basic_context : Optional[str]
+        Basic context to replace {{BASIC_CONTEXT}} placeholder.
+    additional_context : Optional[str]
+        Additional context to replace {{ADDITIONAL_CONTEXT}} placeholder.
+
+    Returns
+    -------
+    str
+        Text with placeholders replaced.
+    """
     basic_value = (basic_context or "").strip() or "Empty (no basic context)"
     text = text.replace("{{BASIC_CONTEXT}}", basic_value)
 
@@ -93,8 +151,28 @@ def resolve_additional_context(
     text_file: Optional[Path] = None,
     context_sources: Optional[Sequence[str]] = None,
 ) -> Optional[str]:
-    """Determine the additional context string for a schema/file pair."""
+    """
+    Determine the additional context string for a schema/file pair.
 
+    Parameters
+    ----------
+    schema_name : str
+        Name of the schema being processed.
+    context_settings : Optional[Dict[str, object]]
+        Dictionary with context configuration flags.
+    context_manager : Optional
+        ContextManager instance for loading default context.
+    text_file : Optional[Path]
+        Input file path for file-specific context lookup.
+    context_sources : Optional[Sequence[str]]
+        List of explicit context file paths to load.
+
+    Returns
+    -------
+    Optional[str]
+        The resolved additional context string, or None if no context
+        is configured.
+    """
     if not context_settings or not context_settings.get("use_additional_context", False):
         return None
 
@@ -104,10 +182,12 @@ def resolve_additional_context(
     if use_default and context_manager is not None:
         try:
             default_context = context_manager.get_additional_context(schema_name)
-        except Exception as exc:  # pragma: no cover - defensive guard
+        except Exception as exc:
             logger.warning("Failed to fetch default additional context for %s: %s", schema_name, exc)
 
     if use_default:
+        if default_context is None:
+            logger.info("Default additional context requested for schema '%s' but not found", schema_name)
         return default_context
 
     if text_file is not None:
