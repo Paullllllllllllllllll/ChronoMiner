@@ -8,6 +8,7 @@ Supports two execution modes:
 
 import json
 import sys
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -16,9 +17,8 @@ from openai import OpenAI
 from modules.core.logger import setup_logger
 from modules.ui.core import UserInterface
 from modules.operations.extraction.schema_handlers import get_schema_handler
-from modules.config.loader import ConfigLoader
 from modules.cli.args_parser import create_repair_parser
-from modules.cli.mode_detector import should_use_interactive_mode
+from modules.cli.execution_framework import DualModeScript
 from main.check_batches import (
     load_config,
     process_batch_output_file,
@@ -193,28 +193,36 @@ def _repair_temp_file(
         ui.log("TXT output generated", "info")
 
 
-def main() -> None:
-    # Load config to determine mode
-    config_loader = ConfigLoader()
-    config_loader.load_configs()
+class RepairExtractionsScript(DualModeScript):
+    """Script to repair incomplete batch extractions."""
     
-    if should_use_interactive_mode(config_loader):
-        # ============================================================
-        # INTERACTIVE MODE
-        # ============================================================
-        ui = UserInterface(logger)
-        ui.display_banner()
-        ui.print_section_header("Batch Extraction Repair")
-
-        repo_info_list, processing_settings = load_config()
-        candidates = _discover_candidate_temp_files(repo_info_list, ui)
-
+    def __init__(self):
+        super().__init__("repair_extractions")
+        self.client: OpenAI = OpenAI()
+        self.repo_info_list: List[Tuple[str, Path, Dict[str, Any]]] = []
+        self.processing_settings: Dict[str, Any] = []
+    
+    def create_argument_parser(self) -> ArgumentParser:
+        """Create argument parser for CLI mode."""
+        return create_repair_parser()
+    
+    def _load_repair_config(self) -> None:
+        """Load configuration for repair operations."""
+        self.repo_info_list, self.processing_settings = load_config()
+    
+    def run_interactive(self) -> None:
+        """Run extraction repair in interactive mode."""
+        self.ui.print_section_header("Batch Extraction Repair")
+        
+        self._load_repair_config()
+        candidates = _discover_candidate_temp_files(self.repo_info_list, self.ui)
+        
         if not candidates:
-            ui.print_info("No temporary batch files found. Nothing to repair.")
+            self.ui.print_info("No temporary batch files found. Nothing to repair.")
             return
-
-        ui.print_subsection_header("Available Batch Files")
-        ui.console_print(ui.HORIZONTAL_LINE)
+        
+        self.ui.print_subsection_header("Available Batch Files")
+        self.ui.console_print(self.ui.HORIZONTAL_LINE)
         
         for idx, candidate in enumerate(candidates, 1):
             temp_file = candidate["temp_file"]
@@ -222,67 +230,59 @@ def main() -> None:
             responses_count = candidate["responses_count"]
             tracking_count = candidate["tracking_count"]
             status = "✓ FINAL EXISTS" if final_exists else "⚠ PENDING"
-            ui.console_print(
-                f"  {idx}. {temp_file.name}"
-            )
-            ui.console_print(
+            self.ui.console_print(f"  {idx}. {temp_file.name}")
+            self.ui.console_print(
                 f"      Schema: {candidate['schema_name']} | Responses: {responses_count}/{tracking_count} | {status}"
             )
-
-        selection = ui.get_input(
+        
+        selection = self.ui.get_input(
             "\nEnter the numbers of files to repair (comma-separated, e.g., 1,3,5)",
             allow_back=False,
             allow_quit=True
         )
         
         if not selection:
-            ui.print_info("Repair cancelled by user.")
+            self.ui.print_info("Repair cancelled by user.")
             return
-
+        
         try:
             indices = sorted({int(part.strip()) - 1 for part in selection.split(",") if part.strip()})
         except ValueError:
-            ui.print_error("Invalid selection. Please provide comma-separated numbers.")
+            self.ui.print_error("Invalid selection. Please provide comma-separated numbers.")
             sys.exit(1)
-
-        if not indices:
-            ui.print_warning("No valid selections provided.")
-            return
-
-        # Confirm repair
-        if not ui.confirm(f"Repair {len(indices)} file(s)?", default=True):
-            ui.print_info("Repair cancelled by user.")
-            return
-
-        ui.print_section_header("Repairing Files")
         
-        client = OpenAI()
+        if not indices:
+            self.ui.print_warning("No valid selections provided.")
+            return
+        
+        # Confirm repair
+        if not self.ui.confirm(f"Repair {len(indices)} file(s)?", default=True):
+            self.ui.print_info("Repair cancelled by user.")
+            return
+        
+        self.ui.print_section_header("Repairing Files")
+        
         success_count = 0
         
         for index in indices:
             if 0 <= index < len(candidates):
                 try:
-                    _repair_temp_file(candidates[index], processing_settings, client, ui)
+                    _repair_temp_file(candidates[index], self.processing_settings, self.client, self.ui)
                     success_count += 1
                 except Exception as e:
-                    ui.print_error(f"Failed to repair file {index + 1}: {e}")
-                    logger.exception(f"Error repairing file at index {index}", exc_info=e)
+                    self.ui.print_error(f"Failed to repair file {index + 1}: {e}")
+                    self.logger.exception(f"Error repairing file at index {index}", exc_info=e)
             else:
-                ui.print_warning(f"Selection {index + 1} is out of range; skipping.")
-
-        ui.print_section_header("Repair Complete")
-        ui.print_success(f"Successfully repaired {success_count} file(s)")
+                self.ui.print_warning(f"Selection {index + 1} is out of range; skipping.")
+        
+        self.ui.print_section_header("Repair Complete")
+        self.ui.print_success(f"Successfully repaired {success_count} file(s)")
     
-    else:
-        # ============================================================
-        # CLI MODE
-        # ============================================================
-        parser = create_repair_parser()
-        args = parser.parse_args()
+    def run_cli(self, args: Namespace) -> None:
+        """Run extraction repair in CLI mode."""
+        self.logger.info("Starting extraction repair (CLI Mode)")
         
-        logger.info("Starting extraction repair (CLI Mode)")
-        
-        repo_info_list, processing_settings = load_config()
+        self._load_repair_config()
         
         # Create a simple UI-less notifier for CLI
         def cli_print(msg: str, level: str = "info"):
@@ -291,25 +291,37 @@ def main() -> None:
         
         # Mock UI for repair function
         class MockUI:
-            def print_subsection_header(self, title): 
+            def print_subsection_header(self, title):
                 if args.verbose:
                     print(f"\n--- {title} ---")
-            def print_warning(self, msg): cli_print(msg, "warning")
-            def print_info(self, msg): 
+            
+            def print_warning(self, msg):
+                cli_print(msg, "warning")
+            
+            def print_info(self, msg):
                 if args.verbose:
                     cli_print(msg, "info")
-            def print_success(self, msg): cli_print(msg, "success")
-            def print_error(self, msg): cli_print(msg, "error")
-            def log(self, msg, level): logger.log(getattr(logger, level.upper(), logger.INFO), msg)
-            def display_batch_processing_progress(self, *args): pass
+            
+            def print_success(self, msg):
+                cli_print(msg, "success")
+            
+            def print_error(self, msg):
+                cli_print(msg, "error")
+            
+            def log(self, msg, level):
+                log_method = getattr(logger, level.lower(), logger.info)
+                log_method(msg)
+            
+            def display_batch_processing_progress(self, *args):
+                pass
         
         mock_ui = MockUI()
         
         # Discover candidates
-        candidates = _discover_candidate_temp_files(repo_info_list, mock_ui)
+        candidates = _discover_candidate_temp_files(self.repo_info_list, mock_ui)
         
         if not candidates:
-            logger.info("No temporary batch files found")
+            self.logger.info("No temporary batch files found")
             print("[INFO] No temporary batch files found. Nothing to repair.")
             return
         
@@ -317,20 +329,23 @@ def main() -> None:
         if args.schema:
             candidates = [c for c in candidates if c["schema_name"] == args.schema]
             if not candidates:
-                logger.error(f"No temp files found for schema '{args.schema}'")
+                self.logger.error(f"No temp files found for schema '{args.schema}'")
                 print(f"[ERROR] No temp files found for schema '{args.schema}'")
                 return
         
         # Filter by specific files if specified
         if args.files:
             file_names = set(args.files)
-            candidates = [c for c in candidates if c["temp_file"].name in file_names or str(c["temp_file"]) in file_names]
+            candidates = [
+                c for c in candidates 
+                if c["temp_file"].name in file_names or str(c["temp_file"]) in file_names
+            ]
             if not candidates:
-                logger.error("None of the specified files were found")
+                self.logger.error("None of the specified files were found")
                 print("[ERROR] Specified files not found")
                 return
         
-        logger.info(f"Found {len(candidates)} file(s) to repair")
+        self.logger.info(f"Found {len(candidates)} file(s) to repair")
         if args.verbose:
             print(f"[INFO] Found {len(candidates)} file(s) to repair:")
             for candidate in candidates:
@@ -340,15 +355,19 @@ def main() -> None:
         # Confirm unless --force
         if not args.force:
             print(f"\n[WARNING] About to repair {len(candidates)} file(s)")
-            confirm = input("Proceed? (y/N): ").strip().lower()
+            try:
+                confirm = input("Proceed? (y/N): ").strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                print("\n[INFO] Repair aborted")
+                return
+            
             if confirm not in ['y', 'yes']:
-                logger.info("Repair aborted by user")
+                self.logger.info("Repair aborted by user")
                 print("[INFO] Repair aborted")
                 return
         
-        logger.info(f"Repairing {len(candidates)} file(s)")
+        self.logger.info(f"Repairing {len(candidates)} file(s)")
         
-        client = OpenAI()
         success_count = 0
         fail_count = 0
         
@@ -356,23 +375,29 @@ def main() -> None:
             try:
                 if args.verbose:
                     print(f"[INFO] Repairing {candidate['temp_file'].name}...")
-                _repair_temp_file(candidate, processing_settings, client, mock_ui)
+                _repair_temp_file(candidate, self.processing_settings, self.client, mock_ui)
                 success_count += 1
             except Exception as e:
-                logger.exception(f"Error repairing {candidate['temp_file'].name}", exc_info=e)
+                self.logger.exception(f"Error repairing {candidate['temp_file'].name}", exc_info=e)
                 print(f"[ERROR] Failed to repair {candidate['temp_file'].name}: {e}")
                 fail_count += 1
         
         # Final summary
-        logger.info(f"Repair complete: {success_count} succeeded, {fail_count} failed")
+        self.logger.info(f"Repair complete: {success_count} succeeded, {fail_count} failed")
         print(f"[SUCCESS] Repaired {success_count}/{len(candidates)} file(s)")
         if fail_count > 0:
             print(f"[WARNING] Failed to repair {fail_count} file(s)")
 
 
-if __name__ == "__main__":
+def main() -> None:
+    """Main entry point."""
     try:
-        main()
+        script = RepairExtractionsScript()
+        script.execute()
     except KeyboardInterrupt:
         print("\n✓ Repair session cancelled by user.")
         sys.exit(0)
+
+
+if __name__ == "__main__":
+    main()

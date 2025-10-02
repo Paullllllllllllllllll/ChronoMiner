@@ -30,6 +30,8 @@ from modules.core.workflow_utils import (
     load_schema_manager,
     prepare_context_manager,
 )
+from modules.cli.mode_detector import should_use_interactive_mode
+from modules.config.loader import ConfigLoader
 
 logger = setup_logger(__name__)
 
@@ -178,8 +180,8 @@ async def _adjust_files(
 
 
 async def main_async() -> None:
-    args = parse_arguments()
-
+    """Main async entry point for line range readjustment."""
+    # Load configuration first
     (
         config_loader,
         paths_config,
@@ -187,152 +189,138 @@ async def main_async() -> None:
         chunking_and_context_config,
         schemas_paths,
     ) = load_core_resources()
+    
     chunking_config = (chunking_and_context_config or {}).get("chunking", {})
     matching_config = (chunking_and_context_config or {}).get("matching", {})
     retry_config = (chunking_and_context_config or {}).get("retry", {})
-
+    
     try:
         schema_manager = load_schema_manager()
     except RuntimeError as exc:
         print(f"[ERROR] {exc}; cannot select schema for input paths.")
         sys.exit(1)
-
+    
     basic_context = load_basic_context()
-    context_settings: Dict[str, any] = {}
-    context_manager: Optional[ContextManager] = None
-
     default_context_window = int(chunking_config.get("line_range_context_window", 6) or 6)
-    prompt_override = args.prompt_path or chunking_config.get("line_range_prompt_path")
-    prompt_path: Optional[Path] = Path(prompt_override).resolve() if prompt_override else None
-
-    ui: Optional[UserInterface] = None
-    selected_files: List[Path] = []
-    boundary_type: str
-
-    if args.path:
-        # CLI mode - no UI
-        target = args.path.expanduser().resolve()
-        if not target.exists():
-            logger.error("Specified path does not exist: %s", target)
-            print(f"[ERROR] Path does not exist: {target}")
-            sys.exit(1)
-        selected_files = collect_text_files(target)
-        if not selected_files:
-            print(f"[WARN] No eligible text files found under {target}.")
-            sys.exit(0)
-
-        # Get boundary type from --schema argument
-        if not args.schema:
-            print("[ERROR] Schema name is required when using --path in non-interactive mode.")
-            sys.exit(1)
-
-        available_schemas = schema_manager.get_available_schemas()
-        if args.schema not in available_schemas:
-            print(f"[ERROR] Schema '{args.schema}' not found.")
-            print(f"[INFO] Available schemas: {list(available_schemas.keys())}")
-            sys.exit(1)
-        boundary_type = args.schema
-        print(f"[INFO] Using boundary type: {boundary_type}")
-
-        use_additional = bool(args.use_additional_context or args.use_default_context)
-        context_settings = {
-            "use_additional_context": use_additional,
-            "use_default_context": bool(args.use_default_context),
-        }
-        context_manager = prepare_context_manager(context_settings)
-        
-        # Simple notifier for CLI mode
-        def cli_notifier(msg: str, level: str = "info"):
-            prefixes = {"success": "[SUCCESS]", "error": "[ERROR]", "warning": "[WARN]", "info": "[INFO]"}
-            print(f"{prefixes.get(level, '[INFO]')} {msg}")
-        
-        notifier = cli_notifier
-        
+    
+    # Determine execution mode
+    is_interactive = should_use_interactive_mode(config_loader)
+    
+    if is_interactive:
+        # ============================================================
+        # INTERACTIVE MODE
+        # ============================================================
+        await _run_interactive_mode(
+            schema_manager=schema_manager,
+            schemas_paths=schemas_paths,
+            paths_config=paths_config,
+            model_config=model_config,
+            chunking_config=chunking_config,
+            matching_config=matching_config,
+            retry_config=retry_config,
+            basic_context=basic_context,
+            default_context_window=default_context_window,
+        )
     else:
-        # Interactive mode with UI
-        ui = UserInterface(logger)
-        ui.display_banner()
-        ui.print_section_header("Line Range Adjustment")
+        # ============================================================
+        # CLI MODE
+        # ============================================================
+        args = parse_arguments()
+        await _run_cli_mode(
+            args=args,
+            schema_manager=schema_manager,
+            model_config=model_config,
+            chunking_config=chunking_config,
+            matching_config=matching_config,
+            retry_config=retry_config,
+            basic_context=basic_context,
+            default_context_window=default_context_window,
+        )
 
-        # Select schema to determine input directory and boundary type
-        result = ui.select_schema(schema_manager)
-        if result is None:
-            ui.print_info("Schema selection cancelled.")
-            return
-        
-        selected_schema, selected_schema_name = result
-        boundary_type = selected_schema_name
 
-        if selected_schema_name in schemas_paths:
-            base_dir = Path(schemas_paths[selected_schema_name].get("input", ""))
-        else:
-            base_dir = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
-        
-        selected_files = ui.select_input_source(base_dir)
-        context_settings = ui.ask_additional_context_mode()
-        context_manager = prepare_context_manager(context_settings)
-        
-        # UI-aware notifier
-        def ui_notifier(msg: str, level: str = "info"):
-            if level == "success":
-                ui.print_success(msg)
-            elif level == "error":
-                ui.print_error(msg)
-            elif level == "warning":
-                ui.print_warning(msg)
-            else:
-                ui.print_info(msg)
-        
-        notifier = ui_notifier
-
-    if not selected_files:
-        if ui:
-            ui.print_warning("No files selected.")
-        else:
-            print("[WARN] No files selected; exiting.")
+async def _run_interactive_mode(
+    schema_manager: SchemaManager,
+    schemas_paths: Dict[str, any],
+    paths_config: Dict[str, any],
+    model_config: Dict[str, any],
+    chunking_config: Dict[str, any],
+    matching_config: Dict[str, any],
+    retry_config: Dict[str, any],
+    basic_context: Optional[str],
+    default_context_window: int,
+) -> None:
+    """Run line range readjustment in interactive mode."""
+    ui = UserInterface(logger)
+    ui.display_banner()
+    ui.print_section_header("Line Range Adjustment")
+    
+    # Select schema to determine input directory and boundary type
+    result = ui.select_schema(schema_manager)
+    if result is None:
+        ui.print_info("Schema selection cancelled.")
         return
-
-    context_window = max(1, args.context_window or default_context_window)
-    if ui and args.context_window is None:
-        context_window = _prompt_int(ui, "Enter context window size (lines around boundaries)", default_context_window)
-
-    # Display summary
-    if ui:
-        ui.print_section_header("Adjustment Configuration")
-        ui.console_print(f"\n{ui.BOLD}Configuration:{ui.RESET}")
-        ui.console_print(f"  Files to adjust: {len(selected_files)}")
-        ui.console_print(f"  Context window: {context_window} lines")
-        ui.console_print(f"  Boundary type: {boundary_type}")
-        if prompt_path:
-            ui.console_print(f"  Prompt override: {prompt_path}")
-
-        if context_settings.get("use_additional_context", False):
-            context_source = "Default boundary-type-specific" if context_settings.get("use_default_context", False) else "File-specific"
-        else:
-            context_source = "None"
-        ui.console_print(f"  Additional context: {context_source}")
-        
-        if not ui.confirm("\nProceed with line range adjustment?", default=True):
-            ui.print_info("Operation cancelled by user.")
-            return
-        
-        ui.print_section_header("Adjusting Line Ranges")
+    
+    selected_schema, selected_schema_name = result
+    boundary_type = selected_schema_name
+    
+    if selected_schema_name in schemas_paths:
+        base_dir = Path(schemas_paths[selected_schema_name].get("input", ""))
     else:
-        print("\n" + "=" * 80)
-        print(f"  LINE RANGE READJUSTMENT")
-        print("=" * 80)
-        print(f"Selected {len(selected_files)} file(s) for adjustment.")
-        print(f"Context window: {context_window}")
-        print(f"Boundary type: {boundary_type}")
-        if prompt_path:
-            print(f"Prompt override: {prompt_path}")
-
-        if context_settings.get("use_additional_context", False):
-            context_source = "Default boundary-type-specific" if context_settings.get("use_default_context", False) else "File-specific"
+        base_dir = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
+    
+    selected_files = ui.select_input_source(base_dir)
+    if not selected_files:
+        ui.print_warning("No files selected.")
+        return
+    
+    # Get context settings
+    context_settings = ui.ask_additional_context_mode()
+    context_manager = prepare_context_manager(context_settings)
+    
+    # Get context window
+    context_window = _prompt_int(
+        ui, 
+        "Enter context window size (lines around boundaries)", 
+        default_context_window
+    )
+    
+    # Get prompt override if any
+    prompt_override = chunking_config.get("line_range_prompt_path")
+    prompt_path: Optional[Path] = Path(prompt_override).resolve() if prompt_override else None
+    
+    # Display summary
+    ui.print_section_header("Adjustment Configuration")
+    ui.console_print(f"\n{ui.BOLD}Configuration:{ui.RESET}")
+    ui.console_print(f"  Files to adjust: {len(selected_files)}")
+    ui.console_print(f"  Context window: {context_window} lines")
+    ui.console_print(f"  Boundary type: {boundary_type}")
+    if prompt_path:
+        ui.console_print(f"  Prompt override: {prompt_path}")
+    
+    if context_settings.get("use_additional_context", False):
+        context_source = "Default boundary-type-specific" if context_settings.get("use_default_context", False) else "File-specific"
+    else:
+        context_source = "None"
+    ui.console_print(f"  Additional context: {context_source}")
+    
+    if not ui.confirm("\nProceed with line range adjustment?", default=True):
+        ui.print_info("Operation cancelled by user.")
+        return
+    
+    ui.print_section_header("Adjusting Line Ranges")
+    
+    # UI-aware notifier
+    def ui_notifier(msg: str, level: str = "info"):
+        if level == "success":
+            ui.print_success(msg)
+        elif level == "error":
+            ui.print_error(msg)
+        elif level == "warning":
+            ui.print_warning(msg)
         else:
-            context_source = "None"
-        print(f"Additional context: {context_source}")
-
+            ui.print_info(msg)
+    
+    # Perform adjustments
     successes, skipped, failures = await _adjust_files(
         text_files=selected_files,
         model_config=model_config,
@@ -344,52 +332,146 @@ async def main_async() -> None:
         context_manager=context_manager,
         matching_config=matching_config,
         retry_config=retry_config,
-        notifier=notifier,
+        notifier=ui_notifier,
     )
-
+    
     # Display summary
-    if ui:
-        ui.print_section_header("Adjustment Summary")
-        ui.print_success(f"Successfully adjusted: {len(successes)} file(s)")
-        if skipped:
-            ui.print_warning(f"Skipped (no line ranges): {len(skipped)} file(s)")
-        if failures:
-            ui.print_error(f"Failed: {len(failures)} file(s)")
-        
-        if skipped:
-            ui.print_subsection_header("Files with no line range file")
-            for skipped_file in skipped:
-                ui.console_print(f"  • {skipped_file.name}")
-        if failures:
-            ui.print_subsection_header("Files with errors")
-            for failed_file, error in failures:
-                ui.console_print(f"  • {failed_file.name}: {error}")
-    else:
-        print("\n" + "=" * 80)
-        print("  SUMMARY")
-        print("=" * 80)
-        print(f"Successful adjustments: {len(successes)}")
-        print(f"Skipped (missing line ranges): {len(skipped)}")
-        print(f"Failures: {len(failures)}")
+    ui.print_section_header("Adjustment Summary")
+    ui.print_success(f"Successfully adjusted: {len(successes)} file(s)")
+    if skipped:
+        ui.print_warning(f"Skipped (no line ranges): {len(skipped)} file(s)")
+    if failures:
+        ui.print_error(f"Failed: {len(failures)} file(s)")
+    
+    if skipped:
+        ui.print_subsection_header("Files with no line range file")
+        for skipped_file in skipped:
+            ui.console_print(f"  • {skipped_file.name}")
+    if failures:
+        ui.print_subsection_header("Files with errors")
+        for failed_file, error in failures:
+            ui.console_print(f"  • {failed_file.name}: {error}")
 
-        if skipped:
-            print("\nFiles with no associated line range file:")
-            for skipped_file in skipped:
-                print(f"  - {skipped_file}")
-        if failures:
-            print("\nFiles that encountered errors:")
-            for failed_file, error in failures:
-                print(f"  - {failed_file}: {error}")
+
+async def _run_cli_mode(
+    args: argparse.Namespace,
+    schema_manager: SchemaManager,
+    model_config: Dict[str, any],
+    chunking_config: Dict[str, any],
+    matching_config: Dict[str, any],
+    retry_config: Dict[str, any],
+    basic_context: Optional[str],
+    default_context_window: int,
+) -> None:
+    """Run line range readjustment in CLI mode."""
+    logger.info("Starting line range readjustment (CLI Mode)")
+    
+    # Validate and resolve input path
+    if not args.path:
+        print("[ERROR] --path is required in CLI mode")
+        sys.exit(1)
+    
+    target = args.path.expanduser().resolve()
+    if not target.exists():
+        logger.error("Specified path does not exist: %s", target)
+        print(f"[ERROR] Path does not exist: {target}")
+        sys.exit(1)
+    
+    selected_files = collect_text_files(target)
+    if not selected_files:
+        print(f"[WARN] No eligible text files found under {target}.")
+        sys.exit(0)
+    
+    # Get boundary type from --schema argument
+    if not args.schema:
+        print("[ERROR] Schema name is required when using --path in CLI mode.")
+        sys.exit(1)
+    
+    available_schemas = schema_manager.get_available_schemas()
+    if args.schema not in available_schemas:
+        print(f"[ERROR] Schema '{args.schema}' not found.")
+        print(f"[INFO] Available schemas: {list(available_schemas.keys())}")
+        sys.exit(1)
+    
+    boundary_type = args.schema
+    print(f"[INFO] Using boundary type: {boundary_type}")
+    
+    # Setup context
+    use_additional = bool(args.use_additional_context or args.use_default_context)
+    context_settings = {
+        "use_additional_context": use_additional,
+        "use_default_context": bool(args.use_default_context),
+    }
+    context_manager = prepare_context_manager(context_settings)
+    
+    # Get configurations
+    context_window = max(1, args.context_window or default_context_window)
+    prompt_override = args.prompt_path or chunking_config.get("line_range_prompt_path")
+    prompt_path: Optional[Path] = Path(prompt_override).resolve() if prompt_override else None
+    
+    # Simple notifier for CLI mode
+    def cli_notifier(msg: str, level: str = "info"):
+        prefixes = {"success": "[SUCCESS]", "error": "[ERROR]", "warning": "[WARN]", "info": "[INFO]"}
+        print(f"{prefixes.get(level, '[INFO]')} {msg}")
+    
+    # Display configuration
+    print("\n" + "=" * 80)
+    print(f"  LINE RANGE READJUSTMENT")
+    print("=" * 80)
+    print(f"Selected {len(selected_files)} file(s) for adjustment.")
+    print(f"Context window: {context_window}")
+    print(f"Boundary type: {boundary_type}")
+    if prompt_path:
+        print(f"Prompt override: {prompt_path}")
+    
+    if context_settings.get("use_additional_context", False):
+        context_source = "Default boundary-type-specific" if context_settings.get("use_default_context", False) else "File-specific"
+    else:
+        context_source = "None"
+    print(f"Additional context: {context_source}")
+    
+    # Perform adjustments
+    successes, skipped, failures = await _adjust_files(
+        text_files=selected_files,
+        model_config=model_config,
+        context_window=context_window,
+        prompt_path=prompt_path,
+        boundary_type=boundary_type,
+        basic_context=basic_context,
+        context_settings=context_settings,
+        context_manager=context_manager,
+        matching_config=matching_config,
+        retry_config=retry_config,
+        notifier=cli_notifier,
+    )
+    
+    # Display summary
+    print("\n" + "=" * 80)
+    print("  SUMMARY")
+    print("=" * 80)
+    print(f"Successful adjustments: {len(successes)}")
+    print(f"Skipped (missing line ranges): {len(skipped)}")
+    print(f"Failures: {len(failures)}")
+    
+    if skipped:
+        print("\nFiles with no associated line range file:")
+        for skipped_file in skipped:
+            print(f"  - {skipped_file}")
+    if failures:
+        print("\nFiles that encountered errors:")
+        for failed_file, error in failures:
+            print(f"  - {failed_file}: {error}")
 
 
 def main() -> None:
+    """Main entry point."""
     try:
         asyncio.run(main_async())
     except KeyboardInterrupt:
         logger.info("Line range readjustment cancelled by user.")
         print("\n✓ Operation cancelled by user.")
         sys.exit(0)
-    except Exception as exc:  # pragma: no cover - top-level guard
+    except Exception as exc:
         logger.exception("Unexpected error in line_range_readjuster", exc_info=exc)
         print(f"\n[ERROR] Unexpected error: {exc}")
         sys.exit(1)

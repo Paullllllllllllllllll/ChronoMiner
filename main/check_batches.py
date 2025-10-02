@@ -23,7 +23,7 @@ from modules.ui.core import UserInterface
 from modules.llm.openai_sdk_utils import list_all_batches, sdk_to_dict, coerce_file_id
 from modules.core.batch_utils import diagnose_batch_failure, extract_custom_id_mapping
 from modules.cli.args_parser import create_check_batches_parser, resolve_path
-from modules.cli.mode_detector import should_use_interactive_mode
+from modules.cli.execution_framework import DualModeScript
 
 logger = setup_logger(__name__)
 
@@ -540,114 +540,125 @@ def process_all_batches(
 			_safe_print(ui, f"Failed to process {temp_file.name}: {exc}", "error")
 
 
+class CheckBatchesScript(DualModeScript):
+    """Script to check and retrieve batch processing results."""
+    
+    def __init__(self):
+        super().__init__("check_batches")
+        self.client: OpenAI = OpenAI()
+        self.repo_info_list: List[Tuple[str, Path, Dict[str, Any]]] = []
+        self.processing_settings: Dict[str, Any] = {}
+    
+    def create_argument_parser(self) -> ArgumentParser:
+        """Create argument parser for CLI mode."""
+        return create_check_batches_parser()
+    
+    def _load_batch_config(self) -> None:
+        """Load configuration for batch processing."""
+        self.repo_info_list, self.processing_settings = load_config()
+    
+    def run_interactive(self) -> None:
+        """Run batch checking in interactive mode."""
+        self.ui.print_section_header("Batch Results Retrieval")
+        
+        self._load_batch_config()
+        
+        self.ui.print_info("Scanning for batch files across all schemas...")
+        self.logger.info("Starting batch results retrieval process.")
+        
+        for schema_name, repo_dir, schema_config in self.repo_info_list:
+            if not repo_dir.exists():
+                self.ui.log(f"Repository directory does not exist: {repo_dir}", "warning")
+                continue
+            
+            self.ui.print_subsection_header(f"Schema: {schema_name}")
+            self.ui.print_info(f"Processing directory: {repo_dir}")
+            self.logger.info(f"Processing schema {schema_name} in directory {repo_dir}")
+            
+            process_all_batches(
+                root_folder=repo_dir,
+                processing_settings=self.processing_settings,
+                client=self.client,
+                schema_name=schema_name,
+                schema_config=schema_config,
+                ui=self.ui,
+            )
+        
+        self.ui.print_section_header("Batch Processing Complete")
+        self.ui.print_success("All batch results have been processed")
+    
+    def run_cli(self, args: Namespace) -> None:
+        """Run batch checking in CLI mode."""
+        from argparse import Namespace
+        
+        self.logger.info("Starting batch results retrieval (CLI Mode)")
+        
+        self._load_batch_config()
+        
+        # Filter by schema if specified
+        if args.schema:
+            self.repo_info_list = [
+                (name, dir, cfg) for name, dir, cfg in self.repo_info_list 
+                if name == args.schema
+            ]
+            if not self.repo_info_list:
+                self.logger.error(f"Schema '{args.schema}' not found in configuration")
+                print(f"[ERROR] Schema '{args.schema}' not found")
+                return
+        
+        # Override with input path if specified
+        if args.input:
+            input_path = resolve_path(args.input)
+            if not input_path.exists():
+                self.logger.error(f"Input path does not exist: {input_path}")
+                print(f"[ERROR] Input path not found: {input_path}")
+                return
+            # Use single directory with first schema config as template
+            if self.repo_info_list:
+                schema_name, _, schema_config = self.repo_info_list[0]
+                self.repo_info_list = [(schema_name, input_path, schema_config)]
+            else:
+                self.logger.error("No schema configuration available")
+                print("[ERROR] No schema configuration found")
+                return
+        
+        if not self.repo_info_list:
+            self.logger.info("No repositories to process")
+            print("[INFO] No batch files found")
+            return
+        
+        self.logger.info(f"Scanning {len(self.repo_info_list)} schema(s) for batch files")
+        if args.verbose:
+            print(f"[INFO] Scanning {len(self.repo_info_list)} schema(s)")
+        
+        for schema_name, repo_dir, schema_config in self.repo_info_list:
+            if not repo_dir.exists():
+                self.logger.warning(f"Repository directory does not exist: {repo_dir}")
+                continue
+            
+            if args.verbose:
+                print(f"[INFO] Processing schema: {schema_name}")
+            self.logger.info(f"Processing schema {schema_name} in directory {repo_dir}")
+            
+            process_all_batches(
+                root_folder=repo_dir,
+                processing_settings=self.processing_settings,
+                client=self.client,
+                schema_name=schema_name,
+                schema_config=schema_config,
+                ui=None,
+            )
+        
+        self.logger.info("Batch processing complete")
+        if args.verbose:
+            print("[SUCCESS] Batch processing complete")
+
+
 def main() -> None:
-	# Load config to determine mode
-	config_loader = ConfigLoader()
-	config_loader.load_configs()
-	
-	if should_use_interactive_mode(config_loader):
-		# ============================================================
-		# INTERACTIVE MODE
-		# ============================================================
-		ui = UserInterface(logger)
-		ui.display_banner()
-		ui.print_section_header("Batch Results Retrieval")
-
-		repo_info_list, processing_settings = load_config()
-
-		ui.print_info("Scanning for batch files across all schemas...")
-		logger.info("Starting batch results retrieval process.")
-
-		client: OpenAI = OpenAI()
-
-		for schema_name, repo_dir, schema_config in repo_info_list:
-			if not repo_dir.exists():
-				ui.log(f"Repository directory does not exist: {repo_dir}", "warning")
-				continue
-
-			ui.print_subsection_header(f"Schema: {schema_name}")
-			ui.print_info(f"Processing directory: {repo_dir}")
-			logger.info(f"Processing schema {schema_name} in directory {repo_dir}")
-
-			process_all_batches(
-				root_folder=repo_dir,
-				processing_settings=processing_settings,
-				client=client,
-				schema_name=schema_name,
-				schema_config=schema_config,
-				ui=ui,
-			)
-
-		ui.print_section_header("Batch Processing Complete")
-		ui.print_success("All batch results have been processed")
-	
-	else:
-		# ============================================================
-		# CLI MODE
-		# ============================================================
-		parser = create_check_batches_parser()
-		args = parser.parse_args()
-		
-		logger.info("Starting batch results retrieval (CLI Mode)")
-		
-		repo_info_list, processing_settings = load_config()
-		client: OpenAI = OpenAI()
-		
-		# Filter by schema if specified
-		if args.schema:
-			repo_info_list = [(name, dir, cfg) for name, dir, cfg in repo_info_list if name == args.schema]
-			if not repo_info_list:
-				logger.error(f"Schema '{args.schema}' not found in configuration")
-				print(f"[ERROR] Schema '{args.schema}' not found")
-				return
-		
-		# Override with input path if specified
-		if args.input:
-			input_path = resolve_path(args.input)
-			if not input_path.exists():
-				logger.error(f"Input path does not exist: {input_path}")
-				print(f"[ERROR] Input path not found: {input_path}")
-				return
-			# Use single directory with first schema config as template
-			if repo_info_list:
-				schema_name, _, schema_config = repo_info_list[0]
-				repo_info_list = [(schema_name, input_path, schema_config)]
-			else:
-				logger.error("No schema configuration available")
-				print("[ERROR] No schema configuration found")
-				return
-		
-		if not repo_info_list:
-			logger.info("No repositories to process")
-			print("[INFO] No batch files found")
-			return
-		
-		logger.info(f"Scanning {len(repo_info_list)} schema(s) for batch files")
-		if args.verbose:
-			print(f"[INFO] Scanning {len(repo_info_list)} schema(s)")
-		
-		for schema_name, repo_dir, schema_config in repo_info_list:
-			if not repo_dir.exists():
-				logger.warning(f"Repository directory does not exist: {repo_dir}")
-				continue
-			
-			if args.verbose:
-				print(f"[INFO] Processing schema: {schema_name}")
-			logger.info(f"Processing schema {schema_name} in directory {repo_dir}")
-			
-			process_all_batches(
-				root_folder=repo_dir,
-				processing_settings=processing_settings,
-				client=client,
-				schema_name=schema_name,
-				schema_config=schema_config,
-				ui=None,
-			)
-		
-		logger.info("Batch processing complete")
-		if args.verbose:
-			print("[SUCCESS] All batch results processed")
+    """Main entry point."""
+    script = CheckBatchesScript()
+    script.execute()
 
 
 if __name__ == "__main__":
-	main()
+    main()
