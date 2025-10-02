@@ -1,5 +1,10 @@
 # main/repair_extractions.py
-"""Interactive helper for repairing incomplete batch extractions."""
+"""Interactive helper for repairing incomplete batch extractions.
+
+Supports two execution modes:
+1. Interactive Mode: User-friendly selection and confirmation
+2. CLI Mode: Command-line arguments for automation
+"""
 
 import json
 import sys
@@ -11,6 +16,9 @@ from openai import OpenAI
 from modules.core.logger import setup_logger
 from modules.ui.core import UserInterface
 from modules.operations.extraction.schema_handlers import get_schema_handler
+from modules.config.loader import ConfigLoader
+from modules.cli.args_parser import create_repair_parser
+from modules.cli.mode_detector import should_use_interactive_mode
 from main.check_batches import (
     load_config,
     process_batch_output_file,
@@ -24,11 +32,15 @@ from modules.llm.openai_sdk_utils import list_all_batches, sdk_to_dict
 logger = setup_logger(__name__)
 
 
-def _discover_candidate_temp_files(repo_info_list: List[Tuple[str, Path, Dict[str, Any]]]) -> List[Dict[str, Any]]:
+def _discover_candidate_temp_files(repo_info_list: List[Tuple[str, Path, Dict[str, Any]]], ui: UserInterface) -> List[Dict[str, Any]]:
     candidates: List[Dict[str, Any]] = []
+    ui.print_info("Scanning for temporary batch files...")
+    
     for schema_name, repo_dir, schema_config in repo_info_list:
         if not repo_dir.exists():
+            ui.log(f"Repository directory does not exist: {repo_dir}", "warning")
             continue
+        
         for temp_file in repo_dir.rglob("*_temp.jsonl"):
             try:
                 result = process_batch_output_file(temp_file)
@@ -49,8 +61,11 @@ def _discover_candidate_temp_files(repo_info_list: List[Tuple[str, Path, Dict[st
                         "responses": responses,
                     }
                 )
+                ui.log(f"Found candidate: {temp_file}", "debug")
             except Exception as exc:
                 logger.warning("Failed to inspect %s: %s", temp_file, exc)
+                ui.log(f"Failed to inspect {temp_file}: {exc}", "warning")
+    
     return candidates
 
 
@@ -66,10 +81,11 @@ def _repair_temp_file(
     responses: List[Any] = list(candidate.get("responses", []))
     tracking: List[Any] = list(candidate.get("tracking", []))
 
-    ui.console_print(f"\n[INFO] Repairing {temp_file.name} for schema '{schema_name}'...")
+    ui.print_subsection_header(f"Repairing: {temp_file.name}")
+    logger.info(f"Repairing {temp_file.name} for schema '{schema_name}'")
 
     if not tracking:
-        ui.console_print("[WARN] No tracking entries found; cannot repair this file.")
+        ui.print_warning("No tracking entries found; cannot repair this file.")
         return
 
     custom_id_map, order_map = extract_custom_id_mapping(temp_file)
@@ -84,7 +100,7 @@ def _repair_temp_file(
             batch_ids.add(bid)
 
     if not batch_ids:
-        ui.console_print("[WARN] Unable to identify any batch IDs for this temp file.")
+        ui.print_warning("Unable to identify any batch IDs for this temp file.")
         return
 
     try:
@@ -92,6 +108,7 @@ def _repair_temp_file(
         batch_dict = {b.get("id"): b for b in batch_listing if isinstance(b, dict) and b.get("id")}
     except Exception as exc:
         logger.warning("Unable to list all batches: %s", exc)
+        ui.log(f"Unable to list all batches: {exc}", "warning")
         batch_dict = {}
 
     completed_batches: List[Dict[str, Any]] = []
@@ -121,15 +138,15 @@ def _repair_temp_file(
         elif status in {"expired", "failed", "cancelled"}:
             if status == "failed":
                 diagnosis = diagnose_batch_failure(batch_id, client)
-                ui.console_print(f"[WARN] Batch {batch_id} failed: {diagnosis}")
+                ui.print_warning(f"Batch {batch_id} failed: {diagnosis}")
             failed_batches.append((track, status))
         else:
-            ui.console_print(f"[INFO] Batch {batch_id} is {status}; waiting for completion.")
+            ui.print_info(f"Batch {batch_id} is {status}; waiting for completion.")
 
     ui.display_batch_processing_progress(temp_file, list(batch_ids), len(completed_batches), len(missing_batches), failed_batches)
 
     if not completed_batches:
-        ui.console_print("[INFO] No completed batches ready for repair.")
+        ui.print_info("No completed batches ready for repair.")
         return
 
     for track in completed_batches:
@@ -137,7 +154,7 @@ def _repair_temp_file(
         responses.extend(batch_responses)
 
     if not responses:
-        ui.console_print("[WARN] No responses retrieved; nothing to repair.")
+        ui.print_warning("No responses retrieved; nothing to repair.")
         return
 
     identifier = temp_file.stem.replace("_temp", "")
@@ -161,69 +178,201 @@ def _repair_temp_file(
         final_results["custom_id_map"] = custom_id_map
 
     final_json_path.write_text(json.dumps(final_results, indent=2), encoding="utf-8")
-    ui.console_print(f"[SUCCESS] Final output regenerated at {final_json_path.name}")
+    ui.print_success(f"Final output regenerated: {final_json_path.name}")
     logger.info("Repaired extraction written to %s", final_json_path)
 
     handler = get_schema_handler(schema_name)
     if schema_config.get("csv_output", False):
         handler.convert_to_csv_safely(final_json_path, final_json_path.with_suffix(".csv"))
+        ui.log("CSV output generated", "info")
     if schema_config.get("docx_output", False):
         handler.convert_to_docx_safely(final_json_path, final_json_path.with_suffix(".docx"))
+        ui.log("DOCX output generated", "info")
     if schema_config.get("txt_output", False):
         handler.convert_to_txt_safely(final_json_path, final_json_path.with_suffix(".txt"))
+        ui.log("TXT output generated", "info")
 
 
 def main() -> None:
-    ui = UserInterface(logger)
-    ui.display_banner()
+    # Load config to determine mode
+    config_loader = ConfigLoader()
+    config_loader.load_configs()
+    
+    if should_use_interactive_mode(config_loader):
+        # ============================================================
+        # INTERACTIVE MODE
+        # ============================================================
+        ui = UserInterface(logger)
+        ui.display_banner()
+        ui.print_section_header("Batch Extraction Repair")
 
-    repo_info_list, processing_settings = load_config()
-    candidates = _discover_candidate_temp_files(repo_info_list)
+        repo_info_list, processing_settings = load_config()
+        candidates = _discover_candidate_temp_files(repo_info_list, ui)
 
-    if not candidates:
-        ui.console_print("[INFO] No temporary batch files found. Nothing to repair.")
-        return
+        if not candidates:
+            ui.print_info("No temporary batch files found. Nothing to repair.")
+            return
 
-    ui.console_print("\nAvailable batch temp files:")
-    ui.console_print("-" * 80)
-    for idx, candidate in enumerate(candidates, 1):
-        temp_file = candidate["temp_file"]
-        final_exists = candidate["has_final"]
-        responses_count = candidate["responses_count"]
-        tracking_count = candidate["tracking_count"]
-        status = "FINAL EXISTS" if final_exists else "PENDING"
-        ui.console_print(
-            f"  {idx}. {temp_file} | schema={candidate['schema_name']} | responses={responses_count}/{tracking_count} | {status}"
+        ui.print_subsection_header("Available Batch Files")
+        ui.console_print(ui.HORIZONTAL_LINE)
+        
+        for idx, candidate in enumerate(candidates, 1):
+            temp_file = candidate["temp_file"]
+            final_exists = candidate["has_final"]
+            responses_count = candidate["responses_count"]
+            tracking_count = candidate["tracking_count"]
+            status = "✓ FINAL EXISTS" if final_exists else "⚠ PENDING"
+            ui.console_print(
+                f"  {idx}. {temp_file.name}"
+            )
+            ui.console_print(
+                f"      Schema: {candidate['schema_name']} | Responses: {responses_count}/{tracking_count} | {status}"
+            )
+
+        selection = ui.get_input(
+            "\nEnter the numbers of files to repair (comma-separated, e.g., 1,3,5)",
+            allow_back=False,
+            allow_quit=True
         )
+        
+        if not selection:
+            ui.print_info("Repair cancelled by user.")
+            return
 
-    selection = input("\nEnter the numbers of the files to repair (comma-separated, or 'q' to exit): ").strip()
-    if selection.lower() in {"q", "quit", "exit"}:
-        ui.console_print("[INFO] Repair cancelled by user.")
-        return
+        try:
+            indices = sorted({int(part.strip()) - 1 for part in selection.split(",") if part.strip()})
+        except ValueError:
+            ui.print_error("Invalid selection. Please provide comma-separated numbers.")
+            sys.exit(1)
 
-    try:
-        indices = sorted({int(part.strip()) - 1 for part in selection.split(",") if part.strip()})
-    except ValueError:
-        ui.console_print("[ERROR] Invalid selection; please provide comma-separated numbers.")
-        sys.exit(1)
+        if not indices:
+            ui.print_warning("No valid selections provided.")
+            return
 
-    if not indices:
-        ui.console_print("[WARN] No valid selections provided. Exiting.")
-        return
+        # Confirm repair
+        if not ui.confirm(f"Repair {len(indices)} file(s)?", default=True):
+            ui.print_info("Repair cancelled by user.")
+            return
 
-    client = OpenAI()
-    for index in indices:
-        if 0 <= index < len(candidates):
-            _repair_temp_file(candidates[index], processing_settings, client, ui)
-        else:
-            ui.console_print(f"[WARN] Selection {index + 1} is out of range; skipping.")
+        ui.print_section_header("Repairing Files")
+        
+        client = OpenAI()
+        success_count = 0
+        
+        for index in indices:
+            if 0 <= index < len(candidates):
+                try:
+                    _repair_temp_file(candidates[index], processing_settings, client, ui)
+                    success_count += 1
+                except Exception as e:
+                    ui.print_error(f"Failed to repair file {index + 1}: {e}")
+                    logger.exception(f"Error repairing file at index {index}", exc_info=e)
+            else:
+                ui.print_warning(f"Selection {index + 1} is out of range; skipping.")
 
-    ui.console_print("\n[INFO] Repair session complete.")
+        ui.print_section_header("Repair Complete")
+        ui.print_success(f"Successfully repaired {success_count} file(s)")
+    
+    else:
+        # ============================================================
+        # CLI MODE
+        # ============================================================
+        parser = create_repair_parser()
+        args = parser.parse_args()
+        
+        logger.info("Starting extraction repair (CLI Mode)")
+        
+        repo_info_list, processing_settings = load_config()
+        
+        # Create a simple UI-less notifier for CLI
+        def cli_print(msg: str, level: str = "info"):
+            prefixes = {"success": "[SUCCESS]", "error": "[ERROR]", "warning": "[WARN]", "info": "[INFO]"}
+            print(f"{prefixes.get(level, '[INFO]')} {msg}")
+        
+        # Mock UI for repair function
+        class MockUI:
+            def print_subsection_header(self, title): 
+                if args.verbose:
+                    print(f"\n--- {title} ---")
+            def print_warning(self, msg): cli_print(msg, "warning")
+            def print_info(self, msg): 
+                if args.verbose:
+                    cli_print(msg, "info")
+            def print_success(self, msg): cli_print(msg, "success")
+            def print_error(self, msg): cli_print(msg, "error")
+            def log(self, msg, level): logger.log(getattr(logger, level.upper(), logger.INFO), msg)
+            def display_batch_processing_progress(self, *args): pass
+        
+        mock_ui = MockUI()
+        
+        # Discover candidates
+        candidates = _discover_candidate_temp_files(repo_info_list, mock_ui)
+        
+        if not candidates:
+            logger.info("No temporary batch files found")
+            print("[INFO] No temporary batch files found. Nothing to repair.")
+            return
+        
+        # Filter by schema if specified
+        if args.schema:
+            candidates = [c for c in candidates if c["schema_name"] == args.schema]
+            if not candidates:
+                logger.error(f"No temp files found for schema '{args.schema}'")
+                print(f"[ERROR] No temp files found for schema '{args.schema}'")
+                return
+        
+        # Filter by specific files if specified
+        if args.files:
+            file_names = set(args.files)
+            candidates = [c for c in candidates if c["temp_file"].name in file_names or str(c["temp_file"]) in file_names]
+            if not candidates:
+                logger.error("None of the specified files were found")
+                print("[ERROR] Specified files not found")
+                return
+        
+        logger.info(f"Found {len(candidates)} file(s) to repair")
+        if args.verbose:
+            print(f"[INFO] Found {len(candidates)} file(s) to repair:")
+            for candidate in candidates:
+                status = "FINAL EXISTS" if candidate["has_final"] else "PENDING"
+                print(f"  - {candidate['temp_file'].name} ({candidate['schema_name']}) - {status}")
+        
+        # Confirm unless --force
+        if not args.force:
+            print(f"\n[WARNING] About to repair {len(candidates)} file(s)")
+            confirm = input("Proceed? (y/N): ").strip().lower()
+            if confirm not in ['y', 'yes']:
+                logger.info("Repair aborted by user")
+                print("[INFO] Repair aborted")
+                return
+        
+        logger.info(f"Repairing {len(candidates)} file(s)")
+        
+        client = OpenAI()
+        success_count = 0
+        fail_count = 0
+        
+        for candidate in candidates:
+            try:
+                if args.verbose:
+                    print(f"[INFO] Repairing {candidate['temp_file'].name}...")
+                _repair_temp_file(candidate, processing_settings, client, mock_ui)
+                success_count += 1
+            except Exception as e:
+                logger.exception(f"Error repairing {candidate['temp_file'].name}", exc_info=e)
+                print(f"[ERROR] Failed to repair {candidate['temp_file'].name}: {e}")
+                fail_count += 1
+        
+        # Final summary
+        logger.info(f"Repair complete: {success_count} succeeded, {fail_count} failed")
+        print(f"[SUCCESS] Repaired {success_count}/{len(candidates)} file(s)")
+        if fail_count > 0:
+            print(f"[WARNING] Failed to repair {fail_count} file(s)")
 
 
 if __name__ == "__main__":
     try:
         main()
     except KeyboardInterrupt:
-        print("\n[INFO] Repair interrupted by user.")
+        print("\n✓ Repair session cancelled by user.")
         sys.exit(0)

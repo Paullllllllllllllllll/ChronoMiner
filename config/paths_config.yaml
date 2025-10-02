@@ -1,16 +1,25 @@
 # paths_config.yaml
 
 general: # General processing settings
+  # EXECUTION MODE
+  # Set to true for interactive UI prompts, false for CLI mode with arguments
+  interactive_mode: true
+  
+  # TEMPORARY FILE RETENTION
   retain_temporary_jsonl: true
+  
+  # PATH CONFIGURATION
+  # When true, output files are written to the same directory as input files
+  # When false, output files go to the 'output' path specified per schema
   input_paths_is_output_path: true
-  logs_dir: "C:\Users\pagoetz\Desktop\working_dir\python_repo_logs\chrono_transcriber_logs"
-  allow_relative_paths: false  # Set to true to enable relative path support
-  base_directory: "."  # Base directory for resolving relative paths (used when allow_relative_paths is true)
+  
+  # LOGGING
+  logs_dir: ""
 
 schemas_paths: # Schema specific input and output paths and settings
   BibliographicEntries:
-    input: "C:\Users\pagoetz\Documents\Arbeit\Doktor\Forschung\Data\culinary_bibliographies\test_input"
-    output: "C:\Users\pagoetz\Documents\Arbeit\Doktor\Forschung\Data\culinary_bibliographies\test_output"
+    input: ""
+    output: ""
     csv_output: True
     docx_output: True
     txt_output: True

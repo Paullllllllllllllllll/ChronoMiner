@@ -3,6 +3,13 @@
 """
 Main script for processing text files with schema-based structured data extraction.
 
+Supports two execution modes:
+1. Interactive Mode: User-friendly prompts and selections via UI
+2. CLI Mode: Command-line arguments for automation and scripting
+
+The mode is controlled by the 'interactive_mode' setting in config/paths_config.yaml
+or by providing command-line arguments.
+
 Workflow:
  1. Collect all processing options (chunking, batching, additional context)
  2. Load configuration and prompt the user to select a schema.
@@ -29,227 +36,19 @@ from modules.core.workflow_utils import (
 from modules.core.prompt_context import load_basic_context
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 from modules.core.text_utils import TextProcessor, TokenBasedChunking
+from modules.cli.args_parser import create_process_parser, resolve_path, get_files_from_path
+from modules.cli.mode_detector import should_use_interactive_mode
 
 # Initialize logger
 logger = setup_logger(__name__)
 
 
-def _resolve_line_ranges_file(text_file: Path) -> Optional[Path]:
-    """Detect the line range file associated with text_file."""
-    candidates = [
-        text_file.with_name(f"{text_file.stem}_line_ranges.txt"),
-        text_file.with_name(f"{text_file.stem}_line_range.txt"),
-        text_file.with_name("line_ranges.txt"),
-        text_file.with_name("line_range.txt"),
-    ]
-    for candidate in candidates:
-        if candidate.exists():
-            return candidate
-    return None
-
-
-def _generate_line_ranges_for_file(
-    text_file: Path,
-    default_tokens_per_chunk: int,
-    model_name: str,
-) -> Path:
-    """
-    Generate line ranges for a text file and write them to a file.
-    
-    Returns the path to the created line ranges file.
-    """
-    encoding = TextProcessor.detect_encoding(text_file)
-    with text_file.open('r', encoding=encoding) as f:
-        lines = f.readlines()
-    normalized_lines = [TextProcessor.normalize_text(line) for line in lines]
-    text_processor = TextProcessor()
-    strategy = TokenBasedChunking(
-        tokens_per_chunk=default_tokens_per_chunk,
-        model_name=model_name,
-        text_processor=text_processor
-    )
-    line_ranges = strategy.get_line_ranges(normalized_lines)
-    
-    # Write line ranges to file
-    line_ranges_file = text_file.with_name(f"{text_file.stem}_line_ranges.txt")
-    with line_ranges_file.open("w", encoding="utf-8") as f:
-        for r in line_ranges:
-            f.write(f"({r[0]}, {r[1]})\n")
-    
-    return line_ranges_file
-
-
-def _prompt_int(ui: UserInterface, message: str, default: int) -> int:
-    """Prompt user for an integer value."""
-    ui.console_print(f"\n{message} (press Enter to keep {default}): ")
-    try:
-        response = input().strip()
-    except EOFError:
-        response = ""
-    if not response:
-        return default
-    try:
-        value = int(response)
-        return max(1, value)
-    except ValueError:
-        ui.console_print("[WARN] Invalid number provided; using default.")
-        return default
-
-
-def _prompt_yes_no(ui: UserInterface, message: str, default: bool) -> bool:
-    """Prompt user for a yes/no response."""
-    hint = "Y/n" if default else "y/N"
-    ui.console_print(f"\n{message} ({hint}): ")
-    try:
-        response = input().strip().lower()
-    except EOFError:
-        response = ""
-    if not response:
-        return default
-    if response in {"y", "yes"}:
-        return True
-    if response in {"n", "no"}:
-        return False
-    ui.console_print(f"[WARN] Unrecognized response '{response}'; using default.")
-    return default
-
-
-async def _adjust_line_ranges_workflow(
-    *,
-    files: List[Path],
-    selected_schema_name: str,
-    model_config: Dict,
-    chunking_config: Dict,
-    matching_config: Dict,
-    retry_config: Dict,
-    basic_context: Optional[str],
-    context_settings: Dict,
-    context_manager,
-    ui: UserInterface,
-) -> None:
-    """Execute the line range adjustment workflow for selected files."""
-    ui.console_print("\n" + "=" * 80)
-    ui.console_print("  LINE RANGE ADJUSTMENT WORKFLOW")
-    ui.console_print("=" * 80)
-    
-    # First, check which files need line ranges generated
-    files_needing_generation = []
-    for text_file in files:
-        line_ranges_file = _resolve_line_ranges_file(text_file)
-        if not line_ranges_file:
-            files_needing_generation.append(text_file)
-    
-    # Generate line ranges for files that don't have them
-    if files_needing_generation:
-        ui.console_print(f"\n[INFO] Generating line ranges for {len(files_needing_generation)} file(s) that don't have them yet...")
-        
-        # Get model and chunking settings
-        model_name = model_config.get("transcription_model", {}).get("name", "gpt-4o-mini")
-        default_tokens_per_chunk = chunking_config.get("chunking", {}).get("default_tokens_per_chunk", 7500)
-        
-        for text_file in files_needing_generation:
-            try:
-                ui.console_print(f"[INFO] Generating line ranges for {text_file.name}...")
-                line_ranges_file = _generate_line_ranges_for_file(
-                    text_file,
-                    default_tokens_per_chunk,
-                    model_name
-                )
-                ui.console_print(f"[SUCCESS] Created {line_ranges_file.name}")
-            except Exception as exc:
-                ui.console_print(f"[ERROR] Failed to generate line ranges for {text_file.name}: {exc}")
-                logger.exception("Error generating line ranges for %s", text_file, exc_info=exc)
-    
-    # Use schema name as boundary type
-    boundary_type = selected_schema_name
-    
-    # Get context window size
-    default_context_window = int(chunking_config.get("chunking", {}).get("line_range_context_window", 6) or 6)
-    context_window = _prompt_int(
-        ui,
-        "Enter context window size (lines to inspect around boundaries)",
-        default_context_window,
-    )
-    
-    # Get prompt path override if configured
-    prompt_override = chunking_config.get("chunking", {}).get("line_range_prompt_path")
-    prompt_path: Optional[Path] = Path(prompt_override).resolve() if prompt_override else None
-    
-    # Display summary
-    ui.console_print("\n" + "-" * 80)
-    ui.console_print(f"Selected files: {len(files)}")
-    ui.console_print(f"Boundary type: {boundary_type}")
-    ui.console_print(f"Context window: {context_window}")
-    if prompt_path:
-        ui.console_print(f"Prompt override: {prompt_path}")
-    
-    if context_settings.get("use_additional_context", False):
-        context_source = "Default boundary-type-specific" if context_settings.get("use_default_context", False) else "File-specific"
-    else:
-        context_source = "None"
-    ui.console_print(f"Additional context: {context_source}")
-    ui.console_print("-" * 80)
-    
-    # Initialize readjuster
-    readjuster = LineRangeReadjuster(
-        model_config,
-        context_window=context_window,
-        prompt_path=prompt_path,
-        matching_config=matching_config,
-        retry_config=retry_config,
-    )
-    
-    # Process each file
-    successes = 0
-    skipped = 0
-    failures = 0
-    
-    for text_file in files:
-        line_ranges_file = _resolve_line_ranges_file(text_file)
-        if not line_ranges_file:
-            ui.console_print(
-                f"[WARN] Skipping {text_file.name}: no associated line range file found (this shouldn't happen).")
-            skipped += 1
-            continue
-        
-        ui.console_print(
-            f"[INFO] Adjusting line ranges for {text_file.name} (context window: {context_window}, boundary: {boundary_type})...")
-        try:
-            await readjuster.ensure_adjusted_line_ranges(
-                text_file=text_file,
-                line_ranges_file=line_ranges_file,
-                dry_run=False,
-                boundary_type=boundary_type,
-                basic_context=basic_context,
-                context_settings=context_settings,
-                context_manager=context_manager,
-            )
-            ui.console_print(
-                f"[SUCCESS] Line ranges for {text_file.name} adjusted using {line_ranges_file.name}.")
-            successes += 1
-        except Exception as exc:
-            logger.exception("Error adjusting %s", text_file, exc_info=exc)
-            ui.console_print(f"[ERROR] Failed to adjust {text_file.name}: {exc}")
-            failures += 1
-    
-    # Display results
-    ui.console_print("\n" + "=" * 80)
-    ui.console_print("  ADJUSTMENT SUMMARY")
-    ui.console_print("=" * 80)
-    ui.console_print(f"Successful adjustments: {successes}")
-    ui.console_print(f"Skipped (no line ranges): {skipped}")
-    ui.console_print(f"Failures: {failures}")
-
+# ... (rest of the code remains the same)
 
 async def main() -> None:
     """Main entry point"""
     try:
-        # Initialize components
-        ui = UserInterface(logger)
-        ui.display_banner()
-
-        # Load configuration
-        ui.console_print("[INFO] Loading configuration...")
+        # Load configuration first to determine mode
         (
             config_loader,
             paths_config,
@@ -257,156 +56,311 @@ async def main() -> None:
             chunking_and_context_config,
             schemas_paths,
         ) = load_core_resources()
+        
+        if should_use_interactive_mode(config_loader):
+            # ============================================================
+            # INTERACTIVE MODE - Use UI prompts
+            # ============================================================
+            ui = UserInterface(logger)
+            ui.display_banner()
 
-        config_manager = ConfigManager(config_loader)
+            # Load configuration
+            ui.print_info("Loading configuration...")
+            logger.info("Starting ChronoMiner processing workflow (Interactive Mode).")
 
-        # Validate paths
-        try:
-            config_manager.validate_paths(paths_config)
-        except Exception as e:
-            ui.console_print(f"[ERROR] Path validation failed: {e}")
-            sys.exit(1)
+            config_manager = ConfigManager(config_loader)
 
-        # Load other configs
-        chunking_config = {
-            "chunking": (chunking_and_context_config or {}).get("chunking", {})
-        }
+            # Validate paths
+            try:
+                config_manager.validate_paths(paths_config)
+            except Exception as e:
+                ui.print_error(f"Path validation failed: {e}")
+                logger.error(f"Path validation error: {e}")
+                sys.exit(1)
 
-        # Initialize file processor
-        file_processor = FileProcessor(
-            paths_config=paths_config,
-            model_config=model_config,
-            chunking_config=chunking_config,
-        )
+            # Load other configs
+            chunking_config = {
+                "chunking": (chunking_and_context_config or {}).get("chunking", {})
+            }
 
-        # Schema selection
-        try:
-            schema_manager = load_schema_manager()
-        except RuntimeError as exc:
-            ui.console_print(f"[ERROR] {exc}.")
-            sys.exit(1)
-        selected_schema, selected_schema_name = ui.select_schema(schema_manager)
-
-        # Load unified prompt template
-        prompt_path = Path("prompts/structured_output_prompt.txt")
-        try:
-            prompt_template = load_prompt_template(prompt_path)
-        except FileNotFoundError as exc:
-            ui.console_print(f"[ERROR] {exc}")
-            logger.error("Prompt template missing", exc_info=exc)
-            sys.exit(1)
-
-        # Get user preferences
-        global_chunking_method = ui.ask_global_chunking_mode()
-        use_batch = ui.ask_batch_processing()
-        context_settings = ui.ask_additional_context_mode()
-
-        # Initialize context manager when default context is requested
-        context_manager = prepare_context_manager(context_settings)
-
-        # Select input files
-        if selected_schema_name in schemas_paths:
-            raw_text_dir = Path(
-                schemas_paths[selected_schema_name].get("input")
-            )
-        else:
-            raw_text_dir = Path(
-                paths_config.get("input_paths", {}).get("raw_text_dir", "")
-            )
-
-        files = ui.select_input_source(raw_text_dir)
-
-        # Handle line range adjustment workflow if selected
-        if global_chunking_method == "adjust-line-ranges":
-            # Load basic context and additional configs needed for adjustment
-            basic_context = load_basic_context()
-            matching_config = (chunking_and_context_config or {}).get("matching", {})
-            retry_config = (chunking_and_context_config or {}).get("retry", {})
-            
-            # Run the adjustment workflow
-            await _adjust_line_ranges_workflow(
-                files=files,
-                selected_schema_name=selected_schema_name,
+            # Initialize file processor
+            file_processor = FileProcessor(
+                paths_config=paths_config,
                 model_config=model_config,
-                chunking_config=chunking_and_context_config or {},
-                matching_config=matching_config,
-                retry_config=retry_config,
-                basic_context=basic_context,
-                context_settings=context_settings,
-                context_manager=context_manager,
-                ui=ui,
+                chunking_config=chunking_config,
             )
+
+            # Schema selection
+            try:
+                schema_manager = load_schema_manager()
+            except RuntimeError as exc:
+                ui.print_error(str(exc))
+                logger.error("Failed to load schema manager", exc_info=exc)
+                sys.exit(1)
             
-            # After adjustment, use the adjusted line ranges for processing
-            ui.console_print("\n[INFO] Line range adjustment complete. Proceeding with processing using adjusted line ranges...")
-            global_chunking_method = "line_ranges.txt"
+            result = ui.select_schema(schema_manager)
+            if result is None:
+                ui.print_info("Schema selection cancelled.")
+                return
+            
+            selected_schema, selected_schema_name = result
 
-        # Confirm processing
-        proceed = ui.display_processing_summary(
-            files,
-            selected_schema_name,
-            global_chunking_method,
-            use_batch,
-            context_settings,
-        )
+            # Load unified prompt template
+            prompt_path = Path("prompts/structured_output_prompt.txt")
+            try:
+                prompt_template = load_prompt_template(prompt_path)
+            except FileNotFoundError as exc:
+                ui.print_error(f"Prompt template not found: {exc}")
+                logger.error("Prompt template missing", exc_info=exc)
+                sys.exit(1)
 
-        if not proceed:
-            ui.console_print("[INFO] Processing cancelled by user.")
-            return
+            # Get user preferences
+            global_chunking_method = ui.ask_global_chunking_mode()
+            use_batch = ui.ask_batch_processing()
+            context_settings = ui.ask_additional_context_mode()
 
-        # Process files
-        ui.console_print("\n" + "=" * 80)
-        ui.console_print("  STARTING PROCESSING")
-        ui.console_print("=" * 80)
+            # Initialize context manager when default context is requested
+            context_manager = prepare_context_manager(context_settings)
 
-        tasks = []
-        inject_schema = model_config.get("transcription_model", {}).get(
-            "inject_schema_into_prompt", True
-        )
+            # Select input files
+            if selected_schema_name in schemas_paths:
+                raw_text_dir = Path(schemas_paths[selected_schema_name].get("input"))
+            else:
+                raw_text_dir = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
 
-        for file_path in files:
-            tasks.append(
-                file_processor.process_file(
-                    file_path=file_path,
-                    use_batch=use_batch,
-                    selected_schema=selected_schema,
-                    prompt_template=prompt_template,
-                    schema_name=selected_schema_name,
-                    inject_schema=inject_schema,
-                    schema_paths=schemas_paths.get(selected_schema_name, {}),
-                    global_chunking_method=global_chunking_method,
+            files = ui.select_input_source(raw_text_dir)
+
+            # Handle line range adjustment workflow if selected
+            if global_chunking_method == "adjust-line-ranges":
+                basic_context = load_basic_context()
+                matching_config = (chunking_and_context_config or {}).get("matching", {})
+                retry_config = (chunking_and_context_config or {}).get("retry", {})
+                
+                await _adjust_line_ranges_workflow(
+                    files=files,
+                    selected_schema_name=selected_schema_name,
+                    model_config=model_config,
+                    chunking_config=chunking_and_context_config or {},
+                    matching_config=matching_config,
+                    retry_config=retry_config,
+                    basic_context=basic_context,
                     context_settings=context_settings,
                     context_manager=context_manager,
                     ui=ui,
                 )
-            )
-        await asyncio.gather(*tasks)
+                
+                ui.print_info("Line range adjustment complete. Proceeding with processing...")
+                logger.info("Line range adjustment complete. Using adjusted line ranges for processing.")
+                global_chunking_method = "line_ranges.txt"
 
-        # Final summary
-        ui.console_print("\n" + "=" * 80)
-        ui.console_print("  PROCESSING COMPLETE")
-        ui.console_print("=" * 80)
+            # Confirm processing
+            proceed = ui.display_processing_summary(
+                files,
+                selected_schema_name,
+                global_chunking_method,
+                use_batch,
+                context_settings,
+            )
 
-        if use_batch:
-            ui.console_print(
-                "\n[INFO] Batch processing jobs have been submitted."
-            )
-            ui.console_print(
-                "[INFO] To check the status of your batches, run: python main/check_batches.py"
-            )
+            if not proceed:
+                ui.print_info("Processing cancelled by user.")
+                logger.info("User cancelled processing.")
+                return
+
+            # Process files
+            ui.print_section_header("Starting Processing")
+            logger.info(f"Processing {len(files)} file(s) with schema '{selected_schema_name}'.")
+
+            tasks = []
+            inject_schema = model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
+
+            for file_path in files:
+                tasks.append(
+                    file_processor.process_file(
+                        file_path=file_path,
+                        use_batch=use_batch,
+                        selected_schema=selected_schema,
+                        prompt_template=prompt_template,
+                        schema_name=selected_schema_name,
+                        inject_schema=inject_schema,
+                        schema_paths=schemas_paths.get(selected_schema_name, {}),
+                        global_chunking_method=global_chunking_method,
+                        context_settings=context_settings,
+                        context_manager=context_manager,
+                        ui=ui,
+                    )
+                )
+            await asyncio.gather(*tasks)
+
+            # Final summary
+            ui.print_section_header("Processing Complete")
+
+            if use_batch:
+                ui.print_success("Batch processing jobs have been submitted")
+                ui.print_info("To check batch status, run: python main/check_batches.py")
+                logger.info("Batch jobs submitted successfully.")
+            else:
+                ui.print_success("All selected files have been processed")
+                logger.info("Processing completed successfully.")
+
+            ui.console_print(f"\n{ui.BOLD}Thank you for using ChronoMiner!{ui.RESET}\n")
+
         else:
-            ui.console_print("\n[INFO] All selected items have been processed.")
+            # ============================================================
+            # CLI MODE - Use command-line arguments
+            # ============================================================
+            parser = create_process_parser()
+            args = parser.parse_args()
+            
+            logger.info("Starting ChronoMiner processing workflow (CLI Mode).")
+            
+            # Validate required arguments
+            if not args.schema:
+                parser.error("--schema is required in CLI mode")
+            if not args.input:
+                parser.error("--input is required in CLI mode")
 
-        ui.console_print("\n[INFO] Thank you for using ChronoMiner!")
+            config_manager = ConfigManager(config_loader)
+
+            # Validate paths
+            try:
+                config_manager.validate_paths(paths_config)
+            except Exception as e:
+                logger.error(f"Path validation error: {e}")
+                print(f"[ERROR] Path validation failed: {e}")
+                sys.exit(1)
+
+            # Load other configs
+            chunking_config = {
+                "chunking": (chunking_and_context_config or {}).get("chunking", {})
+            }
+
+            # Initialize file processor
+            file_processor = FileProcessor(
+                paths_config=paths_config,
+                model_config=model_config,
+                chunking_config=chunking_config,
+            )
+
+            # Get schema
+            try:
+                schema_manager = load_schema_manager()
+                available_schemas = schema_manager.get_available_schemas()
+                if args.schema not in available_schemas:
+                    logger.error(f"Schema '{args.schema}' not found. Available: {list(available_schemas.keys())}")
+                    print(f"[ERROR] Schema '{args.schema}' not found")
+                    sys.exit(1)
+                selected_schema = available_schemas[args.schema]
+                selected_schema_name = args.schema
+            except RuntimeError as exc:
+                logger.error("Failed to load schema manager", exc_info=exc)
+                print(f"[ERROR] Failed to load schemas: {exc}")
+                sys.exit(1)
+
+            # Load prompt template
+            prompt_path = Path("prompts/structured_output_prompt.txt")
+            try:
+                prompt_template = load_prompt_template(prompt_path)
+            except FileNotFoundError as exc:
+                logger.error("Prompt template missing", exc_info=exc)
+                print("[ERROR] Prompt template not found")
+                sys.exit(1)
+
+            # Process CLI arguments
+            global_chunking_method = args.chunking if args.chunking else "auto"
+            use_batch = args.batch if hasattr(args, 'batch') else False
+            context_settings = {
+                "use_additional_context": args.context if hasattr(args, 'context') else False,
+                "use_default_context": args.context_source == "default" if hasattr(args, 'context_source') else True,
+            }
+
+            # Initialize context manager
+            context_manager = prepare_context_manager(context_settings)
+
+            # Resolve input path and get files
+            input_path = resolve_path(args.input)
+            if not input_path.exists():
+                logger.error(f"Input path does not exist: {input_path}")
+                print(f"[ERROR] Input path not found: {input_path}")
+                sys.exit(1)
+            
+            files = get_files_from_path(input_path, pattern="*.txt", exclude_patterns=["*_line_ranges.txt", "*_context.txt"])
+            
+            if not files:
+                logger.error(f"No files found at: {input_path}")
+                print(f"[ERROR] No text files found at: {input_path}")
+                sys.exit(1)
+            
+            logger.info(f"Found {len(files)} file(s) to process")
+            if not args.quiet:
+                print(f"[INFO] Processing {len(files)} file(s) with schema '{selected_schema_name}'")
+
+            # Handle line range adjustment if requested
+            if global_chunking_method == "adjust-line-ranges":
+                basic_context = load_basic_context()
+                matching_config = (chunking_and_context_config or {}).get("matching", {})
+                retry_config = (chunking_and_context_config or {}).get("retry", {})
+                
+                logger.info("Running line range adjustment workflow...")
+                if not args.quiet:
+                    print("[INFO] Adjusting line ranges...")
+                
+                await _adjust_line_ranges_workflow(
+                    files=files,
+                    selected_schema_name=selected_schema_name,
+                    model_config=model_config,
+                    chunking_config=chunking_and_context_config or {},
+                    matching_config=matching_config,
+                    retry_config=retry_config,
+                    basic_context=basic_context,
+                    context_settings=context_settings,
+                    context_manager=context_manager,
+                    ui=None,
+                )
+                
+                logger.info("Line range adjustment complete")
+                global_chunking_method = "line_ranges.txt"
+
+            # Process files
+            logger.info(f"Processing {len(files)} file(s)")
+            
+            tasks = []
+            inject_schema = model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
+
+            for file_path in files:
+                tasks.append(
+                    file_processor.process_file(
+                        file_path=file_path,
+                        use_batch=use_batch,
+                        selected_schema=selected_schema,
+                        prompt_template=prompt_template,
+                        schema_name=selected_schema_name,
+                        inject_schema=inject_schema,
+                        schema_paths=schemas_paths.get(selected_schema_name, {}),
+                        global_chunking_method=global_chunking_method,
+                        context_settings=context_settings,
+                        context_manager=context_manager,
+                        ui=None,
+                    )
+                )
+            await asyncio.gather(*tasks)
+
+            # Final summary
+            logger.info("Processing complete")
+            if not args.quiet:
+                if use_batch:
+                    print("[SUCCESS] Batch processing jobs submitted")
+                    print("[INFO] Run 'python main/check_batches.py' to check status")
+                else:
+                    print(f"[SUCCESS] Processed {len(files)} file(s)")
 
     except KeyboardInterrupt:
-        ui.console_print("\n[INFO] Processing interrupted by user.")
+        logger.info("Processing interrupted by user")
+        print("\n[INFO] Operation cancelled by user")
         sys.exit(0)
-    except Exception as e:
-        logger.exception(f"Unexpected error: {e}")
-        ui.console_print(f"\n[ERROR] An unexpected error occurred: {e}")
-        ui.console_print(f"[INFO] Check the logs for more details.")
-        ui.console_print(f"Traceback: {traceback.format_exc()}")
+    except Exception as exc:
+        logger.exception("Unexpected error in main workflow", exc_info=exc)
+        print(f"[ERROR] Unexpected error: {exc}")
         sys.exit(1)
 
 

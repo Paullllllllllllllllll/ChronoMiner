@@ -8,12 +8,14 @@
 
 ## Key Features
 
+- **Dual Execution Modes**: Run interactively with guided prompts or use command-line arguments for automation and scripting
 - **Flexible Text Chunking**: Token-based chunking with automatic, manual, or pre-defined line range strategies
 - **Schema-Based Extraction**: JSON schema-driven data extraction with customizable templates
 - **Dual Processing Modes**: Choose between synchronous (real-time) or batch processing (50% cost savings)
 - **Context-Aware Processing**: Integrate domain-specific or file-specific context for improved accuracy
 - **Multi-Format Output**: Generate JSON, CSV, DOCX, and TXT outputs simultaneously
 - **Interactive UI**: User-friendly command-line interface guides you through all processing steps
+- **CLI Automation**: Full command-line support for scripting, scheduling, and integration with other tools
 - **Extensible Architecture**: Easily add custom schemas and handlers for your specific use cases
 - **Batch Management**: Full suite of tools to manage, monitor, and repair batch jobs
 - **Semantic Boundary Detection**: LLM-powered chunk boundary optimization for coherent document segments
@@ -60,100 +62,84 @@ export OPENAI_API_KEY=your_api_key_here  # On Windows: set OPENAI_API_KEY=your_a
 
 # 5. Configure paths (edit config/paths_config.yaml with your input/output directories)
 
-# 6. Run the main extraction script
+# 6a. Run with interactive prompts (beginner-friendly)
 python main/process_text_files.py
+
+# 6b. Or run with CLI arguments (for automation)
+python main/process_text_files.py --schema CulinaryWorksEntries --input data/file.txt --batch
 ```
+
+**Interactive Mode**: The UI guides you through schema selection, chunking strategy, processing mode, and file selection with helpful prompts and validation.
+
+**CLI Mode**: Provide command-line arguments for automated, scriptable workflows. Run any script with `--help` to see available options.
 
 The interactive UI will guide you through schema selection, chunking strategy, processing mode, and file selection.
 
-## Repository Structure
+## Execution Modes
 
+ChronoMiner supports two ways to run the extraction scripts, allowing you to choose the approach that best fits your workflow.
+
+### Interactive Mode (Recommended for Getting Started)
+
+Interactive mode provides a guided experience with clear prompts and helpful explanations at each step. Perfect for first-time users, exploring options, or occasional processing tasks.
+
+**How to use**: Simply run any script without arguments:
+
+```bash
+python main/process_text_files.py
 ```
-ChronoMiner/
-├── config/                                 # Configuration files
-│   ├── chunking_and_context.yaml          # Chunking strategy and context settings
-│   ├── concurrency_config.yaml            # Concurrency, timeout, and retry configuration
-│   ├── model_config.yaml                  # OpenAI model configuration (GPT-5-mini, o3-mini, etc.)
-│   └── paths_config.yaml                  # Input/output paths and output format flags
-│
-├── additional_context/                     # Schema-specific context for enhanced extraction
-│   ├── BibliographicEntries.txt
-│   ├── BrazilianMilitaryRecords.txt
-│   ├── HistoricalAddressBookEntries.txt
-│   └── StructuredSummaries.txt
-│
-├── basic_context/                          # Basic context examples for demonstration
-│   └── [Sample context files...]
-│
-├── example_files/                          # Example inputs and outputs
-│   ├── example_inputs/
-│   │   ├── addressbooks/                   # Sample address book text files
-│   │   ├── bibliographic/                  # Sample bibliography text files
-│   │   └── occupationrecords/              # Sample military/occupation records
-│   └── example_outputs/
-│       └── [Corresponding output examples...]
-│
-├── main/                                   # Main executable scripts
-│   ├── process_text_files.py              # Primary extraction script (start here!)
-│   ├── generate_line_ranges.py            # Generate token-based line range files
-│   ├── line_range_readjuster.py           # Refine line ranges using semantic boundaries
-│   ├── check_batches.py                   # Monitor and process batch job results
-│   ├── cancel_batches.py                  # Cancel in-progress batch jobs
-│   └── repair_extractions.py              # Repair incomplete or failed batch extractions
-│
-├── modules/                                # Core application modules
-│   ├── config/                             # Configuration management
-│   │   ├── loader.py                       # YAML configuration file loader
-│   │   └── manager.py                      # Configuration validation and management
-│   │
-│   ├── core/                               # Core business logic and utilities
-│   │   ├── batch_utils.py                  # Batch processing utilities
-│   │   ├── concurrency.py                  # Asynchronous task management with rate limiting
-│   │   ├── context_manager.py              # Additional context loading and management
-│   │   ├── data_processing.py              # CSV conversion with schema-specific handlers
-│   │   ├── json_utils.py                   # JSON entry extraction and manipulation
-│   │   ├── logger.py                       # Centralized logging configuration
-│   │   ├── prompt_context.py               # Context preparation for LLM prompts
-│   │   ├── schema_manager.py               # JSON schema loading and validation
-│   │   ├── text_processing.py              # DOCX and TXT conversion routines
-│   │   ├── text_utils.py                   # Text normalization, encoding, tokenization
-│   │   └── workflow_utils.py               # Common workflow helper functions
-│   │
-│   ├── llm/                                # LLM interaction and API management
-│   │   ├── batching.py                     # Batch request file creation and submission
-│   │   ├── model_capabilities.py           # Model capability validation
-│   │   ├── openai_sdk_utils.py             # OpenAI SDK utility functions
-│   │   ├── openai_utils.py                 # Async API request handling
-│   │   ├── prompt_utils.py                 # Prompt template loading and formatting
-│   │   └── structured_outputs.py           # Structured output format handling
-│   │
-│   ├── operations/                         # High-level operations and workflows
-│   │   ├── extraction/
-│   │   │   ├── file_processor.py           # Main file processing orchestration
-│   │   │   └── schema_handlers.py          # Schema handler registry and base classes
-│   │   └── line_ranges/
-│   │       └── readjuster.py               # Line range adjustment logic
-│   │
-│   └── ui/                                 # User interface components
-│       └── core.py                         # Interactive CLI prompts and menus
-│
-├── prompts/                                # LLM prompt templates
-│   ├── semantic_boundary_prompt.txt        # Prompt for detecting semantic boundaries
-│   └── structured_output_prompt.txt        # Unified extraction prompt template
-│
-├── schemas/                                # JSON schemas for structured extraction
-│   ├── address_schema.json                 # Swiss Historical Address Book Entries
-│   ├── bibliographic_schema.json           # European Culinary Bibliography Entries
-│   ├── culinary_persons.json               # Culinary Persons Information
-│   ├── culinary_places.json                # Culinary Places and Establishments
-│   ├── culinary_works.json                 # Culinary Works and Publications
-│   ├── military_record_schema.json         # Brazilian Military Records
-│   └── summary_schema.json                 # Structured Academic Text Summaries
-│
-├── LICENSE                                 # MIT License
-├── README.md                               # This file
-└── requirements.txt                        # Python dependencies
+
+**What happens**: 
+- The program displays a welcome banner and clear section headers
+- You select options from numbered menus (e.g., choose a schema, select chunking method)
+- Each choice is validated immediately with helpful error messages if needed
+- You can press 'q' to quit or 'b' to go back at any prompt
+- Before processing, you'll see a summary and can confirm or cancel
+- Progress updates appear as files are processed
+
+**Best for**:
+- Learning how the system works
+- Exploring different schemas and options
+- One-time or occasional processing tasks
+- When you're unsure about the best settings
+
+### CLI Mode (Recommended for Automation)
+
+CLI mode accepts command-line arguments for fully automated, scriptable workflows. Ideal for power users, automation, batch processing, and integration with other tools.
+
+**How to use**: Provide arguments when running the script:
+
+```bash
+python main/process_text_files.py --schema CulinaryWorksEntries --input data/ --batch
 ```
+
+**What happens**:
+- The program reads all settings from command-line arguments
+- No prompts or user interaction required
+- Processing starts immediately
+- Status messages go to console (use `--quiet` to minimize output)
+- Exit code indicates success (0) or failure (non-zero)
+
+**View available options**:
+
+```bash
+python main/process_text_files.py --help
+```
+
+**Best for**:
+- Automated workflows and scheduled tasks (cron jobs)
+- Processing multiple files or directories in batch
+- Integration with scripts, CI/CD pipelines, or other software
+- Reproducible processing with consistent settings
+
+### Choosing a Mode
+
+**The mode is determined automatically**:
+- If you provide command-line arguments, CLI mode activates
+- If you run without arguments, Interactive mode starts (unless configured otherwise)
+- You can set a default mode in `config/paths_config.yaml` with the `interactive_mode` flag
+
+**You can mix and match**: Use Interactive mode when exploring, then switch to CLI mode once you know which settings you need.
 
 ## Usage Guide
 
@@ -272,11 +258,7 @@ This creates `{filename}_line_ranges.txt` files specifying exact line ranges for
 Optimize chunk boundaries using LLM-detected semantic sections:
 
 ```bash
-# Interactive mode
 python main/line_range_readjuster.py
-
-# Non-interactive with options
-python main/line_range_readjuster.py --dry-run --context-window 500 --boundary-type section
 ```
 
 **Options:**
@@ -326,6 +308,205 @@ python main/repair_extractions.py
 - Recovers missing batch IDs from debug artifacts
 - Retrieves responses from completed batches
 - Regenerates final outputs with all available data
+
+## CLI Mode Examples
+
+For users comfortable with command-line tools, automation scripts, or integration workflows, ChronoMiner provides comprehensive CLI support. All scripts accept `--help` to display available options.
+
+#### Basic Text Extraction
+
+Process a single file with default settings:
+
+```bash
+python main/process_text_files.py --schema BibliographicEntries --input data/cookbook.txt
+```
+
+Process an entire directory with batch processing enabled:
+
+```bash
+python main/process_text_files.py --schema CulinaryWorksEntries --input data/books/ --batch
+```
+
+Process with custom chunking and additional context:
+
+```bash
+python main/process_text_files.py \
+    --schema BibliographicEntries \
+    --input data/file.txt \
+    --chunking line_ranges \
+    --context \
+    --context-source default \
+    --verbose
+```
+
+Quiet mode for scripts (minimal output):
+
+```bash
+python main/process_text_files.py --schema CulinaryWorksEntries --input data/ --batch --quiet
+```
+
+#### Line Range Generation
+
+Generate line ranges for a single file:
+
+```bash
+python main/generate_line_ranges.py --input data/document.txt
+```
+
+Generate for all files in a directory with custom token limit:
+
+```bash
+python main/generate_line_ranges.py --input data/ --tokens 5000 --verbose
+```
+
+#### Line Range Adjustment
+
+Adjust line ranges with semantic boundary detection:
+
+```bash
+python main/line_range_readjuster.py --path data/file.txt --schema BibliographicEntries
+```
+
+Adjust with custom context window:
+
+```bash
+python main/line_range_readjuster.py \
+    --path data/ \
+    --schema CulinaryWorksEntries \
+    --context-window 10 \
+    --use-additional-context \
+    --use-default-context
+```
+
+#### Batch Management
+
+Check status of all batch jobs:
+
+```bash
+python main/check_batches.py --verbose
+```
+
+Check batches for specific schema only:
+
+```bash
+python main/check_batches.py --schema BibliographicEntries
+```
+
+Cancel all non-terminal batches (with confirmation):
+
+```bash
+python main/cancel_batches.py
+```
+
+Cancel without confirmation (use with caution):
+
+```bash
+python main/cancel_batches.py --force
+```
+
+Repair incomplete extractions:
+
+```bash
+python main/repair_extractions.py --schema CulinaryWorksEntries --verbose
+```
+
+#### Automation Script Example
+
+Create a shell script for automated daily processing:
+
+```bash
+#!/bin/bash
+# daily_extraction.sh
+
+# Process each schema
+for schema in BibliographicEntries CulinaryWorksEntries HistoricalAddressBookEntries
+do
+    echo "Processing $schema..."
+    python main/process_text_files.py \
+        --schema "$schema" \
+        --input "data/$schema/new/" \
+        --output "data/$schema/processed/" \
+        --batch \
+        --context \
+        --quiet
+    
+    if [ $? -eq 0 ]; then
+        echo "Successfully submitted $schema for batch processing"
+    else
+        echo "Error processing $schema" >&2
+    fi
+done
+
+# Check batch status
+python main/check_batches.py --verbose
+
+echo "Daily processing complete"
+```
+
+Make the script executable and schedule with cron:
+
+```bash
+chmod +x daily_extraction.sh
+# Run daily at 2 AM
+crontab -e
+# Add: 0 2 * * * /path/to/daily_extraction.sh >> /path/to/log.txt 2>&1
+```
+
+#### Python Integration Example
+
+Call ChronoMiner from your Python code:
+
+```python
+import subprocess
+import sys
+from pathlib import Path
+
+def extract_data(schema: str, input_path: str, use_batch: bool = True) -> bool:
+    """
+    Extract structured data using ChronoMiner.
+    
+    Args:
+        schema: Schema name (e.g., 'BibliographicEntries')
+        input_path: Path to input file or directory
+        use_batch: Whether to use batch processing
+        
+    Returns:
+        True if successful, False otherwise
+    """
+    cmd = [
+        sys.executable,
+        "main/process_text_files.py",
+        "--schema", schema,
+        "--input", input_path,
+        "--quiet"
+    ]
+    
+    if use_batch:
+        cmd.append("--batch")
+    
+    result = subprocess.run(
+        cmd,
+        capture_output=True,
+        text=True,
+        cwd="/path/to/ChronoMiner"
+    )
+    
+    if result.returncode == 0:
+        print(f"Successfully processed {input_path}")
+        return True
+    else:
+        print(f"Error: {result.stderr}", file=sys.stderr)
+        return False
+
+# Usage
+if __name__ == "__main__":
+    success = extract_data(
+        schema="CulinaryWorksEntries",
+        input_path="data/new_files/",
+        use_batch=True
+    )
+    sys.exit(0 if success else 1)
+```
 
 ## Workflow Deep Dive
 
@@ -1179,6 +1360,8 @@ Annual publication, eight volumes total.
 **Steps**:
 1. Configure `paths_config.yaml`:
    ```yaml
+   general:
+     interactive_mode: true  # Default to interactive mode
    schemas_paths:
      BibliographicEntries:
        input: "C:/research/bibliographies/input"
