@@ -14,6 +14,7 @@ from modules.core.prompt_context import apply_context_placeholders, resolve_addi
 from modules.core.text_utils import TextProcessor, load_line_ranges
 from modules.llm.openai_utils import open_extractor, process_text_chunk
 from modules.llm.prompt_utils import load_prompt_template
+from modules.core.path_utils import ensure_path_safe
 
 logger = logging.getLogger(__name__)
 
@@ -124,7 +125,8 @@ class LineRangeReadjuster:
             return []
 
         encoding = TextProcessor.detect_encoding(text_file)
-        with text_file.open("r", encoding=encoding) as handle:
+        safe_text_file = ensure_path_safe(text_file)
+        with safe_text_file.open("r", encoding=encoding) as handle:
             raw_lines = handle.readlines()
 
         api_key = os.getenv("OPENAI_API_KEY")
@@ -551,7 +553,8 @@ class LineRangeReadjuster:
         return text_file.with_name(f"{text_file.stem}_line_ranges.txt")
 
     def _write_line_ranges(self, line_ranges_file: Path, ranges: Sequence[Tuple[int, int]]) -> None:
-        with line_ranges_file.open("w", encoding="utf-8") as handle:
+        safe_line_ranges_file = ensure_path_safe(line_ranges_file)
+        with safe_line_ranges_file.open("w", encoding="utf-8") as handle:
             for start, end in ranges:
                 handle.write(f"({start}, {end})\n")
 

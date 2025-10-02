@@ -4,6 +4,7 @@ import logging
 from pathlib import Path
 
 from modules.config.loader import ConfigLoader
+from modules.core.path_utils import ensure_path_safe
 
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
@@ -29,9 +30,9 @@ def _resolve_logs_dir() -> Path:
 def setup_logger(name: str) -> logging.Logger:
     """Set up and return a logger with file + console handlers."""
 
-    logs_dir = _resolve_logs_dir()
+    logs_dir = ensure_path_safe(_resolve_logs_dir())
     logs_dir.mkdir(parents=True, exist_ok=True)
-    log_file = logs_dir / "application.log"
+    log_file = ensure_path_safe(logs_dir / "application.log")
 
     logger = logging.getLogger(name)
     logger.setLevel(logging.INFO)

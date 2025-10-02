@@ -60,6 +60,7 @@ The mode is determined automatically: if command-line arguments are provided, CL
   - Per-file selection: Choose chunking method individually for each file during processing
 - Encoding Detection: Automatically detects file encoding (UTF-8, ISO-8859-1, Windows-1252, etc.)
 - Text Normalization: Strips extraneous whitespace and normalizes text
+- Windows Long Path Support: Automatically handles paths exceeding 260 characters on Windows using extended-length path syntax, ensuring reliable file operations regardless of path length or directory depth
 
 ### Context Integration
 

@@ -13,6 +13,7 @@ from modules.operations.extraction.schema_handlers import get_schema_handler
 from modules.llm.batching import build_batch_files, submit_batch
 from modules.llm.prompt_utils import render_prompt_with_schema
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
+from modules.core.path_utils import ensure_path_safe
 import logging
 
 logger = logging.getLogger(__name__)
@@ -266,17 +267,17 @@ class FileProcessor:
 		# -- Determine Working Folders and Output Paths --
 		try:
 			if self.paths_config["general"]["input_paths_is_output_path"]:
-				working_folder: Path = file_path.parent
-				output_json_path: Path = working_folder / f"{file_path.stem}_output.json"
-				temp_jsonl_path: Path = working_folder / f"{file_path.stem}_temp.jsonl"
+				working_folder: Path = ensure_path_safe(file_path.parent)
+				output_json_path: Path = ensure_path_safe(working_folder / f"{file_path.stem}_output.json")
+				temp_jsonl_path: Path = ensure_path_safe(working_folder / f"{file_path.stem}_temp.jsonl")
 				working_folder.mkdir(parents=True, exist_ok=True)
 			else:
-				working_folder = Path(schema_paths["output"])
-				temp_folder: Path = working_folder / "temp_jsonl"
+				working_folder = ensure_path_safe(Path(schema_paths["output"]))
+				temp_folder: Path = ensure_path_safe(working_folder / "temp_jsonl")
 				working_folder.mkdir(parents=True, exist_ok=True)
 				temp_folder.mkdir(parents=True, exist_ok=True)
-				output_json_path = working_folder / f"{file_path.stem}_output.json"
-				temp_jsonl_path = temp_folder / f"{file_path.stem}_temp.jsonl"
+				output_json_path = ensure_path_safe(working_folder / f"{file_path.stem}_output.json")
+				temp_jsonl_path = ensure_path_safe(temp_folder / f"{file_path.stem}_temp.jsonl")
 
 			console_print(f"[INFO] Output will be saved to: {output_json_path}")
 		except Exception as e:

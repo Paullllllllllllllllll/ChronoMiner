@@ -1,4 +1,4 @@
-# modules/text_utils.py
+# modules/core/text_utils.py
 
 import logging
 from pathlib import Path
@@ -6,6 +6,7 @@ from typing import List, Tuple, Optional
 import chardet
 import tiktoken
 from abc import ABC, abstractmethod
+from modules.core.path_utils import ensure_path_safe
 
 logger = logging.getLogger(__name__)
 
@@ -22,7 +23,8 @@ class TextProcessor:
         :param file_path: Path to the file.
         :return: The detected encoding.
         """
-        with file_path.open('rb') as f:
+        safe_file_path = ensure_path_safe(file_path)
+        with safe_file_path.open('rb') as f:
             raw_data: bytes = f.read(100000)
         result: dict = chardet.detect(raw_data)
         encoding: str = result['encoding']
@@ -200,7 +202,8 @@ def load_line_ranges(line_ranges_file: Path) -> List[Tuple[int, int]]:
     """
     line_ranges: List[Tuple[int, int]] = []
     try:
-        with line_ranges_file.open("r", encoding="utf-8") as f:
+        safe_line_ranges_file = ensure_path_safe(line_ranges_file)
+        with safe_line_ranges_file.open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:

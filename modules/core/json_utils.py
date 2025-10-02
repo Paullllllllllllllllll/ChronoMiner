@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Any, List
 
+from modules.core.path_utils import ensure_path_safe
+
 logger = logging.getLogger(__name__)
 
 
@@ -23,7 +25,8 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
     :return: List of entries extracted from the JSON file
     """
     try:
-        with json_file.open("r", encoding="utf-8") as f:
+        safe_json_file = ensure_path_safe(json_file)
+        with safe_json_file.open("r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as e:
         logger.error(f"Error reading JSON file {json_file}: {e}")

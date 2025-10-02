@@ -5,6 +5,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
+from modules.core.path_utils import ensure_path_safe
+
 logger = logging.getLogger(__name__)
 
 
@@ -32,7 +34,8 @@ class SchemaManager:
         """
         for schema_file in self.schemas_dir.glob("*.json"):
             try:
-                with schema_file.open("r", encoding="utf-8") as f:
+                safe_schema_file = ensure_path_safe(schema_file)
+                with safe_schema_file.open("r", encoding="utf-8") as f:
                     schema_content: dict = json.load(f)
                 schema_name: Optional[str] = schema_content.get("name")
                 if schema_name:
@@ -52,7 +55,8 @@ class SchemaManager:
         for message_file in self.dev_messages_dir.glob("*.txt"):
             schema_name = message_file.stem
             try:
-                with message_file.open("r", encoding="utf-8") as f:
+                safe_message_file = ensure_path_safe(message_file)
+                with safe_message_file.open("r", encoding="utf-8") as f:
                     content: str = f.read().strip()
                 self.dev_messages[schema_name] = content
                 logger.info(f"Loaded developer message for schema '{schema_name}' from {message_file.name}")
@@ -65,7 +69,8 @@ class SchemaManager:
                 parts: list[str] = []
                 for file in sorted(subdir.glob("*.txt")):
                     try:
-                        with file.open("r", encoding="utf-8") as f:
+                        safe_file = ensure_path_safe(file)
+                        with safe_file.open("r", encoding="utf-8") as f:
                             parts.append(f.read().strip())
                     except Exception as e:
                         logger.error(f"Error reading {file}: {e}")

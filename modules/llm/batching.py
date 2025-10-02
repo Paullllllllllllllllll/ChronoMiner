@@ -6,6 +6,7 @@ from typing import List, Dict, Any
 
 from openai import OpenAI
 from modules.config.loader import ConfigLoader
+from modules.core.path_utils import ensure_path_safe
 
 logger = logging.getLogger(__name__)
 
@@ -22,11 +23,12 @@ def write_batch_file(request_lines: List[str], output_path: Path) -> Path:
     :param output_path: Path to the output file.
     :return: The output file path.
     """
-    with output_path.open("w", encoding="utf-8") as f:
+    safe_output_path = ensure_path_safe(output_path)
+    with safe_output_path.open("w", encoding="utf-8") as f:
         for line in request_lines:
             f.write(line + "\n")
-    logger.info(f"Batch file written to {output_path}")
-    return output_path
+    logger.info(f"Batch file written to {safe_output_path}")
+    return safe_output_path
 
 
 def _get_transcription_config() -> Dict[str, Any]:

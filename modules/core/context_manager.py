@@ -4,6 +4,8 @@ import logging
 from pathlib import Path
 from typing import Dict, Optional
 
+from modules.core.path_utils import ensure_path_safe
+
 logger = logging.getLogger(__name__)
 
 
@@ -46,18 +48,20 @@ class ContextManager:
         Each .txt file in the directory is loaded, with the filename
         (without extension) serving as the schema name key.
         """
-        if not self.additional_context_dir.exists():
+        safe_context_dir = ensure_path_safe(self.additional_context_dir)
+        if not safe_context_dir.exists():
             logger.warning(
                 "Additional context directory not found: %s. "
                 "Creating directory.",
                 self.additional_context_dir
             )
-            self.additional_context_dir.mkdir(parents=True, exist_ok=True)
+            safe_context_dir.mkdir(parents=True, exist_ok=True)
             return
 
-        for context_file in self.additional_context_dir.glob("*.txt"):
+        for context_file in safe_context_dir.glob("*.txt"):
             try:
-                with context_file.open("r", encoding="utf-8") as f:
+                safe_context_file = ensure_path_safe(context_file)
+                with safe_context_file.open("r", encoding="utf-8") as f:
                     content: str = f.read().strip()
                 schema_name: str = context_file.stem
                 self.additional_context[schema_name] = content
