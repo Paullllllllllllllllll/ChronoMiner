@@ -202,7 +202,7 @@ class GenerateLineRangesScript(DualModeScript):
         """Select all text files in a folder."""
         files = [
             f for f in raw_text_dir.rglob("*.txt") 
-            if not f.name.endswith("_line_ranges.txt")
+            if not f.name.endswith("_line_ranges.txt") and not f.name.endswith("_context.txt")
         ]
         
         if not files:
@@ -308,7 +308,7 @@ class GenerateLineRangesScript(DualModeScript):
         files = get_files_from_path(
             input_path,
             pattern="*.txt",
-            exclude_patterns=["*_line_ranges.txt"]
+            exclude_patterns=["*_line_ranges.txt", "*_context.txt"]
         )
         
         if not files:
