@@ -1,601 +1,288 @@
 # ChronoMiner
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
-[![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
-[![OpenAI API](https://img.shields.io/badge/OpenAI-API-412991.svg)](https://openai.com/api/)
-
-**ChronoMiner** is a powerful Python-based tool designed for historians, social scientists, and researchers to extract structured data from large-scale historical and academic text files. It leverages OpenAI's API with schema-based extraction to transform unstructured text into well-organized, analyzable datasets in multiple formats (JSON, CSV, DOCX, TXT).
-
-## Key Features
-
-- **Dual Execution Modes**: Run interactively with guided prompts or use command-line arguments for automation and scripting
-- **Flexible Text Chunking**: Token-based chunking with automatic, manual, or pre-defined line range strategies
-- **Schema-Based Extraction**: JSON schema-driven data extraction with customizable templates
-- **Dual Processing Modes**: Choose between synchronous (real-time) or batch processing (50% cost savings)
-- **Context-Aware Processing**: Integrate domain-specific or file-specific context for improved accuracy
-- **Multi-Format Output**: Generate JSON, CSV, DOCX, and TXT outputs simultaneously
-- **Interactive UI**: User-friendly command-line interface guides you through all processing steps
-- **CLI Automation**: Full command-line support for scripting, scheduling, and integration with other tools
-- **Extensible Architecture**: Easily add custom schemas and handlers for your specific use cases
-- **Batch Management**: Full suite of tools to manage, monitor, and repair batch jobs
-- **Semantic Boundary Detection**: LLM-powered chunk boundary optimization for coherent document segments
+A Python-based tool designed for researchers and archivists to extract structured data from large-scale historical and academic text files. ChronoMiner leverages OpenAI's API with schema-based extraction to transform unstructured text into well-organized, analyzable datasets in multiple formats (JSON, CSV, DOCX, TXT).
 
 ## Table of Contents
 
-- [Quick Start](#quick-start)
 - [Overview](#overview)
-- [Use Cases](#use-cases)
-- [Repository Structure](#repository-structure)
-- [Prerequisites](#prerequisites)
+- [Features](#features)
+- [System Requirements](#system-requirements)
 - [Installation](#installation)
 - [Configuration](#configuration)
-- [Usage Guide](#usage-guide)
+- [Usage](#usage)
 - [Workflow Deep Dive](#workflow-deep-dive)
 - [Adding Custom Schemas](#adding-custom-schemas)
 - [Batch Processing](#batch-processing)
-- [Project Architecture](#project-architecture)
+- [Architecture](#architecture)
 - [Troubleshooting](#troubleshooting)
-- [Performance & Best Practices](#performance--best-practices)
+- [Performance and Best Practices](#performance-and-best-practices)
 - [Examples](#examples)
 - [Contributing](#contributing)
 - [License](#license)
-- [Contact & Support](#contact--support)
 
-## Quick Start
+## Overview
 
-Get up and running in 5 minutes:
+ChronoMiner is designed for researchers and archivists who need to (cheaply and comfortably) extract structured data from historical text files. The tool provides schema-based extraction with customizable templates, flexible execution modes, and comprehensive batch processing capabilities. Also works well (or even better) with non-historical documents (academic papers, books, etc.).
+Meant to be used in conjunction with [ChronoTranscriber](https://github.com/Paullllllllllllllllll/ChronoTranscriber) and [ChronoDownloader](https://github.com/Paullllllllllllllllll/ChronoDownloader) for a full historical document retrieval, transcription and data extraction pipeline.
+
+### Execution Modes
+
+ChronoMiner supports two execution modes to accommodate different workflows and user preferences:
+
+**Interactive Mode** provides a guided experience with clear prompts and helpful explanations at each step. Users select options from numbered menus, receive immediate validation with helpful error messages, and can navigate backward or quit at any prompt. This mode is ideal for first-time users, exploring options, or occasional processing tasks.
+
+**CLI Mode** accepts command-line arguments for fully automated, scriptable workflows. All settings are provided via arguments, requiring no user interaction. Processing starts immediately, status messages go to console, and exit codes indicate success or failure. This mode is designed for power users, automation, batch processing, and integration with other tools.
+
+The mode is determined automatically: if command-line arguments are provided, CLI mode activates; otherwise, Interactive mode starts (unless configured otherwise in `config/paths_config.yaml`).
+
+### Key Capabilities
+
+- Dual Execution Modes: Run interactively with guided prompts or use command-line arguments for automation and scripting
+- Flexible Text Chunking: Token-based chunking with automatic, manual, or pre-defined line range strategies
+- Schema-Based Extraction: JSON schema-driven data extraction with customizable templates
+- Dual Processing Modes: Choose between synchronous (real-time) or batch processing (50% cost savings)
+- Context-Aware Processing: Integrate domain-specific or file-specific context for improved accuracy
+- Multi-Format Output: Generate JSON, CSV, DOCX, and TXT outputs simultaneously
+- Extensible Architecture: Easily add custom schemas and handlers for your specific use cases
+- Batch Management: Full suite of tools to manage, monitor, and repair batch jobs
+- Semantic Boundary Detection: LLM-powered chunk boundary optimization for coherent document segments
+
+## Features
+
+### Text Processing
+
+- Token-Based Chunking: Accurate token counting using tiktoken for the selected model
+- Chunking Strategies:
+  - Automatic: Fully automatic chunking based on token limits
+  - Automatic with manual adjustments: Automatic chunking with opportunity to refine boundaries interactively
+  - Pre-defined line ranges: Uses pre-generated line ranges from existing files
+  - Adjust and use line ranges: Refines existing line ranges using AI-detected semantic boundaries
+  - Per-file selection: Choose chunking method individually for each file during processing
+- Encoding Detection: Automatically detects file encoding (UTF-8, ISO-8859-1, Windows-1252, etc.)
+- Text Normalization: Strips extraneous whitespace and normalizes text
+
+### Context Integration
+
+- Basic Context (Always Included): Fundamental information about the input source, automatically loaded for every API request
+- Additional Context (User-Selected): Detailed, domain-specific guidance loaded when user selects to use additional context
+  - Default context: Uses schema-specific file from `additional_context/{SchemaName}.txt`
+  - File-specific context: Uses `{filename}_context.txt` files located next to the input files
+- Context Hierarchy: All applicable context levels are combined and injected into the system prompt
+
+### API Integration
+
+- Schema Handler Registry: Uses handler registry to prepare API requests with appropriate JSON schema and extraction instructions
+- Processing Modes:
+  - Synchronous: Real-time processing with immediate results, higher API costs
+  - Batch: 50% cost savings, results within 24 hours, ideal for large-scale processing
+- Retry Logic: Automatic exponential backoff for transient API errors with configurable retry settings
+
+### Output Generation
+
+- JSON Output (Always Generated): Complete structured dataset with metadata
+- CSV Output (Optional): Schema-specific converters transform JSON to tabular format
+- DOCX Output (Optional): Formatted Word documents with proper headings, tables, and styling
+- TXT Output (Optional): Human-readable plain text reports with structured formatting
+
+### Batch Processing
+
+- Scalable Submission: Submit large document sets as OpenAI Batch jobs
+- Smart Chunking: Automatic request splitting with proper chunk size limits
+- Metadata Tracking: Each request includes custom_id and metadata for reliable reconstruction
+- Debug Artifacts: Submission metadata saved for batch tracking and repair operations
+
+## System Requirements
+
+### Software Dependencies
+
+- Python: 3.12 or higher
+- OpenAI API Key: Required for using the OpenAI API
+  - Set as environment variable: `OPENAI_API_KEY=your_key_here`
+  - Ensure your account has access to the Responses API and Batch API
+
+### Python Packages
+
+All Python dependencies are listed in `requirements.txt`. Key packages include:
+
+- `openai>=1.57.4`: OpenAI SDK for API interactions
+- `tiktoken`: Accurate token counting
+- `pandas`: Data manipulation
+- `python-docx`: Document generation
+- `pyyaml>=6.0.2`: Configuration file parsing
+- `aiohttp>=3.11.10`: Asynchronous HTTP requests
+- `tqdm>=4.67.1`: Progress bars
+
+## Installation
+
+### Clone the Repository
 
 ```bash
-# 1. Clone the repository
 git clone https://github.com/Paullllllllllllllllll/ChronoMiner.git
 cd ChronoMiner
+```
 
-# 2. Create and activate virtual environment
+### Create a Virtual Environment
+
+```bash
+# Windows
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+.venv\Scripts\activate
 
-# 3. Install dependencies
+# Linux/macOS
+python3 -m venv .venv
+source .venv/bin/activate
+```
+
+### Install Python Dependencies
+
+```bash
 pip install -r requirements.txt
-
-# 4. Set your OpenAI API key
-export OPENAI_API_KEY=your_api_key_here  # On Windows: set OPENAI_API_KEY=your_api_key_here
-
-# 5. Configure paths (edit config/paths_config.yaml with your input/output directories)
-
-# 6a. Run with interactive prompts (beginner-friendly)
-python main/process_text_files.py
-
-# 6b. Or run with CLI arguments (for automation)
-python main/process_text_files.py --schema CulinaryWorksEntries --input data/file.txt --batch
 ```
 
-**Interactive Mode**: The UI guides you through schema selection, chunking strategy, processing mode, and file selection with helpful prompts and validation.
+### Configure OpenAI API Key
 
-**CLI Mode**: Provide command-line arguments for automated, scriptable workflows. Run any script with `--help` to see available options.
-
-The interactive UI will guide you through schema selection, chunking strategy, processing mode, and file selection.
-
-## Execution Modes
-
-ChronoMiner supports two ways to run the extraction scripts, allowing you to choose the approach that best fits your workflow.
-
-### Interactive Mode (Recommended for Getting Started)
-
-Interactive mode provides a guided experience with clear prompts and helpful explanations at each step. Perfect for first-time users, exploring options, or occasional processing tasks.
-
-**How to use**: Simply run any script without arguments:
+Set your API key:
 
 ```bash
-python main/process_text_files.py
+# Windows PowerShell
+$env:OPENAI_API_KEY="your_api_key_here"
+
+# Windows Command Prompt
+set OPENAI_API_KEY=your_api_key_here
+
+# Linux/macOS
+export OPENAI_API_KEY=your_api_key_here
 ```
 
-**What happens**: 
-- The program displays a welcome banner and clear section headers
-- You select options from numbered menus (e.g., choose a schema, select chunking method)
-- Each choice is validated immediately with helpful error messages if needed
-- You can press 'q' to quit or 'b' to go back at any prompt
-- Before processing, you'll see a summary and can confirm or cancel
-- Progress updates appear as files are processed
+For persistent configuration, add the environment variable to your system settings or shell profile.
 
-**Best for**:
-- Learning how the system works
-- Exploring different schemas and options
-- One-time or occasional processing tasks
-- When you're unsure about the best settings
+### Configure File Paths
 
-### CLI Mode (Recommended for Automation)
+Edit `config/paths_config.yaml` to specify your input and output directories for each schema.
 
-CLI mode accepts command-line arguments for fully automated, scriptable workflows. Ideal for power users, automation, batch processing, and integration with other tools.
+## Configuration
 
-**How to use**: Provide arguments when running the script:
+ChronoMiner uses YAML configuration files located in the `config/` directory. Each file controls a specific aspect of the pipeline.
 
-```bash
-python main/process_text_files.py --schema CulinaryWorksEntries --input data/ --batch
+### 1. Paths Configuration (`paths_config.yaml`)
+
+Defines input/output directories, operation mode, and output format preferences for each schema.
+
+```yaml
+general:
+  interactive_mode: true  # Toggle between interactive prompts (true) or CLI mode (false)
+  retain_temporary_jsonl: true
+  logs_dir: './logs'
+
+schemas_paths:
+  BibliographicEntries:
+    input: "C:/path/to/input"
+    output: "C:/path/to/output"
+    csv_output: true
+    docx_output: true
+    txt_output: true
 ```
 
-**What happens**:
-- The program reads all settings from command-line arguments
-- No prompts or user interaction required
-- Processing starts immediately
-- Status messages go to console (use `--quiet` to minimize output)
-- Exit code indicates success (0) or failure (non-zero)
+Key Parameters:
 
-**View available options**:
+- `interactive_mode`: Controls operation mode (true for interactive prompts, false for CLI mode)
+- `retain_temporary_jsonl`: Keep temporary JSONL files after batch processing completes
+- `logs_dir`: Directory for log files
+- Schema-specific paths: Define input/output directories and output format preferences for each schema
 
-```bash
-python main/process_text_files.py --help
+### 2. Model Configuration (`model_config.yaml`)
+
+Controls which model to use and its behavioral parameters.
+
+```yaml
+transcription_model:
+  name: gpt-4o  # Options: gpt-4o, gpt-4.1, gpt-5, gpt-5-mini, o1, o3
+  max_output_tokens: 128000
+  
+  # GPT-5 and o-series only
+  reasoning:
+    effort: medium  # Options: low, medium, high
+  
+  # GPT-5 only
+  text:
+    verbosity: medium  # Options: low, medium, high
+  
+  # Classic models (GPT-4o, GPT-4.1) only
+  temperature: 0.01
+  top_p: 1.0
+  frequency_penalty: 0.01
+  presence_penalty: 0.01
 ```
 
-**Best for**:
-- Automated workflows and scheduled tasks (cron jobs)
-- Processing multiple files or directories in batch
-- Integration with scripts, CI/CD pipelines, or other software
-- Reproducible processing with consistent settings
+Key Parameters:
 
-### Choosing a Mode
+- `name`: Model identifier
+- `max_output_tokens`: Maximum tokens the model can generate per request
+- `reasoning.effort`: Controls reasoning depth for GPT-5 and o-series models
+- `text.verbosity`: Controls response verbosity for GPT-5 models
+- `temperature`: Controls randomness (0.0-2.0)
+- `top_p`: Nucleus sampling probability (0.0-1.0)
+- `frequency_penalty`: Penalizes token repetition (-2.0 to 2.0)
+- `presence_penalty`: Penalizes repeated topics (-2.0 to 2.0)
 
-**The mode is determined automatically**:
-- If you provide command-line arguments, CLI mode activates
-- If you run without arguments, Interactive mode starts (unless configured otherwise)
-- You can set a default mode in `config/paths_config.yaml` with the `interactive_mode` flag
+### 3. Chunking Configuration (`chunking_config.yaml`)
 
-**You can mix and match**: Use Interactive mode when exploring, then switch to CLI mode once you know which settings you need.
+Controls text chunking behavior.
 
-## Usage Guide
-
-### Basic Workflow
-
-#### 1. Run the Main Extraction Script
-
-```bash
-python main/process_text_files.py
+```yaml
+chunking:
+  default_tokens_per_chunk: 7500
+  model_name: gpt-4o  # For token counting
 ```
 
-The interactive UI will guide you through the following steps:
+Key Parameters:
 
-#### 2. Select a Schema
+- `default_tokens_per_chunk`: Target number of tokens per chunk
+- `model_name`: Model name for accurate token counting
 
-```
-Available schemas:
-1. BibliographicEntries
-2. HistoricalAddressBookEntries
-3. BrazilianMilitaryRecords
-4. StructuredSummaries
+### 4. Concurrency Configuration (`concurrency_config.yaml`)
 
-Select schema [1-4]:
-```
+Controls parallel processing and retry behavior.
 
-Choose the schema that matches your input data type.
-
-#### 3. Choose Chunking Strategy
-
-```
-Chunking methods:
-1. Automatic (auto)
-2. Automatic with manual adjustments (auto-adjust)
-3. Use pre-defined line ranges (line_ranges.txt)
-4. Adjust and use line ranges (adjust-line-ranges)
-5. Per-file selection (per-file)
-
-Select chunking method [1-5]:
-```
-
-- **Option 1**: Fully automatic chunking based on token limits, best for quick tests
-- **Option 2**: Automatic chunking with opportunity to refine boundaries interactively
-- **Option 3**: Uses pre-generated line ranges from existing `_line_ranges.txt` files
-- **Option 4**: Refines existing line ranges using AI-detected semantic boundaries, then uses them for processing
-- **Option 5**: Choose chunking method individually for each file during processing
-
-#### 4. Select Processing Mode
-
-```
-Processing modes:
-1. Synchronous (real-time results)
-2. Batch (50% cost savings, up to 24h processing time)
-
-Select processing mode [1-2]:
-```
-
-- **Synchronous**: Immediate results, higher cost, good for small files or urgent needs
-- **Batch**: 50% cost reduction, results within 24 hours, ideal for large-scale processing
-
-#### 5. Configure Additional Context (Optional)
-
-```
-Additional context options:
-1. No additional context
-2. Use schema-specific default context
-3. Use custom file-specific context
-
-Select option [1-3]:
-```
-
-Additional context improves extraction accuracy by providing domain knowledge or specific instructions.
-
-#### 6. Select Input Files
-
-```
-Input source:
-1. Single file
-2. Entire folder
-
-Select input source [1-2]:
-```
-
-Then navigate to select your file(s).
-
-#### 7. Confirm and Process
-
-ChronoMiner displays a summary of your selections and begins processing. Progress is shown in real-time.
-
-#### 8. Review Output
-
-Once complete, find your structured data in the configured output directory:
-- **JSON**: Always generated, contains structured data
-- **CSV**: Tabular format, easy to import into Excel/Google Sheets
-- **DOCX**: Formatted Word document
-- **TXT**: Plain text representation
-
-### Advanced Operations
-
-#### Generate Line Ranges
-
-For production workflows, pre-generate line range files:
-
-```bash
-python main/generate_line_ranges.py
-```
-
-This creates `{filename}_line_ranges.txt` files specifying exact line ranges for each chunk.
-
-**Benefits:**
-- Consistent chunking across multiple runs
-- Can be manually edited to ensure semantic coherence
-- Faster processing (no on-the-fly chunking decisions)
-
-#### Refine Line Ranges with Semantic Boundaries
-
-Optimize chunk boundaries using LLM-detected semantic sections:
-
-```bash
-python main/line_range_readjuster.py
-```
-
-**Options:**
-- `--dry-run`: Preview changes without modifying files
-- `--context-window N`: Number of lines around boundaries to examine (default: 300)
-- `--boundary-type`: Type of boundary to detect (section, paragraph, entry)
-
-This tool examines text around existing chunk boundaries and proposes adjustments to align with natural document structure (headers, paragraph breaks, etc.).
-
-#### Check Batch Status
-
-Monitor and process completed batch jobs:
-
-```bash
-python main/check_batches.py
-```
-
-**Features:**
-- Lists all batch jobs with status (in_progress, completed, failed, etc.)
-- Automatically downloads and processes completed batches
-- Generates all configured output formats (JSON, CSV, DOCX, TXT)
-- Provides detailed summary of batch operations
-
-#### Cancel Batch Jobs
-
-Cancel all in-progress batches:
-
-```bash
-python main/cancel_batches.py
-```
-
-**Use cases:**
-- Stopping accidentally submitted jobs
-- Reconfiguring and resubmitting with different settings
-- Cleaning up test batches
-
-#### Repair Incomplete Extractions
-
-If a batch job partially failed, repair it:
-
-```bash
-python main/repair_extractions.py
-```
-
-**Repair capabilities:**
-- Discovers incomplete extraction jobs
-- Recovers missing batch IDs from debug artifacts
-- Retrieves responses from completed batches
-- Regenerates final outputs with all available data
-
-## CLI Mode Examples
-
-For users comfortable with command-line tools, automation scripts, or integration workflows, ChronoMiner provides comprehensive CLI support. All scripts accept `--help` to display available options.
-
-#### Basic Text Extraction
-
-Process a single file with default settings:
-
-```bash
-python main/process_text_files.py --schema BibliographicEntries --input data/cookbook.txt
-```
-
-Process an entire directory with batch processing enabled:
-
-```bash
-python main/process_text_files.py --schema CulinaryWorksEntries --input data/books/ --batch
-```
-
-Process with custom chunking and additional context:
-
-```bash
-python main/process_text_files.py \
-    --schema BibliographicEntries \
-    --input data/file.txt \
-    --chunking line_ranges \
-    --context \
-    --context-source default \
-    --verbose
-```
-
-Quiet mode for scripts (minimal output):
-
-```bash
-python main/process_text_files.py --schema CulinaryWorksEntries --input data/ --batch --quiet
-```
-
-#### Line Range Generation
-
-Generate line ranges for a single file:
-
-```bash
-python main/generate_line_ranges.py --input data/document.txt
-```
-
-Generate for all files in a directory with custom token limit:
-
-```bash
-python main/generate_line_ranges.py --input data/ --tokens 5000 --verbose
-```
-
-#### Line Range Adjustment
-
-Adjust line ranges with semantic boundary detection:
-
-```bash
-python main/line_range_readjuster.py --path data/file.txt --schema BibliographicEntries
-```
-
-Adjust with custom context window:
-
-```bash
-python main/line_range_readjuster.py \
-    --path data/ \
-    --schema CulinaryWorksEntries \
-    --context-window 10 \
-    --use-additional-context \
-    --use-default-context
-```
-
-#### Batch Management
-
-Check status of all batch jobs:
-
-```bash
-python main/check_batches.py --verbose
-```
-
-Check batches for specific schema only:
-
-```bash
-python main/check_batches.py --schema BibliographicEntries
-```
-
-Cancel all non-terminal batches (with confirmation):
-
-```bash
-python main/cancel_batches.py
-```
-
-Cancel without confirmation (use with caution):
-
-```bash
-python main/cancel_batches.py --force
-```
-
-Repair incomplete extractions:
-
-```bash
-python main/repair_extractions.py --schema CulinaryWorksEntries --verbose
-```
-
-#### Automation Script Example
-
-Create a shell script for automated daily processing:
-
-```bash
-#!/bin/bash
-# daily_extraction.sh
-
-# Process each schema
-for schema in BibliographicEntries CulinaryWorksEntries HistoricalAddressBookEntries
-do
-    echo "Processing $schema..."
-    python main/process_text_files.py \
-        --schema "$schema" \
-        --input "data/$schema/new/" \
-        --output "data/$schema/processed/" \
-        --batch \
-        --context \
-        --quiet
+```yaml
+concurrency:
+  extraction:
+    concurrency_limit: 250
+    delay_between_tasks: 0.005
+    service_tier: flex  # Options: auto, default, flex, priority
+    batch_chunk_size: 50
     
-    if [ $? -eq 0 ]; then
-        echo "Successfully submitted $schema for batch processing"
-    else
-        echo "Error processing $schema" >&2
-    fi
-done
-
-# Check batch status
-python main/check_batches.py --verbose
-
-echo "Daily processing complete"
+    retry:
+      attempts: 10
+      wait_min_seconds: 4
+      wait_max_seconds: 60
+      jitter_max_seconds: 1
 ```
 
-Make the script executable and schedule with cron:
+Key Parameters:
 
-```bash
-chmod +x daily_extraction.sh
-# Run daily at 2 AM
-crontab -e
-# Add: 0 2 * * * /path/to/daily_extraction.sh >> /path/to/log.txt 2>&1
-```
+- `concurrency_limit`: Maximum number of concurrent tasks
+- `delay_between_tasks`: Delay in seconds between starting tasks
+- `service_tier`: OpenAI service tier for rate limiting and processing speed
+  - Note: Service tiers apply only to synchronous API calls; batch processing automatically omits this parameter
+- `batch_chunk_size`: Number of requests per batch part file
+- Retry settings: Exponential backoff configuration for transient API failures
 
-#### Python Integration Example
+### Context Files
 
-Call ChronoMiner from your Python code:
+#### Basic Context (Required)
 
-```python
-import subprocess
-import sys
-from pathlib import Path
+Basic context files are located in `basic_context/` and are automatically loaded and included in every API request. Each schema requires a corresponding basic context file named `{SchemaName}Entries.txt`.
 
-def extract_data(schema: str, input_path: str, use_batch: bool = True) -> bool:
-    """
-    Extract structured data using ChronoMiner.
-    
-    Args:
-        schema: Schema name (e.g., 'BibliographicEntries')
-        input_path: Path to input file or directory
-        use_batch: Whether to use batch processing
-        
-    Returns:
-        True if successful, False otherwise
-    """
-    cmd = [
-        sys.executable,
-        "main/process_text_files.py",
-        "--schema", schema,
-        "--input", input_path,
-        "--quiet"
-    ]
-    
-    if use_batch:
-        cmd.append("--batch")
-    
-    result = subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        cwd="/path/to/ChronoMiner"
-    )
-    
-    if result.returncode == 0:
-        print(f"Successfully processed {input_path}")
-        return True
-    else:
-        print(f"Error: {result.stderr}", file=sys.stderr)
-        return False
+Basic context provides fundamental information about the input source:
 
-# Usage
-if __name__ == "__main__":
-    success = extract_data(
-        schema="CulinaryWorksEntries",
-        input_path="data/new_files/",
-        use_batch=True
-    )
-    sys.exit(0 if success else 1)
-```
-
-## Workflow Deep Dive
-
-Understanding ChronoMiner's internal workflow helps you optimize your extraction tasks and troubleshoot issues.
-
-### Phase 1: Text Pre-Processing
-
-#### 1.1 Encoding Detection & Normalization
-- Automatically detects file encoding (UTF-8, ISO-8859-1, Windows-1252, etc.)
-- Normalizes text by stripping extraneous whitespace
-- Logs encoding information for debugging
-
-#### 1.2 Token-Based Chunking
-- Uses `tiktoken` to accurately count tokens for the selected model
-- Splits text into chunks based on `default_tokens_per_chunk` setting
-- Ensures chunks don't exceed model's context window
-
-**Chunking Strategies Explained:**
-
-**a) Automatic (`auto`):**
-```
-Original Text (12,000 tokens)
-    ↓
-[Chunk 1: 7,500 tokens]
-[Chunk 2: 4,500 tokens]
-```
-
-**b) Automatic with Adjustments (`auto-adjust`):**
-```
-Original Text (12,000 tokens)
-    ↓
-[Chunk 1: 7,500 tokens] ← User reviews and adjusts boundary
-    ↓
-[Chunk 1: 6,800 tokens] ← Adjusted to end at paragraph
-[Chunk 2: 5,200 tokens]
-```
-
-**c) Pre-defined Line Ranges (`line_ranges.txt`):**
-```
-input_file.txt
-    ↓
-input_file_line_ranges.txt:
-    1-342
-    343-689
-    690-1024
-    ↓
-[Chunk 1: lines 1-342]
-[Chunk 2: lines 343-689]
-[Chunk 3: lines 690-1024]
-```
-
-**d) Adjust and Use Line Ranges (`adjust-line-ranges`):**
-```
-input_file.txt + input_file_line_ranges.txt
-    ↓
-LLM analyzes boundaries for semantic coherence
-    ↓
-Adjusted line ranges:
-    1-315 (boundary moved to section break)
-    316-702 (boundary moved to paragraph end)
-    703-1024
-    ↓
-[Chunk 1: lines 1-315]
-[Chunk 2: lines 316-702]
-[Chunk 3: lines 703-1024]
-    ↓
-Processing continues with refined chunks
-```
-
-This strategy first invokes the line range readjuster workflow to optimize existing chunk boundaries using AI-detected semantic markers such as section headers, paragraph breaks, or entry boundaries. After refinement, processing continues automatically using the adjusted line ranges. This approach combines the reliability of pre-defined ranges with intelligent boundary optimization for improved extraction quality.
-
-**e) Per-file Selection (`per-file`):**
-During processing, you will be prompted to select a chunking method for each file individually. This allows mixing strategies within a single batch when different files have different structural characteristics.
-
-### Phase 2: Context Integration
-
-#### 2.1 Basic Context (Always Included)
-
-Basic context files are located in `basic_context/` and are automatically loaded and included in every API request, regardless of user settings. Each schema requires a corresponding basic context file named `{SchemaName}Entries.txt` (e.g., `BibliographicEntries.txt`, `CulinaryPersonsEntries.txt`).
-
-Basic context files provide fundamental information about the input source:
-- A brief description of the input text type and characteristics
+- Brief description of the input text type and characteristics
 - Language and formatting expectations
 - Historical time period or geographic scope
 - Natural semantic markers for text chunking
 
-Basic context is designed to be concise and general, typically 4-6 lines with a 120-character line wrap for readability.
+Example: `basic_context/BibliographicEntries.txt`
 
-**Example**: `basic_context/BibliographicEntries.txt`
 ```
 The input text consists of a snippet of bibliographic records describing historical culinary and household
 literature (e.g., cookbooks, household manuals, foodstuff guides, food production regulations, etc.) dating
@@ -605,21 +292,12 @@ grouped together under the entry for the first (original) edition in the `editio
 markers for this type of text are the beginnings of full bibliographic entries.
 ```
 
-#### 2.2 Additional Context (User-Selected)
+#### Additional Context (Optional)
 
-Additional context files are located in `additional_context/` and are only included when the user selects to use additional context during the interactive workflow. These files provide detailed, domain-specific guidance for extraction.
+Additional context files are located in `additional_context/` and are only included when the user selects to use additional context. These files provide detailed, domain-specific guidance for extraction.
 
-The user can choose between two additional context modes:
-- **Default context**: Uses the schema-specific file from `additional_context/{SchemaName}.txt`
-- **File-specific context**: Uses `{filename}_context.txt` files located next to the input files
+Example: `additional_context/BibliographicEntries.txt`
 
-Additional context is more detailed than basic context and typically includes:
-- Domain-specific terminology and conventions
-- Historical context and background information
-- Detailed extraction guidelines and edge cases
-- Common patterns and data quality considerations
-
-**Example**: `additional_context/BibliographicEntries.txt` (excerpt)
 ```
 ADDITIONAL CONTEXT FOR BIBLIOGRAPHIC ENTRIES
 
@@ -635,11 +313,12 @@ When extracting data from historical culinary and household literature bibliogra
    - Edition statements may appear in various forms: "tweede druk," "2nd edition," "revised and enlarged"
 ```
 
-#### 2.3 File-Specific Context (Optional)
+#### File-Specific Context (Optional)
 
-For input files requiring specific instructions, users can create `{filename}_context.txt` files in the same directory as the input file. This provides the most granular level of context customization.
+For input files requiring specific instructions, users can create `{filename}_context.txt` files in the same directory as the input file.
 
-**Example**: `zurich_addressbook_1850_context.txt`
+Example: `zurich_addressbook_1850_context.txt`
+
 ```
 This address book contains entries from 1850-1870 in Zurich, Switzerland.
 - Occupations are listed in Swiss German
@@ -648,79 +327,233 @@ This address book contains entries from 1850-1870 in Zurich, Switzerland.
 - Family businesses often list multiple family members at the same address
 ```
 
-#### 2.4 Context Hierarchy and Integration
+## Usage
 
+### Main Extraction Workflow
+
+The primary entry point is `main/process_text_files.py`, which provides a workflow for extracting structured data from text files.
+
+#### Interactive Mode
+
+Run the script without arguments:
+
+```bash
+python main/process_text_files.py
+```
+
+The interactive interface guides you through:
+
+1. Select a Schema
+2. Choose Chunking Strategy
+3. Select Processing Mode (Synchronous or Batch)
+4. Configure Additional Context (Optional)
+5. Select Input Files
+6. Review and Confirm
+
+#### CLI Mode
+
+Process files with command-line arguments:
+
+```bash
+# Process a single file with batch mode
+python main/process_text_files.py --schema BibliographicEntries --input data/file.txt --batch
+
+# Process entire directory with custom chunking
+python main/process_text_files.py --schema CulinaryWorksEntries --input data/ --batch --chunking line_ranges
+
+# View all options
+python main/process_text_files.py --help
+```
+
+Available Arguments:
+
+- `--schema`: Schema name (required)
+- `--input`: Input file or directory path (required)
+- `--chunking`: Chunking method (auto, auto-adjust, line_ranges, adjust-line-ranges, per-file)
+- `--batch`: Use batch processing mode (default: synchronous)
+- `--context`: Use additional context
+- `--context-source`: Context source (default or file-specific)
+- `--verbose`: Enable verbose output
+- `--quiet`: Minimize output
+
+### Line Range Generation
+
+For production workflows, pre-generate line range files:
+
+```bash
+# Generate for single file
+python main/generate_line_ranges.py --input data/file.txt
+
+# Generate for directory
+python main/generate_line_ranges.py --input data/ --tokens 7500
+```
+
+This creates `{filename}_line_ranges.txt` files specifying exact line ranges for each chunk.
+
+### Line Range Adjustment
+
+Optimize chunk boundaries using LLM-detected semantic sections:
+
+```bash
+# Adjust line ranges for specific file
+python main/line_range_readjuster.py --path data/file.txt --schema BibliographicEntries
+
+# Adjust with custom context window
+python main/line_range_readjuster.py --path data/ --schema CulinaryWorksEntries --context-window 10
+```
+
+Options:
+
+- `--dry-run`: Preview changes without modifying files
+- `--context-window N`: Number of lines around boundaries to examine (default: 300)
+- `--boundary-type`: Type of boundary to detect (section, paragraph, entry)
+
+### Batch Status Checking
+
+Monitor and process completed batch jobs:
+
+```bash
+# Check all batches
+python main/check_batches.py
+
+# Check specific schema only
+python main/check_batches.py --schema BibliographicEntries
+```
+
+Features:
+
+- Lists all batch jobs with status
+- Automatically downloads and processes completed batches
+- Generates all configured output formats
+- Provides detailed summary of batch operations
+
+### Batch Cancellation
+
+Cancel all in-progress batches:
+
+```bash
+# Cancel with confirmation
+python main/cancel_batches.py
+
+# Cancel without confirmation
+python main/cancel_batches.py --force
+```
+
+### Extraction Repair
+
+Repair incomplete extractions:
+
+```bash
+# Repair specific schema
+python main/repair_extractions.py --schema CulinaryWorksEntries
+
+# Repair with verbose output
+python main/repair_extractions.py --schema BibliographicEntries --verbose
+```
+
+Repair capabilities:
+
+- Discovers incomplete extraction jobs
+- Recovers missing batch IDs from debug artifacts
+- Retrieves responses from completed batches
+- Regenerates final outputs with all available data
+
+### Output Files
+
+Extraction outputs are saved to the configured output directories for each schema:
+
+- `<filename>.json`: Complete structured dataset with metadata
+- `<filename>.csv`: Tabular format (if enabled)
+- `<filename>.docx`: Formatted Word document (if enabled)
+- `<filename>.txt`: Plain text report (if enabled)
+- `<filename>_temporary.jsonl`: Temporary batch tracking file (deleted after successful completion unless `retain_temporary_jsonl: true`)
+- `<filename>_batch_submission_debug.json`: Batch metadata for tracking and repair
+
+## Workflow Deep Dive
+
+Understanding ChronoMiner's internal workflow helps you optimize your extraction tasks and troubleshoot issues.
+
+### Phase 1: Text Pre-Processing
+
+#### Encoding Detection and Normalization
+- Automatically detects file encoding (UTF-8, ISO-8859-1, Windows-1252, etc.)
+- Normalizes text by stripping extraneous whitespace
+- Logs encoding information for debugging
+
+#### Token-Based Chunking
+- Uses tiktoken to accurately count tokens for the selected model
+- Splits text into chunks based on `default_tokens_per_chunk` setting
+- Ensures chunks don't exceed model's context window
+
+Chunking Strategies:
+
+- Automatic: Fully automatic chunking based on token limits
+- Automatic with Adjustments: Automatic chunking with opportunity to refine boundaries interactively
+- Pre-defined Line Ranges: Uses pre-generated line ranges from existing files
+- Adjust and Use Line Ranges: Refines existing line ranges using AI-detected semantic boundaries, then uses them for processing
+- Per-file Selection: Choose chunking method individually for each file during processing
+
+### Phase 2: Context Integration
+
+#### Basic Context (Always Included)
+Basic context files provide fundamental information about the input source and are automatically loaded for every API request.
+
+#### Additional Context (User-Selected)
+Additional context files provide detailed, domain-specific guidance and are only included when the user selects to use additional context.
+
+The user can choose between:
+- Default context: Uses schema-specific file from `additional_context/{SchemaName}.txt`
+- File-specific context: Uses `{filename}_context.txt` files located next to the input files
+
+#### Context Hierarchy and Integration
 All applicable context levels are combined and injected into the system prompt via placeholders:
+
 1. Basic context always inserted via `{{BASIC_CONTEXT}}` placeholder
 2. Additional or file-specific context inserted via `{{ADDITIONAL_CONTEXT}}` placeholder (if selected)
 3. User message remains clean: `"Input text:\n{chunk_text}"`
 
-This approach ensures the language model has comprehensive background knowledge while keeping the actual text chunk clearly separated in the user message.
-
 ### Phase 3: API Request Construction
 
-#### 3.1 Schema Handler Selection
-The system uses a handler registry (`schema_handlers.py`) to prepare API requests. Each handler:
+#### Schema Handler Selection
+The system uses a handler registry to prepare API requests. Each handler:
 - Loads the appropriate JSON schema
 - Formats the developer message (extraction instructions)
 - Constructs the API payload with proper structure
 
-#### 3.2 Processing Modes
+#### Processing Modes
 
-**Synchronous Mode:**
-```
-[Chunk 1] → API Request → Response → Process → Save
-[Chunk 2] → API Request → Response → Process → Save
-[Chunk 3] → API Request → Response → Process → Save
-    ↓
-Aggregate all responses → Generate final outputs
-```
+Synchronous Mode:
 - Real-time processing with immediate results
 - Higher API costs (standard pricing)
 - Good for small files or urgent needs
 
-**Batch Mode:**
-```
-[Chunk 1] ┐
-[Chunk 2] ├→ Batch JSONL file → Submit batch job → Wait (up to 24h)
-[Chunk 3] ┘
-    ↓
-Retrieve batch results → Process all responses → Generate final outputs
-```
+Batch Mode:
 - 50% cost savings on API requests
 - Results within 24 hours
 - Ideal for large-scale processing
 - Requires batch management tools
 
-### Phase 4: Response Processing & Output Generation
+### Phase 4: Response Processing and Output Generation
 
-#### 4.1 JSON Extraction
+#### JSON Extraction
 Responses are parsed and validated against the schema, with error handling for invalid responses.
 
-#### 4.2 Aggregation
+#### Aggregation
 All chunk responses are merged into a single comprehensive dataset.
 
-#### 4.3 Multi-Format Output
-
-**JSON Output (Always Generated):**
-Contains the complete structured dataset with metadata.
-
-**CSV Output (Optional):**
-Schema-specific converters transform JSON to tabular format, flattening nested structures and handling arrays.
-
-**DOCX Output (Optional):**
-Generates formatted Word documents with proper headings, tables, and styling.
-
-**TXT Output (Optional):**
-Creates human-readable plain text reports with structured formatting.
+#### Multi-Format Output
+- JSON Output (Always Generated): Contains the complete structured dataset with metadata
+- CSV Output (Optional): Schema-specific converters transform JSON to tabular format
+- DOCX Output (Optional): Generates formatted Word documents with proper headings, tables, and styling
+- TXT Output (Optional): Creates human-readable plain text reports with structured formatting
 
 ## Adding Custom Schemas
 
-ChronoMiner's extensible architecture allows easy integration of new extraction schemas tailored to your specific research needs. Adding a new schema requires creating several coordinated files to ensure proper functionality.
+ChronoMiner's extensible architecture allows easy integration of new extraction schemas tailored to your specific research needs.
 
-### Step 1: Create the JSON Schema
+### Create the JSON Schema
 
-Place a new schema file in `schemas/` (e.g., `my_custom_schema.json`). The schema name should match the pattern used throughout the system.
+Place a new schema file in `schemas/` (e.g., `MyCustomSchema.json`).
 
 ```json
 {
@@ -753,25 +586,20 @@ Place a new schema file in `schemas/` (e.g., `my_custom_schema.json`). The schem
 }
 ```
 
-**Schema Design Best Practices:**
+Schema Design Best Practices:
+
 - Use an `entries` array where each entry represents one unit of analysis
 - Include clear field descriptions for the LLM to understand extraction requirements
 - Mark required fields explicitly
 - Use appropriate data types and formats
 - Set `strict: true` for robust validation
-- Refer to [OpenAI's structured outputs documentation](https://platform.openai.com/docs/guides/structured-outputs)
 
-### Step 2: Create Basic Context File (Required)
+### Create Basic Context File (Required)
 
-Create a basic context file in `basic_context/` named `MyCustomSchemaEntries.txt`. This file is mandatory and will be automatically loaded and included in every API request for this schema.
+Create a basic context file in `basic_context/` named `MyCustomSchemaEntries.txt`. This file is mandatory and will be automatically loaded for every API request.
 
-The basic context should be concise (typically 4-6 lines) with a 120-character line wrap. It should describe:
-- The type and nature of the input text
-- Expected languages, time periods, or geographic scope
-- Historical spelling or formatting considerations
-- Natural semantic markers for chunking
+Example: `basic_context/MyCustomSchemaEntries.txt`
 
-**Example**: `basic_context/MyCustomSchemaEntries.txt`
 ```
 The input text consists of excerpts from historical legal documents dating from approximately 1700 to 1900.
 The text may appear in different languages including English, Latin, and French, with period-specific legal
@@ -780,20 +608,12 @@ dates. Natural semantic markers for this type of text are the beginnings of indi
 proceedings.
 ```
 
-**Important:** The basic context file name must follow the pattern `{SchemaName}Entries.txt` where `{SchemaName}` matches the `name` field in your JSON schema.
+### Create Additional Context File (Optional but Recommended)
 
-### Step 3: Create Additional Context File (Optional but Recommended)
+Create a detailed additional context file in `additional_context/` named `MyCustomSchemaEntries.txt`.
 
-Create a detailed additional context file in `additional_context/` named `MyCustomSchemaEntries.txt`. This file provides comprehensive domain-specific guidance and is only loaded when users select to use additional context.
+Example: `additional_context/MyCustomSchemaEntries.txt`
 
-The additional context should be detailed and structured, typically including:
-- Multiple sections with numbered headings
-- Domain-specific terminology explanations
-- Historical context and background
-- Extraction guidelines and edge cases
-- Common patterns and quality considerations
-
-**Example**: `additional_context/MyCustomSchemaEntries.txt`
 ```
 ADDITIONAL CONTEXT FOR MY CUSTOM SCHEMA ENTRIES
 
@@ -808,18 +628,11 @@ When extracting data from historical legal documents, please consider:
    - Dates may use regnal years (e.g., "3rd year of George III")
    - Old Style vs. New Style calendar differences (pre-1752 in British territories)
    - Format: "day Month year" common in legal documents
-
-3. Name conventions:
-   - Full formal names with titles and honorifics
-   - Married women identified by husband's name
-   - Corporate or institutional entities as parties
-
-This additional context should help you accurately extract and structure legal document information.
 ```
 
-### Step 4: Register Schema in Handler Registry
+### Register Schema in Handler Registry
 
-Add your schema name to the registry in `modules/operations/extraction/schema_handlers.py`. Locate the schema registration section near the end of the file and add your schema name to the list:
+Add your schema name to the registry in `modules/operations/extraction/schema_handlers.py`:
 
 ```python
 # Register existing schema handlers with the default implementation.
@@ -837,35 +650,15 @@ for schema in [
     register_schema_handler(schema, BaseSchemaHandler)
 ```
 
-**Note:** The schema name in the registry should match the `name` field in your JSON schema and the base name of your context files.
+### Add Developer Message (Optional)
 
-### Step 5: Add Developer Message (Optional)
+Create `developer_messages/MyCustomSchema.txt` with custom extraction instructions. If not provided, the system uses the default prompt template.
 
-Create `developer_messages/MyCustomSchema.txt` with custom extraction instructions. If not provided, the system uses the default prompt template from `prompts/structured_output_prompt.txt`.
-
-```
-You are a structured data extraction expert. Extract information from historical legal documents and return JSON in the specified format.
-
-Instructions:
-- Extract all case entries from the input text
-- Use the 'id' field for unique case identification
-- Preserve original spelling and legal terminology
-- Parse dates according to historical calendar systems
-- Extract party names with titles and honorifics
-
-Quality guidelines:
-- Ensure completeness: extract ALL entries from the text
-- Maintain accuracy: verify data against the source text
-- Handle edge cases: missing data should be null, not omitted
-```
-
-### Step 6: Implement Custom Handler (Optional)
+### Implement Custom Handler (Optional)
 
 For specialized post-processing or custom output formatting, create a handler class in `modules/operations/extraction/schema_handlers.py`:
 
 ```python
-from modules.operations.extraction.schema_handlers import BaseSchemaHandler, register_schema_handler
-
 class MyCustomSchemaHandler(BaseSchemaHandler):
     schema_name = "MyCustomSchema"
 
@@ -876,7 +669,6 @@ class MyCustomSchemaHandler(BaseSchemaHandler):
         # Add custom processing here
         if "entries" in data:
             for entry in data["entries"]:
-                # Example: Normalize dates
                 if "date" in entry:
                     entry["date"] = self.normalize_date(entry["date"])
         
@@ -890,13 +682,12 @@ class MyCustomSchemaHandler(BaseSchemaHandler):
         except (ValueError, TypeError):
             return None
 
-# Register the custom handler (replaces the default BaseSchemaHandler)
 register_schema_handler("MyCustomSchema", MyCustomSchemaHandler)
 ```
 
-### Step 7: Configure Paths
+### Configure Paths
 
-Add your schema to `config/paths_config.yaml` to specify input/output directories and output format preferences:
+Add your schema to `config/paths_config.yaml`:
 
 ```yaml
 schemas_paths:
@@ -904,9 +695,11 @@ schemas_paths:
     input: "C:/path/to/my_custom_data/input"
     output: "C:/path/to/my_custom_data/output"
     csv_output: true
+    docx_output: true
+    txt_output: true
 ```
 
-### Step 8: Test the Schema
+### Test the Schema
 
 Run the main script and select your new schema:
 
@@ -922,20 +715,20 @@ Batch processing offers significant cost savings (50% reduction) for large-scale
 
 ### When to Use Batch Processing
 
-**Ideal for:**
+Ideal for:
 - Processing multiple large files
 - Non-urgent extraction tasks
 - Research projects with time flexibility
 - Cost-sensitive workflows
 
-**Not ideal for:**
+Not ideal for:
 - Time-critical extractions
 - Small single-file processing
 - Interactive testing and development
 
 ### Batch Workflow
 
-#### 1. Submit Batch Job
+#### Submit Batch Job
 
 ```bash
 python main/process_text_files.py
@@ -944,7 +737,7 @@ python main/process_text_files.py
 
 The script creates a batch request file and submits it to OpenAI's Batch API.
 
-#### 2. Monitor Batch Status
+#### Monitor Batch Status
 
 Check status periodically:
 
@@ -952,7 +745,7 @@ Check status periodically:
 python main/check_batches.py
 ```
 
-**Batch Statuses:**
+Batch Statuses:
 - `validating`: OpenAI is validating the batch request
 - `in_progress`: Batch is being processed
 - `finalizing`: Processing complete, preparing results
@@ -961,7 +754,7 @@ python main/check_batches.py
 - `expired`: Batch expired before completion
 - `cancelled`: Batch was cancelled
 
-#### 3. Retrieve Results
+#### Retrieve Results
 
 Once status shows `completed`, run:
 
@@ -969,11 +762,7 @@ Once status shows `completed`, run:
 python main/check_batches.py
 ```
 
-The script automatically:
-- Downloads batch results
-- Processes all responses
-- Generates final outputs (JSON, CSV, DOCX, TXT)
-- Cleans up temporary files
+The script automatically downloads batch results, processes all responses, generates final outputs, and cleans up temporary files.
 
 ### Batch Management Tools
 
@@ -985,15 +774,6 @@ Cancel all non-terminal (in_progress, validating) batches:
 python main/cancel_batches.py
 ```
 
-Provides detailed summary:
-```
-Batch Cancellation Summary:
-- Total batches found: 5
-- Cancelled: 2
-- Already completed: 2
-- Failed: 1
-```
-
 #### Repair Failed Batches
 
 Recover from partial failures:
@@ -1002,242 +782,212 @@ Recover from partial failures:
 python main/repair_extractions.py
 ```
 
-**Interactive repair process:**
+Interactive repair process:
 1. Scans for incomplete batch jobs
 2. Attempts to recover batch IDs from temporary files
 3. Retrieves available responses
 4. Regenerates outputs with recovered data
 5. Reports success/failure for each repair attempt
 
-**Common failure scenarios:**
-- Network interruption during result download
-- Partial API response issues
-- Temporary file corruption
-
 ### Batch Processing Best Practices
 
-1. **Test with synchronous mode first** to validate your schema and settings
-2. **Use descriptive filenames** to track batch jobs easily
-3. **Monitor batch status regularly** during the 24-hour window
-4. **Keep temporary files** (`retain_temporary_jsonl: true`) for debugging
-5. **Implement file-specific context** for better extraction quality
-6. **Use pre-defined line ranges** for consistent chunking across batches
+1. Test with synchronous mode first to validate your schema and settings
+2. Use descriptive filenames to track batch jobs easily
+3. Monitor batch status regularly during the 24-hour window
+4. Keep temporary files (`retain_temporary_jsonl: true`) for debugging
+5. Implement file-specific context for better extraction quality
+6. Use pre-defined line ranges for consistent chunking across batches
 
-## Project Architecture
+## Architecture
 
-Understanding ChronoMiner's architecture helps with customization and troubleshooting.
+ChronoMiner follows a modular architecture that separates concerns and promotes maintainability.
 
-### Core Components
-
-#### 1. Configuration System (`modules/config/`)
-- **loader.py**: Loads and validates YAML configuration files
-- **manager.py**: Manages configuration state and validation logic
-
-**Key Features:**
-- Centralized configuration management
-- Path validation (absolute and relative)
-- Environment variable expansion
-- Configuration inheritance
-
-#### 2. Core Utilities (`modules/core/`)
-- **text_utils.py**: Text processing (encoding detection, normalization, tokenization)
-- **json_utils.py**: JSON manipulation and validation
-- **data_processing.py**: CSV conversion with schema-specific handlers
-- **text_processing.py**: DOCX and TXT generation
-- **context_manager.py**: Additional context loading and management
-- **logger.py**: Centralized logging configuration
-- **workflow_utils.py**: Common workflow helper functions
-- **batch_utils.py**: Batch API utilities
-- **concurrency.py**: Async task management with rate limiting
-- **prompt_context.py**: Prompt context preparation
-- **schema_manager.py**: Schema loading and validation
-
-#### 3. LLM Integration (`modules/llm/`)
-- **openai_utils.py**: Async API request handling with retry logic
-- **openai_sdk_utils.py**: OpenAI SDK utility functions
-- **batching.py**: Batch request creation and submission
-- **prompt_utils.py**: Prompt template loading and formatting
-- **structured_outputs.py**: Structured output format handling
-- **model_capabilities.py**: Model capability validation
-
-#### 4. Operations (`modules/operations/`)
-- **extraction/file_processor.py**: Main file processing orchestration
-- **extraction/schema_handlers.py**: Schema handler registry and base classes
-- **line_ranges/readjuster.py**: Semantic boundary detection and adjustment
-
-#### 5. User Interface (`modules/ui/`)
-- **core.py**: Interactive CLI with rich prompts and menus
-
-### Data Flow
+### Directory Structure
 
 ```
-User Input
-    ↓
-[UI Layer] - User selections and file input
-    ↓
-[Configuration] - Load settings and validate paths
-    ↓
-[Text Processing] - Encoding detection, chunking, normalization
-    ↓
-[Context Management] - Load and prepare additional context
-    ↓
-[Schema Handler] - Select appropriate handler and prepare payload
-    ↓
-[LLM Integration] - API request construction and submission
-    ↓
-[Response Processing] - Parse, validate, and aggregate responses
-    ↓
-[Output Generation] - Create JSON, CSV, DOCX, TXT files
-    ↓
-Final Outputs
+ChronoMiner/
+├── config/                    # Configuration files
+│   ├── chunking_config.yaml
+│   ├── concurrency_config.yaml
+│   ├── model_config.yaml
+│   └── paths_config.yaml
+├── main/                      # CLI entry points
+│   ├── cancel_batches.py
+│   ├── check_batches.py
+│   ├── generate_line_ranges.py
+│   ├── line_range_readjuster.py
+│   ├── process_text_files.py
+│   └── repair_extractions.py
+├── modules/                   # Core application modules
+│   ├── config/               # Configuration loading
+│   ├── core/                 # Core utilities and workflow
+│   ├── infra/                # Infrastructure (logging, concurrency)
+│   ├── io/                   # File I/O and path utilities
+│   ├── llm/                  # LLM interaction and batch processing
+│   ├── operations/           # High-level operations (extraction, line ranges, repair)
+│   └── ui/                   # User interface and prompts
+├── schemas/                   # JSON schemas for structured outputs
+├── basic_context/             # Basic context files (required, auto-loaded)
+├── additional_context/        # Additional context files (optional, user-selected)
+├── developer_messages/        # Developer message templates
+├── prompts/                   # System prompt templates
+├── LICENSE
+├── README.md
+└── requirements.txt
 ```
 
-### Extension Points
+### Module Overview
 
-ChronoMiner is designed for extensibility:
+- `modules/config/`: Configuration loading and validation
+- `modules/core/`: Core utilities including text processing, JSON manipulation, data processing, context management, logging, and workflow helpers
+- `modules/infra/`: Infrastructure layer providing logging setup, concurrency control, and async task management
+- `modules/io/`: File I/O operations including path validation, directory scanning, file reading/writing, and output management
+- `modules/llm/`: LLM interaction layer including OpenAI SDK utilities, batch processing, model validation, prompt management, and structured output parsing
+- `modules/operations/`: High-level operation orchestration (extraction, line ranges, repair workflows)
+- `modules/ui/`: User interface components including interactive prompts, selection menus, and status displays
 
-1. **Custom Schemas**: Add new JSON schemas to `schemas/`
-2. **Custom Handlers**: Extend `BaseSchemaHandler` for specialized processing
-3. **Custom Context**: Add schema or file-specific context files
-4. **Custom Converters**: Implement schema-specific CSV/DOCX/TXT converters
-5. **Custom Prompts**: Modify prompt templates in `prompts/`
+### Operations Layer
+
+ChronoMiner separates orchestration logic from CLI entry points to improve testability and maintainability:
+
+- High-level operations live in `modules/operations/` (e.g., extraction, line ranges, repair workflows)
+- CLI entry points in `main/` are thin wrappers that delegate to operations modules
+- This design pattern allows operations to be reused, tested independently, and invoked programmatically
 
 ## Troubleshooting
 
-### Common Issues and Solutions
+### Common Issues
 
-#### OpenAI API Errors
+#### API key not found
 
-**Problem**: `AuthenticationError: Invalid API key`
-- **Solution**: Verify your API key is correctly set:
-  ```bash
-  echo $OPENAI_API_KEY  # Linux/macOS
-  echo %OPENAI_API_KEY%  # Windows
-  ```
-  Ensure there are no extra spaces or quotes around the key.
+Solution: Ensure `OPENAI_API_KEY` environment variable is set:
 
-**Problem**: `RateLimitError: Rate limit exceeded`
-- **Solution**: 
-  - Reduce `max_concurrent_tasks` in `concurrency_config.yaml`
-  - Switch to batch processing mode for large jobs
-  - Wait and retry after a few minutes
+```bash
+# Windows PowerShell
+$env:OPENAI_API_KEY="your_api_key_here"
 
-**Problem**: `TimeoutError: Request timed out`
-- **Solution**: 
-  - Increase `request_timeout_seconds` in `concurrency_config.yaml`
-  - Check your internet connection
-  - Try processing smaller chunks
+# Linux/macOS
+export OPENAI_API_KEY=your_api_key_here
+```
 
-#### Configuration Errors
+#### Schema not found in paths_config
 
-**Problem**: `FileNotFoundError: Config file not found`
-- **Solution**: Ensure all YAML files exist in the `config/` directory
-- Check file names match exactly (case-sensitive on Linux/macOS)
+Solution: Add your schema configuration to `config/paths_config.yaml`:
 
-**Problem**: `KeyError: Schema not found in paths_config`
-- **Solution**: Add your schema configuration to `config/paths_config.yaml`:
-  ```yaml
-  schemas_paths:
-    YourSchemaName:
-      input: "path/to/input"
-      output: "path/to/output"
-      csv_output: true
-      docx_output: true
-      txt_output: true
-  ```
+```yaml
+schemas_paths:
+  YourSchemaName:
+    input: "path/to/input"
+    output: "path/to/output"
+    csv_output: true
+    docx_output: true
+    txt_output: true
+```
 
-**Problem**: `Path validation failed: Directory does not exist`
-- **Solution**: 
-  - Create the directories manually: `mkdir -p /path/to/directory`
-  - Verify paths in `paths_config.yaml` are correct
-  - Ensure you have read/write permissions
+#### Path validation failed
 
-#### Encoding Errors
+Solution:
 
-**Problem**: `UnicodeDecodeError` when reading files
-- **Solution**: 
-  - ChronoMiner auto-detects encoding, but you can manually convert files:
-    ```bash
-    iconv -f ISO-8859-1 -t UTF-8 input.txt > input_utf8.txt
-    ```
-  - Check the log files for detected encoding information
+- Create the directories manually: `mkdir -p /path/to/directory`
+- Verify paths in `paths_config.yaml` are correct
+- Ensure you have read/write permissions
 
-**Problem**: Special characters not displaying correctly
-- **Solution**: 
-  - Ensure your input files are saved in UTF-8 encoding
-  - Check your terminal/console supports UTF-8 display
+#### Encoding errors
 
-#### Chunking Issues
+Solution:
 
-**Problem**: Important information split across chunks
-- **Solution**: 
-  - Use `line_range_readjuster.py` to optimize boundaries
-  - Manually edit `_line_ranges.txt` files
-  - Increase `default_tokens_per_chunk` (if within model limits)
+- ChronoMiner auto-detects encoding, but you can manually convert files: `iconv -f ISO-8859-1 -t UTF-8 input.txt > input_utf8.txt`
+- Check the log files for detected encoding information
+- Ensure your input files are saved in UTF-8 encoding
 
-**Problem**: `_line_ranges.txt` file not found
-- **Solution**: 
-  - Run `python main/generate_line_ranges.py` to create them
-  - Or switch to `auto` or `auto-adjust` chunking method
+#### Important information split across chunks
 
-#### Batch Processing Issues
+Solution:
 
-**Problem**: Batch stuck in `validating` status
-- **Solution**: Wait a few minutes; validation can take time for large batches
+- Use `line_range_readjuster.py` to optimize boundaries
+- Manually edit `_line_ranges.txt` files
+- Increase `default_tokens_per_chunk` (if within model limits)
 
-**Problem**: Batch failed without clear error
-- **Solution**: 
-  - Check logs in the configured `logs_dir`
-  - Verify batch request file format (should be valid JSONL)
-  - Try resubmitting with fewer chunks
+#### Line ranges file not found
 
-**Problem**: Cannot retrieve batch results
-- **Solution**: 
-  - Run `python main/check_batches.py` to automatically retrieve
-  - Check if batch ID is still valid (batches expire after 7 days)
-  - Use `python main/repair_extractions.py` to recover partial results
+Solution:
 
-#### Output Generation Errors
+- Run `python main/generate_line_ranges.py` to create them
+- Or switch to `auto` or `auto-adjust` chunking method
 
-**Problem**: JSON output generated but CSV/DOCX/TXT missing
-- **Solution**: 
-  - Verify output flags are set to `true` in `paths_config.yaml`
-  - Check for errors in log files
-  - Ensure output directory has write permissions
+#### Batch stuck in validating status
 
-**Problem**: Empty or incomplete output files
-- **Solution**: 
-  - Check if input file had valid extractable data
-  - Review log files for parsing errors
-  - Verify schema matches your data structure
-  - Test with example files first
+Solution: Wait a few minutes; validation can take time for large batches
 
-#### Memory Issues
+#### Batch failed without clear error
 
-**Problem**: `MemoryError` or system slowdown
-- **Solution**: 
-  - Process fewer files simultaneously
-  - Reduce `max_concurrent_tasks`
-  - Use batch processing instead of synchronous
-  - Process large files in smaller chunks
+Solution:
+
+- Check logs in the configured `logs_dir`
+- Verify batch request file format (should be valid JSONL)
+- Try resubmitting with fewer chunks
+
+#### Cannot retrieve batch results
+
+Solution:
+
+- Run `python main/check_batches.py` to automatically retrieve
+- Check if batch ID is still valid (batches expire after 7 days)
+- Use `python main/repair_extractions.py` to recover partial results
+
+#### Output files missing
+
+Solution:
+
+- Verify output flags are set to `true` in `paths_config.yaml`
+- Check for errors in log files
+- Ensure output directory has write permissions
+
+#### Empty or incomplete output files
+
+Solution:
+
+- Check if input file had valid extractable data
+- Review log files for parsing errors
+- Verify schema matches your data structure
+- Test with example files first
+
+#### Memory errors
+
+Solution:
+
+- Process fewer files simultaneously
+- Reduce `concurrency_limit`
+- Use batch processing instead of synchronous
+- Process large files in smaller chunks
+
+### Debug Artifacts
+
+ChronoMiner creates several debug artifacts to help troubleshoot issues:
+
+- `<job>_batch_submission_debug.json`: Contains batch IDs, chunk count, and submission timestamp
+- `<job>_temporary.jsonl`: Tracks batch requests and responses with full metadata
+- Log files: Detailed execution logs in the configured `logs_dir` with timestamps and stack traces
 
 ### Getting Help
 
 If you encounter issues not covered here:
 
-1. **Check the logs**: Review files in your configured `logs_dir`
-2. **Enable debug mode**: Set logging level to DEBUG in `modules/core/logger.py`
-3. **Test with examples**: Try processing files from `example_files/example_inputs/`
-4. **Search GitHub Issues**: Check existing [issues](https://github.com/Paullllllllllllllllll/ChronoMiner/issues)
-5. **Open a new issue**: Provide logs, configuration, and error messages
+1. Check logs: Review detailed error messages in your configured `logs_dir`
+2. Enable debug mode: Set logging level to DEBUG in `modules/core/logger.py`
+3. Validate configuration: Ensure all YAML files are properly formatted
+4. Verify directories: Confirm all required directories exist with proper permissions
+5. Review requirements: Verify all dependencies are installed correctly
+6. Check model access: Ensure your OpenAI account has access to the selected model
 
-## Performance & Best Practices
+## Performance and Best Practices
 
 ### Optimization Strategies
 
-#### 1. Chunking Optimization
+#### Chunking Optimization
 
-**Best Practice**: Use pre-generated line ranges for production workflows
+Best Practice: Use pre-generated line ranges for production workflows
+
 ```bash
 # Generate line ranges once
 python main/generate_line_ranges.py
@@ -1248,80 +998,90 @@ python main/line_range_readjuster.py
 # Use in production
 ```
 
-**Benefits**:
+Benefits:
+
 - Consistent results across runs
 - Faster processing (no on-the-fly chunking)
 - Better semantic coherence
 - Easier debugging and reproduction
 
-#### 2. Cost Optimization
+#### Cost Optimization
 
-**Use Batch Processing** for large-scale projects:
-- **50% cost savings** compared to synchronous mode
+Use Batch Processing for large-scale projects:
+
+- 50% cost savings compared to synchronous mode
 - Ideal for processing 10+ files or files with 50+ chunks
 - Plan for 24-hour turnaround time
 
-**Optimize Token Usage**:
+Optimize Token Usage:
+
 - Remove unnecessary whitespace from input files
 - Use concise additional context
 - Set `default_tokens_per_chunk` appropriately (don't over-chunk)
 
-**Monitor API Usage**:
-```bash
-# Track costs with OpenAI's usage dashboard
-# https://platform.openai.com/usage
-```
+Monitor API Usage:
 
-#### 3. Processing Speed
+- Track costs with OpenAI's usage dashboard: https://platform.openai.com/usage
 
-**Concurrent Processing**:
-- For synchronous mode, increase `max_concurrent_tasks` (carefully)
+#### Processing Speed
+
+Concurrent Processing:
+
+- For synchronous mode, increase `concurrency_limit` (carefully)
 - Start with 10, gradually increase to 20-30 if rate limits allow
 - Monitor for rate limit errors
 
-**Network Optimization**:
+Network Optimization:
+
 - Ensure stable internet connection
 - Process during off-peak hours for better API response times
 - Use local temporary storage (not network drives)
 
-**File Organization**:
+File Organization:
+
 - Group similar files together for batch processing
 - Use consistent naming conventions
 - Keep input files in fast local storage (SSD preferred)
 
-#### 4. Quality Optimization
+#### Quality Optimization
 
-**Context is Key**:
+Context is Key:
+
 - Always provide schema-specific context for domain-specific data
 - Create file-specific context for challenging documents
 - Update context based on extraction results
 
-**Iterative Refinement**:
+Iterative Refinement:
+
 1. Process a few sample files
 2. Review outputs for quality
 3. Adjust schema, context, or chunking strategy
 4. Reprocess samples
 5. Scale to full dataset once satisfied
 
-**Schema Design**:
+Schema Design:
+
 - Start with required fields only
 - Add optional fields gradually
 - Use clear, descriptive field names and descriptions
 - Leverage enums for controlled vocabulary
 
-#### 5. Reliability Best Practices
+#### Reliability Best Practices
 
-**Configuration Management**:
+Configuration Management:
+
 - Use version control for configuration files
 - Document any custom settings
 - Test configuration changes on sample files first
 
-**Backup Strategy**:
+Backup Strategy:
+
 - Keep temporary JSONL files: `retain_temporary_jsonl: true`
 - Back up generated line range files
 - Version control your schemas and context files
 
-**Monitoring**:
+Monitoring:
+
 - Regularly check batch status during processing windows
 - Review log files for warnings or errors
 - Validate output quality on samples before full processing
@@ -1337,31 +1097,18 @@ Approximate processing times (actual times vary based on API speed and content c
 | 5 MB | 500 | ~2-3 hours | ~12-24 hours | 50% |
 | 50 MB | 5000 | ~20-30 hours | ~12-24 hours | 50% |
 
-**Note**: Batch mode is significantly more cost-effective for large files, despite similar completion times.
+Note: Batch mode is significantly more cost-effective for large files, despite similar completion times.
 
 ## Examples
 
 ### Example 1: Processing Historical Bibliographies
 
-**Scenario**: Extract metadata from a European culinary bibliography text file.
+Scenario: Extract metadata from a European culinary bibliography text file.
 
-**Input File** (`culinary_books_1800s.txt`):
-```
-La Varenne, François Pierre de. Le Cuisinier François. Paris: Pierre David, 1651.
-Second edition published in Paris by Pierre David in 1652.
+Steps:
 
-Menon. La Cuisinière Bourgeoise. Paris: Guillyn, 1746.
-Multiple editions throughout the 18th century.
-
-Grimod de la Reynière, Alexandre Balthazar Laurent. Almanach des Gourmands. Paris, 1803-1812.
-Annual publication, eight volumes total.
-```
-
-**Steps**:
 1. Configure `paths_config.yaml`:
    ```yaml
-   general:
-     interactive_mode: true  # Default to interactive mode
    schemas_paths:
      BibliographicEntries:
        input: "C:/research/bibliographies/input"
@@ -1378,49 +1125,19 @@ Annual publication, eight volumes total.
    # Select: auto (for single file)
    # Select: Synchronous (small file)
    # Select: Use schema-specific default context
-   # Select: Single file → culinary_books_1800s.txt
+   # Select: Single file
    ```
-
-**Output** (`culinary_books_1800s.json`):
-```json
-{
-  "entries": [
-    {
-      "full_title": "Le Cuisinier François",
-      "short_title": "Le Cuisinier François",
-      "authors": ["François Pierre de la Varenne"],
-      "roles": ["Author"],
-      "publication_year": 1651,
-      "edition_info": [
-        {
-          "year": 1651,
-          "edition_number": "1st",
-          "location": "Paris",
-          "publisher": "Pierre David"
-        },
-        {
-          "year": 1652,
-          "edition_number": "2nd",
-          "location": "Paris",
-          "publisher": "Pierre David"
-        }
-      ]
-    },
-    ...
-  ]
-}
-```
 
 ### Example 2: Batch Processing Multiple Address Books
 
-**Scenario**: Process 20 historical address books from 1850-1900.
+Scenario: Process 20 historical address books from 1850-1900.
 
-**Steps**:
+Steps:
+
 1. Place all files in input directory
-2. Generate line ranges for all files:
+2. Generate line ranges:
    ```bash
    python main/generate_line_ranges.py
-   # Select folder with all address books
    ```
 
 3. Review and adjust line ranges (optional):
@@ -1440,228 +1157,92 @@ Annual publication, eight volumes total.
 
 5. Monitor progress:
    ```bash
-   # Check periodically
    python main/check_batches.py
    ```
 
 6. Retrieve results (once completed):
    ```bash
    python main/check_batches.py
-   # Outputs generated in configured output directory
    ```
 
 ### Example 3: Custom Schema for Legal Documents
 
-**Scenario**: Extract structured data from historical court records.
+Scenario: Extract structured data from historical court records.
 
-**Steps**:
-1. Create schema (`schemas/legal_records.json`):
-   ```json
-   {
-     "name": "LegalRecords",
-     "schema_version": "1.0",
-     "type": "json_schema",
-     "strict": true,
-     "schema": {
-       "type": "object",
-       "properties": {
-         "entries": {
-           "type": "array",
-           "items": {
-             "type": "object",
-             "properties": {
-               "case_number": {"type": "string"},
-               "date": {"type": "string", "format": "date"},
-               "plaintiff": {"type": "string"},
-               "defendant": {"type": "string"},
-               "court": {"type": "string"},
-               "verdict": {"type": "string"}
-             },
-             "required": ["case_number", "date", "court"],
-             "additionalProperties": false
-           }
-         }
-       },
-       "required": ["entries"],
-       "additionalProperties": false
-     }
-   }
-   ```
+Steps:
 
-2. Add context (`additional_context/LegalRecords.txt`):
-   ```
-   Historical legal records from 19th-century courts.
-   - Dates may be in format "DD Month YYYY"
-   - Court names often include location
-   - Verdicts may use archaic legal terminology
-   ```
-
-3. Configure paths in `paths_config.yaml`
-4. Run extraction as usual
+1. Create schema (`schemas/LegalRecords.json`)
+2. Add basic context (`basic_context/LegalRecordsEntries.txt`)
+3. Add additional context (`additional_context/LegalRecordsEntries.txt`)
+4. Register schema in handler registry
+5. Configure paths in `paths_config.yaml`
+6. Run extraction
 
 ## Contributing
 
-We welcome contributions to ChronoMiner! Whether you're fixing bugs, adding features, or improving documentation, your help is appreciated.
+Contributions are welcome! Here's how you can help improve ChronoMiner:
 
-### How to Contribute
+### Reporting Issues
 
-1. **Fork the Repository**
-   ```bash
-   # Click "Fork" on GitHub, then clone your fork
-   git clone https://github.com/YOUR_USERNAME/ChronoMiner.git
-   cd ChronoMiner
-   ```
+When reporting bugs or issues, please include:
 
-2. **Create a Feature Branch**
-   ```bash
-   git checkout -b feature/your-feature-name
-   # or
-   git checkout -b fix/your-bugfix-name
-   ```
+- Description: Clear description of the problem
+- Steps to Reproduce: Detailed steps to reproduce the issue
+- Expected Behavior: What you expected to happen
+- Actual Behavior: What actually happened
+- Environment: OS, Python version, relevant package versions
+- Configuration: Relevant sections from your config files (remove sensitive information)
+- Logs: Relevant log excerpts showing the error
 
-3. **Make Your Changes**
-   - Follow existing code style and conventions
-   - Add comments for complex logic
-   - Update documentation if needed
+### Suggesting Features
 
-4. **Test Your Changes**
-   ```bash
-   # Test with example files
-   python main/process_text_files.py
-   
-   # Verify outputs are correct
-   ```
+Feature suggestions are appreciated. Please provide:
 
-5. **Commit and Push**
-   ```bash
-   git add .
-   git commit -m "Add: Brief description of your changes"
-   git push origin feature/your-feature-name
-   ```
+- Use Case: Describe the problem or need
+- Proposed Solution: Your idea for addressing it
+- Alternatives: Other approaches you've considered
+- Impact: Who would benefit and how
 
-6. **Create a Pull Request**
-   - Go to your fork on GitHub
-   - Click "New Pull Request"
-   - Provide a clear description of your changes
+### Code Contributions
 
-### Contribution Ideas
+If you'd like to contribute code:
 
-**New Features**:
-- Additional output formats (XML, Excel, etc.)
-- GUI interface for non-technical users
-- Support for more LLM providers (Anthropic, Google, etc.)
-- Enhanced error recovery mechanisms
-- Automated quality validation
+1. Fork the repository and create a feature branch
+2. Follow the existing code style and architecture patterns
+3. Add tests for new functionality where applicable
+4. Update documentation including this README and inline comments
+5. Test thoroughly with different schemas and chunking strategies
+6. Submit a pull request with a clear description of your changes
 
-**Improvements**:
-- Performance optimizations
-- Better error messages
-- Additional schema examples
-- More comprehensive tests
-- Documentation translations
+### Development Guidelines
 
-**Bug Fixes**:
-- Report bugs via [GitHub Issues](https://github.com/Paullllllllllllllllll/ChronoMiner/issues)
-- Include logs, configuration, and steps to reproduce
+- Modularity: Keep functions focused and modules organized
+- Error Handling: Use try-except blocks with informative error messages
+- Logging: Use the logger for debugging information
+- Configuration: Use YAML configuration files rather than hardcoding values
+- User Experience: Provide clear prompts and feedback in CLI interactions
+- Documentation: Update docstrings and README for any interface changes
 
-### Code Style Guidelines
+### Areas for Contribution
 
-- **Python**: Follow PEP 8 style guide
-- **Naming**: Use descriptive variable and function names
-- **Comments**: Explain "why" not "what"
-- **Documentation**: Update README for user-facing changes
-- **Type Hints**: Use type hints where appropriate
+Potential areas where contributions would be valuable:
 
-### Development Setup
-
-```bash
-# Install development dependencies
-pip install -r requirements.txt
-
-# Run with debug logging
-# Edit modules/core/logger.py to set level to DEBUG
-
-# Test with example files
-python main/process_text_files.py
-```
+- Additional LLM providers: Support for Anthropic, Google, or other APIs
+- Enhanced chunking: Improved semantic boundary detection algorithms
+- Output formats: Support for different output formats (XML, etc.)
+- Testing: Unit tests and integration tests
+- Documentation: Tutorials, examples, and use case documentation
+- Performance optimization: Improved concurrent processing or caching
+- Error recovery: Enhanced error handling and recovery mechanisms
 
 ## License
 
-ChronoMiner is licensed under the **MIT License**.
-
-```
 MIT License
 
 Copyright (c) 2025 Paul Goetz
 
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
+Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
 
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
 
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-See [LICENSE](LICENSE) file for full details.
-
-## Contact & Support
-
-### Getting Help
-
-- **Documentation**: Read this README thoroughly
-- **GitHub Issues**: [Report bugs or request features](https://github.com/Paullllllllllllllllll/ChronoMiner/issues)
-- **Discussions**: Share ideas and ask questions in [GitHub Discussions](https://github.com/Paullllllllllllllllll/ChronoMiner/discussions)
-
-### Project Maintainer
-
-**Paul Goetz**
-- GitHub: [@Paullllllllllllllllll](https://github.com/Paullllllllllllllllll)
-- Project: [ChronoMiner](https://github.com/Paullllllllllllllllll/ChronoMiner)
-
-### Citation
-
-If you use ChronoMiner in your research, please cite:
-
-```bibtex
-@software{chronominer2025,
-  author = {Goetz, Paul},
-  title = {ChronoMiner: Schema-Based Structured Data Extraction for Historical Texts},
-  year = {2025},
-  url = {https://github.com/Paullllllllllllllllll/ChronoMiner},
-  version = {1.0}
-}
-```
-
-### Acknowledgments
-
-ChronoMiner is built with:
-- **OpenAI API** for LLM-powered extraction
-- **tiktoken** for accurate token counting
-- **pandas** for data manipulation
-- **python-docx** for document generation
-- And many other excellent open-source libraries
-
-Special thanks to the digital humanities and social sciences research communities for inspiring this project.
-
-## Star History
-
-If you find ChronoMiner useful, please consider giving it a star on GitHub!
-
-<div align="center">
-
-**Made for researchers, historians, and social scientists**
-
-[Home](https://github.com/Paullllllllllllllllll/ChronoMiner) · [Docs](#table-of-contents) · [Issues](https://github.com/Paullllllllllllllllll/ChronoMiner/issues) · [Contribute](#contributing)
-
-</div>
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
