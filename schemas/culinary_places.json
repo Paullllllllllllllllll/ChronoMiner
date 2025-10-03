@@ -1,14 +1,18 @@
 {
   "name": "CulinaryPlacesEntries",
-  "schema_version": "1.1",
+  "schema_version": "2.0",
   "type": "json_schema",
   "strict": true,
   "schema": {
     "type": "object",
     "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no culinary places. Otherwise, set to false."
+      },
       "entries": {
         "type": "array",
-        "description": "List of places of culinary importance. If no places are found, return an empty array. Each item must follow the structure below.",
+        "description": "List of places of culinary importance. If no places are found, return an empty array.",
         "items": {
           "type": "object",
           "properties": {
@@ -18,7 +22,7 @@
             },
             "name_modern_english": {
               "type": ["string", "null"],
-              "description": "Modern English equivalent of the place name for linkage (e.g., Firenze → Florence). If no change is customary, repeat the original."
+              "description": "Modern English equivalent of the place name. Example: 'Firenze' → 'Florence'. If no change is customary, repeat the original."
             },
             "place_type": {
               "type": "string",
@@ -36,11 +40,11 @@
                 "Other",
                 "Unknown"
               ],
-              "description": "Best-fitting category for the place. Use Restaurant/CulinarySchool for individual establishments; use City/Region/Country for administrative places; use Other if not listed."
+              "description": "Best-fitting category for the place."
             },
             "country_modern": {
               "type": ["string", "null"],
-              "description": "Modern country name in English (e.g., Italy; France). Avoid codes (no ISO)."
+              "description": "Modern country name in English. Example: 'Italy' or 'France'. Avoid ISO codes."
             },
             "period": {
               "type": "object",
@@ -56,7 +60,7 @@
                 },
                 "notation": {
                   "type": ["string", "null"],
-                  "description": "Human-readable note about timing (e.g., '18th c.'; 'opened 1896; interwar peak')."
+                  "description": "Human-readable note about timing. Example: '18th c.' or 'opened 1896'."
                 }
               },
               "required": ["start_year", "end_year", "notation"],
@@ -64,7 +68,7 @@
             },
             "roles_in_culinary_ecosystem": {
               "type": "array",
-              "description": "Functional roles this place played in food systems and culture. Select one or more; use Other if not listed.",
+              "description": "Functional roles this place played in food systems and culture. Select one or more.",
               "items": {
                 "type": "string",
                 "enum": [
@@ -85,7 +89,7 @@
             },
             "associated_products": {
               "type": "array",
-              "description": "Named products, dishes, or specialties linked to the place (free-text tokens, e.g., 'caciocavallo'; 'Argenteuil asparagus').",
+              "description": "Named products, dishes, or specialties linked to the place. Example: 'caciocavallo' or 'Argenteuil asparagus'.",
               "items": {
                 "type": "string",
                 "description": "Single product or dish name."
@@ -93,86 +97,62 @@
             },
             "notable_establishments": {
               "type": "array",
-              "description": "Named establishments (e.g., restaurants, hotels, schools) associated with the place.",
+              "description": "Named establishments (restaurants, hotels, schools) associated with the place.",
               "items": {
                 "type": "string",
-                "description": "Single establishment name (e.g., 'La Tour d’Argent')."
+                "description": "Single establishment name. Example: 'La Tour d'Argent'."
               }
             },
-            "sources": {
+            "associated_people": {
               "type": "array",
-              "description": "Secondary sources that support the information about this place.",
+              "description": "Notable persons associated with this place.",
               "items": {
                 "type": "object",
                 "properties": {
-                  "work_citation": {
+                  "name_original": {
+                    "type": ["string", "null"],
+                    "description": "Person's name as found in source."
+                  },
+                  "name_modern_english": {
+                    "type": ["string", "null"],
+                    "description": "Modern English or standardized form for linkage."
+                  },
+                  "association_type": {
                     "type": "string",
-                    "description": "Abbreviated source reference (e.g., 'Capatti & Montanari 2003')."
-                  },
-                  "pages": {
-                    "type": ["string", "null"],
-                    "description": "Exact page(s) or section (e.g., 'pp. 40–45'; 'ch. 2'); use null if not specified."
-                  },
-                  "quotation": {
-                    "type": ["string", "null"],
-                    "description": "Short supporting quote (≤ 500 characters) if the input provides one; otherwise null."
+                    "description": "Nature of association. Example: 'worked at' or 'founded'."
                   }
                 },
-                "required": ["work_citation", "pages", "quotation"],
+                "required": ["name_original", "name_modern_english", "association_type"],
                 "additionalProperties": false
               }
+            },
+            "notes": {
+              "type": ["string", "null"],
+              "description": "Additional context or clarifications. Use null if none."
             },
             "links": {
               "type": "array",
-              "description": "Lightweight cross-references to related entities using labels (no identifiers).",
+              "description": "Cross-references to related entities.",
               "items": {
                 "type": "object",
                 "properties": {
-                  "target_type": {
+                  "entity_type": {
                     "type": "string",
-                    "enum": ["Work", "Person", "Place", "Event", "Other"],
-                    "description": "Type of the referenced entity."
+                    "enum": ["Person", "Place", "Work", "Product", "Other"],
+                    "description": "Type of entity being referenced."
                   },
-                  "label_original": {
-                    "type": ["string", "null"],
-                    "description": "Exact label of the referenced entity as it appears in the source."
-                  },
-                  "label_modern_english": {
-                    "type": ["string", "null"],
-                    "description": "Modern English label for the referenced entity for linkage."
+                  "entity_label": {
+                    "type": "string",
+                    "description": "Name or label of the related entity."
                   },
                   "relationship": {
                     "type": "string",
-                    "enum": [
-                      "SameAs",
-                      "DerivedFrom",
-                      "InfluencedBy",
-                      "Precedes",
-                      "Follows",
-                      "VariantOf",
-                      "PartOf",
-                      "Contains",
-                      "AssociatedWith",
-                      "LocatedAt",
-                      "EmployedAt",
-                      "Other",
-                      "Unknown"
-                    ],
-                    "description": "Nature of the relationship to the referenced entity (choose the closest match)."
+                    "description": "Nature of the relationship."
                   }
                 },
-                "required": [
-                  "target_type",
-                  "label_original",
-                  "label_modern_english",
-                  "relationship"
-                ],
+                "required": ["entity_type", "entity_label", "relationship"],
                 "additionalProperties": false
               }
-            },
-            "description": {
-              "type": ["string", "null"],
-              "description": "1–3 sentences summarizing why this place matters in culinary history (neutral, factual). Use null if the input provides no summary."
             }
           },
           "required": [
@@ -184,15 +164,15 @@
             "roles_in_culinary_ecosystem",
             "associated_products",
             "notable_establishments",
-            "sources",
-            "links",
-            "description"
+            "associated_people",
+            "notes",
+            "links"
           ],
           "additionalProperties": false
         }
       }
     },
-    "required": ["entries"],
+    "required": ["contains_no_content_of_requested_type", "entries"],
     "additionalProperties": false
   }
 }

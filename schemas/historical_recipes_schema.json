@@ -1,0 +1,386 @@
+{
+  "name": "HistoricalRecipesEntries",
+  "schema_version": "2.2",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no recipes. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "description": "List of historical recipes extracted from text. If no recipes are found, return an empty array.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "recipe_text_original": {
+              "type": "string",
+              "description": "Complete recipe text verbatim in its original language (preserve spelling, diacritics, and formatting)."
+            },
+            "recipe_text_modern_english": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Modern English translation of the complete recipe text. Use null if original is already in English."
+            },
+            "title_original": {
+              "type": "string",
+              "description": "Recipe title exactly as it appears in the source (preserve spelling and diacritics)."
+            },
+            "title_modern_english": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Modern English translation or standardized title. Use null if not applicable."
+            },
+            "recipe_type": {
+              "type": "string",
+              "enum": [
+                "Main Dish",
+                "Side Dish",
+                "Soup",
+                "Sauce",
+                "Dessert",
+                "Pastry",
+                "Bread",
+                "Beverage",
+                "Preserve",
+                "Condiment",
+                "Confection",
+                "Preparation Technique",
+                "Other",
+                "Unknown"
+              ],
+              "description": "Primary category of the recipe."
+            },
+            "ingredients": {
+              "type": "array",
+              "description": "List of ingredients with original names, translations, quantities, and preparation notes.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name_original": {
+                    "type": "string",
+                    "description": "Ingredient name as it appears in source (preserve spelling and diacritics). Example: 'farine' or 'sucre'."
+                  },
+                  "name_modern_english": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Modern English translation of the ingredient. Example: 'flour' or 'sugar'."
+                  },
+                  "quantity_original": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Quantity as recorded in source. Example: 'une poignée' or 'deux livres'. Use null if not specified."
+                  },
+                  "quantity_standardized_value": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": "null" }
+                    ],
+                    "description": "Numeric value of standardized quantity. Example: 500 or 2 or 1. Use null if cannot be standardized."
+                  },
+                  "quantity_standardized_unit": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Unit of standardized quantity. Example: 'g' or 'cups' or 'tablespoon'. Use null if cannot be standardized."
+                  },
+                  "preparation_note_original": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "How ingredient should be prepared, as recorded in source. Example: 'haché finement' or 'battu'. Use null if none."
+                  },
+                  "preparation_note_modern_english": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Modern English translation of preparation note. Example: 'finely chopped' or 'beaten'. Use null if none."
+                  }
+                },
+                "required": ["name_original", "name_modern_english", "quantity_original", "quantity_standardized_value", "quantity_standardized_unit", "preparation_note_original", "preparation_note_modern_english"],
+                "additionalProperties": false
+              }
+            },
+            "cooking_methods": {
+              "type": "array",
+              "description": "Cooking techniques used in this recipe with original terms and translations.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "method_original": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Cooking method as it appears in source (preserve spelling). Example: 'rôtir' or 'bouillir'."
+                  },
+                  "method_modern_english": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Modern English translation of the cooking method. Example: 'roasting' or 'boiling'."
+                  }
+                },
+                "required": ["method_original", "method_modern_english"],
+                "additionalProperties": false
+              }
+            },
+            "utensils_equipment": {
+              "type": "array",
+              "description": "Cooking tools and equipment mentioned in the recipe.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "utensil_original": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Utensil as it appears in source (preserve spelling). Example: 'marmite' or 'broche'."
+                  },
+                  "utensil_modern_english": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Modern English translation of the utensil. Example: 'pot' or 'spit'."
+                  }
+                },
+                "required": ["utensil_original", "utensil_modern_english"],
+                "additionalProperties": false
+              }
+            },
+            "yield": {
+              "type": "array",
+              "description": "Yield information with original and modern English versions.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "value_original": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": "null" }
+                    ],
+                    "description": "Numeric value of yield as recorded. Example: 6 or 2. Use null if not specified."
+                  },
+                  "unit_original": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Unit of yield as recorded in source. Example: 'personnes' or 'portions'. Use null if not specified."
+                  },
+                  "value_modern_english": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": "null" }
+                    ],
+                    "description": "Numeric value of yield (typically same as original). Example: 6 or 2. Use null if not specified."
+                  },
+                  "unit_modern_english": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Modern English translation of yield unit. Example: 'servings' or 'portions'. Use null if not specified."
+                  }
+                },
+                "required": ["value_original", "unit_original", "value_modern_english", "unit_modern_english"],
+                "additionalProperties": false
+              }
+            },
+            "preparation_time": {
+              "type": "array",
+              "description": "Preparation time with original and modern English versions.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "value_original": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": "null" }
+                    ],
+                    "description": "Numeric value of preparation time as recorded. Example: 2 or 30. Use null if not specified or non-numeric."
+                  },
+                  "unit_original": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Unit of preparation time as recorded in source. Example: 'heures' or 'minutes'. Use null if not specified."
+                  },
+                  "value_modern_english": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": "null" }
+                    ],
+                    "description": "Numeric value of preparation time (typically same as original). Example: 2 or 30. Use null if not specified or non-numeric."
+                  },
+                  "unit_modern_english": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Modern English translation of time unit. Example: 'hours' or 'minutes' or 'overnight'. Use null if not specified."
+                  }
+                },
+                "required": ["value_original", "unit_original", "value_modern_english", "unit_modern_english"],
+                "additionalProperties": false
+              }
+            },
+            "cooking_time": {
+              "type": "array",
+              "description": "Cooking time with original and modern English versions.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "value_original": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": "null" }
+                    ],
+                    "description": "Numeric value of cooking time as recorded. Example: 30 or 2. Use null if not specified or non-numeric."
+                  },
+                  "unit_original": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Unit of cooking time as recorded in source. Example: 'minutes' or 'heures'. Use null if not specified."
+                  },
+                  "value_modern_english": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": "null" }
+                    ],
+                    "description": "Numeric value of cooking time (typically same as original). Example: 30 or 2. Use null if not specified or non-numeric."
+                  },
+                  "unit_modern_english": {
+                    "anyOf": [
+                      { "type": "string" },
+                      { "type": "null" }
+                    ],
+                    "description": "Modern English translation of time unit. Example: 'minutes' or 'hours' or 'until golden'. Use null if not specified."
+                  }
+                },
+                "required": ["value_original", "unit_original", "value_modern_english", "unit_modern_english"],
+                "additionalProperties": false
+              }
+            },
+            "ingredient_categories": {
+              "type": "object",
+              "description": "Boolean flags indicating whether the recipe contains specific categories of historical ingredients.",
+              "properties": {
+                "contains_meat": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains meat (beef, pork, lamb, game, etc.)."
+                },
+                "contains_poultry": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains poultry (chicken, duck, goose, etc.)."
+                },
+                "contains_fish_seafood": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains fish or seafood."
+                },
+                "contains_dairy": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains dairy products (milk, cheese, cream, etc.)."
+                },
+                "contains_eggs": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains eggs."
+                },
+                "contains_butter": {
+                  "type": "boolean",
+                  "description": "True if the recipe specifically contains butter."
+                },
+                "contains_olive_oil": {
+                  "type": "boolean",
+                  "description": "True if the recipe specifically contains olive oil."
+                },
+                "contains_lard_animal_fat": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains lard or other animal fats that are not butter."
+                },
+                "contains_alcohol": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains alcoholic beverages (wine, beer, spirits, etc.)."
+                },
+                "contains_refined_sugar": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains refined sugar."
+                },
+                "contains_honey": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains honey as a sweetener."
+                },
+                "contains_other_sweeteners": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains other sweeteners that are neither honey, nor refined sugar (dried fruit, etc.)."
+                },
+                "contains_foreign_spices": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains imported/exotic spices (pepper, cinnamon, cloves, nutmeg, ginger, saffron, etc.)."
+                },
+                "contains_luxury_ingredients": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains luxury or high-status ingredients (truffles, caviar, exotic fruits, expensive cuts, etc.)."
+                }
+              },
+              "required": [
+                "contains_meat",
+                "contains_poultry",
+                "contains_fish_seafood",
+                "contains_dairy",
+                "contains_eggs",
+                "contains_butter",
+                "contains_olive_oil",
+                "contains_lard_animal_fat",
+                "contains_alcohol",
+                "contains_refined_sugar",
+                "contains_honey",
+                "contains_other_sweeteners",
+                "contains_foreign_spices",
+                "contains_luxury_ingredients"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "recipe_text_original",
+            "recipe_text_modern_english",
+            "title_original",
+            "title_modern_english",
+            "recipe_type",
+            "ingredients",
+            "cooking_methods",
+            "utensils_equipment",
+            "yield",
+            "preparation_time",
+            "cooking_time",
+            "ingredient_categories"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

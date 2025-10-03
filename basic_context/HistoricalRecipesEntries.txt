@@ -1,0 +1,5 @@
+The input text consists of historical recipes from cookbooks, manuscripts, and culinary literature dating from
+approximately 1400 to 1950. Recipes typically contain ingredient lists, cooking instructions, and occasional notes
+on techniques or presentation. The text may appear in various European languages with archaic spelling and historical
+culinary terminology. Natural semantic markers for this type of text are recipe titles or the beginnings of new
+recipe entries.

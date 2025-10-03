@@ -1,11 +1,15 @@
 {
   "name": "BrazilianMilitaryRecords",
-  "schema_version": "1.2",
+  "schema_version": "2.0",
   "type": "json_schema",
   "strict": true,
   "schema": {
     "type": "object",
     "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no military records. Otherwise, set to false."
+      },
       "entries": {
         "type": "array",
         "items": {
@@ -13,11 +17,11 @@
           "properties": {
             "surname": {
               "type": "string",
-              "description": "The surname of the individual. Example: 'Franco', 'Schmidt', or 'Elias'."
+              "description": "The surname of the individual. Example: 'Franco' or 'Schmidt'."
             },
             "first_name": {
               "type": "string",
-              "description": "The first name of the individual. Example: 'Antonio', 'Carlos', or 'Elza'."
+              "description": "The first name of the individual. Example: 'Antonio' or 'Carlos'."
             },
             "record_header": {
               "type": "string",
@@ -29,11 +33,15 @@
             },
             "height": {
               "type": "number",
-              "description": "The recorded height in meters as a float. Example: 1.65 or 1.55."
+              "description": "The recorded height in meters. Example: 1.65 or 1.55."
             },
             "skin_color": {
               "type": "string",
               "description": "The skin color. Example: 'Branca'."
+            },
+            "eyes": {
+              "type": ["string", "null"],
+              "description": "Description of the eyes. Example: 'castanhos' or 'azues'. Use null if not provided."
             },
             "hair_color": {
               "type": ["string", "null"],
@@ -43,13 +51,41 @@
               "type": ["string", "null"],
               "description": "The hair texture or form. Example: 'lisos' or 'liso'. Use null if not provided."
             },
+            "face": {
+              "type": ["string", "null"],
+              "description": "The shape or appearance of the face. Example: 'oval' or 'alongado'. Use null if not provided."
+            },
+            "nose": {
+              "type": ["string", "null"],
+              "description": "Description of the nose. Example: 'regular' or 'afilado'. Use null if not provided."
+            },
+            "mouth": {
+              "type": ["string", "null"],
+              "description": "Description of the mouth. Example: 'pequena' or 'regular'. Use null if not provided."
+            },
             "beard": {
               "type": ["string", "null"],
               "description": "Description of the beard. Example: 'feita'. Use null if not provided."
             },
             "mustache": {
               "type": ["string", "null"],
-              "description": "Description of the mustache. Example: 'não usa' or 'não uso'. Use null if not provided."
+              "description": "Description of the mustache. Example: 'não usa'. Use null if not provided."
+            },
+            "marks": {
+              "type": ["string", "null"],
+              "description": "Any distinctive marks. Example: 'cicatriz no pulso esquerdo'. Use null if not provided."
+            },
+            "birth_date": {
+              "type": ["string", "null"],
+              "description": "Birth date of the individual. Example: '13 de Dezembro de 1891'. Use null if not provided."
+            },
+            "municipality": {
+              "type": ["string", "null"],
+              "description": "The municipality of registration. Example: 'Limeira'. Use null if not provided."
+            },
+            "profession": {
+              "type": ["string", "null"],
+              "description": "The profession or occupation. Example: 'Lavrador'. Use null if not provided."
             },
             "assignatura": {
               "type": ["string", "null"],
@@ -58,26 +94,6 @@
             "reservista": {
               "type": ["string", "null"],
               "description": "Indicates if the individual is a reservist. Example: 'não'. Use null if not provided."
-            },
-            "eyes": {
-              "type": ["string", "null"],
-              "description": "Description of the eyes. Example: 'castanhos' or 'azues'. Use null if not provided."
-            },
-            "mouth": {
-              "type": ["string", "null"],
-              "description": "Description of the mouth. Example: 'pequena' or 'regular'. Use null if not provided."
-            },
-            "face": {
-              "type": ["string", "null"],
-              "description": "The shape or appearance of the face. Example: 'oval' or 'alongado'. Use null if not provided."
-            },
-            "nose": {
-              "type": ["string", "null"],
-              "description": "Description of the nose. Example: 'regular', 'afilado', or 'fino'. Use null if not provided."
-            },
-            "marks": {
-              "type": ["string", "null"],
-              "description": "Any distinctive marks. Example: 'cicatriz no pulso esquerdo'. Use null if not provided."
             },
             "officials": {
               "type": ["array", "null"],
@@ -91,7 +107,7 @@
                   },
                   "signature": {
                     "type": ["string", "null"],
-                    "description": "The recorded signature or name for the position. Example: '*Assinatura*' or 'Octavio Bernardes'. Use null if not provided."
+                    "description": "The recorded signature or name. Example: 'Octavio Bernardes'. Use null if not provided."
                   }
                 },
                 "required": ["position", "signature"],
@@ -106,21 +122,9 @@
               "type": ["string", "null"],
               "description": "The name of the mother. Example: 'Da. Júlia Maria de Jesus'. Use null if not provided."
             },
-            "birth_date": {
-              "type": ["string", "null"],
-              "description": "The birth date. Example: '14 de outubro 1908' or '18-1-1890'. Use null if not provided."
-            },
             "birth_place": {
               "type": ["string", "null"],
               "description": "The place of birth. Example: 'Limeira' or 'Bremen - Alemanha'. Use null if not provided."
-            },
-            "municipality": {
-              "type": ["string", "null"],
-              "description": "The municipality of registration. Example: 'Limeira'. Use null if not provided."
-            },
-            "profession": {
-              "type": "string",
-              "description": "The recorded profession. Example: 'Carroceiro (sabe cozinhar)', 'Official aposentado do Exército Alemão, 1º Tenente Cavallaria', or 'caixa'."
             },
             "civil_status": {
               "type": ["string", "null"],
@@ -186,24 +190,24 @@
             "location",
             "height",
             "skin_color",
+            "eyes",
             "hair_color",
             "hair_texture",
-            "beard",
-            "mustache",
-            "assignatura",
-            "reservista",
-            "eyes",
-            "mouth",
             "face",
             "nose",
+            "mouth",
+            "beard",
+            "mustache",
             "marks",
+            "birth_date",
+            "municipality",
+            "profession",
+            "assignatura",
+            "reservista",
             "officials",
             "father",
             "mother",
-            "birth_date",
             "birth_place",
-            "municipality",
-            "profession",
             "civil_status",
             "vaccinated",
             "can_read",
@@ -223,7 +227,7 @@
         }
       }
     },
-    "required": ["entries"],
+    "required": ["contains_no_content_of_requested_type", "entries"],
     "additionalProperties": false
   }
 }

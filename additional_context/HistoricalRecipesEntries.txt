@@ -1,0 +1,55 @@
+ADDITIONAL CONTEXT FOR HISTORICAL RECIPES ENTRIES
+
+When extracting data from historical recipes, please consider:
+
+1. Recipe structure variations:
+   - Medieval and early modern recipes often lack precise measurements
+   - Ingredient lists may be embedded in narrative instructions rather than separate
+   - Cooking times may be expressed as "until done" or "the time it takes to say a prayer"
+   - Equipment may be implied rather than explicitly stated
+   - Yields/servings often unspecified or expressed in vague terms
+
+2. Language and terminology:
+   - Archaic ingredient names (e.g., "manchet" for fine wheat bread, "verjuice" for sour grape juice)
+   - Historical measurement units (livres, onces, pintes, handfuls, pinches)
+   - Cooking method terms may differ from modern usage (e.g., "seethe" for boil)
+   - Preserve original spelling and diacritics exactly as they appear
+   - Many ingredients have regional or period-specific names
+
+3. Ingredient categories and social context:
+   - Meat, poultry, and fish indicate dietary patterns and religious observance
+   - Expensive spices (saffron, cinnamon, pepper) signal luxury or high-status cuisine
+   - Butter vs. olive oil vs. lard indicates regional culinary traditions
+   - Refined sugar availability marks historical period (post-colonial trade)
+   - Dairy and eggs important for dietary and religious classification (Lenten restrictions)
+   - Alcohol usage (wine, beer, spirits) varies by region and religious context
+
+4. Cooking methods and equipment:
+   - Open hearth cooking dominant until 18th-19th century
+   - Roasting, boiling, and baking most common until modern period
+   - Specialized equipment (spits, trivets, kettles) indicates kitchen sophistication
+   - Mortars and pestles ubiquitous for grinding and mixing
+   - Copper and clay vessels mentioned in older recipes
+
+5. Recipe types and classifications:
+   - Main dishes vs. side dishes vs. desserts (categories may be anachronistic)
+   - Fast day vs. feast day recipes crucial for medieval/early modern contexts
+   - Court cuisine vs. bourgeois vs. peasant cooking represents social stratification
+   - Medicinal recipes often mixed with culinary ones in early cookbooks
+   - Preserving and pickling recipes important for pre-refrigeration food storage
+
+6. Quantities and standardization:
+   - Historical measurements require conversion to modern units when possible
+   - "To taste" or unspecified quantities very common
+   - Recipe scaling often unclear - portions for households of varying sizes
+   - Ingredient ratios more important than absolute quantities in many recipes
+
+7. Translation considerations:
+   - Provide both original language and modern English translations
+   - Cooking method terms may lack direct modern equivalents
+   - Ingredient names may require cultural/botanical context for accurate translation
+   - Preserve ambiguity when historical text is unclear
+   - Note when ingredients are no longer commonly available
+
+This additional context should help you accurately extract historical recipes while preserving their original
+character and providing useful standardized information for analysis.

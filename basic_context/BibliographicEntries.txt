@@ -1,6 +1,11 @@
-The input text consists of a snippet of bibliographic records describing historical culinary and household
-literature (e.g., cookbooks, household manuals, foodstuff guides, food production regulations, etc.) dating
-from approximately 1470 to 1950. The text may appear in different languages and use historical spelling
-and diacritics. When extracting edition information, ensure that later or revised editions of the same work are
-grouped together under the entry for the first (original) edition in the `edition_info` array. Use the beginning of a
-full bibliographic entry (including any subsequent editions of the same work) as the semantic boundary marker for this type of text.
+The input text consists of bibliographic records describing historical culinary and household literature (e.g., cookbooks, household manuals, foodstuff guides, food production regulations, etc.) dating from approximately 1470 to 1950. The text may appear in different languages and use historical spelling and diacritics.
+
+CRITICAL EXTRACTION RULES:
+
+1. ROOT ENTRY: Extract the title and main author from the FIRST edition to populate the root entry fields (full_title, short_title, main_author).
+
+2. EDITION_INFO ARRAY: Extract ALL editions into the edition_info array, INCLUDING THE FIRST EDITION. Each edition should be a separate object in this array with its specific details (year, format, pages, dimensions, price, publication locations, publishers, contributors, language, etc.).
+
+3. GROUPING: When you encounter multiple editions of the same work (e.g., "The same, 1820" or "Second edition, 1825"), group them all under a single root entry with each edition as a separate object in the edition_info array.
+
+4. SEMANTIC BOUNDARIES: Use the beginning of a full bibliographic entry (including any subsequent editions mentioned) as the semantic boundary marker. All editions of the same work belong to the same entry.

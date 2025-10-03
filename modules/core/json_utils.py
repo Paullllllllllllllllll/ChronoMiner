@@ -36,6 +36,12 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
     entries: List[Any] = []
 
     if isinstance(data, dict):
+        # Check if the model indicated no content of requested type
+        if data.get("contains_no_content_of_requested_type", False):
+            logger.info(f"Model indicated no content of requested type in {json_file.name}")
+            print(f"Note: Model found no extractable content in {json_file.name}")
+            return []
+        
         # Direct entries format
         if "entries" in data:
             entries = data["entries"]
@@ -49,13 +55,19 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
                     if isinstance(resp, str):
                         # Try to parse response string as JSON
                         content_json = json.loads(resp)
-                        if isinstance(content_json, dict) and "entries" in content_json:
-                            # Filter out None entries
-                            valid_entries = [
-                                entry for entry in content_json.get("entries", [])
-                                if entry is not None
-                            ]
-                            entries.extend(valid_entries)
+                        if isinstance(content_json, dict):
+                            # Check if this response has no content of requested type
+                            if content_json.get("contains_no_content_of_requested_type", False):
+                                logger.debug("Response indicated no content of requested type")
+                                continue
+                            
+                            if "entries" in content_json:
+                                # Filter out None entries
+                                valid_entries = [
+                                    entry for entry in content_json.get("entries", [])
+                                    if entry is not None
+                                ]
+                                entries.extend(valid_entries)
                     elif isinstance(resp, dict):
                         # Handle batch response structure (Chat Completions and Responses API)
                         # First check for raw_response (normalized format from check_batches.py)
@@ -87,12 +99,18 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
                         if content:
                             try:
                                 content_json = json.loads(content)
-                                if isinstance(content_json, dict) and "entries" in content_json:
-                                    valid_entries = [
-                                        entry for entry in content_json.get("entries", [])
-                                        if entry is not None
-                                    ]
-                                    entries.extend(valid_entries)
+                                if isinstance(content_json, dict):
+                                    # Check if this response has no content of requested type
+                                    if content_json.get("contains_no_content_of_requested_type", False):
+                                        logger.debug("Response indicated no content of requested type")
+                                        continue
+                                    
+                                    if "entries" in content_json:
+                                        valid_entries = [
+                                            entry for entry in content_json.get("entries", [])
+                                            if entry is not None
+                                        ]
+                                        entries.extend(valid_entries)
                             except json.JSONDecodeError:
                                 logger.warning(f"Failed to parse content as JSON: {content[:100]}...")
                 except Exception as e:
@@ -104,8 +122,14 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
         for chunk in data:
             if isinstance(chunk, dict) and "response" in chunk:
                 chunk_data = chunk["response"]
-                if isinstance(chunk_data, dict) and "entries" in chunk_data:
-                    entries.extend(chunk_data["entries"])
+                if isinstance(chunk_data, dict):
+                    # Check if chunk response has no content of requested type
+                    if chunk_data.get("contains_no_content_of_requested_type", False):
+                        logger.debug("Chunk response indicated no content of requested type")
+                        continue
+                    
+                    if "entries" in chunk_data:
+                        entries.extend(chunk_data["entries"])
                 elif isinstance(chunk_data, list):
                     entries.extend(chunk_data)
 

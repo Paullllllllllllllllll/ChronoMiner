@@ -1,48 +1,70 @@
 {
   "name": "StructuredSummaries",
-  "schema_version": "2.2",
+  "schema_version": "4.0",
   "type": "json_schema",
   "strict": true,
   "schema": {
     "type": "object",
     "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no pages to summarize. Otherwise, set to false."
+      },
       "entries": {
         "type": "array",
-        "description": "An array where each entry corresponds to a specific page in the academic text. Each entry includes the page number, bullet-point summaries, and literature references associated with that page.",
+        "description": "Array of page summaries from academic text. Each entry corresponds to one page.",
         "items": {
           "type": "object",
           "properties": {
-            "page": {
-              "type": "integer",
-              "description": "The page number as it appears in the text."
+            "page_number": {
+              "type": "object",
+              "description": "Page number information, specifically, the page number (integer) and a boolean indicating whether the page contains no visible or assigned page number.",
+              "properties": {
+                "page_number_integer": {
+                  "type": "integer",
+                  "description": "Page number of the text being summarized. Page numbers normally appear in headers or footers and may be flanked by the article, chapter, or monograph title or author names."
+                },
+                "contains_no_page_number": {
+                  "type": "boolean",
+                  "description": "Set to true **if and only if** the page contains no page number; otherwise, false."
+                }
+              },
+              "required": ["page_number_integer", "contains_no_page_number"],
+              "additionalProperties": false
+            },
+            "contains_no_semantic_content": {
+              "type": "boolean",
+              "description": "Set to true **if and only if** the page contains no substantial semantic content, but only lists of references, sources, title or introductory pages, tables of contents, etc."
             },
             "bullet_points": {
-              "type": ["array", "null"],
-              "description": "A list of key bullet-point summaries for the page.",
+              "type": "array",
+              "description": "Concise bullet-point statements that capture the most essential ideas or findings on the page. Return an empty array if contains_no_semantic_content is true.",
               "items": {
-                "type": ["string", "null"],
+                "type": "string",
                 "description": "A concise summary point."
               }
             },
-            "literature": {
-              "type": ["array", "null"],
-              "description": "A list of APA-formatted literature references associated with the page.",
+            "references": {
+              "type": "array",
+              "description": "Full bibliographic citations appearing on the page, formatted in American Psychological Association (APA) style.",
               "items": {
-                "type": ["string", "null"],
-                "description": "An individual literature reference."
+                "type": "string",
+                "description": "An individual literature reference in APA format."
               }
             }
           },
           "required": [
-            "page",
+            "page_number",
+            "contains_no_semantic_content",
             "bullet_points",
-            "literature"
+            "references"
           ],
           "additionalProperties": false
         }
       }
     },
     "required": [
+      "contains_no_content_of_requested_type",
       "entries"
     ],
     "additionalProperties": false
