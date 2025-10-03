@@ -118,7 +118,7 @@ async def _run_interactive_mode(
     schemas_paths: Dict,
 ) -> None:
     """Run text processing in interactive mode with back navigation support."""
-    ui = UserInterface(logger)
+    ui = UserInterface(logger, use_colors=True)
     ui.display_banner()
     
     # Load configuration

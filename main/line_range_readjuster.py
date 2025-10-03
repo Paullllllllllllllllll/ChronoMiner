@@ -250,7 +250,7 @@ async def _run_interactive_mode(
     default_context_window: int,
 ) -> None:
     """Run line range readjustment in interactive mode with back navigation support."""
-    ui = UserInterface(logger)
+    ui = UserInterface(logger, use_colors=True)
     ui.display_banner()
     ui.print_section_header("Line Range Adjustment")
     

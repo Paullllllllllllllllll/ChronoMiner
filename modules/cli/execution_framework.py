@@ -68,7 +68,7 @@ class DualModeScript(ABC):
     def initialize_ui(self) -> None:
         """Initialize the user interface for interactive mode."""
         if not self.ui:
-            self.ui = UserInterface(self.logger)
+            self.ui = UserInterface(self.logger, use_colors=True)
             self.ui.display_banner()
     
     @abstractmethod
