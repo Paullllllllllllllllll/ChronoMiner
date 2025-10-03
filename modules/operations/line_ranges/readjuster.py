@@ -25,35 +25,41 @@ SEMANTIC_BOUNDARY_SCHEMA: Dict[str, Any] = {
     "schema": {
         "type": "object",
         "properties": {
-            "no_semantic_marker": {
+            "contains_no_semantic_boundary": {
                 "type": "boolean",
-                "description": "Set to true when no reliable semantic marker exists in the provided context.",
+                "description": "Set to true when the provided text contains NO content of the required semantic type at all. Use this when you are confident no relevant content exists anywhere in the visible context.",
             },
-            "unsure": {
+            "needs_more_context": {
                 "type": "boolean",
-                "description": "Set to true when uncertain about the semantic marker identification.",
+                "description": "Set to true when you believe the semantic boundary exists somewhere around the visible text but you need to see more surrounding content to accurately identify it.",
+            },
+            "certainty": {
+                "type": "integer",
+                "description": "Your confidence level in this response as an integer from 0-100. Use 0-40 for low confidence, 41-70 for moderate confidence, 71-100 for high confidence. This applies to whatever decision you make (boundary found, no content, or needs more context).",
             },
             "semantic_marker": {
                 "type": "string",
-                "description": "A precise 10-15 character verbatim substring that marks the semantic boundary. Leave empty if no_semantic_marker or unsure is true.",
+                "description": "A precise 10-15 character verbatim substring that marks the semantic boundary. Leave empty if contains_no_semantic_boundary or needs_more_context is true.",
             },
         },
-        "required": ["no_semantic_marker", "unsure", "semantic_marker"],
+        "required": ["contains_no_semantic_boundary", "needs_more_context", "certainty", "semantic_marker"],
         "additionalProperties": False,
     },
 }
 
 @dataclass
 class BoundaryDecision:
-    no_semantic_marker: bool
-    unsure: bool
+    contains_no_semantic_boundary: bool
+    needs_more_context: bool
+    certainty: int
     semantic_marker: Optional[str] = None
 
     @classmethod
     def from_payload(cls, payload: Dict[str, Any]) -> "BoundaryDecision":
         return cls(
-            no_semantic_marker=bool(payload.get("no_semantic_marker", False)),
-            unsure=bool(payload.get("unsure", False)),
+            contains_no_semantic_boundary=bool(payload.get("contains_no_semantic_boundary", False)),
+            needs_more_context=bool(payload.get("needs_more_context", False)),
+            certainty=int(payload.get("certainty", 0)),
             semantic_marker=payload.get("semantic_marker") or None,
         )
 
@@ -92,9 +98,11 @@ class LineRangeReadjuster:
         
         # Load retry configuration with defaults
         self.retry_config = retry_config or {}
-        self.max_retries_on_unsure = self.retry_config.get("max_retries_on_unsure", 2)
-        self.max_retries_on_no_marker = self.retry_config.get("max_retries_on_no_marker", 1)
-        self.expand_context_on_retry = self.retry_config.get("expand_context_on_retry", True)
+        self.certainty_threshold = self.retry_config.get("certainty_threshold", 70)
+        self.max_low_certainty_retries = self.retry_config.get("max_low_certainty_retries", 3)
+        self.max_context_expansion_attempts = self.retry_config.get("max_context_expansion_attempts", 3)
+        self.delete_ranges_with_no_content = self.retry_config.get("delete_ranges_with_no_content", True)
+        self.scan_range_multiplier = self.retry_config.get("scan_range_multiplier", 3)
 
     async def ensure_adjusted_line_ranges(
         self,
@@ -141,13 +149,15 @@ class LineRangeReadjuster:
         )
 
         adjusted_ranges: List[Tuple[int, int]] = []
+        ranges_to_delete: List[int] = []  # Track indices of ranges with no content
+        
         async with open_extractor(
             api_key=api_key,
             prompt_path=self.prompt_path,
             model=self.model_name,
         ) as extractor:
             for index, original_range in enumerate(ranges, start=1):
-                decision, updated_range = await self._process_single_range(
+                decision, updated_range, should_delete = await self._process_single_range(
                     extractor=extractor,
                     raw_lines=raw_lines,
                     original_range=original_range,
@@ -156,22 +166,38 @@ class LineRangeReadjuster:
                     basic_context=basic_context,
                     additional_context=additional_context,
                 )
-                adjusted_ranges.append(updated_range)
-                if decision.no_semantic_marker:
-                    logger.info(
-                        "[Range %d] No semantic boundary detected; kept original %s",
+                
+                if should_delete:
+                    logger.warning(
+                        "[Range %d] Confirmed no semantic content of type '%s' exists; marking for deletion",
                         index,
-                        updated_range,
+                        boundary_type,
                     )
+                    ranges_to_delete.append(index - 1)  # Store 0-based index for deletion
                 else:
-                    logger.info(
-                        "[Range %d] Adjusted to %s via boundary '%s'",
-                        index,
-                        updated_range,
-                        decision.semantic_marker,
-                    )
+                    adjusted_ranges.append(updated_range)
+                    if decision.contains_no_semantic_boundary:
+                        logger.info(
+                            "[Range %d] No semantic boundary detected in context; kept original %s",
+                            index,
+                            updated_range,
+                        )
+                    else:
+                        logger.info(
+                            "[Range %d] Adjusted to %s via boundary '%s'",
+                            index,
+                            updated_range,
+                            decision.semantic_marker,
+                        )
 
         adjusted_ranges = self._remove_overlaps(adjusted_ranges)
+        
+        if ranges_to_delete:
+            logger.info(
+                "Deleted %d range(s) with no semantic content: %s",
+                len(ranges_to_delete),
+                [i + 1 for i in ranges_to_delete],  # Convert back to 1-based for display
+            )
 
         if not dry_run:
             self._write_line_ranges(line_ranges_file, adjusted_ranges)
@@ -188,14 +214,30 @@ class LineRangeReadjuster:
         boundary_type: str,
         basic_context: Optional[str],
         additional_context: Optional[str],
-    ) -> Tuple[BoundaryDecision, Tuple[int, int]]:
+    ) -> Tuple[BoundaryDecision, Tuple[int, int], bool]:
+        """
+        Process a single range to find semantic boundaries.
+        
+        Strategy (certainty-based routing):
+        1. Check certainty first - if below threshold, retry with different window
+        2. Route by high-certainty decision:
+           - needs_more_context: Expand window progressively
+           - contains_no_semantic_boundary: Verify with broad scan → delete if confirmed
+           - Success (marker found): Validate and apply
+        
+        Returns:
+            Tuple of (decision, adjusted_range, should_delete)
+            - decision: The final boundary decision
+            - adjusted_range: The adjusted line range
+            - should_delete: True if this range should be deleted (no content confirmed)
+        """
         total_lines = len(raw_lines)
         windows = list(self._generate_windows(original_range, total_lines))
         decision: Optional[BoundaryDecision] = None
         adjusted_range = original_range
 
-        unsure_retries = 0
-        no_marker_retries = 0
+        low_certainty_retries = 0
+        context_expansion_attempts = 0
 
         for window_idx, window in enumerate(windows):
             payload = await self._run_model(
@@ -210,80 +252,232 @@ class LineRangeReadjuster:
             )
             decision = BoundaryDecision.from_payload(payload)
             
-            # Handle unsure responses with retry
-            if decision.unsure:
-                if unsure_retries < self.max_retries_on_unsure:
-                    unsure_retries += 1
+            # ========================================================================
+            # PRIORITY 1: Check certainty threshold (applies to all response types)
+            # ========================================================================
+            if decision.certainty < self.certainty_threshold:
+                low_certainty_retries += 1
+                if low_certainty_retries <= self.max_low_certainty_retries:
                     logger.info(
-                        "[Range %d, Window %d] Model is unsure; retry %d/%d",
+                        "[Range %d, Window %d] Low certainty (%d < %d); retry %d/%d",
                         range_index,
                         window_idx,
-                        unsure_retries,
-                        self.max_retries_on_unsure,
-                    )
-                    continue  # Try next window or retry
-                else:
-                    logger.warning(
-                        "[Range %d] Model remains unsure after %d retries; keeping original range",
-                        range_index,
-                        self.max_retries_on_unsure,
-                    )
-                    break
-            
-            # Handle no_semantic_marker responses with retry
-            if decision.no_semantic_marker:
-                if no_marker_retries < self.max_retries_on_no_marker:
-                    no_marker_retries += 1
-                    logger.info(
-                        "[Range %d, Window %d] No semantic marker found; retry %d/%d",
-                        range_index,
-                        window_idx,
-                        no_marker_retries,
-                        self.max_retries_on_no_marker,
+                        decision.certainty,
+                        self.certainty_threshold,
+                        low_certainty_retries,
+                        self.max_low_certainty_retries,
                     )
                     continue  # Try next window
                 else:
-                    logger.info(
-                        "[Range %d] No semantic marker found after %d attempts; keeping original range",
+                    logger.warning(
+                        "[Range %d] Certainty remains low after %d retries (best: %d); keeping original range",
                         range_index,
-                        no_marker_retries + 1,
+                        self.max_low_certainty_retries,
+                        decision.certainty,
                     )
-                    break
-
-            # Try to validate and apply the decision
-            candidate_range = self._validate_and_apply_decision(
-                decision=decision,
-                raw_lines=raw_lines,
-                context_window=window,
-                fallback_range=original_range,
-            )
-            if candidate_range:
-                adjusted_range = candidate_range
+                    break  # Give up, keep original
+            
+            # ========================================================================
+            # High certainty response - route by decision type
+            # ========================================================================
+            
+            # ROUTE 1: Model requests more context → Expand window
+            if decision.needs_more_context:
+                context_expansion_attempts += 1
+                if context_expansion_attempts <= self.max_context_expansion_attempts:
+                    logger.info(
+                        "[Range %d, Window %d] Requests more context (certainty: %d); expansion %d/%d",
+                        range_index,
+                        window_idx,
+                        decision.certainty,
+                        context_expansion_attempts,
+                        self.max_context_expansion_attempts,
+                    )
+                    continue  # Try next (larger) window
+                else:
+                    logger.warning(
+                        "[Range %d] Max context expansions reached (%d); keeping original range",
+                        range_index,
+                        self.max_context_expansion_attempts,
+                    )
+                    break  # Give up, keep original
+            
+            # ROUTE 2: Model confident no content exists → Verify immediately with broad scan
+            elif decision.contains_no_semantic_boundary:
                 logger.info(
-                    "[Range %d] Successfully adjusted to %s using semantic marker '%s'",
-                    range_index,
-                    adjusted_range,
-                    decision.semantic_marker,
-                )
-                break
-            else:
-                # Marker found but couldn't match in text - continue searching
-                logger.debug(
-                    "[Range %d, Window %d] Semantic marker '%s' could not be matched in text",
+                    "[Range %d, Window %d] High-certainty no-content response (certainty: %d); triggering verification",
                     range_index,
                     window_idx,
-                    decision.semantic_marker,
+                    decision.certainty,
                 )
+                
+                if self.delete_ranges_with_no_content:
+                    # Immediately verify with broader scan (up + down)
+                    should_delete = await self._verify_no_content(
+                        extractor=extractor,
+                        raw_lines=raw_lines,
+                        original_range=original_range,
+                        range_index=range_index,
+                        boundary_type=boundary_type,
+                        basic_context=basic_context,
+                        additional_context=additional_context,
+                    )
+                    if should_delete:
+                        return decision, original_range, True  # Confirmed deletion
+                    else:
+                        # Broader scan found content, keep the range
+                        logger.info(
+                            "[Range %d] Verification scan found content in broader area; keeping range",
+                            range_index,
+                        )
+                        break  # Keep original
+                else:
+                    # Deletion disabled, just keep the range
+                    logger.info(
+                        "[Range %d] No content detected but deletion disabled; keeping range",
+                        range_index,
+                    )
+                    break  # Keep original
+            
+            # ROUTE 3: Success → Marker found with high certainty, validate and apply
+            else:
+                # All booleans are false and semantic_marker should be present
+                candidate_range = self._validate_and_apply_decision(
+                    decision=decision,
+                    raw_lines=raw_lines,
+                    context_window=window,
+                    fallback_range=original_range,
+                )
+                if candidate_range:
+                    adjusted_range = candidate_range
+                    logger.info(
+                        "[Range %d] Successfully adjusted to %s using marker '%s' (certainty: %d)",
+                        range_index,
+                        adjusted_range,
+                        decision.semantic_marker,
+                        decision.certainty,
+                    )
+                    break  # Success!
+                else:
+                    # Marker provided but couldn't match in text - continue searching
+                    logger.debug(
+                        "[Range %d, Window %d] Semantic marker '%s' not matched; trying next window",
+                        range_index,
+                        window_idx,
+                        decision.semantic_marker,
+                    )
+                    continue  # Try next window
 
+        # No windows examined or all attempts exhausted
         if decision is None:
-            decision = BoundaryDecision(no_semantic_marker=True, unsure=False)
+            decision = BoundaryDecision(
+                contains_no_semantic_boundary=True,
+                needs_more_context=False,
+                certainty=0,
+            )
             logger.info(
-                "[Range %d] No windows examined; keeping original range %s",
+                "[Range %d] No windows available; keeping original range %s",
                 range_index,
                 original_range,
             )
         
-        return decision, adjusted_range
+        return decision, adjusted_range, False  # Default: keep range
+
+    async def _verify_no_content(
+        self,
+        *,
+        extractor,
+        raw_lines: Sequence[str],
+        original_range: Tuple[int, int],
+        range_index: int,
+        boundary_type: str,
+        basic_context: Optional[str],
+        additional_context: Optional[str],
+    ) -> bool:
+        """
+        Verify that no semantic content of the required type exists in a broader scan.
+        
+        This is called after the model has returned contains_no_semantic_boundary twice.
+        We scan both upward and downward from the original range to confirm.
+        
+        Returns:
+            True if deletion is confirmed (no content found in broader scan)
+            False if content is potentially found (keep the range)
+        """
+        start, end = original_range
+        total_lines = len(raw_lines)
+        range_size = end - start + 1
+        
+        # Create broader scan windows (both up and down)
+        scan_radius = range_size * self.scan_range_multiplier
+        
+        # Scan upward
+        scan_up_start = max(1, start - scan_radius)
+        scan_up_end = max(1, start - 1)
+        
+        # Scan downward
+        scan_down_start = min(total_lines, end + 1)
+        scan_down_end = min(total_lines, end + scan_radius)
+        
+        logger.info(
+            "[Range %d] Verifying no content: scanning up [%d-%d] and down [%d-%d]",
+            range_index,
+            scan_up_start,
+            scan_up_end,
+            scan_down_start,
+            scan_down_end,
+        )
+        
+        # Scan upward first
+        if scan_up_end >= scan_up_start:
+            payload_up = await self._run_model(
+                extractor=extractor,
+                raw_lines=raw_lines,
+                original_range=original_range,
+                context_window=(scan_up_start, scan_up_end),
+                window_index=-1,  # Special index for verification scan
+                boundary_type=boundary_type,
+                basic_context=basic_context,
+                additional_context=additional_context,
+            )
+            decision_up = BoundaryDecision.from_payload(payload_up)
+            
+            # If we found content upward, don't delete
+            if not decision_up.contains_no_semantic_boundary and decision_up.semantic_marker:
+                logger.info(
+                    "[Range %d] Found potential content in upward scan; preserving range",
+                    range_index,
+                )
+                return False
+        
+        # Scan downward
+        if scan_down_end >= scan_down_start:
+            payload_down = await self._run_model(
+                extractor=extractor,
+                raw_lines=raw_lines,
+                original_range=original_range,
+                context_window=(scan_down_start, scan_down_end),
+                window_index=-2,  # Special index for verification scan
+                boundary_type=boundary_type,
+                basic_context=basic_context,
+                additional_context=additional_context,
+            )
+            decision_down = BoundaryDecision.from_payload(payload_down)
+            
+            # If we found content downward, don't delete
+            if not decision_down.contains_no_semantic_boundary and decision_down.semantic_marker:
+                logger.info(
+                    "[Range %d] Found potential content in downward scan; preserving range",
+                    range_index,
+                )
+                return False
+        
+        # Both scans confirmed no content - safe to delete
+        logger.warning(
+            "[Range %d] Verified no semantic content in broader scan; confirming deletion",
+            range_index,
+        )
+        return True
 
     async def _run_model(
         self,
@@ -330,7 +524,12 @@ class LineRangeReadjuster:
                 "Model response could not be parsed as JSON; treating as unsure. Raw: %s",
                 raw_output,
             )
-            return {"no_semantic_marker": False, "unsure": True, "semantic_marker": ""}
+            return {
+                "contains_no_semantic_boundary": False,
+                "needs_more_context": False,
+                "certainty": 0,
+                "semantic_marker": "",
+            }
         return parsed
 
     def _validate_and_apply_decision(

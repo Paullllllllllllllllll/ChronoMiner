@@ -6,10 +6,14 @@ The basic context defines the type of semantic boundary to identify. If addition
 2. Extract a 10-15 character verbatim substring from the text that marks this boundary
 3. Ensure the substring is distinctive and therefore suitable for reliable matching in the source text
 
+RESPONSE REQUIREMENTS:
+- Set "contains_no_semantic_boundary" to true if the visible text contains NO content of the required type
+- Set "needs_more_context" to true if you need more surrounding text to locate the boundary
+- If you identify a boundary, set both booleans to false and provide the semantic_marker
+- Always provide a "certainty" score (0-100) reflecting your confidence in the response
+
 OUTPUT REQUIREMENTS
 - Return only valid JSON matching the schema below—no commentary, code fences, or additional fields
-- If no reliable semantic marker exists, set "no_semantic_marker" to true
-- If uncertain about your identification, set "unsure" to true
 - Use only verbatim text from the input—do not modify or invent content
 
 Basic context:
