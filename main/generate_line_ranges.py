@@ -114,7 +114,7 @@ class GenerateLineRangesScript(DualModeScript):
         else:
             return Path(self.paths_config.get("input_paths", {}).get("raw_text_dir", ""))
     
-    def _select_files_interactive(self, raw_text_dir: Path) -> List[Path]:
+    def _select_files_interactive(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """Prompt user to select files for processing."""
         self.ui.print_section_header("Input Selection")
         
@@ -126,30 +126,34 @@ class GenerateLineRangesScript(DualModeScript):
         mode = self.ui.select_option(
             "Select how you would like to specify input:",
             mode_options,
-            allow_back=False,
+            allow_back=allow_back,
             allow_quit=True
         )
+        
+        if mode is None:
+            return None
         
         files: List[Path] = []
         
         if mode == "single":
-            files = self._select_single_file(raw_text_dir)
+            files = self._select_single_file(raw_text_dir, allow_back=allow_back)
+            if files is None:
+                return self._select_files_interactive(raw_text_dir, allow_back=allow_back)
         elif mode == "folder":
             files = self._select_folder_files(raw_text_dir)
         
         return files
     
-    def _select_single_file(self, raw_text_dir: Path) -> List[Path]:
+    def _select_single_file(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """Select a single file for processing."""
         file_input = self.ui.get_input(
             "Enter the filename to process (with or without .txt extension)",
-            allow_back=False,
+            allow_back=allow_back,
             allow_quit=True
         )
         
         if not file_input:
-            self.ui.print_info("Operation cancelled.")
-            sys.exit(0)
+            return None
         
         if not file_input.lower().endswith(".txt"):
             file_input += ".txt"
@@ -167,9 +171,13 @@ class GenerateLineRangesScript(DualModeScript):
             self.ui.print_success(f"Selected: {file_path.name}")
             return [file_path]
         else:
-            return self._select_from_multiple(file_candidates, raw_text_dir)
+            result = self._select_from_multiple(file_candidates, raw_text_dir, allow_back=allow_back)
+            if result is None:
+                # User went back, recursively call this method again
+                return self._select_single_file(raw_text_dir, allow_back=allow_back)
+            return result
     
-    def _select_from_multiple(self, candidates: List[Path], base_dir: Path) -> List[Path]:
+    def _select_from_multiple(self, candidates: List[Path], base_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """Handle selection when multiple matching files are found."""
         self.ui.print_warning(f"Found {len(candidates)} matching files:")
         self.ui.console_print(self.ui.HORIZONTAL_LINE)
@@ -180,12 +188,12 @@ class GenerateLineRangesScript(DualModeScript):
         while True:
             selected_index = self.ui.get_input(
                 "Select file by number",
-                allow_back=False,
+                allow_back=allow_back,
                 allow_quit=True
             )
             
             if not selected_index:
-                sys.exit(0)
+                return None
             
             try:
                 idx: int = int(selected_index) - 1
@@ -260,28 +268,43 @@ class GenerateLineRangesScript(DualModeScript):
         return success_count, fail_count
     
     def run_interactive(self) -> None:
-        """Run line range generation in interactive mode."""
+        """Run line range generation in interactive mode with back navigation support."""
         self.ui.print_section_header("Line Range Generation")
         self.ui.print_info("Loading configuration...")
         
         # Get model configuration
         self.model_name, self.tokens_per_chunk = self._get_model_config()
         
-        # Select schema
-        selected_schema_name = self._select_schema()
-        raw_text_dir = self._get_input_directory(selected_schema_name)
+        # State machine for navigation
+        # States: schema -> files -> confirm
+        current_step = "schema"
+        state = {}
         
-        # Select files
-        files = self._select_files_interactive(raw_text_dir)
-        
-        # Confirm processing
-        if not self.ui.confirm(f"Generate line ranges for {len(files)} file(s)?", default=True):
-            self.ui.print_info("Operation cancelled by user.")
-            return
+        while True:
+            if current_step == "schema":
+                selected_schema_name = self._select_schema()
+                state["selected_schema_name"] = selected_schema_name
+                state["raw_text_dir"] = self._get_input_directory(selected_schema_name)
+                current_step = "files"
+            
+            elif current_step == "files":
+                files = self._select_files_interactive(state["raw_text_dir"], allow_back=True)
+                if files is None:
+                    current_step = "schema"
+                    continue
+                state["files"] = files
+                current_step = "confirm"
+            
+            elif current_step == "confirm":
+                if not self.ui.confirm(f"Generate line ranges for {len(state['files'])} file(s)?", default=True):
+                    self.ui.print_info("Operation cancelled by user.")
+                    return
+                # Break out of loop to start processing
+                break
         
         # Process files
         self.ui.print_section_header("Generating Line Ranges")
-        success_count, fail_count = self._process_files(files, verbose=False)
+        success_count, fail_count = self._process_files(state["files"], verbose=False)
         
         # Final summary
         self.ui.print_section_header("Generation Complete")

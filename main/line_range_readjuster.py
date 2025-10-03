@@ -249,63 +249,92 @@ async def _run_interactive_mode(
     basic_context: Optional[str],
     default_context_window: int,
 ) -> None:
-    """Run line range readjustment in interactive mode."""
+    """Run line range readjustment in interactive mode with back navigation support."""
     ui = UserInterface(logger)
     ui.display_banner()
     ui.print_section_header("Line Range Adjustment")
     
-    # Select schema to determine input directory and boundary type
-    result = ui.select_schema(schema_manager)
-    if result is None:
-        ui.print_info("Schema selection cancelled.")
-        return
+    # State machine for navigation
+    # States: schema -> files -> context -> confirm
+    current_step = "schema"
+    state = {}
     
-    selected_schema, selected_schema_name = result
-    boundary_type = selected_schema_name
-    
-    if selected_schema_name in schemas_paths:
-        base_dir = Path(schemas_paths[selected_schema_name].get("input", ""))
-    else:
-        base_dir = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
-    
-    selected_files = ui.select_input_source(base_dir)
-    if not selected_files:
-        ui.print_warning("No files selected.")
-        return
-    
-    # Get context settings
-    context_settings = ui.ask_additional_context_mode()
-    context_manager = prepare_context_manager(context_settings)
-    
-    # Get context window
-    context_window = _prompt_int(
-        ui, 
-        "Enter context window size (lines around boundaries)", 
-        default_context_window
-    )
-    
-    # Get prompt override if any
-    prompt_override = chunking_config.get("line_range_prompt_path")
-    prompt_path: Optional[Path] = Path(prompt_override).resolve() if prompt_override else None
-    
-    # Display summary
-    ui.print_section_header("Adjustment Configuration")
-    ui.console_print(f"\n{ui.BOLD}Configuration:{ui.RESET}")
-    ui.console_print(f"  Files to adjust: {len(selected_files)}")
-    ui.console_print(f"  Context window: {context_window} lines")
-    ui.console_print(f"  Boundary type: {boundary_type}")
-    if prompt_path:
-        ui.console_print(f"  Prompt override: {prompt_path}")
-    
-    if context_settings.get("use_additional_context", False):
-        context_source = "Default boundary-type-specific" if context_settings.get("use_default_context", False) else "File-specific"
-    else:
-        context_source = "None"
-    ui.console_print(f"  Additional context: {context_source}")
-    
-    if not ui.confirm("\nProceed with line range adjustment?", default=True):
-        ui.print_info("Operation cancelled by user.")
-        return
+    while True:
+        if current_step == "schema":
+            result = ui.select_schema(schema_manager, allow_back=False)
+            if result is None:
+                ui.print_info("Schema selection cancelled.")
+                return
+            
+            selected_schema, selected_schema_name = result
+            state["selected_schema"] = selected_schema
+            state["selected_schema_name"] = selected_schema_name
+            state["boundary_type"] = selected_schema_name
+            
+            # Determine base directory
+            if selected_schema_name in schemas_paths:
+                state["base_dir"] = Path(schemas_paths[selected_schema_name].get("input", ""))
+            else:
+                state["base_dir"] = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
+            
+            current_step = "files"
+        
+        elif current_step == "files":
+            selected_files = ui.select_input_source(state["base_dir"], allow_back=True)
+            if selected_files is None:
+                current_step = "schema"
+                continue
+            if not selected_files:
+                ui.print_warning("No files selected.")
+                return
+            state["selected_files"] = selected_files
+            current_step = "context"
+        
+        elif current_step == "context":
+            context_settings = ui.ask_additional_context_mode(allow_back=True)
+            if context_settings is None:
+                current_step = "files"
+                continue
+            state["context_settings"] = context_settings
+            state["context_manager"] = prepare_context_manager(context_settings)
+            current_step = "context_window"
+        
+        elif current_step == "context_window":
+            context_window = _prompt_int(
+                ui, 
+                "Enter context window size (lines around boundaries)", 
+                default_context_window
+            )
+            state["context_window"] = context_window
+            
+            # Get prompt override if any
+            prompt_override = chunking_config.get("line_range_prompt_path")
+            state["prompt_path"] = Path(prompt_override).resolve() if prompt_override else None
+            
+            current_step = "confirm"
+        
+        elif current_step == "confirm":
+            # Display summary
+            ui.print_section_header("Adjustment Configuration")
+            ui.console_print(f"\n{ui.BOLD}Configuration:{ui.RESET}")
+            ui.console_print(f"  Files to adjust: {len(state['selected_files'])}")
+            ui.console_print(f"  Context window: {state['context_window']} lines")
+            ui.console_print(f"  Boundary type: {state['boundary_type']}")
+            if state["prompt_path"]:
+                ui.console_print(f"  Prompt override: {state['prompt_path']}")
+            
+            if state["context_settings"].get("use_additional_context", False):
+                context_source = "Default boundary-type-specific" if state["context_settings"].get("use_default_context", False) else "File-specific"
+            else:
+                context_source = "None"
+            ui.console_print(f"  Additional context: {context_source}")
+            
+            if not ui.confirm("\nProceed with line range adjustment?", default=True):
+                ui.print_info("Operation cancelled by user.")
+                return
+            
+            # Break out of loop to start adjustment
+            break
     
     ui.print_section_header("Adjusting Line Ranges")
     
@@ -322,14 +351,14 @@ async def _run_interactive_mode(
     
     # Perform adjustments
     successes, skipped, failures = await _adjust_files(
-        text_files=selected_files,
+        text_files=state["selected_files"],
         model_config=model_config,
-        context_window=context_window,
-        prompt_path=prompt_path,
-        boundary_type=boundary_type,
+        context_window=state["context_window"],
+        prompt_path=state["prompt_path"],
+        boundary_type=state["boundary_type"],
         basic_context=basic_context,
-        context_settings=context_settings,
-        context_manager=context_manager,
+        context_settings=state["context_settings"],
+        context_manager=state["context_manager"],
         matching_config=matching_config,
         retry_config=retry_config,
         notifier=ui_notifier,

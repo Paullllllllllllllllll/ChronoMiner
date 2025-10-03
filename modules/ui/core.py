@@ -215,11 +215,12 @@ class UserInterface:
 
 			self.print_error(f"Invalid selection '{choice}'. Please enter a number between 1 and {len(options)}.")
 
-	def select_schema(self, schema_manager) -> Optional[Tuple[Dict[str, Any], str]]:
+	def select_schema(self, schema_manager, allow_back: bool = False) -> Optional[Tuple[Dict[str, Any], str]]:
 		"""
 		Present available schemas and guide the user through selection.
 
 		:param schema_manager: SchemaManager instance
+		:param allow_back: Whether to allow going back to previous step
 		:return: Tuple of (schema_dict, schema_name) or None if back selected
 		"""
 		available_schemas = schema_manager.get_available_schemas()
@@ -241,7 +242,7 @@ class UserInterface:
 		selected_schema_name = self.select_option(
 			"Select a schema to use for extraction:",
 			schema_options,
-			allow_back=False,
+			allow_back=allow_back,
 			allow_quit=True
 		)
 
@@ -251,10 +252,11 @@ class UserInterface:
 		self.log(f"Schema selected: {selected_schema_name}")
 		return available_schemas[selected_schema_name], selected_schema_name
 
-	def ask_global_chunking_mode(self) -> Optional[str]:
+	def ask_global_chunking_mode(self, allow_back: bool = False) -> Optional[str]:
 		"""
 		Present options for global chunking strategy.
 
+		:param allow_back: Whether to allow going back to previous step
 		:return: Selected chunking method or None if back selected
 		"""
 		self.print_section_header("Chunking Strategy")
@@ -270,15 +272,16 @@ class UserInterface:
 		return self.select_option(
 			"How would you like to chunk the text for processing?",
 			chunking_options,
-			allow_back=False,
+			allow_back=allow_back,
 			allow_quit=True
 		)
 
-	def ask_batch_processing(self) -> bool:
+	def ask_batch_processing(self, allow_back: bool = False) -> Optional[bool]:
 		"""
 		Present options for batch processing selection.
 
-		:return: True if batch processing selected, False otherwise
+		:param allow_back: Whether to allow going back to previous step
+		:return: True if batch processing selected, False for sync, None if back
 		"""
 		self.print_section_header("Processing Mode")
 
@@ -290,17 +293,20 @@ class UserInterface:
 		mode = self.select_option(
 			"Select how you would like to process the data:",
 			batch_options,
-			allow_back=False,
+			allow_back=allow_back,
 			allow_quit=True
 		)
 
+		if mode is None:
+			return None
 		return mode == "batch"
 
-	def ask_additional_context_mode(self) -> Dict[str, Any]:
+	def ask_additional_context_mode(self, allow_back: bool = False) -> Optional[Dict[str, Any]]:
 		"""
 		Present options for additional context handling.
 
-		:return: Dictionary with context settings
+		:param allow_back: Whether to allow going back to previous step
+		:return: Dictionary with context settings or None if back selected
 		"""
 		self.print_section_header("Additional Context")
 
@@ -312,9 +318,12 @@ class UserInterface:
 		use_context = self.select_option(
 			"Would you like to provide additional context for extraction?",
 			use_context_options,
-			allow_back=False,
+			allow_back=allow_back,
 			allow_quit=True
 		)
+
+		if use_context is None:
+			return None
 
 		context_settings = {"use_additional_context": use_context == "yes"}
 
@@ -327,20 +336,25 @@ class UserInterface:
 			context_source = self.select_option(
 				"Which source of context would you like to use?",
 				context_source_options,
-				allow_back=False,
+				allow_back=True,
 				allow_quit=True
 			)
+
+			if context_source is None:
+				# User went back, loop again
+				return self.ask_additional_context_mode(allow_back=allow_back)
 
 			context_settings["use_default_context"] = context_source == "default"
 
 		return context_settings
 
-	def select_input_source(self, raw_text_dir: Path) -> List[Path]:
+	def select_input_source(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
 		"""
 		Guide user through selecting input source (single file or folder).
 
 		:param raw_text_dir: Base directory for input files
-		:return: List of selected file paths
+		:param allow_back: Whether to allow going back to previous step
+		:return: List of selected file paths or None if back selected
 		"""
 		self.print_section_header("Input Selection")
 
@@ -352,9 +366,12 @@ class UserInterface:
 		mode = self.select_option(
 			"Select how you would like to specify input:",
 			mode_options,
-			allow_back=False,
+			allow_back=allow_back,
 			allow_quit=True
 		)
+
+		if mode is None:
+			return None
 
 		files = []
 
@@ -363,9 +380,10 @@ class UserInterface:
 			self.console_print("  • Enter the base text filename")
 			self.console_print("  • Or enter the line range filename ending in '_line_ranges.txt'")
 			
-			file_input = self.get_input("Filename", allow_back=False, allow_quit=True)
+			file_input = self.get_input("Filename", allow_back=True, allow_quit=True)
 			if not file_input:
-				sys.exit(0)
+				# User went back
+				return self.select_input_source(raw_text_dir, allow_back=allow_back)
 			
 			normalized_input = (
 				file_input if file_input.lower().endswith(".txt") else f"{file_input}.txt"
@@ -400,10 +418,11 @@ class UserInterface:
 					self.console_print(f"  {idx}. {f.relative_to(raw_text_dir)}")
 
 				while True:
-					selected_index = self.get_input("Select file by number", allow_back=False, allow_quit=True)
+					selected_index = self.get_input("Select file by number", allow_back=True, allow_quit=True)
 					
 					if not selected_index:
-						sys.exit(0)
+						# User went back to file name input
+						return self.select_input_source(raw_text_dir, allow_back=allow_back)
 
 					try:
 						idx = int(selected_index) - 1

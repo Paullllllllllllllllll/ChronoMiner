@@ -117,7 +117,7 @@ async def _run_interactive_mode(
     chunking_and_context_config: Dict,
     schemas_paths: Dict,
 ) -> None:
-    """Run text processing in interactive mode."""
+    """Run text processing in interactive mode with back navigation support."""
     ui = UserInterface(logger)
     ui.display_banner()
     
@@ -155,13 +155,6 @@ async def _run_interactive_mode(
         logger.error("Failed to load schema manager", exc_info=exc)
         sys.exit(1)
     
-    result = ui.select_schema(schema_manager)
-    if result is None:
-        ui.print_info("Schema selection cancelled.")
-        return
-    
-    selected_schema, selected_schema_name = result
-    
     # Load unified prompt template
     prompt_path = Path("prompts/structured_output_prompt.txt")
     try:
@@ -171,79 +164,120 @@ async def _run_interactive_mode(
         logger.error("Prompt template missing", exc_info=exc)
         sys.exit(1)
     
-    # Get user preferences
-    global_chunking_method = ui.ask_global_chunking_mode()
-    use_batch = ui.ask_batch_processing()
-    context_settings = ui.ask_additional_context_mode()
+    # State machine for navigation
+    # States: schema -> chunking -> batch -> context -> files -> confirm
+    current_step = "schema"
+    state = {}
     
-    # Initialize context manager when default context is requested
-    context_manager = prepare_context_manager(context_settings)
-    
-    # Select input files
-    if selected_schema_name in schemas_paths:
-        raw_text_dir = Path(schemas_paths[selected_schema_name].get("input"))
-    else:
-        raw_text_dir = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
-    
-    files = ui.select_input_source(raw_text_dir)
-    
-    # Handle line range adjustment workflow if selected
-    if global_chunking_method == "adjust-line-ranges":
-        basic_context = load_basic_context()
-        matching_config = (chunking_and_context_config or {}).get("matching", {})
-        retry_config = (chunking_and_context_config or {}).get("retry", {})
+    while True:
+        if current_step == "schema":
+            result = ui.select_schema(schema_manager, allow_back=False)
+            if result is None:
+                ui.print_info("Schema selection cancelled.")
+                return
+            state["selected_schema"], state["selected_schema_name"] = result
+            current_step = "chunking"
         
-        await _adjust_line_ranges_workflow(
-            files=files,
-            selected_schema_name=selected_schema_name,
-            model_config=model_config,
-            chunking_config=chunking_and_context_config or {},
-            matching_config=matching_config,
-            retry_config=retry_config,
-            basic_context=basic_context,
-            context_settings=context_settings,
-            context_manager=context_manager,
-            ui=ui,
-        )
+        elif current_step == "chunking":
+            global_chunking_method = ui.ask_global_chunking_mode(allow_back=True)
+            if global_chunking_method is None:
+                current_step = "schema"
+                continue
+            state["global_chunking_method"] = global_chunking_method
+            current_step = "batch"
         
-        ui.print_info("Line range adjustment complete. Proceeding with processing...")
-        logger.info("Line range adjustment complete. Using adjusted line ranges for processing.")
-        global_chunking_method = "line_ranges.txt"
-    
-    # Confirm processing
-    proceed = ui.display_processing_summary(
-        files,
-        selected_schema_name,
-        global_chunking_method,
-        use_batch,
-        context_settings,
-    )
-    
-    if not proceed:
-        ui.print_info("Processing cancelled by user.")
-        logger.info("User cancelled processing.")
-        return
+        elif current_step == "batch":
+            use_batch = ui.ask_batch_processing(allow_back=True)
+            if use_batch is None:
+                current_step = "chunking"
+                continue
+            state["use_batch"] = use_batch
+            current_step = "context"
+        
+        elif current_step == "context":
+            context_settings = ui.ask_additional_context_mode(allow_back=True)
+            if context_settings is None:
+                current_step = "batch"
+                continue
+            state["context_settings"] = context_settings
+            state["context_manager"] = prepare_context_manager(context_settings)
+            current_step = "files"
+        
+        elif current_step == "files":
+            # Determine input directory
+            if state["selected_schema_name"] in schemas_paths:
+                raw_text_dir = Path(schemas_paths[state["selected_schema_name"]].get("input"))
+            else:
+                raw_text_dir = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
+            
+            files = ui.select_input_source(raw_text_dir, allow_back=True)
+            if files is None:
+                current_step = "context"
+                continue
+            state["files"] = files
+            current_step = "confirm"
+        
+        elif current_step == "confirm":
+            # Handle line range adjustment workflow if selected
+            if state["global_chunking_method"] == "adjust-line-ranges":
+                basic_context = load_basic_context()
+                matching_config = (chunking_and_context_config or {}).get("matching", {})
+                retry_config = (chunking_and_context_config or {}).get("retry", {})
+                
+                await _adjust_line_ranges_workflow(
+                    files=state["files"],
+                    selected_schema_name=state["selected_schema_name"],
+                    model_config=model_config,
+                    chunking_config=chunking_and_context_config or {},
+                    matching_config=matching_config,
+                    retry_config=retry_config,
+                    basic_context=basic_context,
+                    context_settings=state["context_settings"],
+                    context_manager=state["context_manager"],
+                    ui=ui,
+                )
+                
+                ui.print_info("Line range adjustment complete. Proceeding with processing...")
+                logger.info("Line range adjustment complete. Using adjusted line ranges for processing.")
+                state["global_chunking_method"] = "line_ranges.txt"
+            
+            # Confirm processing
+            proceed = ui.display_processing_summary(
+                state["files"],
+                state["selected_schema_name"],
+                state["global_chunking_method"],
+                state["use_batch"],
+                state["context_settings"],
+            )
+            
+            if not proceed:
+                ui.print_info("Processing cancelled by user.")
+                logger.info("User cancelled processing.")
+                return
+            
+            # Break out of loop to start processing
+            break
     
     # Process files
     ui.print_section_header("Starting Processing")
-    logger.info(f"Processing {len(files)} file(s) with schema '{selected_schema_name}'.")
+    logger.info(f"Processing {len(state['files'])} file(s) with schema '{state['selected_schema_name']}'.")
     
     tasks = []
     inject_schema = model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
     
-    for file_path in files:
+    for file_path in state["files"]:
         tasks.append(
             file_processor.process_file(
                 file_path=file_path,
-                use_batch=use_batch,
-                selected_schema=selected_schema,
+                use_batch=state["use_batch"],
+                selected_schema=state["selected_schema"],
                 prompt_template=prompt_template,
-                schema_name=selected_schema_name,
+                schema_name=state["selected_schema_name"],
                 inject_schema=inject_schema,
-                schema_paths=schemas_paths.get(selected_schema_name, {}),
-                global_chunking_method=global_chunking_method,
-                context_settings=context_settings,
-                context_manager=context_manager,
+                schema_paths=schemas_paths.get(state["selected_schema_name"], {}),
+                global_chunking_method=state["global_chunking_method"],
+                context_settings=state["context_settings"],
+                context_manager=state["context_manager"],
                 ui=ui,
             )
         )
@@ -252,7 +286,7 @@ async def _run_interactive_mode(
     # Final summary
     ui.print_section_header("Processing Complete")
     
-    if use_batch:
+    if state["use_batch"]:
         ui.print_success("Batch processing jobs have been submitted")
         ui.print_info("To check batch status, run: python main/check_batches.py")
         logger.info("Batch jobs submitted successfully.")
