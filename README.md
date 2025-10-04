@@ -245,6 +245,27 @@ Key Parameters:
 
 Controls parallel processing and retry behavior.
 
+### 5. Chunking & Context Configuration (`chunking_and_context.yaml`)
+
+Controls matching, retry, and deletion behavior for the line range readjuster.
+
+```yaml
+retry:
+  certainty_threshold: 70
+  max_low_certainty_retries: 3
+  max_context_expansion_attempts: 3
+  delete_ranges_with_no_content: true
+  scan_range_multiplier: 3
+```
+
+Key parameters:
+
+- `certainty_threshold`: Minimum confidence score required before accepting a model response.
+- `max_low_certainty_retries`: Retries allowed before keeping the original range when certainty stays low.
+- `max_context_expansion_attempts`: Maximum window expansions when the model requests more context.
+- `delete_ranges_with_no_content`: Enables verification scans that delete empty ranges on high-certainty no-content responses.
+- `scan_range_multiplier`: Size multiplier for the upward/downward verification scan.
+
 ```yaml
 concurrency:
   extraction:
@@ -393,7 +414,7 @@ This creates `{filename}_line_ranges.txt` files specifying exact line ranges for
 
 ### Line Range Adjustment
 
-Optimize chunk boundaries using LLM-detected semantic sections:
+Optimize chunk boundaries using LLM-detected semantic sections with certainty-based validation:
 
 ```bash
 # Adjust line ranges for specific file
@@ -408,6 +429,13 @@ Options:
 - `--dry-run`: Preview changes without modifying files
 - `--context-window N`: Number of lines around boundaries to examine (default: 300)
 - `--boundary-type`: Type of boundary to detect (section, paragraph, entry)
+
+Readjustment now follows a certainty-driven workflow:
+
+- **Model guidance**: The LLM sets `contains_no_semantic_boundary` or `needs_more_context`, returns a `semantic_marker` when it finds a boundary, and provides a 0–100 `certainty` score.
+- **Low-certainty responses**: Automatically retried with broader context windows until the configured certainty threshold is met.
+- **Boundary application**: High-certainty markers are validated against the source text before adjusting the range start.
+- **Automatic range deletion**: High-certainty "no semantic content" responses trigger an up/down verification scan; if no relevant content is found, the range is removed entirely.
 
 ### Batch Status Checking
 
