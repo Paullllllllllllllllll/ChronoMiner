@@ -10,6 +10,7 @@ from email.utils import parsedate_to_datetime
 
 from modules.config.loader import ConfigLoader
 from modules.core.logger import setup_logger
+from modules.core.token_tracker import get_token_tracker
 from tenacity import (
     retry,
     wait_exponential,
@@ -350,6 +351,22 @@ async def process_text_chunk(
     data: Dict[str, Any] = await _post_with_handling(
         extractor.session, extractor.endpoint, headers, payload
     )
+    
+    # Report token usage immediately after successful API call
+    try:
+        usage = data.get("usage")
+        if isinstance(usage, dict):
+            total_tokens = usage.get("total_tokens")
+            if total_tokens and isinstance(total_tokens, int):
+                token_tracker = get_token_tracker()
+                token_tracker.add_tokens(total_tokens)
+                logger.debug(
+                    f"[TOKEN] API call consumed {total_tokens:,} tokens "
+                    f"(daily total: {token_tracker.get_tokens_used_today():,})"
+                )
+    except Exception as e:
+        logger.warning(f"Error reporting token usage: {e}")
+    
     output_text = _collect_output_text(data)
     request_metadata: Dict[str, Any] = {"payload": payload}
     if json_schema is not None:

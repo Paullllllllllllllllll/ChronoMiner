@@ -19,6 +19,7 @@ Workflow:
 
 import asyncio
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -28,6 +29,7 @@ from modules.config.manager import ConfigManager
 from modules.core.logger import setup_logger
 from modules.core.prompt_context import load_basic_context
 from modules.core.text_utils import TextProcessor, TokenBasedChunking
+from modules.core.token_tracker import get_token_tracker
 from modules.core.workflow_utils import (
     load_core_resources,
     load_schema_manager,
@@ -40,6 +42,95 @@ from modules.ui.core import UserInterface
 
 # Initialize logger
 logger = setup_logger(__name__)
+
+
+def _check_token_limit_enabled(model_config: Dict) -> bool:
+    """Check if daily token limit is enabled in configuration."""
+    token_limit_config = model_config.get("daily_token_limit", {})
+    return token_limit_config.get("enabled", False)
+
+
+def _check_and_wait_for_token_limit(ui: Optional[UserInterface] = None) -> bool:
+    """
+    Check if daily token limit is reached and wait until next day if needed.
+    
+    Args:
+        ui: Optional UserInterface instance for user feedback.
+    
+    Returns:
+        True if processing can continue, False if user cancelled wait.
+    """
+    token_tracker = get_token_tracker()
+    
+    if not token_tracker.enabled or not token_tracker.is_limit_reached():
+        return True
+    
+    # Token limit reached - need to wait until next day
+    stats = token_tracker.get_stats()
+    reset_time = token_tracker.get_reset_time()
+    seconds_until_reset = token_tracker.get_seconds_until_reset()
+    
+    logger.warning(
+        f"Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+    )
+    logger.info(
+        f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} "
+        f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m) "
+        "for token limit reset..."
+    )
+    
+    if ui:
+        ui.print_warning(
+            f"\n⚠ Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+        )
+        ui.print_info(
+            f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
+            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m remaining)"
+        )
+        ui.print_info("Press Ctrl+C to cancel and exit.")
+    else:
+        print(
+            f"[WARNING] Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+        )
+        print(
+            f"[INFO] Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
+            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m remaining)"
+        )
+        print("[INFO] Press Ctrl+C to cancel and exit.")
+    
+    try:
+        # Sleep in smaller intervals to allow for interruption
+        sleep_interval = 60  # Check every minute
+        elapsed = 0
+        
+        while elapsed < seconds_until_reset:
+            interval = min(sleep_interval, max(0, seconds_until_reset - elapsed))
+            time.sleep(interval)
+            elapsed += interval
+            
+            # Re-check if it's a new day
+            if not token_tracker.is_limit_reached():
+                logger.info("Token limit has been reset. Resuming processing.")
+                if ui:
+                    ui.print_success("Token limit has been reset. Resuming processing.")
+                else:
+                    print("[SUCCESS] Token limit has been reset. Resuming processing.")
+                return True
+        
+        logger.info("Token limit has been reset. Resuming processing.")
+        if ui:
+            ui.print_success("\nToken limit has been reset. Resuming processing.")
+        else:
+            print("[SUCCESS] Token limit has been reset. Resuming processing.")
+        return True
+        
+    except KeyboardInterrupt:
+        logger.info("Wait cancelled by user (KeyboardInterrupt).")
+        if ui:
+            ui.print_warning("\nWait cancelled by user.")
+        else:
+            print("\n[INFO] Wait cancelled by user.")
+        return False
 
 
 async def _adjust_line_ranges_workflow(
@@ -258,16 +349,41 @@ async def _run_interactive_mode(
             # Break out of loop to start processing
             break
     
+    # Display initial token usage statistics if enabled
+    if _check_token_limit_enabled(model_config):
+        token_tracker = get_token_tracker()
+        stats = token_tracker.get_stats()
+        logger.info(
+            f"Token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%) - "
+            f"{stats['tokens_remaining']:,} tokens remaining today"
+        )
+        ui.print_info(
+            f"Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%)"
+        )
+    
     # Process files
     ui.print_section_header("Starting Processing")
     logger.info(f"Processing {len(state['files'])} file(s) with schema '{state['selected_schema_name']}'.")
     
-    tasks = []
+    # Process files sequentially if token limiting is enabled (for better control)
+    # Otherwise process concurrently for speed
     inject_schema = model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
+    token_limit_enabled = _check_token_limit_enabled(model_config)
     
-    for file_path in state["files"]:
-        tasks.append(
-            file_processor.process_file(
+    if token_limit_enabled and not state["use_batch"]:
+        # Sequential processing with token limit checks
+        processed_count = 0
+        for index, file_path in enumerate(state["files"], start=1):
+            # Check token limit before starting each file
+            if not _check_and_wait_for_token_limit(ui):
+                logger.info(f"Processing stopped by user. Processed {processed_count}/{len(state['files'])} files.")
+                ui.print_warning(f"\nProcessing stopped. Completed {processed_count}/{len(state['files'])} files.")
+                break
+            
+            # Process this file
+            await file_processor.process_file(
                 file_path=file_path,
                 use_batch=state["use_batch"],
                 selected_schema=state["selected_schema"],
@@ -280,8 +396,36 @@ async def _run_interactive_mode(
                 context_manager=state["context_manager"],
                 ui=ui,
             )
-        )
-    await asyncio.gather(*tasks)
+            processed_count += 1
+            
+            # Log token usage after each file
+            token_tracker = get_token_tracker()
+            stats = token_tracker.get_stats()
+            logger.info(
+                f"Token usage after file {index}/{len(state['files'])}: "
+                f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+                f"({stats['usage_percentage']:.1f}%)"
+            )
+    else:
+        # Concurrent processing (original behavior)
+        tasks = []
+        for file_path in state["files"]:
+            tasks.append(
+                file_processor.process_file(
+                    file_path=file_path,
+                    use_batch=state["use_batch"],
+                    selected_schema=state["selected_schema"],
+                    prompt_template=prompt_template,
+                    schema_name=state["selected_schema_name"],
+                    inject_schema=inject_schema,
+                    schema_paths=schemas_paths.get(state["selected_schema_name"], {}),
+                    global_chunking_method=state["global_chunking_method"],
+                    context_settings=state["context_settings"],
+                    context_manager=state["context_manager"],
+                    ui=ui,
+                )
+            )
+        await asyncio.gather(*tasks)
     
     # Final summary
     ui.print_section_header("Processing Complete")
@@ -293,6 +437,19 @@ async def _run_interactive_mode(
     else:
         ui.print_success("All selected files have been processed")
         logger.info("Processing completed successfully.")
+    
+    # Final token usage statistics
+    if _check_token_limit_enabled(model_config):
+        token_tracker = get_token_tracker()
+        stats = token_tracker.get_stats()
+        logger.info(
+            f"Final token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%)"
+        )
+        ui.print_info(
+            f"\nFinal daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%)"
+        )
     
     ui.console_print(f"\n{ui.BOLD}Thank you for using ChronoMiner!{ui.RESET}\n")
 
@@ -391,6 +548,21 @@ async def _run_cli_mode(
     if not args.quiet:
         print(f"[INFO] Processing {len(files)} file(s) with schema '{selected_schema_name}'")
     
+    # Display initial token usage statistics if enabled
+    if _check_token_limit_enabled(model_config):
+        token_tracker = get_token_tracker()
+        stats = token_tracker.get_stats()
+        logger.info(
+            f"Token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%) - "
+            f"{stats['tokens_remaining']:,} tokens remaining today"
+        )
+        if not args.quiet:
+            print(
+                f"[INFO] Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+                f"({stats['usage_percentage']:.1f}%)"
+            )
+    
     # Handle line range adjustment if requested
     if global_chunking_method == "adjust-line-ranges":
         basic_context = load_basic_context()
@@ -420,12 +592,24 @@ async def _run_cli_mode(
     # Process files
     logger.info(f"Processing {len(files)} file(s)")
     
-    tasks = []
+    # Process files sequentially if token limiting is enabled (for better control)
+    # Otherwise process concurrently for speed
     inject_schema = model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
+    token_limit_enabled = _check_token_limit_enabled(model_config)
     
-    for file_path in files:
-        tasks.append(
-            file_processor.process_file(
+    if token_limit_enabled and not use_batch:
+        # Sequential processing with token limit checks
+        processed_count = 0
+        for index, file_path in enumerate(files, start=1):
+            # Check token limit before starting each file
+            if not _check_and_wait_for_token_limit(ui=None):
+                logger.info(f"Processing stopped by user. Processed {processed_count}/{len(files)} files.")
+                if not args.quiet:
+                    print(f"[WARNING] Processing stopped. Completed {processed_count}/{len(files)} files.")
+                break
+            
+            # Process this file
+            await file_processor.process_file(
                 file_path=file_path,
                 use_batch=use_batch,
                 selected_schema=selected_schema,
@@ -438,8 +622,36 @@ async def _run_cli_mode(
                 context_manager=context_manager,
                 ui=None,
             )
-        )
-    await asyncio.gather(*tasks)
+            processed_count += 1
+            
+            # Log token usage after each file
+            token_tracker = get_token_tracker()
+            stats = token_tracker.get_stats()
+            logger.info(
+                f"Token usage after file {index}/{len(files)}: "
+                f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+                f"({stats['usage_percentage']:.1f}%)"
+            )
+    else:
+        # Concurrent processing (original behavior)
+        tasks = []
+        for file_path in files:
+            tasks.append(
+                file_processor.process_file(
+                    file_path=file_path,
+                    use_batch=use_batch,
+                    selected_schema=selected_schema,
+                    prompt_template=prompt_template,
+                    schema_name=selected_schema_name,
+                    inject_schema=inject_schema,
+                    schema_paths=schemas_paths.get(selected_schema_name, {}),
+                    global_chunking_method=global_chunking_method,
+                    context_settings=context_settings,
+                    context_manager=context_manager,
+                    ui=None,
+                )
+            )
+        await asyncio.gather(*tasks)
     
     # Final summary
     logger.info("Processing complete")
@@ -449,6 +661,20 @@ async def _run_cli_mode(
             print("[INFO] Run 'python main/check_batches.py' to check status")
         else:
             print(f"[SUCCESS] Processed {len(files)} file(s)")
+    
+    # Final token usage statistics
+    if _check_token_limit_enabled(model_config):
+        token_tracker = get_token_tracker()
+        stats = token_tracker.get_stats()
+        logger.info(
+            f"Final token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%)"
+        )
+        if not args.quiet:
+            print(
+                f"[INFO] Final daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+                f"({stats['usage_percentage']:.1f}%)"
+            )
 
 
 async def main() -> None:
