@@ -46,7 +46,11 @@ logger = setup_logger(__name__)
 
 def _check_token_limit_enabled(model_config: Dict) -> bool:
     """Check if daily token limit is enabled in configuration."""
-    token_limit_config = model_config.get("daily_token_limit", {})
+    from modules.config.loader import ConfigLoader
+    config_loader = ConfigLoader()
+    config_loader.load_configs()
+    concurrency_config = config_loader.get_concurrency_config()
+    token_limit_config = concurrency_config.get("daily_token_limit", {})
     return token_limit_config.get("enabled", False)
 
 

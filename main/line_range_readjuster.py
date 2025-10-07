@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+import time
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -22,6 +23,7 @@ from modules.core.logger import setup_logger
 from modules.core.schema_manager import SchemaManager
 from modules.core.context_manager import ContextManager
 from modules.core.prompt_context import load_basic_context
+from modules.core.token_tracker import get_token_tracker
 from modules.ui.core import UserInterface
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 from modules.core.workflow_utils import (
@@ -82,6 +84,98 @@ def parse_arguments() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def _check_token_limit_enabled() -> bool:
+    """Check if daily token limit is enabled in configuration."""
+    config_loader = ConfigLoader()
+    config_loader.load_configs()
+    concurrency_config = config_loader.get_concurrency_config()
+    token_limit_config = concurrency_config.get("daily_token_limit", {})
+    return token_limit_config.get("enabled", False)
+
+
+def _check_and_wait_for_token_limit(ui: Optional[UserInterface] = None) -> bool:
+    """
+    Check if daily token limit is reached and wait until next day if needed.
+    
+    Args:
+        ui: Optional UserInterface instance for user feedback.
+    
+    Returns:
+        True if processing can continue, False if user cancelled wait.
+    """
+    token_tracker = get_token_tracker()
+    
+    if not token_tracker.enabled or not token_tracker.is_limit_reached():
+        return True
+    
+    # Token limit reached - need to wait until next day
+    stats = token_tracker.get_stats()
+    reset_time = token_tracker.get_reset_time()
+    seconds_until_reset = token_tracker.get_seconds_until_reset()
+    
+    logger.warning(
+        f"Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+    )
+    logger.info(
+        f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} "
+        f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m) "
+        "for token limit reset..."
+    )
+    
+    if ui:
+        ui.print_warning(
+            f"\n⚠ Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+        )
+        ui.print_info(
+            f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
+            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m remaining)"
+        )
+        ui.print_info("Press Ctrl+C to cancel and exit.")
+    else:
+        print(
+            f"[WARNING] Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+        )
+        print(
+            f"[INFO] Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
+            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m remaining)"
+        )
+        print("[INFO] Press Ctrl+C to cancel and exit.")
+    
+    try:
+        # Sleep in smaller intervals to allow for interruption
+        sleep_interval = 60  # Check every minute
+        elapsed = 0
+        
+        while elapsed < seconds_until_reset:
+            interval = min(sleep_interval, max(0, seconds_until_reset - elapsed))
+            time.sleep(interval)
+            elapsed += interval
+            
+            # Re-check if it's a new day
+            if not token_tracker.is_limit_reached():
+                logger.info("Token limit has been reset. Resuming processing.")
+                if ui:
+                    ui.print_success("Token limit has been reset. Resuming processing.")
+                else:
+                    print("[SUCCESS] Token limit has been reset. Resuming processing.")
+                return True
+        
+        logger.info("Token limit has been reset. Resuming processing.")
+        if ui:
+            ui.print_success("\nToken limit has been reset. Resuming processing.")
+        else:
+            print("[SUCCESS] Token limit has been reset. Resuming processing.")
+        return True
+        
+    except KeyboardInterrupt:
+        logger.info("Wait cancelled by user (KeyboardInterrupt).")
+        if ui:
+            ui.print_warning("\nWait cancelled by user.")
+        else:
+            print("\n[INFO] Wait cancelled by user.")
+        return False
+
+
 def _resolve_line_ranges_file(text_file: Path) -> Optional[Path]:
     """Detect the line range file associated with ``text_file``."""
     candidates = [
@@ -135,6 +229,7 @@ async def _adjust_files(
     matching_config: Optional[Dict[str, any]],
     retry_config: Optional[Dict[str, any]],
     notifier,
+    ui: Optional[UserInterface] = None,
 ) -> Tuple[List[Tuple[Path, Path]], List[Path], List[Tuple[Path, Exception]]]:
     readjuster = LineRangeReadjuster(
         model_config,
@@ -147,8 +242,16 @@ async def _adjust_files(
     successes: List[Tuple[Path, Path]] = []
     skipped: List[Path] = []
     failures: List[Tuple[Path, Exception]] = []
+    token_limit_enabled = _check_token_limit_enabled()
 
     for text_file in text_files:
+        # Check token limit before processing each file
+        if token_limit_enabled:
+            if not _check_and_wait_for_token_limit(ui):
+                logger.info(f"Processing stopped by user. Adjusted {len(successes)} file(s).")
+                notifier(f"Processing stopped. Adjusted {len(successes)}/{len(text_files)} file(s).", "warning")
+                break
+        
         line_ranges_file = _resolve_line_ranges_file(text_file)
         if not line_ranges_file:
             notifier(f"Skipping {text_file.name}: no associated line range file found.", "warning")
@@ -171,6 +274,16 @@ async def _adjust_files(
             notifier(f"Successfully adjusted line ranges for {text_file.name}", "success")
             logger.info(f"Line ranges for {text_file.name} adjusted using {line_ranges_file.name}")
             successes.append((text_file, line_ranges_file))
+            
+            # Log token usage after each file if enabled
+            if token_limit_enabled:
+                token_tracker = get_token_tracker()
+                stats = token_tracker.get_stats()
+                logger.info(
+                    f"Token usage after {text_file.name}: "
+                    f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+                    f"({stats['usage_percentage']:.1f}%)"
+                )
         except Exception as exc:  # pragma: no cover - defensive logging
             logger.exception("Error adjusting %s", text_file, exc_info=exc)
             notifier(f"Failed to adjust {text_file.name}: {exc}", "error")
@@ -338,6 +451,20 @@ async def _run_interactive_mode(
     
     ui.print_section_header("Adjusting Line Ranges")
     
+    # Display initial token usage statistics if enabled
+    if _check_token_limit_enabled():
+        token_tracker = get_token_tracker()
+        stats = token_tracker.get_stats()
+        logger.info(
+            f"Token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%) - "
+            f"{stats['tokens_remaining']:,} tokens remaining today"
+        )
+        ui.print_info(
+            f"Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%)"
+        )
+    
     # UI-aware notifier
     def ui_notifier(msg: str, level: str = "info"):
         if level == "success":
@@ -362,6 +489,7 @@ async def _run_interactive_mode(
         matching_config=matching_config,
         retry_config=retry_config,
         notifier=ui_notifier,
+        ui=ui,
     )
     
     # Display summary
@@ -380,6 +508,19 @@ async def _run_interactive_mode(
         ui.print_subsection_header("Files with errors")
         for failed_file, error in failures:
             ui.console_print(f"  • {failed_file.name}: {error}")
+    
+    # Final token usage statistics
+    if _check_token_limit_enabled():
+        token_tracker = get_token_tracker()
+        stats = token_tracker.get_stats()
+        logger.info(
+            f"Final token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%)"
+        )
+        ui.print_info(
+            f"\nFinal daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%)"
+        )
 
 
 async def _run_cli_mode(
@@ -459,6 +600,20 @@ async def _run_cli_mode(
         context_source = "None"
     print(f"Additional context: {context_source}")
     
+    # Display initial token usage statistics if enabled
+    if _check_token_limit_enabled():
+        token_tracker = get_token_tracker()
+        stats = token_tracker.get_stats()
+        logger.info(
+            f"Token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%) - "
+            f"{stats['tokens_remaining']:,} tokens remaining today"
+        )
+        print(
+            f"[INFO] Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%)"
+        )
+    
     # Perform adjustments
     successes, skipped, failures = await _adjust_files(
         text_files=selected_files,
@@ -472,6 +627,7 @@ async def _run_cli_mode(
         matching_config=matching_config,
         retry_config=retry_config,
         notifier=cli_notifier,
+        ui=None,
     )
     
     # Display summary
@@ -490,6 +646,19 @@ async def _run_cli_mode(
         print("\nFiles that encountered errors:")
         for failed_file, error in failures:
             print(f"  - {failed_file}: {error}")
+    
+    # Final token usage statistics
+    if _check_token_limit_enabled():
+        token_tracker = get_token_tracker()
+        stats = token_tracker.get_stats()
+        logger.info(
+            f"Final token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%)"
+        )
+        print(
+            f"\n[INFO] Final daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"({stats['usage_percentage']:.1f}%)"
+        )
 
 
 def main() -> None:

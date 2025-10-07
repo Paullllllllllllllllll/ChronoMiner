@@ -28,11 +28,13 @@ Meant to be used in conjunction with [ChronoTranscriber](https://github.com/Paul
 
 ### Execution Modes
 
-ChronoMiner supports two execution modes to accommodate different workflows and user preferences:
+ChronoMiner supports two execution modes to accommodate different workflows and user preferences while automatically respecting the configured daily token budget:
 
 **Interactive Mode** provides a guided experience with clear prompts and helpful explanations at each step. Users select options from numbered menus, receive immediate validation with helpful error messages, and can navigate backward or quit at any prompt. This mode is ideal for first-time users, exploring options, or occasional processing tasks.
 
 **CLI Mode** accepts command-line arguments for fully automated, scriptable workflows. All settings are provided via arguments, requiring no user interaction. Processing starts immediately, status messages go to console, and exit codes indicate success or failure. This mode is designed for power users, automation, batch processing, and integration with other tools.
+
+Daily token enforcement is configured in `config/concurrency_config.yaml`. When `daily_token_limit.enabled` is `true`, ChronoMiner tracks usage across sessions, enforces the configured token cap, and automatically resets the counter at local midnight. Enforcement applies to both interactive and CLI runs.
 
 The mode is determined automatically: if command-line arguments are provided, CLI mode activates; otherwise, Interactive mode starts (unless configured otherwise in `config/paths_config.yaml`).
 
@@ -48,6 +50,7 @@ The mode is determined automatically: if command-line arguments are provided, CL
 - Batch Management: Full suite of tools to manage, monitor, and repair batch jobs
 - Semantic Boundary Detection: LLM-powered chunk boundary optimization for coherent document segments
 - Token Cost Analytics: Inspect temporary `.jsonl` files, calculate per-model spend, and export cost breakdowns
+- Daily Token Budgeting: Enforce configurable per-day token usage limits with automatic midnight reset and persistent tracking
 
 ## Features
 
@@ -245,7 +248,33 @@ Key Parameters:
 
 ### 4. Concurrency Configuration (`concurrency_config.yaml`)
 
-Controls parallel processing and retry behavior.
+Controls parallel processing, retry behavior, and daily token budgeting.
+
+```yaml
+concurrency:
+  transcription:
+    concurrency_limit: 100
+    delay_between_tasks: 0.0
+    service_tier: flex  # Options: auto, default, flex, priority
+    retry:
+      attempts: 5
+      wait_min_seconds: 4
+      wait_max_seconds: 60
+      jitter_max_seconds: 1
+
+daily_token_limit:
+  enabled: true        # Toggle daily token enforcement
+  daily_tokens: 9000000  # Maximum tokens allowed per calendar day
+```
+
+Key Parameters:
+
+- `concurrency_limit`: Maximum number of concurrent tasks
+- `delay_between_tasks`: Delay in seconds between starting tasks
+- `service_tier`: OpenAI service tier for rate limiting and processing speed
+- Retry settings: Exponential backoff configuration for transient API failures
+- `daily_token_limit.enabled`: Enable/disable daily enforcement
+- `daily_token_limit.daily_tokens`: Daily token budget; counter resets automatically at local midnight and persists across runs
 
 ### 5. Chunking & Context Configuration (`chunking_and_context.yaml`)
 
@@ -267,30 +296,6 @@ Key parameters:
 - `max_context_expansion_attempts`: Maximum window expansions when the model requests more context.
 - `delete_ranges_with_no_content`: Enables verification scans that delete empty ranges on high-certainty no-content responses.
 - `scan_range_multiplier`: Size multiplier for the upward/downward verification scan.
-
-```yaml
-concurrency:
-  extraction:
-    concurrency_limit: 250
-    delay_between_tasks: 0.005
-    service_tier: flex  # Options: auto, default, flex, priority
-    batch_chunk_size: 50
-    
-    retry:
-      attempts: 10
-      wait_min_seconds: 4
-      wait_max_seconds: 60
-      jitter_max_seconds: 1
-```
-
-Key Parameters:
-
-- `concurrency_limit`: Maximum number of concurrent tasks
-- `delay_between_tasks`: Delay in seconds between starting tasks
-- `service_tier`: OpenAI service tier for rate limiting and processing speed
-  - Note: Service tiers apply only to synchronous API calls; batch processing automatically omits this parameter
-- `batch_chunk_size`: Number of requests per batch part file
-- Retry settings: Exponential backoff configuration for transient API failures
 
 ### Context Files
 
@@ -382,7 +387,7 @@ Process files with command-line arguments:
 # Process a single file with batch mode
 python main/process_text_files.py --schema BibliographicEntries --input data/file.txt --batch
 
-# Process entire directory with custom chunking
+# Process entire directory with custom chunking (token limit enforcement still applies)
 python main/process_text_files.py --schema CulinaryWorksEntries --input data/ --batch --chunking line_ranges
 
 # View all options
@@ -399,6 +404,12 @@ Available Arguments:
 - `--context-source`: Context source (default or file-specific)
 - `--verbose`: Enable verbose output
 - `--quiet`: Minimize output
+
+#### Daily Token Tracking During Processing
+
+- When `daily_token_limit.enabled` is `true`, ChronoMiner tracks every API call, persists usage to `.chronominer_token_state.json`, and resets counts at local midnight.
+- Interactive and CLI workflows display current usage at startup and completion. When the limit is reached, the app pauses before processing the next file and resumes automatically after the reset (Ctrl+C cancels the wait).
+- Non-batch runs process files sequentially while enforcement is active. Disable the limit or enable batch processing to restore fully concurrent execution.
 
 ### Line Range Generation
 
@@ -894,6 +905,7 @@ ChronoMiner bundles a lightweight analytics utility that inspects preserved temp
 | computer-use-preview | 3.00 | - | 12.00 |
 | gpt-image-1 | 5.00 | 1.25 | - |
 
+> See: https://platform.openai.com/docs/pricing for more information.
 > **Note:** Cached input pricing is denoted with `-` wherever OpenAI has not published a discounted tier. The analytics tool automatically treats missing values as zero in the CSV export.
 
 ## Architecture

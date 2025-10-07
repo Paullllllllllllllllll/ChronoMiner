@@ -335,9 +335,9 @@ def get_token_tracker(daily_limit: Optional[int] = None, enabled: Optional[bool]
                     from modules.config.loader import ConfigLoader
                     config_loader = ConfigLoader()
                     config_loader.load_configs()
-                    model_config = config_loader.get_model_config()
+                    concurrency_config = config_loader.get_concurrency_config()
                     
-                    token_limit_config = model_config.get("daily_token_limit", {})
+                    token_limit_config = concurrency_config.get("daily_token_limit", {})
                     if daily_limit is None:
                         daily_limit = token_limit_config.get("daily_tokens", 10000000)
                     if enabled is None:
