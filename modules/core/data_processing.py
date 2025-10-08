@@ -66,7 +66,15 @@ class CSVConverter:
             full_title = entry.get("full_title", "")
             short_title = entry.get("short_title", "")
             main_author = entry.get("main_author", "")
-            library_location = entry.get("library_location", None)
+            
+            # Extract library location
+            library_location = entry.get("library_location")
+            library_name = None
+            library_city = None
+            if library_location and isinstance(library_location, dict):
+                library_name = library_location.get("library_name")
+                library_city = library_location.get("library_city")
+            
             culinary_focus = entry.get("culinary_focus", [])
             culinary_focus_str = ", ".join(culinary_focus) if isinstance(
                 culinary_focus, list) else str(culinary_focus)
@@ -82,7 +90,8 @@ class CSVConverter:
                     "full_title": full_title,
                     "short_title": short_title,
                     "main_author": main_author,
-                    "library_location": library_location,
+                    "library_name": library_name,
+                    "library_city": library_city,
                     "culinary_focus": culinary_focus_str
                 })
                 continue
@@ -114,7 +123,8 @@ class CSVConverter:
                     "full_title": full_title,
                     "short_title": short_title,
                     "main_author": main_author,
-                    "library_location": library_location,
+                    "library_name": library_name,
+                    "library_city": library_city,
                     "culinary_focus": culinary_focus_str,
                     
                     # Edition-level fields

@@ -1,6 +1,6 @@
 {
   "name": "BibliographicEntries",
-  "schema_version": "3.3",
+  "schema_version": "3.4",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -58,16 +58,36 @@
                   "Unknown",
                   "Other"
                 ],
-                "description": "Culinary focus areas. Example: ['Baking and Pastry', 'Culinary Techniques']."
+                "description": "Culinary focus areas. Example: ['Baking and Pastry', 'Culinary Techniques']. Derived from the title if no further context can be found in the input text."
               },
               "description": "An array indicating the specific culinary areas the book focuses on."
             },
             "library_location": {
               "anyOf": [
-                { "type": "string" },
+                {
+                  "type": "object",
+                  "properties": {
+                    "library_name": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Name of the library or archive holding the work. Example: 'Library of Congress' or 'Bibliothèque nationale'. Use null if not mentioned."
+                    },
+                    "library_city": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "City where the library is located, in modern English. Example: 'Washington' or 'Paris'. Use null if not mentioned."
+                    }
+                  },
+                  "required": ["library_name", "library_city"],
+                  "additionalProperties": false
+                },
                 { "type": "null" }
               ],
-              "description": "Main physical location of the work in format 'LibraryName/City'. Example: 'Library of Congress/Washington' or 'Bibliothèque nationale/Paris'. Use null if not mentioned."
+              "description": "Physical location of the work. Use null if not mentioned."
             },
             "edition_info": {
               "type": "array",
