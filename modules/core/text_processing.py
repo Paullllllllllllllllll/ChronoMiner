@@ -41,7 +41,12 @@ class DocumentConverter:
             "structuredsummaries": self._convert_structured_summaries_to_docx,
             "bibliographicentries": self._convert_bibliographic_entries_to_docx,
             "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_docx,
-            "brazilianoccupationrecords": self._convert_brazilianoccupationrecords_to_docx
+            "brazilianoccupationrecords": self._convert_brazilianoccupationrecords_to_docx,
+            "brazilianmilitaryrecords": self._convert_brazilianoccupationrecords_to_docx,
+            "culinarypersonsentries": self._convert_culinary_persons_to_docx,
+            "culinaryplacesentries": self._convert_culinary_places_to_docx,
+            "culinaryworksentries": self._convert_culinary_works_to_docx,
+            "historicalrecipesentries": self._convert_historical_recipes_to_docx
         }
         key = self.schema_name.lower()
         if key in converters:
@@ -78,7 +83,12 @@ class DocumentConverter:
             "structuredsummaries": self._convert_structured_summaries_to_txt,
             "bibliographicentries": self._convert_bibliographic_entries_to_txt,
             "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_txt,
-            "brazilianmilitaryrecords": self._convert_brazilianoccupationrecords_to_txt
+            "brazilianmilitaryrecords": self._convert_brazilianoccupationrecords_to_txt,
+            "brazilianoccupationrecords": self._convert_brazilianoccupationrecords_to_txt,
+            "culinarypersonsentries": self._convert_culinary_persons_to_txt,
+            "culinaryplacesentries": self._convert_culinary_places_to_txt,
+            "culinaryworksentries": self._convert_culinary_works_to_txt,
+            "historicalrecipesentries": self._convert_historical_recipes_to_txt
         }
 
         try:
@@ -509,5 +519,459 @@ class DocumentConverter:
             lines.append(f"Telephonist: {entry.get('telephonist', '')}")
             lines.append(f"Residence: {entry.get('residence', '')}")
             lines.append(f"Observations: {entry.get('observations', '')}")
+            lines.append("\n" + "=" * 40 + "\n")
+        return lines
+
+    # --- Culinary Schemas DOCX Converters ---
+    def _convert_culinary_persons_to_docx(self, entries: List[Any], document: Document) -> None:
+        """Converts culinary persons entries to DOCX format."""
+        for entry in entries:
+            name = entry.get("canonical_name_original", "Unknown")
+            document.add_heading(name, level=1)
+            
+            modern_name = entry.get("canonical_name_modern_english")
+            if modern_name and modern_name != name:
+                document.add_paragraph(f"Modern Name: {modern_name}")
+            
+            gender = entry.get("gender")
+            if gender:
+                document.add_paragraph(f"Gender: {gender}")
+            
+            roles = entry.get("roles", [])
+            if roles:
+                document.add_paragraph(f"Roles: {', '.join(roles)}")
+            
+            period = entry.get("period", {})
+            if period:
+                period_str = f"{period.get('start_year', 'Unknown')} - {period.get('end_year', 'Unknown')}"
+                if period.get("notation"):
+                    period_str += f" ({period['notation']})"
+                document.add_paragraph(f"Period: {period_str}")
+            
+            associated_works = entry.get("associated_works", [])
+            if associated_works:
+                document.add_heading("Associated Works", level=2)
+                for work in associated_works:
+                    title = work.get("title_original", "")
+                    role = work.get("role", "")
+                    document.add_paragraph(f"{title} ({role})", style='List Bullet')
+            
+            associated_places = entry.get("associated_places", [])
+            if associated_places:
+                document.add_heading("Associated Places", level=2)
+                for place in associated_places:
+                    place_name = place.get("place_original", "")
+                    assoc_type = place.get("association_type", "")
+                    document.add_paragraph(f"{place_name} - {assoc_type}", style='List Bullet')
+            
+            notes = entry.get("notes")
+            if notes:
+                document.add_heading("Notes", level=2)
+                document.add_paragraph(notes)
+            
+            document.add_page_break()
+
+    def _convert_culinary_places_to_docx(self, entries: List[Any], document: Document) -> None:
+        """Converts culinary places entries to DOCX format."""
+        for entry in entries:
+            name = entry.get("name_original", "Unknown")
+            document.add_heading(name, level=1)
+            
+            modern_name = entry.get("name_modern_english")
+            if modern_name and modern_name != name:
+                document.add_paragraph(f"Modern Name: {modern_name}")
+            
+            place_type = entry.get("place_type")
+            country = entry.get("country_modern")
+            if place_type:
+                document.add_paragraph(f"Type: {place_type}")
+            if country:
+                document.add_paragraph(f"Country: {country}")
+            
+            period = entry.get("period", {})
+            if period:
+                period_str = f"{period.get('start_year', 'Unknown')} - {period.get('end_year', 'Unknown')}"
+                if period.get("notation"):
+                    period_str += f" ({period['notation']})"
+                document.add_paragraph(f"Period: {period_str}")
+            
+            roles = entry.get("roles_in_culinary_ecosystem", [])
+            if roles:
+                document.add_paragraph(f"Roles: {', '.join(roles)}")
+            
+            products = entry.get("associated_products", [])
+            if products:
+                document.add_heading("Associated Products", level=2)
+                for product in products:
+                    document.add_paragraph(product, style='List Bullet')
+            
+            establishments = entry.get("notable_establishments", [])
+            if establishments:
+                document.add_heading("Notable Establishments", level=2)
+                for est in establishments:
+                    document.add_paragraph(est, style='List Bullet')
+            
+            notes = entry.get("notes")
+            if notes:
+                document.add_heading("Notes", level=2)
+                document.add_paragraph(notes)
+            
+            document.add_page_break()
+
+    def _convert_culinary_works_to_docx(self, entries: List[Any], document: Document) -> None:
+        """Converts culinary works entries to DOCX format."""
+        for entry in entries:
+            title = entry.get("title_original", "Unknown")
+            document.add_heading(title, level=1)
+            
+            modern_title = entry.get("title_modern_english")
+            if modern_title and modern_title != title:
+                document.add_paragraph(f"Modern Title: {modern_title}")
+            
+            short_title = entry.get("short_title")
+            if short_title:
+                document.add_paragraph(f"Short Title: {short_title}")
+            
+            genre = entry.get("genre")
+            if genre:
+                document.add_paragraph(f"Genre: {genre}")
+            
+            description = entry.get("description")
+            if description:
+                document.add_paragraph(f"Description: {description}")
+            
+            culinary_focus = entry.get("culinary_focus", [])
+            if culinary_focus:
+                document.add_paragraph(f"Culinary Focus: {', '.join(culinary_focus)}")
+            
+            languages = entry.get("languages", [])
+            if languages:
+                document.add_paragraph(f"Languages: {', '.join(languages)}")
+            
+            edition_years = entry.get("edition_years", [])
+            if edition_years:
+                years_str = ", ".join([str(y) for y in edition_years if y is not None])
+                document.add_paragraph(f"Edition Years: {years_str}")
+            
+            contributors = entry.get("contributors", [])
+            if contributors:
+                document.add_heading("Contributors", level=2)
+                for contrib in contributors:
+                    name = contrib.get("name_original", "")
+                    role = contrib.get("role", "")
+                    document.add_paragraph(f"{name} ({role})", style='List Bullet')
+            
+            pub_places = entry.get("publication_places", [])
+            if pub_places:
+                document.add_heading("Publication Places", level=2)
+                for place in pub_places:
+                    place_name = place.get("name_original", "")
+                    document.add_paragraph(place_name, style='List Bullet')
+            
+            notes = entry.get("notes")
+            if notes:
+                document.add_heading("Notes", level=2)
+                document.add_paragraph(notes)
+            
+            document.add_page_break()
+
+    def _convert_historical_recipes_to_docx(self, entries: List[Any], document: Document) -> None:
+        """Converts historical recipes entries to DOCX format."""
+        for entry in entries:
+            title = entry.get("title_original", "Unknown Recipe")
+            document.add_heading(title, level=1)
+            
+            modern_title = entry.get("title_modern_english")
+            if modern_title and modern_title != title:
+                document.add_paragraph(f"Modern Title: {modern_title}")
+            
+            recipe_type = entry.get("recipe_type")
+            if recipe_type:
+                document.add_paragraph(f"Type: {recipe_type}")
+            
+            # Yield, prep time, cook time
+            yields = entry.get("yield", [])
+            if yields and len(yields) > 0:
+                y = yields[0]
+                val = y.get("value_modern_english")
+                unit = y.get("unit_modern_english")
+                if val and unit:
+                    document.add_paragraph(f"Yield: {val} {unit}")
+            
+            prep_times = entry.get("preparation_time", [])
+            if prep_times and len(prep_times) > 0:
+                t = prep_times[0]
+                val = t.get("value_modern_english")
+                unit = t.get("unit_modern_english")
+                if val and unit:
+                    document.add_paragraph(f"Preparation Time: {val} {unit}")
+            
+            cook_times = entry.get("cooking_time", [])
+            if cook_times and len(cook_times) > 0:
+                t = cook_times[0]
+                val = t.get("value_modern_english")
+                unit = t.get("unit_modern_english")
+                if val and unit:
+                    document.add_paragraph(f"Cooking Time: {val} {unit}")
+            
+            # Ingredients
+            ingredients = entry.get("ingredients", [])
+            if ingredients:
+                document.add_heading("Ingredients", level=2)
+                for ing in ingredients:
+                    name = ing.get("name_modern_english", ing.get("name_original", ""))
+                    qty = ing.get("quantity_original", "")
+                    prep = ing.get("preparation_note_modern_english", "")
+                    ing_text = name
+                    if qty:
+                        ing_text += f" - {qty}"
+                    if prep:
+                        ing_text += f" ({prep})"
+                    document.add_paragraph(ing_text, style='List Bullet')
+            
+            # Cooking methods
+            methods = entry.get("cooking_methods", [])
+            if methods:
+                document.add_heading("Cooking Methods", level=2)
+                method_names = [m.get("method_modern_english", m.get("method_original", "")) for m in methods]
+                document.add_paragraph(", ".join(method_names))
+            
+            # Original recipe text
+            recipe_text = entry.get("recipe_text_original")
+            if recipe_text:
+                document.add_heading("Original Recipe Text", level=2)
+                document.add_paragraph(recipe_text)
+            
+            # Modern translation
+            recipe_text_modern = entry.get("recipe_text_modern_english")
+            if recipe_text_modern and recipe_text_modern != recipe_text:
+                document.add_heading("Modern English Translation", level=2)
+                document.add_paragraph(recipe_text_modern)
+            
+            document.add_page_break()
+
+    # --- Culinary Schemas TXT Converters ---
+    def _convert_culinary_persons_to_txt(self, entries: List[Any]) -> List[str]:
+        """Converts culinary persons entries to TXT format."""
+        lines: List[str] = []
+        for entry in entries:
+            name = entry.get("canonical_name_original", "Unknown")
+            lines.append(name)
+            
+            modern_name = entry.get("canonical_name_modern_english")
+            if modern_name and modern_name != name:
+                lines.append(f"Modern Name: {modern_name}")
+            
+            gender = entry.get("gender")
+            if gender:
+                lines.append(f"Gender: {gender}")
+            
+            roles = entry.get("roles", [])
+            if roles:
+                lines.append(f"Roles: {', '.join(roles)}")
+            
+            period = entry.get("period", {})
+            if period:
+                period_str = f"{period.get('start_year', 'Unknown')} - {period.get('end_year', 'Unknown')}"
+                if period.get("notation"):
+                    period_str += f" ({period['notation']})"
+                lines.append(f"Period: {period_str}")
+            
+            associated_works = entry.get("associated_works", [])
+            if associated_works:
+                lines.append("Associated Works:")
+                for work in associated_works:
+                    title = work.get("title_original", "")
+                    role = work.get("role", "")
+                    lines.append(f" - {title} ({role})")
+            
+            associated_places = entry.get("associated_places", [])
+            if associated_places:
+                lines.append("Associated Places:")
+                for place in associated_places:
+                    place_name = place.get("place_original", "")
+                    assoc_type = place.get("association_type", "")
+                    lines.append(f" - {place_name} ({assoc_type})")
+            
+            notes = entry.get("notes")
+            if notes:
+                lines.append(f"Notes: {notes}")
+            
+            lines.append("\n" + "=" * 40 + "\n")
+        return lines
+
+    def _convert_culinary_places_to_txt(self, entries: List[Any]) -> List[str]:
+        """Converts culinary places entries to TXT format."""
+        lines: List[str] = []
+        for entry in entries:
+            name = entry.get("name_original", "Unknown")
+            lines.append(name)
+            
+            modern_name = entry.get("name_modern_english")
+            if modern_name and modern_name != name:
+                lines.append(f"Modern Name: {modern_name}")
+            
+            place_type = entry.get("place_type")
+            country = entry.get("country_modern")
+            if place_type:
+                lines.append(f"Type: {place_type}")
+            if country:
+                lines.append(f"Country: {country}")
+            
+            period = entry.get("period", {})
+            if period:
+                period_str = f"{period.get('start_year', 'Unknown')} - {period.get('end_year', 'Unknown')}"
+                if period.get("notation"):
+                    period_str += f" ({period['notation']})"
+                lines.append(f"Period: {period_str}")
+            
+            roles = entry.get("roles_in_culinary_ecosystem", [])
+            if roles:
+                lines.append(f"Roles: {', '.join(roles)}")
+            
+            products = entry.get("associated_products", [])
+            if products:
+                lines.append(f"Associated Products: {', '.join(products)}")
+            
+            establishments = entry.get("notable_establishments", [])
+            if establishments:
+                lines.append(f"Notable Establishments: {', '.join(establishments)}")
+            
+            notes = entry.get("notes")
+            if notes:
+                lines.append(f"Notes: {notes}")
+            
+            lines.append("\n" + "=" * 40 + "\n")
+        return lines
+
+    def _convert_culinary_works_to_txt(self, entries: List[Any]) -> List[str]:
+        """Converts culinary works entries to TXT format."""
+        lines: List[str] = []
+        for entry in entries:
+            title = entry.get("title_original", "Unknown")
+            lines.append(title)
+            
+            modern_title = entry.get("title_modern_english")
+            if modern_title and modern_title != title:
+                lines.append(f"Modern Title: {modern_title}")
+            
+            short_title = entry.get("short_title")
+            if short_title:
+                lines.append(f"Short Title: {short_title}")
+            
+            genre = entry.get("genre")
+            if genre:
+                lines.append(f"Genre: {genre}")
+            
+            description = entry.get("description")
+            if description:
+                lines.append(f"Description: {description}")
+            
+            culinary_focus = entry.get("culinary_focus", [])
+            if culinary_focus:
+                lines.append(f"Culinary Focus: {', '.join(culinary_focus)}")
+            
+            languages = entry.get("languages", [])
+            if languages:
+                lines.append(f"Languages: {', '.join(languages)}")
+            
+            edition_years = entry.get("edition_years", [])
+            if edition_years:
+                years_str = ", ".join([str(y) for y in edition_years if y is not None])
+                lines.append(f"Edition Years: {years_str}")
+            
+            contributors = entry.get("contributors", [])
+            if contributors:
+                lines.append("Contributors:")
+                for contrib in contributors:
+                    name = contrib.get("name_original", "")
+                    role = contrib.get("role", "")
+                    lines.append(f" - {name} ({role})")
+            
+            pub_places = entry.get("publication_places", [])
+            if pub_places:
+                place_names = [p.get("name_original", "") for p in pub_places]
+                lines.append(f"Publication Places: {', '.join(place_names)}")
+            
+            notes = entry.get("notes")
+            if notes:
+                lines.append(f"Notes: {notes}")
+            
+            lines.append("\n" + "=" * 40 + "\n")
+        return lines
+
+    def _convert_historical_recipes_to_txt(self, entries: List[Any]) -> List[str]:
+        """Converts historical recipes entries to TXT format."""
+        lines: List[str] = []
+        for entry in entries:
+            title = entry.get("title_original", "Unknown Recipe")
+            lines.append(title)
+            
+            modern_title = entry.get("title_modern_english")
+            if modern_title and modern_title != title:
+                lines.append(f"Modern Title: {modern_title}")
+            
+            recipe_type = entry.get("recipe_type")
+            if recipe_type:
+                lines.append(f"Type: {recipe_type}")
+            
+            # Yield, prep time, cook time
+            yields = entry.get("yield", [])
+            if yields and len(yields) > 0:
+                y = yields[0]
+                val = y.get("value_modern_english")
+                unit = y.get("unit_modern_english")
+                if val and unit:
+                    lines.append(f"Yield: {val} {unit}")
+            
+            prep_times = entry.get("preparation_time", [])
+            if prep_times and len(prep_times) > 0:
+                t = prep_times[0]
+                val = t.get("value_modern_english")
+                unit = t.get("unit_modern_english")
+                if val and unit:
+                    lines.append(f"Preparation Time: {val} {unit}")
+            
+            cook_times = entry.get("cooking_time", [])
+            if cook_times and len(cook_times) > 0:
+                t = cook_times[0]
+                val = t.get("value_modern_english")
+                unit = t.get("unit_modern_english")
+                if val and unit:
+                    lines.append(f"Cooking Time: {val} {unit}")
+            
+            # Ingredients
+            ingredients = entry.get("ingredients", [])
+            if ingredients:
+                lines.append("Ingredients:")
+                for ing in ingredients:
+                    name = ing.get("name_modern_english", ing.get("name_original", ""))
+                    qty = ing.get("quantity_original", "")
+                    prep = ing.get("preparation_note_modern_english", "")
+                    ing_text = f" - {name}"
+                    if qty:
+                        ing_text += f" ({qty})"
+                    if prep:
+                        ing_text += f" - {prep}"
+                    lines.append(ing_text)
+            
+            # Cooking methods
+            methods = entry.get("cooking_methods", [])
+            if methods:
+                method_names = [m.get("method_modern_english", m.get("method_original", "")) for m in methods]
+                lines.append(f"Cooking Methods: {', '.join(method_names)}")
+            
+            # Original recipe text
+            recipe_text = entry.get("recipe_text_original")
+            if recipe_text:
+                lines.append("Original Recipe Text:")
+                lines.append(recipe_text)
+            
+            # Modern translation
+            recipe_text_modern = entry.get("recipe_text_modern_english")
+            if recipe_text_modern and recipe_text_modern != recipe_text:
+                lines.append("Modern English Translation:")
+                lines.append(recipe_text_modern)
+            
             lines.append("\n" + "=" * 40 + "\n")
         return lines

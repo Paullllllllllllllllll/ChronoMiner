@@ -161,6 +161,7 @@ for schema in [
 	"CulinaryPersonsEntries",
 	"CulinaryPlacesEntries",
 	"CulinaryWorksEntries",
+	"HistoricalRecipesEntries",
 	"MilitaryRecordEntries"
 ]:
 	register_schema_handler(schema, BaseSchemaHandler)
