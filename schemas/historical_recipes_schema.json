@@ -21,22 +21,22 @@
               "description": "Complete recipe text verbatim in its original language (preserve spelling, diacritics, and formatting)."
             },
             "recipe_text_modern_english": {
+              "type": "string",
+              "description": "Modern English translation of the complete recipe text. Use modern english equivalent if text is already in english."
+            },
+            "title_original": {
               "anyOf": [
                 { "type": "string" },
                 { "type": "null" }
               ],
-              "description": "Modern English translation of the complete recipe text. Use null if original is already in English."
-            },
-            "title_original": {
-              "type": "string",
-              "description": "Recipe title exactly as it appears in the source (preserve spelling and diacritics)."
+              "description": "Recipe title exactly as it appears in the source (preserve spelling and diacritics). Use null if no title is given."
             },
             "title_modern_english": {
               "anyOf": [
                 { "type": "string" },
                 { "type": "null" }
               ],
-              "description": "Modern English translation or standardized title. Use null if not applicable."
+              "description": "Modern English translation or the original recipe title. Use null if no title is given."
             },
             "recipe_type": {
               "type": "string",
