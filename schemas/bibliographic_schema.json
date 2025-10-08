@@ -139,21 +139,29 @@
                       "type": "object",
                       "properties": {
                         "name": {
-                          "type": "string",
-                          "description": "Name of the contributor."
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Name of the contributor. Use null if unknown."
                         },
                         "role": {
-                          "type": "string",
-                          "enum": [
-                            "Author",
-                            "Editor",
-                            "Translator",
-                            "Compiler",
-                            "Illustrator",
-                            "Unknown",
-                            "Other"
+                          "anyOf": [
+                            {
+                              "type": "string",
+                              "enum": [
+                                "Author",
+                                "Editor",
+                                "Translator",
+                                "Compiler",
+                                "Illustrator",
+                                "Unknown",
+                                "Other"
+                              ]
+                            },
+                            { "type": "null" }
                           ],
-                          "description": "Role of the contributor for this edition."
+                          "description": "Role of the contributor for this edition. Use null if unknown."
                         }
                       },
                       "required": ["name", "role"],
@@ -282,8 +290,11 @@
                     "description": "Total number of pages or leaf count for this edition, or null if unknown."
                   },
                   "has_illustrations": {
-                    "type": "boolean",
-                    "description": "True if this edition contains illustrations, plates, or engravings; false otherwise."
+                    "anyOf": [
+                      { "type": "boolean" },
+                      { "type": "null" }
+                    ],
+                    "description": "True if this edition contains illustrations, plates, or engravings; false if it does not; null if unknown."
                   },
                   "dimensions": {
                     "anyOf": [
@@ -298,12 +309,18 @@
                         "type": "object",
                         "properties": {
                           "price": {
-                            "type": "number",
-                            "description": "Numeric price value. Example: 3.50.'"
+                            "anyOf": [
+                              { "type": "number" },
+                              { "type": "null" }
+                            ],
+                            "description": "Numeric price value. Example: 3.50. Use null if unknown."
                           },
                           "currency": {
-                            "type": "string",
-                            "description": "Currency abbreviation. Example: 'fr.' or '£'."
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ],
+                            "description": "Currency abbreviation. Example: 'fr.' or '£'. Use null if unknown."
                           }
                         },
                         "required": ["price", "currency"],
