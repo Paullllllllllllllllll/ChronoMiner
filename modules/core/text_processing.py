@@ -46,6 +46,7 @@ class DocumentConverter:
             "culinarypersonsentries": self._convert_culinary_persons_to_docx,
             "culinaryplacesentries": self._convert_culinary_places_to_docx,
             "culinaryworksentries": self._convert_culinary_works_to_docx,
+            "culinaryentitiesentries": self._convert_culinary_entities_to_docx,
             "historicalrecipesentries": self._convert_historical_recipes_to_docx
         }
         key = self.schema_name.lower()
@@ -88,6 +89,7 @@ class DocumentConverter:
             "culinarypersonsentries": self._convert_culinary_persons_to_txt,
             "culinaryplacesentries": self._convert_culinary_places_to_txt,
             "culinaryworksentries": self._convert_culinary_works_to_txt,
+            "culinaryentitiesentries": self._convert_culinary_entities_to_txt,
             "historicalrecipesentries": self._convert_historical_recipes_to_txt
         }
 
@@ -248,6 +250,210 @@ class DocumentConverter:
                                        style='List Bullet')
 
             document.add_page_break()
+
+    def _convert_culinary_entities_to_docx(self, entries: List[Any], document: Document) -> None:
+        profile_keys = {
+            "Person": "person_entry",
+            "Place": "place_entry",
+            "Work": "work_entry"
+        }
+
+        def join_list(values: Any, separator: str = ", ") -> str:
+            if isinstance(values, list):
+                items = [str(v) for v in values if v not in (None, "")]
+                return separator.join(items)
+            return ""
+
+        def format_associations(assocs: Any) -> List[str]:
+            if not isinstance(assocs, list):
+                return []
+            formatted: List[str] = []
+            for assoc in assocs:
+                if not isinstance(assoc, dict):
+                    continue
+                target_type = assoc.get("target_type")
+                label = assoc.get("target_label_modern_english") or assoc.get("target_label_original")
+                relationship = assoc.get("relationship")
+                parts = [part for part in [target_type, label] if part]
+                base = " - ".join(parts) if parts else ""
+                if relationship:
+                    base = f"{base} ({relationship})" if base else relationship
+                if base:
+                    formatted.append(base)
+            return formatted
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+
+            entry_type = entry.get("entry_type", "Unknown")
+            profile = entry.get(profile_keys.get(entry_type, ""), {})
+            if not isinstance(profile, dict):
+                profile = {}
+
+            names = profile.get("names", {}) or {}
+            title = names.get("original") or names.get("modern_english") or f"{entry_type} Entry"
+            document.add_heading(f"{title} ({entry_type})", level=1)
+
+            timeframe = profile.get("timeframe", {}) or {}
+            topical_focus = join_list(profile.get("topical_focus"))
+            languages = join_list(profile.get("language_contexts"))
+            associations = format_associations(profile.get("associations"))
+
+            def add_paragraph(label: str, value: Any) -> None:
+                if value not in (None, ""):
+                    document.add_paragraph(f"{label}: {value}")
+
+            add_paragraph("Modern Name", names.get("modern_english"))
+            add_paragraph("Summary", profile.get("entity_summary"))
+            add_paragraph("Timeframe", timeframe.get("notation"))
+            add_paragraph("Timeframe Start", timeframe.get("start_year"))
+            add_paragraph("Timeframe End", timeframe.get("end_year"))
+            add_paragraph("Topical Focus", topical_focus)
+            add_paragraph("Languages", languages)
+            add_paragraph("Notes", profile.get("notes"))
+
+            if entry_type == "Person":
+                add_paragraph("Gender", profile.get("gender"))
+                add_paragraph("Roles", join_list(profile.get("roles")))
+                variants = profile.get("name_variants")
+                if isinstance(variants, list) and variants:
+                    formatted = []
+                    for variant in variants:
+                        if isinstance(variant, dict):
+                            original = variant.get("original") or ""
+                            modern = variant.get("modern_english")
+                            if modern and modern != original:
+                                formatted.append(f"{original} ({modern})")
+                            else:
+                                formatted.append(original)
+                    add_paragraph("Name Variants", "; ".join([f for f in formatted if f]))
+                add_paragraph("Biographical Notes", profile.get("biographical_notes"))
+
+            elif entry_type == "Place":
+                add_paragraph("Place Type", profile.get("place_type"))
+                add_paragraph("Country (Modern)", profile.get("country_modern"))
+                add_paragraph("Culinary Roles", join_list(profile.get("roles_in_culinary_ecosystem")))
+                add_paragraph("Associated Products", join_list(profile.get("associated_products")))
+                add_paragraph("Notable Establishments", join_list(profile.get("notable_establishments")))
+                add_paragraph("Place Notes", profile.get("place_notes"))
+
+            elif entry_type == "Work":
+                add_paragraph("Short Title", profile.get("short_title"))
+                add_paragraph("Description", profile.get("description"))
+                add_paragraph("Genre", profile.get("genre"))
+                add_paragraph("Edition Years", join_list(profile.get("edition_years")))
+                material = profile.get("material_features", {}) or {}
+                add_paragraph("Format", material.get("format"))
+                add_paragraph("Has Illustrations", material.get("has_illustrations"))
+                add_paragraph("Page Count", material.get("page_count"))
+                add_paragraph("Material Notes", material.get("notes"))
+
+            if associations:
+                document.add_paragraph("Associations:")
+                for assoc in associations:
+                    document.add_paragraph(assoc, style='List Bullet')
+
+            document.add_page_break()
+
+    def _convert_culinary_entities_to_txt(self, entries: List[Any]) -> List[str]:
+        profile_keys = {
+            "Person": "person_entry",
+            "Place": "place_entry",
+            "Work": "work_entry"
+        }
+
+        def join_list(values: Any, separator: str = ", ") -> str:
+            if isinstance(values, list):
+                items = [str(v) for v in values if v not in (None, "")]
+                return separator.join(items)
+            return ""
+
+        def format_name_variants(variants: Any) -> str:
+            if not isinstance(variants, list):
+                return ""
+            formatted = []
+            for variant in variants:
+                if isinstance(variant, dict):
+                    original = variant.get("original") or ""
+                    modern = variant.get("modern_english")
+                    if modern and modern != original:
+                        formatted.append(f"{original} ({modern})")
+                    else:
+                        formatted.append(original)
+            return "; ".join([f for f in formatted if f])
+
+        def format_associations(assocs: Any) -> str:
+            if not isinstance(assocs, list):
+                return ""
+            formatted = []
+            for assoc in assocs:
+                if not isinstance(assoc, dict):
+                    continue
+                target_type = assoc.get("target_type")
+                label = assoc.get("target_label_modern_english") or assoc.get("target_label_original")
+                relationship = assoc.get("relationship")
+                parts = [part for part in [target_type, label] if part]
+                base = " - ".join(parts) if parts else ""
+                if relationship:
+                    base = f"{base} ({relationship})" if base else relationship
+                if base:
+                    formatted.append(base)
+            return "; ".join(formatted)
+
+        lines: List[str] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+
+            entry_type = entry.get("entry_type", "Unknown")
+            profile = entry.get(profile_keys.get(entry_type, ""), {})
+            if not isinstance(profile, dict):
+                profile = {}
+
+            names = profile.get("names", {}) or {}
+            header = names.get("original") or names.get("modern_english") or f"{entry_type} Entry"
+            lines.append(f"Entry Type: {entry_type}")
+            lines.append(f"Name: {header}")
+
+            timeframe = profile.get("timeframe", {}) or {}
+            lines.append(f"  Summary: {self._safe_str(profile.get('entity_summary'))}")
+            lines.append(f"  Timeframe: {self._safe_str(timeframe.get('notation'))}")
+            lines.append(f"  Timeframe Start: {self._safe_str(timeframe.get('start_year'))}")
+            lines.append(f"  Timeframe End: {self._safe_str(timeframe.get('end_year'))}")
+            lines.append(f"  Topical Focus: {join_list(profile.get('topical_focus'))}")
+            lines.append(f"  Languages: {join_list(profile.get('language_contexts'))}")
+            lines.append(f"  Associations: {format_associations(profile.get('associations'))}")
+            lines.append(f"  Notes: {self._safe_str(profile.get('notes'))}")
+
+            if entry_type == "Person":
+                lines.append(f"  Gender: {self._safe_str(profile.get('gender'))}")
+                lines.append(f"  Roles: {join_list(profile.get('roles'))}")
+                lines.append(f"  Name Variants: {format_name_variants(profile.get('name_variants'))}")
+                lines.append(f"  Biographical Notes: {self._safe_str(profile.get('biographical_notes'))}")
+
+            elif entry_type == "Place":
+                lines.append(f"  Place Type: {self._safe_str(profile.get('place_type'))}")
+                lines.append(f"  Country (Modern): {self._safe_str(profile.get('country_modern'))}")
+                lines.append(f"  Culinary Roles: {join_list(profile.get('roles_in_culinary_ecosystem'))}")
+                lines.append(f"  Associated Products: {join_list(profile.get('associated_products'))}")
+                lines.append(f"  Notable Establishments: {join_list(profile.get('notable_establishments'))}")
+                lines.append(f"  Place Notes: {self._safe_str(profile.get('place_notes'))}")
+
+            elif entry_type == "Work":
+                lines.append(f"  Short Title: {self._safe_str(profile.get('short_title'))}")
+                lines.append(f"  Description: {self._safe_str(profile.get('description'))}")
+                lines.append(f"  Genre: {self._safe_str(profile.get('genre'))}")
+                lines.append(f"  Edition Years: {join_list(profile.get('edition_years'))}")
+                material = profile.get("material_features", {}) or {}
+                lines.append(f"  Format: {self._safe_str(material.get('format'))}")
+                lines.append(f"  Has Illustrations: {self._safe_str(material.get('has_illustrations'))}")
+                lines.append(f"  Page Count: {self._safe_str(material.get('page_count'))}")
+                lines.append(f"  Material Notes: {self._safe_str(material.get('notes'))}")
+
+            lines.append("")
+
+        return lines
 
     def _convert_historicaladdressbookentries_to_docx(self, entries: List[Any],
                                                       document: Document) -> None:

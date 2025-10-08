@@ -37,6 +37,7 @@ class CSVConverter:
             "culinarypersonsentries": self._convert_culinary_persons_to_df,
             "culinaryplacesentries": self._convert_culinary_places_to_df,
             "culinaryworksentries": self._convert_culinary_works_to_df,
+            "culinaryentitiesentries": self._convert_culinary_entities_to_df,
             "historicalrecipesentries": self._convert_historical_recipes_to_df
         }
         key = self.schema_name.lower()
@@ -145,6 +146,141 @@ class CSVConverter:
                     "price": price_str
                 }
                 rows.append(edition_row)
+
+        df = pd.DataFrame(rows)
+        return df
+
+    def _convert_culinary_entities_to_df(self, entries: List[Any]) -> pd.DataFrame:
+        """Flatten unified culinary entities entries (schema v3.0) into tabular rows."""
+
+        def join_list(values: Any, separator: str = ", ") -> str:
+            if isinstance(values, list):
+                items = [str(v) for v in values if v not in (None, "")]
+                return separator.join(items)
+            return ""
+
+        def format_name_variants(variants: Any) -> str:
+            if not isinstance(variants, list):
+                return ""
+            formatted = []
+            for variant in variants:
+                if isinstance(variant, dict):
+                    original = variant.get("original") or ""
+                    modern = variant.get("modern_english")
+                    if modern and modern != original:
+                        formatted.append(f"{original} ({modern})")
+                    else:
+                        formatted.append(original)
+            return "; ".join([f for f in formatted if f])
+
+        def format_associations(assocs: Any) -> str:
+            if not isinstance(assocs, list):
+                return ""
+            formatted = []
+            for assoc in assocs:
+                if not isinstance(assoc, dict):
+                    continue
+                target_type = assoc.get("target_type")
+                label = assoc.get("target_label_modern_english") or assoc.get("target_label_original")
+                relationship = assoc.get("relationship")
+                parts = [part for part in [target_type, label] if part]
+                base = " - ".join(parts) if parts else ""
+                if relationship:
+                    base = f"{base} ({relationship})" if base else relationship
+                if base:
+                    formatted.append(base)
+            return "; ".join(formatted)
+
+        rows: List[Dict[str, Any]] = []
+        profile_keys = {
+            "Person": "person_entry",
+            "Place": "place_entry",
+            "Work": "work_entry"
+        }
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+
+            entry_type = entry.get("entry_type")
+            profile_key = profile_keys.get(entry_type)
+            profile = entry.get(profile_key, {}) if profile_key else {}
+            if not isinstance(profile, dict):
+                profile = {}
+
+            names = profile.get("names", {}) or {}
+            timeframe = profile.get("timeframe", {}) or {}
+            topical_focus = profile.get("topical_focus")
+            language_contexts = profile.get("language_contexts")
+            associations = profile.get("associations")
+
+            row: Dict[str, Any] = {
+                "entry_type": entry_type,
+                "names_original": names.get("original"),
+                "names_modern_english": names.get("modern_english"),
+                "entity_summary": profile.get("entity_summary"),
+                "timeframe_start_year": timeframe.get("start_year"),
+                "timeframe_end_year": timeframe.get("end_year"),
+                "timeframe_notation": timeframe.get("notation"),
+                "topical_focus": join_list(topical_focus),
+                "language_contexts": join_list(language_contexts),
+                "associations": format_associations(associations),
+                "notes": profile.get("notes"),
+                # Person-specific defaults
+                "person_gender": None,
+                "person_roles": None,
+                "person_name_variants": None,
+                "person_biographical_notes": None,
+                # Place-specific defaults
+                "place_type": None,
+                "place_country_modern": None,
+                "place_roles_in_culinary_ecosystem": None,
+                "place_associated_products": None,
+                "place_notable_establishments": None,
+                "place_notes": None,
+                # Work-specific defaults
+                "work_short_title": None,
+                "work_description": None,
+                "work_genre": None,
+                "work_edition_years": None,
+                "work_material_format": None,
+                "work_material_has_illustrations": None,
+                "work_material_page_count": None,
+                "work_material_notes": None
+            }
+
+            if entry_type == "Person":
+                row.update({
+                    "person_gender": profile.get("gender"),
+                    "person_roles": join_list(profile.get("roles")),
+                    "person_name_variants": format_name_variants(profile.get("name_variants")),
+                    "person_biographical_notes": profile.get("biographical_notes")
+                })
+
+            elif entry_type == "Place":
+                row.update({
+                    "place_type": profile.get("place_type"),
+                    "place_country_modern": profile.get("country_modern"),
+                    "place_roles_in_culinary_ecosystem": join_list(profile.get("roles_in_culinary_ecosystem")),
+                    "place_associated_products": join_list(profile.get("associated_products")),
+                    "place_notable_establishments": join_list(profile.get("notable_establishments")),
+                    "place_notes": profile.get("place_notes")
+                })
+
+            elif entry_type == "Work":
+                material_features = profile.get("material_features", {}) or {}
+                row.update({
+                    "work_short_title": profile.get("short_title"),
+                    "work_description": profile.get("description"),
+                    "work_genre": profile.get("genre"),
+                    "work_edition_years": join_list(profile.get("edition_years")),
+                    "work_material_format": material_features.get("format"),
+                    "work_material_has_illustrations": material_features.get("has_illustrations"),
+                    "work_material_page_count": material_features.get("page_count"),
+                    "work_material_notes": material_features.get("notes")
+                })
+
+            rows.append(row)
 
         df = pd.DataFrame(rows)
         return df
