@@ -303,6 +303,8 @@ Key parameters:
 
 Basic context files are located in `basic_context/` and are automatically loaded and included in every API request. Each schema requires a corresponding basic context file named `{SchemaName}Entries.txt`.
 
+If you need to draft a new basic context file with the help of an LLM, reuse the prompt template in `gimmicks/basic_context_prompt.txt`. Provide that prompt together with the relevant schema definition so the model can generate compliant guidance.
+
 Basic context provides fundamental information about the input source:
 
 - Brief description of the input text type and characteristics
@@ -324,6 +326,8 @@ markers for this type of text are the beginnings of full bibliographic entries.
 #### Additional Context (Optional)
 
 Additional context files are located in `additional_context/` and are only included when the user selects to use additional context. These files provide detailed, domain-specific guidance for extraction.
+
+To script new additional context documents with an LLM, start from the example prompt in `gimmicks/additional_context_prompt.txt` and share it alongside the matching schema.
 
 Example: `additional_context/BibliographicEntries.txt`
 
@@ -595,7 +599,8 @@ ChronoMiner's extensible architecture allows easy integration of new extraction 
 
 ### Create the JSON Schema
 
-Place a new schema file in `schemas/` (e.g., `MyCustomSchema.json`).
+Place a new schema file in `schemas/` (e.g., `MyCustomSchema.json`). **Always mirror the top-level structure from an existing schema** (`contains_no_content_of_requested_type` boolean followed by the `entries` array) so downstream tooling recognizes the response format. 
+The OpenAI structured outputs guide at [https://platform.openai.com/docs/guides/structured-outputs](https://platform.openai.com/docs/guides/structured-outputs) contains additional background how the schemas can be structured.
 
 ```json
 {
@@ -606,6 +611,10 @@ Place a new schema file in `schemas/` (e.g., `MyCustomSchema.json`).
   "schema": {
     "type": "object",
     "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no MyCustomSchema entries. Otherwise, set to false."
+      },
       "entries": {
         "type": "array",
         "items": {
@@ -622,7 +631,7 @@ Place a new schema file in `schemas/` (e.g., `MyCustomSchema.json`).
         }
       }
     },
-    "required": ["entries"],
+    "required": ["contains_no_content_of_requested_type", "entries"],
     "additionalProperties": false
   }
 }
@@ -630,11 +639,11 @@ Place a new schema file in `schemas/` (e.g., `MyCustomSchema.json`).
 
 Schema Design Best Practices:
 
-- Use an `entries` array where each entry represents one unit of analysis
-- Include clear field descriptions for the LLM to understand extraction requirements
-- Mark required fields explicitly
-- Use appropriate data types and formats
-- Set `strict: true` for robust validation
+- **Mirror the preamble**: Copy the `contains_no_content_of_requested_type` and `entries` definitions exactly as shown (you can paste the first section from any existing file in `schemas/`).
+- **Describe fields clearly**: Include clear field descriptions for the LLM to understand extraction requirements.
+- **Set required fields**: Mark required fields explicitly.
+- **Use strong typing**: Choose accurate data types and formats.
+- **Keep validation strict**: Set `strict: true` for robust validation.
 
 ### Create Basic Context File (Required)
 

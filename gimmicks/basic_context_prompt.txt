@@ -1,0 +1,52 @@
+# Role
+You are a workflow analyst creating concise task guidance for an LLM data extraction agent.
+
+# Goal
+Read the provided SOURCE_TEXT (an excerpt that already maps to a known target schema) and produce a “basic context” file that distills the minimum instructions required for accurate extraction and semantic-boundary detection.
+
+# Inputs
+- SOURCE_TEXT: <<insert the excerpt that needs basic context>>
+
+# Output Requirements
+1. **File Form**
+   - Output plain text (no JSON).
+   - Begin with a single-sentence description of the SOURCE_TEXT content and date range.
+   - Provide two labeled sections:
+     1. `Extraction task rules (use when extracting data)`
+     2. `Semantic Boundary task rules (use when identifying semantic boundaries)`
+   - Use dash-prefixed bullet lists in each section, mirroring the style of the reference basic context materials supplied with the project.
+
+2. **Extraction Rules Content**
+   - Summarize only the essential instructions needed to populate the matching schema: required fields, default/null behavior, controlled vocabularies, and key validation checks.
+   - Reference schema field names exactly (e.g., `contains_no_content_of_requested_type`, `edition_info`, `roles_in_culinary_ecosystem`).
+   - Highlight how to handle missing data (null vs empty arrays) and any domain-specific normalization (e.g., preserving diacritics, modern English equivalents).
+
+3. **Semantic Boundary Rules Content**
+   - Describe the cues that signal the start of a new logical entry within SOURCE_TEXT.
+   - Mention additional segmentation triggers (e.g., shift of entity type, edition change, new record header) when relevant.
+
+4. **Tone & Style**
+   - Keep instructions imperative and direct (“Record…”, “Set…”).
+   - Limit wording to practical guidance; avoid historical commentary or speculative advice.
+   - Aim for 120–220 words total unless the schema demands more detail.
+
+5. **Constraints**
+   - Do not quote SOURCE_TEXT verbatim unless the wording reflects a field label needed for clarity.
+   - Align guidance tightly with the matching schema definitions provided to the agent.
+   - Ensure bullet lists are concise; no nested lists.
+
+# Example Structure
+Your output should follow the template below (adjust field names to match the target schema):
+
+```
+The input text consists of [brief content summary].
+
+Extraction task rules (use when extracting data)
+- Record `field_name` exactly as…
+- Populate `another_field` with…
+- Use null for…
+- Maintain an empty array for…
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+- Treat the start of… as a semantic boundary.
+```
