@@ -197,64 +197,64 @@ def _recover_missing_batch_ids(
 
 
 def is_batch_finished(batch_id: str, client: OpenAI) -> bool:
-	try:
-		batch_info: Any = client.batches.retrieve(batch_id)
-		status: str = batch_info.status.lower()
-		if status in {"completed", "expired", "cancelled", "failed"}:
-			return True
-		else:
-			logger.info(
-				f"Batch {batch_id} status is '{status}', not finished yet.")
-			return False
-	except Exception as e:
-		logger.error(f"Error retrieving batch {batch_id}: {e}")
-		return False
+    try:
+        batch_info: Any = client.batches.retrieve(batch_id)
+        status: str = batch_info.status.lower()
+        if status in {"completed", "expired", "cancelled", "failed"}:
+            return True
+        else:
+            logger.info(
+                f"Batch {batch_id} status is '{status}', not finished yet.")
+            return False
+    except Exception as e:
+        logger.error(f"Error retrieving batch {batch_id}: {e}")
+        return False
 
 
 def load_config() -> Tuple[
-	List[Tuple[str, Path, Dict[str, Any]]], Dict[str, Any]]:
-	config_loader = ConfigLoader()
-	config_loader.load_configs()
-	paths_config: Dict[str, Any] = config_loader.get_paths_config()
-	general: Dict[str, Any] = paths_config["general"]
-	input_paths_is_output_path: bool = general["input_paths_is_output_path"]
-	schemas_paths: Dict[str, Any] = paths_config["schemas_paths"]
-	repo_info_list: List[Tuple[str, Path, Dict[str, Any]]] = []
-	for schema, schema_config in schemas_paths.items():
-		folder: Path = Path(
-			schema_config["input"]) if input_paths_is_output_path else Path(
-			schema_config["output"])
-		repo_info_list.append((schema, folder, schema_config))
-	processing_settings: Dict[str, Any] = {
-		"retain_temporary_jsonl": general["retain_temporary_jsonl"]}
-	return repo_info_list, processing_settings
+    List[Tuple[str, Path, Dict[str, Any]]], Dict[str, Any]]:
+    config_loader = ConfigLoader()
+    config_loader.load_configs()
+    paths_config: Dict[str, Any] = config_loader.get_paths_config()
+    general: Dict[str, Any] = paths_config["general"]
+    input_paths_is_output_path: bool = general["input_paths_is_output_path"]
+    schemas_paths: Dict[str, Any] = paths_config["schemas_paths"]
+    repo_info_list: List[Tuple[str, Path, Dict[str, Any]]] = []
+    for schema, schema_config in schemas_paths.items():
+        folder: Path = Path(
+            schema_config["input"]) if input_paths_is_output_path else Path(
+            schema_config["output"])
+        repo_info_list.append((schema, folder, schema_config))
+    processing_settings: Dict[str, Any] = {
+        "retain_temporary_jsonl": general["retain_temporary_jsonl"]}
+    return repo_info_list, processing_settings
 
 
 def process_batch_output_file(file_path: Path) -> Dict[str, List[Any]]:
-	responses: List[Any] = []
-	tracking: List[Any] = []
-	with file_path.open("r", encoding="utf-8") as f:
-		for line in f:
-			line = line.strip()
-			if not line:
-				continue
-			try:
-				record: Dict[str, Any] = json.loads(line)
-				if "response" in record:
-					responses.append(
-						_normalize_response_entry(
-							{
-								"response": record.get("response"),
-								"custom_id": record.get("custom_id"),
-								"chunk_range": record.get("chunk_range"),
-							}
-						)
-					)
-				elif "batch_tracking" in record:
-					tracking.append(record["batch_tracking"])
-			except Exception as e:
-				logger.error(f"Error processing line in {file_path}: {e}")
-	return {"responses": responses, "tracking": tracking}
+    responses: List[Any] = []
+    tracking: List[Any] = []
+    with file_path.open("r", encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record: Dict[str, Any] = json.loads(line)
+                if "response" in record:
+                    responses.append(
+                        _normalize_response_entry(
+                            {
+                                "response": record.get("response"),
+                                "custom_id": record.get("custom_id"),
+                                "chunk_range": record.get("chunk_range"),
+                            }
+                        )
+                    )
+                elif "batch_tracking" in record:
+                    tracking.append(record["batch_tracking"])
+            except Exception as e:
+                logger.error(f"Error processing line in {file_path}: {e}")
+    return {"responses": responses, "tracking": tracking}
 
 
 def retrieve_responses_from_batch(
@@ -328,217 +328,217 @@ def retrieve_responses_from_batch(
 
 
 def _safe_print(ui: Optional[UserInterface], message: str, level: str = "info"):
-	"""Safely print message to UI or logger depending on mode."""
-	if ui:
-		if level == "info":
-			ui.print_info(message)
-		elif level == "warning":
-			ui.print_warning(message)
-		elif level == "error":
-			ui.print_error(message)
-		elif level == "success":
-			ui.print_success(message)
-		else:
-			ui.log(message, level)
-	else:
-		# CLI mode - use logger and print for verbose output
-		if level == "info":
-			logger.info(message)
-		elif level == "warning":
-			logger.warning(message)
-		elif level == "error":
-			logger.error(message)
-		else:
-			logger.info(message)
+    """Safely print message to UI or logger depending on mode."""
+    if ui:
+        if level == "info":
+            ui.print_info(message)
+        elif level == "warning":
+            ui.print_warning(message)
+        elif level == "error":
+            ui.print_error(message)
+        elif level == "success":
+            ui.print_success(message)
+        else:
+            ui.log(message, level)
+    else:
+        # CLI mode - use logger and print for verbose output
+        if level == "info":
+            logger.info(message)
+        elif level == "warning":
+            logger.warning(message)
+        elif level == "error":
+            logger.error(message)
+        else:
+            logger.info(message)
 
 
 def _safe_subsection(ui: Optional[UserInterface], title: str):
-	"""Safely print subsection header."""
-	if ui:
-		ui.print_subsection_header(title)
-	else:
-		logger.info(f"=== {title} ===")
+    """Safely print subsection header."""
+    if ui:
+        ui.print_subsection_header(title)
+    else:
+        logger.info(f"=== {title} ===")
 
 
 def process_all_batches(
-		root_folder: Path,
-		processing_settings: Dict[str, Any],
-		client: OpenAI,
-		schema_name: str,
-		schema_config: Dict[str, Any],
-		ui: Optional[UserInterface]
+        root_folder: Path,
+        processing_settings: Dict[str, Any],
+        client: OpenAI,
+        schema_name: str,
+        schema_config: Dict[str, Any],
+        ui: Optional[UserInterface]
 ) -> None:
-	temp_files: List[Path] = list(root_folder.rglob("*_temp.jsonl"))
-	if not temp_files:
-		_safe_print(ui, f"No temporary batch files found in {root_folder}", "info")
-		logger.info(f"No temporary batch files found in {root_folder}.")
-		return
+    temp_files: List[Path] = list(root_folder.rglob("*_temp.jsonl"))
+    if not temp_files:
+        _safe_print(ui, f"No temporary batch files found in {root_folder}", "info")
+        logger.info(f"No temporary batch files found in {root_folder}.")
+        return
 
-	try:
-		batch_listing = list_all_batches(client)
-		batch_dict: Dict[str, Dict[str, Any]] = {
-			b.get("id"): b for b in batch_listing if isinstance(b, dict) and b.get("id")
-		}
-	except Exception as exc:
-		logger.warning("Unable to list all batches (falling back to on-demand retrieval): %s", exc)
-		batch_dict = {}
+    try:
+        batch_listing = list_all_batches(client)
+        batch_dict: Dict[str, Dict[str, Any]] = {
+            b.get("id"): b for b in batch_listing if isinstance(b, dict) and b.get("id")
+        }
+    except Exception as exc:
+        logger.warning("Unable to list all batches (falling back to on-demand retrieval): %s", exc)
+        batch_dict = {}
 
-	for temp_file in temp_files:
-		try:
-			_safe_subsection(ui, f"Processing: {temp_file.name}")
-			logger.info(f"Processing temporary batch file: {temp_file}")
+    for temp_file in temp_files:
+        try:
+            _safe_subsection(ui, f"Processing: {temp_file.name}")
+            logger.info(f"Processing temporary batch file: {temp_file}")
 
-			# Load batch tracking info and responses
-			results: Dict[str, Any] = process_batch_output_file(temp_file)
-			responses: List[Any] = results.get("responses", [])
-			tracking: List[Any] = results.get("tracking", [])
-			custom_id_map, order_map = extract_custom_id_mapping(temp_file)
+            # Load batch tracking info and responses
+            results: Dict[str, Any] = process_batch_output_file(temp_file)
+            responses: List[Any] = results.get("responses", [])
+            tracking: List[Any] = results.get("tracking", [])
+            custom_id_map, order_map = extract_custom_id_mapping(temp_file)
 
-			if not tracking:
-				_safe_print(ui, f"Tracking information missing in {temp_file.name}. Skipping final output.", "warning")
-				logger.warning(f"Tracking information missing in {temp_file}. Skipping final output.")
-				continue
+            if not tracking:
+                _safe_print(ui, f"Tracking information missing in {temp_file.name}. Skipping final output.", "warning")
+                logger.warning(f"Tracking information missing in {temp_file}. Skipping final output.")
+                continue
 
-			persist_recovered = processing_settings.get("persist_recovered_batch_ids", True)
-			batch_ids: Set[str] = {
-				str(track.get("batch_id"))
-				for track in tracking
-				if track.get("batch_id")
-			}
-			recovered_ids = set()
-			if not batch_ids:
-				recovered_ids = _recover_missing_batch_ids(temp_file, temp_file.stem.replace("_temp", ""), persist_recovered)
-				for recovered in recovered_ids:
-					tracking.append({"batch_id": recovered})
-					batch_ids.add(recovered)
+            persist_recovered = processing_settings.get("persist_recovered_batch_ids", True)
+            batch_ids: Set[str] = {
+                str(track.get("batch_id"))
+                for track in tracking
+                if track.get("batch_id")
+            }
+            recovered_ids = set()
+            if not batch_ids:
+                recovered_ids = _recover_missing_batch_ids(temp_file, temp_file.stem.replace("_temp", ""), persist_recovered)
+                for recovered in recovered_ids:
+                    tracking.append({"batch_id": recovered})
+                    batch_ids.add(recovered)
 
-			if not batch_ids:
-				_safe_print(ui, f"No batch IDs found for {temp_file.name}. Unable to finalize this file.", "warning")
-				logger.warning("No batch IDs recovered for %s", temp_file)
-				continue
+            if not batch_ids:
+                _safe_print(ui, f"No batch IDs found for {temp_file.name}. Unable to finalize this file.", "warning")
+                logger.warning("No batch IDs recovered for %s", temp_file)
+                continue
 
-			# Check batch status and retrieve completed results
-			all_finished: bool = True
-			completed_batches = []
-			failed_batches = []
-			missing_batches: List[str] = []
-			local_batch_cache: Dict[str, Dict[str, Any]] = batch_dict.copy()
+            # Check batch status and retrieve completed results
+            all_finished: bool = True
+            completed_batches = []
+            failed_batches = []
+            missing_batches: List[str] = []
+            local_batch_cache: Dict[str, Dict[str, Any]] = batch_dict.copy()
 
-			for track in tracking:
-				batch_id: Any = track.get("batch_id")
-				if not batch_id:
-					logger.error(f"Missing batch_id in tracking record in {temp_file}")
-				batch_id = str(batch_id)
-				batch: Optional[Dict[str, Any]] = local_batch_cache.get(batch_id)
-				if not batch:
-					try:
-						batch_obj: Any = client.batches.retrieve(batch_id)
-						batch = sdk_to_dict(batch_obj)
-						local_batch_cache[batch_id] = batch
-					except Exception as exc:
-						logger.error(f"Error retrieving batch {batch_id}: {exc}")
-						_safe_print(ui, f"Failed to retrieve batch {batch_id}", "error")
-						failed_batches.append((track, f"error: {exc}"))
-						missing_batches.append(batch_id)
-						all_finished = False
-						continue
+            for track in tracking:
+                batch_id: Any = track.get("batch_id")
+                if not batch_id:
+                    logger.error(f"Missing batch_id in tracking record in {temp_file}")
+                batch_id = str(batch_id)
+                batch: Optional[Dict[str, Any]] = local_batch_cache.get(batch_id)
+                if not batch:
+                    try:
+                        batch_obj: Any = client.batches.retrieve(batch_id)
+                        batch = sdk_to_dict(batch_obj)
+                        local_batch_cache[batch_id] = batch
+                    except Exception as exc:
+                        logger.error(f"Error retrieving batch {batch_id}: {exc}")
+                        _safe_print(ui, f"Failed to retrieve batch {batch_id}", "error")
+                        failed_batches.append((track, f"error: {exc}"))
+                        missing_batches.append(batch_id)
+                        all_finished = False
+                        continue
 
-				status: str = str(batch.get("status", "")).lower()
-				if status == "completed":
-					completed_batches.append(track)
-				elif status in {"expired", "failed", "cancelled"}:
-					if status == "failed":
-						diagnosis: str = diagnose_batch_failure(batch_id, client)
-						_safe_print(ui, f"Batch {batch_id} failed: {diagnosis}", "warning")
-						logger.warning(f"Batch {batch_id} failed: {diagnosis}")
-					failed_batches.append((track, status))
-					all_finished = False
-				else:
-					_safe_print(ui, f"Batch {batch_id} status: {status} (waiting for completion)", "info")
-					logger.info(f"Batch {batch_id} is {status}; not finished.")
-					all_finished = False
+                status: str = str(batch.get("status", "")).lower()
+                if status == "completed":
+                    completed_batches.append(track)
+                elif status in {"expired", "failed", "cancelled"}:
+                    if status == "failed":
+                        diagnosis: str = diagnose_batch_failure(batch_id, client)
+                        _safe_print(ui, f"Batch {batch_id} failed: {diagnosis}", "warning")
+                        logger.warning(f"Batch {batch_id} failed: {diagnosis}")
+                    failed_batches.append((track, status))
+                    all_finished = False
+                else:
+                    _safe_print(ui, f"Batch {batch_id} status: {status} (waiting for completion)", "info")
+                    logger.info(f"Batch {batch_id} is {status}; not finished.")
+                    all_finished = False
 
-			# Display progress
-			if ui:
-				ui.display_batch_processing_progress(
-					temp_file, list(batch_ids), len(completed_batches), len(missing_batches), failed_batches
-				)
+            # Display progress
+            if ui:
+                ui.display_batch_processing_progress(
+                    temp_file, list(batch_ids), len(completed_batches), len(missing_batches), failed_batches
+                )
 
-			if not all_finished:
-				_safe_print(ui, f"Not all batches are completed for {temp_file.name}. Skipping finalization.", "warning")
-				logger.info(f"Skipping finalization for {temp_file} (incomplete batches).")
-				continue
+            if not all_finished:
+                _safe_print(ui, f"Not all batches are completed for {temp_file.name}. Skipping finalization.", "warning")
+                logger.info(f"Skipping finalization for {temp_file} (incomplete batches).")
+                continue
 
-			# Retrieve responses from completed batches
-			for track in completed_batches:
-				batch_responses: List[Any] = retrieve_responses_from_batch(
-					track, client, temp_file.parent, local_batch_cache
-				)
-				responses.extend(batch_responses)
+            # Retrieve responses from completed batches
+            for track in completed_batches:
+                batch_responses: List[Any] = retrieve_responses_from_batch(
+                    track, client, temp_file.parent, local_batch_cache
+                )
+                responses.extend(batch_responses)
 
-			if not responses:
-				_safe_print(ui, f"No responses retrieved for {temp_file.name}. Cannot finalize.", "warning")
-				logger.warning(f"No responses retrieved for {temp_file}.")
-				continue
+            if not responses:
+                _safe_print(ui, f"No responses retrieved for {temp_file.name}. Cannot finalize.", "warning")
+                logger.warning(f"No responses retrieved for {temp_file}.")
+                continue
 
-			# Order responses
-			ordered_responses: List[Any] = _order_responses(responses, order_map)
+            # Order responses
+            ordered_responses: List[Any] = _order_responses(responses, order_map)
 
-			# Write final output
-			identifier: str = temp_file.stem.replace("_temp", "")
-			final_json_path: Path = temp_file.parent / f"{identifier}_final_output.json"
+            # Write final output
+            identifier: str = temp_file.stem.replace("_temp", "")
+            final_json_path: Path = temp_file.parent / f"{identifier}_final_output.json"
 
-			final_results: Dict[str, Any] = {
-				"responses": ordered_responses,
-				"tracking": tracking,
-				"processing_metadata": {
-					"fully_completed": all_finished,
-					"processed_at": datetime.datetime.now(
-						datetime.timezone.utc
-					).isoformat(),
-					"completed_batches": len(completed_batches),
-					"failed_batches": len(failed_batches),
-					"ordered_by_custom_id": True,
-					"missing_batches": missing_batches,
-					"recovered_batch_ids": sorted(recovered_ids),
-				},
-			}
-			if custom_id_map:
-				final_results["custom_id_map"] = custom_id_map
+            final_results: Dict[str, Any] = {
+                "responses": ordered_responses,
+                "tracking": tracking,
+                "processing_metadata": {
+                    "fully_completed": all_finished,
+                    "processed_at": datetime.datetime.now(
+                        datetime.timezone.utc
+                    ).isoformat(),
+                    "completed_batches": len(completed_batches),
+                    "failed_batches": len(failed_batches),
+                    "ordered_by_custom_id": True,
+                    "missing_batches": missing_batches,
+                    "recovered_batch_ids": sorted(recovered_ids),
+                },
+            }
+            if custom_id_map:
+                final_results["custom_id_map"] = custom_id_map
 
-			final_json_path.write_text(
-				json.dumps(final_results, indent=2), encoding="utf-8"
-			)
-			_safe_print(ui, f"Final output written: {final_json_path.name}", "success")
-			logger.info(f"Final output written to {final_json_path}")
+            final_json_path.write_text(
+                json.dumps(final_results, indent=2), encoding="utf-8"
+            )
+            _safe_print(ui, f"Final output written: {final_json_path.name}", "success")
+            logger.info(f"Final output written to {final_json_path}")
 
-			# Generate additional output formats
-			handler = get_schema_handler(schema_name)
-			if schema_config.get("csv_output", False):
-				handler.convert_to_csv_safely(
-					final_json_path, final_json_path.with_suffix(".csv")
-				)
-				_safe_print(ui, f"CSV output generated for {identifier}", "info")
-			if schema_config.get("docx_output", False):
-				handler.convert_to_docx_safely(
-					final_json_path, final_json_path.with_suffix(".docx")
-				)
-				_safe_print(ui, f"DOCX output generated for {identifier}", "info")
-			if schema_config.get("txt_output", False):
-				handler.convert_to_txt_safely(
-					final_json_path, final_json_path.with_suffix(".txt")
-				)
-				_safe_print(ui, f"TXT output generated for {identifier}", "info")
+            # Generate additional output formats
+            handler = get_schema_handler(schema_name)
+            if schema_config.get("csv_output", False):
+                handler.convert_to_csv_safely(
+                    final_json_path, final_json_path.with_suffix(".csv")
+                )
+                _safe_print(ui, f"CSV output generated for {identifier}", "info")
+            if schema_config.get("docx_output", False):
+                handler.convert_to_docx_safely(
+                    final_json_path, final_json_path.with_suffix(".docx")
+                )
+                _safe_print(ui, f"DOCX output generated for {identifier}", "info")
+            if schema_config.get("txt_output", False):
+                handler.convert_to_csv_safely(
+                    final_json_path, final_json_path.with_suffix(".txt")
+                )
+                _safe_print(ui, f"TXT output generated for {identifier}", "info")
 
-			# Optionally remove temp file
-			if not processing_settings.get("retain_temporary_jsonl", False):
-				temp_file.unlink()
-				_safe_print(ui, f"Removed temporary file: {temp_file.name}", "info")
-				logger.info(f"Removed temporary file {temp_file}")
+            # Optionally remove temp file
+            if not processing_settings.get("retain_temporary_jsonl", False):
+                temp_file.unlink()
+                _safe_print(ui, f"Removed temporary file: {temp_file.name}", "info")
+                logger.info(f"Removed temporary file {temp_file}")
 
-		except Exception as exc:
-			logger.exception(f"Error processing {temp_file}", exc_info=exc)
-			_safe_print(ui, f"Failed to process {temp_file.name}: {exc}", "error")
+        except Exception as exc:
+            logger.exception(f"Error processing {temp_file}", exc_info=exc)
+            _safe_print(ui, f"Failed to process {temp_file.name}: {exc}", "error")
 
 
 class CheckBatchesScript(DualModeScript):

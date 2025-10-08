@@ -11,12 +11,12 @@ logger = logging.getLogger(__name__)
 
 class ConfigLoader:
     """
-    A class for loading and validating YAML configuration files.
+    Loads and validates YAML configuration files for ChronoMiner.
 
-    It loads:
+    Manages:
       - paths_config.yaml
       - model_config.yaml
-      - chunking_and_context.yaml (renamed from chunking_config.yaml)
+      - chunking_and_context.yaml
       - concurrency_config.yaml
     """
     REQUIRED_PATHS_KEYS = ['general', 'schemas_paths']
@@ -25,10 +25,7 @@ class ConfigLoader:
     REQUIRED_CHUNKING_AND_CONTEXT_KEYS = ['chunking', 'context']
 
     def __init__(self, config_dir: Optional[Path] = None) -> None:
-        if config_dir is None:
-            self.config_dir: Path = Path(__file__).resolve().parents[2] / 'config'
-        else:
-            self.config_dir = Path(config_dir)
+        self.config_dir = config_dir or Path(__file__).resolve().parents[2] / 'config'
         self.paths_config: Optional[Dict[str, Any]] = None
         self.model_config: Optional[Dict[str, Any]] = None
         self.concurrency_config: Optional[Dict[str, Any]] = None
@@ -60,39 +57,44 @@ class ConfigLoader:
         :return: Parsed YAML content.
         :raises FileNotFoundError: If the file is missing.
         """
-        config_path: Path = self.config_dir / filename
+        config_path = self.config_dir / filename
         if not config_path.exists():
             logger.error(f"Configuration file not found: {config_path}")
-            raise FileNotFoundError(
-                f"Missing configuration file: {config_path}")
+            raise FileNotFoundError(f"Missing configuration file: {config_path}")
+        
         with config_path.open('r', encoding='utf-8') as f:
             content = f.read()
             try:
-                # YAML requires special handling for Windows paths with backslashes
-                # Force all backslashes to forward slashes for consistent path handling
+                # Normalize Windows paths in paths_config.yaml
                 if filename == 'paths_config.yaml':
-                    # Replace windows-style paths with forward slashes, but only in quoted strings
-                    content = re.sub(r'"([^"]*)"',
-                                     lambda m: '"' + m.group(1).replace('\\',
-                                                                        '/') + '"',
-                                     content)
-
+                    content = re.sub(
+                        r'"([^"]*)"',
+                        lambda m: '"' + m.group(1).replace('\\', '/') + '"',
+                        content
+                    )
                 return yaml.safe_load(content)
             except yaml.YAMLError as e:
                 logger.error(f"Error parsing YAML file {filename}: {e}")
                 raise
 
-    def _validate_paths_config(self, config: Dict[str, Any]) -> None:
+    def _validate_config(self, config: Dict[str, Any], required_keys: list, config_name: str) -> None:
         """
-        Validate the paths configuration for required keys.
+        Validate configuration for required keys.
 
-        :param config: The paths configuration dictionary.
+        :param config: The configuration dictionary.
+        :param required_keys: List of required keys.
+        :param config_name: Name of the configuration file.
         :raises KeyError: If a required key is missing.
         """
-        for key in self.REQUIRED_PATHS_KEYS:
+        for key in required_keys:
             if key not in config:
-                logger.error(f"Missing '{key}' in paths_config.yaml")
-                raise KeyError(f"'{key}' is required in paths_config.yaml")
+                error_msg = f"Missing '{key}' in {config_name}"
+                logger.error(error_msg)
+                raise KeyError(error_msg)
+
+    def _validate_paths_config(self, config: Dict[str, Any]) -> None:
+        """Validate the paths configuration for required keys."""
+        self._validate_config(config, self.REQUIRED_PATHS_KEYS, 'paths_config.yaml')
 
     def _resolve_paths(self, config: Dict[str, Any]) -> None:
         """
@@ -134,43 +136,16 @@ class ConfigLoader:
                         f"Resolved {schema}.{path_key} to: {schema_config[path_key]}")
 
     def _validate_model_config(self, config: Dict[str, Any]) -> None:
-        """
-        Validate the model configuration for required keys.
-
-        :param config: The model configuration dictionary.
-        :raises KeyError: If a required key is missing.
-        """
-        for key in self.REQUIRED_MODEL_CONFIG:
-            if key not in config:
-                logger.error(f"Missing '{key}' in model_config.yaml")
-                raise KeyError(f"'{key}' is required in model_config.yaml")
+        """Validate the model configuration for required keys."""
+        self._validate_config(config, self.REQUIRED_MODEL_CONFIG, 'model_config.yaml')
 
     def _validate_concurrency_config(self, config: Dict[str, Any]) -> None:
-        """
-        Validate the concurrency configuration for required keys.
+        """Validate the concurrency configuration for required keys."""
+        self._validate_config(config, self.REQUIRED_CONCURRENCY, 'concurrency_config.yaml')
 
-        :param config: The concurrency configuration dictionary.
-        :raises KeyError: If a required key is missing.
-        """
-        for key in self.REQUIRED_CONCURRENCY:
-            if key not in config:
-                logger.error(f"Missing '{key}' in concurrency_config.yaml")
-                raise KeyError(
-                    f"'{key}' is required in concurrency_config.yaml")
-
-    def _validate_chunking_and_context_config(self,
-                                              config: Dict[str, Any]) -> None:
-        """
-        Validate the chunking and context configuration for required keys.
-
-        :param config: The chunking and context configuration dictionary.
-        :raises KeyError: If a required key is missing.
-        """
-        for key in self.REQUIRED_CHUNKING_AND_CONTEXT_KEYS:
-            if key not in config:
-                logger.error(f"Missing '{key}' in chunking_and_context.yaml")
-                raise KeyError(
-                    f"'{key}' is required in chunking_and_context.yaml")
+    def _validate_chunking_and_context_config(self, config: Dict[str, Any]) -> None:
+        """Validate the chunking and context configuration for required keys."""
+        self._validate_config(config, self.REQUIRED_CHUNKING_AND_CONTEXT_KEYS, 'chunking_and_context.yaml')
 
     def get_paths_config(self) -> Dict[str, Any]:
         """

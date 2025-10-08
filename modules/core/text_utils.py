@@ -23,11 +23,11 @@ class TextProcessor:
         :param file_path: Path to the file.
         :return: The detected encoding.
         """
-        safe_file_path = ensure_path_safe(file_path)
-        with safe_file_path.open('rb') as f:
-            raw_data: bytes = f.read(100000)
-        result: dict = chardet.detect(raw_data)
-        encoding: str = result['encoding']
+        safe_path = ensure_path_safe(file_path)
+        with safe_path.open('rb') as f:
+            raw_data = f.read(100000)
+        result = chardet.detect(raw_data)
+        encoding = result['encoding']
         logger.info(f"Detected file encoding: {encoding}")
         return encoding
 
@@ -39,9 +39,7 @@ class TextProcessor:
         :param text: Input text.
         :return: Normalized text.
         """
-        normalized: str = text.strip()
-        logger.debug("Text normalized successfully.")
-        return normalized
+        return text.strip()
 
     @staticmethod
     def estimate_tokens(text: str, model_name: str = "o3-mini") -> int:
@@ -49,13 +47,11 @@ class TextProcessor:
         Estimate the number of tokens in the text using cl100k_base encoding.
 
         :param text: Input text.
-        :param model_name: Model name (unused in token estimation).
+        :param model_name: Model name (currently unused, reserved for future model-specific tokenization).
         :return: Estimated token count.
         """
         encoding = tiktoken.get_encoding('cl100k_base')
-        token_count: int = len(encoding.encode(text))
-        logger.debug(f"Estimated {token_count} tokens for the given text using cl100k_base encoding.")
-        return token_count
+        return len(encoding.encode(text))
 
 
 class ChunkingStrategy(ABC):
@@ -78,9 +74,9 @@ class TokenBasedChunking(ChunkingStrategy):
     A chunking strategy that groups lines based on token count.
     """
     def __init__(self, tokens_per_chunk: int, model_name: str, text_processor: TextProcessor) -> None:
-        self.tokens_per_chunk: int = tokens_per_chunk
-        self.model_name: str = model_name
-        self.text_processor: TextProcessor = text_processor
+        self.tokens_per_chunk = tokens_per_chunk
+        self.model_name = model_name
+        self.text_processor = text_processor
 
     def get_line_ranges(self, lines: List[str]) -> List[Tuple[int, int]]:
         """
@@ -89,15 +85,15 @@ class TokenBasedChunking(ChunkingStrategy):
         :param lines: List of text lines.
         :return: List of (start, end) tuples representing chunks.
         """
-        token_ranges: List[Tuple[int, int]] = []
-        current_tokens: int = 0
-        start_line: int = 1
-        end_line: int = 1
+        ranges = []
+        current_tokens = 0
+        start_line = 1
+        end_line = 1
 
         for idx, line in enumerate(lines, 1):
-            line_tokens: int = self.text_processor.estimate_tokens(line, self.model_name)
+            line_tokens = self.text_processor.estimate_tokens(line, self.model_name)
             if current_tokens + line_tokens > self.tokens_per_chunk and current_tokens > 0:
-                token_ranges.append((start_line, end_line))
+                ranges.append((start_line, end_line))
                 start_line = idx
                 current_tokens = line_tokens
             else:
@@ -105,9 +101,9 @@ class TokenBasedChunking(ChunkingStrategy):
             end_line = idx
 
         if start_line <= end_line:
-            token_ranges.append((start_line, end_line))
-        logger.info(f"Total chunks created based on tokens: {len(token_ranges)}")
-        return token_ranges
+            ranges.append((start_line, end_line))
+        logger.info(f"Created {len(ranges)} chunks based on token limits")
+        return ranges
 
 
 class ChunkHandler:
@@ -115,9 +111,9 @@ class ChunkHandler:
     Handles splitting text into chunks based on computed line ranges.
     """
     def __init__(self, model_name: str, default_tokens_per_chunk: int, text_processor: TextProcessor) -> None:
-        self.model_name: str = model_name
-        self.default_tokens_per_chunk: int = default_tokens_per_chunk
-        self.text_processor: TextProcessor = text_processor
+        self.model_name = model_name
+        self.default_tokens_per_chunk = default_tokens_per_chunk
+        self.text_processor = text_processor
 
     def get_line_ranges(self, strategy: ChunkingStrategy, lines: List[str]) -> List[Tuple[int, int]]:
         """
@@ -200,33 +196,38 @@ def load_line_ranges(line_ranges_file: Path) -> List[Tuple[int, int]]:
     :param line_ranges_file: Path to the line ranges file.
     :return: List of (start, end) tuples.
     """
-    line_ranges: List[Tuple[int, int]] = []
+    ranges = []
     try:
-        safe_line_ranges_file = ensure_path_safe(line_ranges_file)
-        with safe_line_ranges_file.open("r", encoding="utf-8") as f:
+        safe_file = ensure_path_safe(line_ranges_file)
+        with safe_file.open("r", encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
                 if not line:
                     continue
+                
+                # Remove parentheses if present
                 if line.startswith("(") and line.endswith(")"):
                     line = line[1:-1]
-                else:
-                    logger.warning(f"Line range format invalid: {line}")
+                elif not line[0].isdigit():
+                    logger.warning(f"Invalid line range format: {line}")
                     continue
+                
                 parts = line.split(",")
                 if len(parts) != 2:
                     logger.warning(f"Expected two numbers in line range, got: {line}")
                     continue
+                
                 try:
-                    start: int = int(parts[0].strip())
-                    end: int = int(parts[1].strip())
-                    line_ranges.append((start, end))
+                    start = int(parts[0].strip())
+                    end = int(parts[1].strip())
+                    ranges.append((start, end))
                 except ValueError:
                     logger.error(f"Invalid integer values in line range: {line}")
     except Exception as e:
         logger.error(f"Error reading line ranges from {line_ranges_file}: {e}")
-    logger.info(f"Loaded {len(line_ranges)} line ranges from {line_ranges_file}")
-    return line_ranges
+    
+    logger.info(f"Loaded {len(ranges)} line ranges from {line_ranges_file}")
+    return ranges
 
 
 def perform_chunking(
