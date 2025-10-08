@@ -1,4 +1,10 @@
-The input text consists of excerpts from academic papers and scholarly literature across the humanities and social
-sciences. Passages typically include section headings, thesis statements, methodological notes, and actual semantic
-content. The text may appear in different languages and use formal scholarly tone with citations and footnote markers.
-Natural semantic markers for this type of text are the beginnings of new pages.
+The input text consists of excerpts from academic papers and scholarly literature across the humanities and social sciences. Passages typically include section headings, thesis statements, methodological notes, and substantive semantic content. The text may appear in different languages and uses a formal scholarly tone with citations and footnote markers. Natural semantic markers for this type of text are the beginnings of new pages.
+
+Extraction task rules (use when extracting data)
+- Record `page_number.page_number_integer` as the printed page number and set `page_number.contains_no_page_number` to true only when the source page lacks a visible number.
+- Set `contains_no_semantic_content` to true when the page has no textual discussion (e.g., bibliographies, blank pages); otherwise, ensure it is false.
+- Populate `bullet_points` with concise statements summarizing the core arguments or findings for the page, maintaining an empty array when no semantic content exists.
+- Transcribe each citation appearing on the page into `references`, formatting in APA style when possible; use an empty array if the page has no references.
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+- Treat each new page in the source document as a boundary.

@@ -1,5 +1,11 @@
-The input text consists of historical recipes from cookbooks, manuscripts, and culinary literature dating from
-approximately 1400 to 1950. Recipes typically contain ingredient lists, cooking instructions, and occasional notes
-on techniques or presentation. The text may appear in various European languages with archaic spelling and historical
-culinary terminology. Natural semantic markers for this type of text are recipe titles or the beginnings of new
-recipe entries.
+The input text consists of historical recipes from cookbooks, manuscripts, and culinary literature dating from approximately 1400 to 1950.
+Recipes typically contain ingredient lists, cooking instructions, yields, timing notes, and occasional commentary on techniques or presentation. The text may appear in various European languages with archaic spelling and historical culinary terminology.
+
+Extraction task rules (use when extracting data)
+- Capture `recipe_text_original` verbatim and provide a full `recipe_text_modern_english` translation; retain `title_original` and `title_modern_english`, using null when no title exists.
+- Assign `recipe_type` from the schema enumeration and record every ingredient in `ingredients`, including original and modern names, quantities, units, and preparation notes; use nulls where the source omits values but keep the object structure.
+- Populate `cooking_methods` and `utensils_equipment` arrays with original terminology and modern English equivalents; represent absent collections with empty arrays.
+- Set each boolean flag in `ingredient_categories` explicitly, basing true/false on textual evidence and defaulting to false rather than null when information is absent.
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+- Treat the start of a new recipe (e.g., title or text) as a boundary.

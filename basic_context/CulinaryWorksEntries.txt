@@ -1,4 +1,11 @@
-The input text consists of excerpts from secondary literature (e.g., culinary history works, food magazines,
-gastronomic studies) discussing historical culinary works, publications, and written sources. The text may appear in
-different languages and use various scholarly or journalistic conventions. Natural semantic markers for this type of
-text are the beginnings of discussions about specific culinary works or publications.
+The input text consists of excerpts from secondary literature (e.g., culinary history works, food magazines, gastronomic studies) discussing historical culinary works, publications, and written sources.
+
+Extraction task rules (use when extracting data)
+- Capture `title_original`, `title_modern_english`, and `short_title` directly from the text, translating only when customary; populate `description` with concise summaries or set to null when absent.
+- Select `genre` from the controlled list and enumerate all topical values in `culinary_focus`; maintain the array even when empty.
+- Fill `languages`, `contributors`, `edition_years`, and `publication_places`, preserving original spellings in *_original fields and supplying modern equivalents or nulls for *_modern_english.
+- Record every `associated_place` and `associated_person`, using the provided structure with `association_type`; retain `notes` and `links` arrays even when empty.
+- When the source omits data, use nulls or empty arrays instead of dropping fields to satisfy schema requirements.
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+- Treat the start of a discussion about a new culinary work or publication as a boundary.

@@ -1,4 +1,11 @@
-The input text consists of excerpts from secondary literature (e.g., culinary history works, food magazines,
-gastronomic studies) discussing historical cooks, gastronomes, and culinary instructors. The text may appear in
-different languages and use various scholarly or journalistic conventions. Natural semantic markers for this type of
-text are the beginnings of specific discussions or references to specific culinary figures.
+The input text consists of excerpts from secondary literature (e.g., culinary history works, food magazines, gastronomic studies) discussing historical cooks, gastronomes, and culinary instructors.
+
+Extraction task rules (use when extracting data)
+- Record `canonical_name_original` exactly as written and supply a standardized `canonical_name_modern_english`; if no modern form exists, repeat the original.
+- Choose a `gender` value from the schema list and populate `roles` with all applicable controlled terms; default to `Unknown` only when the source is silent.
+- List all orthographic variants in `name_variants`, and capture `period` with `start_year`, `end_year`, and `notation`, using nulls where dates or modern forms are absent.
+- Include every relevant `associated_place`, `associated_work`, `source`, and `link`; represent missing collections with empty arrays rather than omitting them.
+- Preserve contextual commentary in `notes` when the text offers biographical nuance or historiographical interpretation.
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+- Treat the start of a description about a new historical person as a boundary.

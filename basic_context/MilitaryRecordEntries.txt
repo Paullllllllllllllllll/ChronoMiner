@@ -1,4 +1,11 @@
-The input text consists of Brazilian military records documenting recruit transcriptions. Entries typically contain
-personal information about recruits including names, physical descriptions, origins, and service details. The text will
-be in Brazilian Portuguese and use period-specific military terminology and administrative conventions. Natural semantic
-markers for this type of text are the beginnings of individual recruit records.
+The input text consists of Brazilian military records documenting recruit transcriptions. Entries typically contain personal information about recruits including names, physical descriptions, origins, service details, and administrative observations. The text will be in Brazilian Portuguese and use period-specific military terminology and conventions. Natural semantic markers for this type of text are the beginnings of individual recruit records or record headers.
+
+Extraction task rules (use when extracting data)
+- Transcribe `surname`, `first_name`, `record_header`, and `location` exactly as written, preserving capitalization and diacritics.
+- Capture biometric and descriptive details (`height`, `skin_color`, `eyes`, `hair_color`, `hair_texture`, `face`, `nose`, `mouth`, `beard`, `mustache`, `marks`) directly from the record, using null when information is absent but maintaining every required field.
+- Populate civil and familial information (`birth_date`, `municipality`, `profession`, `assignatura`, `reservista`, `father`, `mother`, `birth_place`, `civil_status`) verbatim; rely on nulls instead of inference when the record is silent.
+- Record literacy, skills, and physical capabilities (`vaccinated`, `can_read`, `can_write`, `can_count`, `swimming`, `cyclist`, `motorcyclist`, `driver`, `chauffeur`, `telegraphist`, `telephonist`) with the original wording or standardized Yes/No when explicitly provided.
+- Preserve structured collections: list each official under `officials` with `position` and `signature`, and transcribe `residence` and `observations` exactly, using empty arrays rather than omitting collections when no items appear.
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+- Treat the start of a new recruit entry or record header as a boundary.
