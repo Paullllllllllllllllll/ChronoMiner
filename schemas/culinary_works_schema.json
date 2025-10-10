@@ -48,14 +48,14 @@
                   "additionalProperties": false
                 },
                 "short_notes": {
-                  "description": "1–3 sentences summarizing the work's significance, features, or editorial context.",
+                  "description": "1–5 sentences summarizing the work's significance, features, or editorial context. Null if not enough information is given.",
                   "anyOf": [
                     { "type": "string" },
                     { "type": "null" }
                   ]
                 },
                 "timeframe": {
-                  "description": "Active or publication timeframe most relevant to the work.",
+                  "description": "Timeframe when the work held importance in culinary history context according to the input text. Null if no timeframe is given or deducible.",
                   "anyOf": [
                     {
                       "type": "object",
