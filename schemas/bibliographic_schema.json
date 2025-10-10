@@ -55,6 +55,13 @@
                   "Household Management",
                   "Table Service and Etiquette",
                   "Food Adulteration and Safety",
+                  "Food Science and Technology",
+                  "Food Trade and Commerce",
+                  "Culinary Philosophy and Ethics",
+                  "Hospitality Management",
+                  "Festive and Ceremonial Cuisine",
+                  "Religious and Ritual Cuisine",
+                  "Sustainability and Conservation",
                   "Unknown",
                   "Other"
                 ],
@@ -142,8 +149,7 @@
                           "anyOf": [
                             { "type": "string" },
                             { "type": "null" }
-                          ],
-                          "description": "Name of the contributor. Use null if unknown."
+                          ]
                         },
                         "role": {
                           "anyOf": [
@@ -151,10 +157,25 @@
                               "type": "string",
                               "enum": [
                                 "Author",
+                                "CoAuthor",
                                 "Editor",
                                 "Translator",
+                                "Commentator",
+                                "Annotator",
                                 "Compiler",
+                                "Contributor",
+                                "Publisher",
+                                "Printer",
                                 "Illustrator",
+                                "Cartographer",
+                                "Engraver",
+                                "Woodcutter",
+                                "Lithographer",
+                                "PrefaceWriter",
+                                "IndexMaker",
+                                "Dedicatee",
+                                "Patron",
+                                "Sponsor",
                                 "Unknown",
                                 "Other"
                               ]
@@ -223,10 +244,20 @@
                           "Portuguese",
                           "Danish",
                           "Swedish",
+                          "Norwegian",
+                          "Finnish",
+                          "Icelandic",
                           "Czech",
                           "Polish",
                           "Hungarian",
                           "Catalan",
+                          "Greek",
+                          "Russian",
+                          "Ukrainian",
+                          "Turkish",
+                          "Arabic",
+                          "Chinese",
+                          "Japanese",
                           "Unknown",
                           "Other"
                         ]
@@ -250,10 +281,20 @@
                           "Portuguese",
                           "Danish",
                           "Swedish",
+                          "Norwegian",
+                          "Finnish",
+                          "Icelandic",
                           "Czech",
                           "Polish",
                           "Hungarian",
                           "Catalan",
+                          "Greek",
+                          "Russian",
+                          "Ukrainian",
+                          "Turkish",
+                          "Arabic",
+                          "Chinese",
+                          "Japanese",
                           "Unknown",
                           "Other"
                         ]

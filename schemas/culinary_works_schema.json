@@ -11,260 +11,471 @@
         "description": "Set to true if the input text contains no culinary works. Otherwise, set to false."
       },
       "entries": {
-        "type": "array",
         "description": "List of works of culinary literature. If no works are found, return an empty array.",
-        "items": {
-          "type": "object",
-          "properties": {
-            "title_original": {
-              "type": ["string", "null"],
-              "description": "Full title exactly as printed in the historical source (preserve spelling, capitalization, and diacritics)."
-            },
-            "title_modern_english": {
-              "type": ["string", "null"],
-              "description": "Normalized modern English title for linkage. Translate or standardize if customary; otherwise repeat the original."
-            },
-            "short_title": {
-              "type": ["string", "null"],
-              "description": "Concise reference form (≤ 100 characters). Use null if no clear short form exists."
-            },
-            "description": {
-              "type": ["string", "null"],
-              "description": "1–3 sentences summarizing the work's significance or features. Use null if none available."
-            },
-            "genre": {
-              "type": "string",
-              "enum": [
-                "Cookbook",
-                "Household Manual",
-                "Agricultural Manual",
-                "Dietetic/Medical Treatise",
-                "Banquet/Stewardship Treatise",
-                "Map/Guide",
-                "Bibliography",
-                "Culinary History",
-                "Magazine/Periodical",
-                "Other",
-                "Unknown"
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "title_original": {
+                  "description": "Full title exactly as printed in the historical source (preserve spelling, capitalization, and diacritics).",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "null" }
+                  ]
+                },
+                "title_modern_english": {
+                  "description": "Normalized modern English title for linkage. Translate or standardize if customary; otherwise repeat the original.",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "null" }
+                  ]
+                },
+                "short_title": {
+                  "description": "Concise reference form (≤ 100 characters). Use null if no clear short form exists.",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "null" }
+                  ]
+                },
+                "description": {
+                  "description": "1–3 sentences summarizing the work's significance or features. Use null if none available.",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "null" }
+                  ]
+                },
+                "genre": {
+                  "description": "Best-fitting genre from the controlled list.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "Cookbook",
+                        "Household Manual",
+                        "Agricultural Manual",
+                        "Dietetic/Medical Treatise",
+                        "Banquet/Stewardship Treatise",
+                        "Map/Guide",
+                        "Bibliography",
+                        "Culinary History",
+                        "Magazine/Periodical",
+                        "Instructional Manual",
+                        "Trade Catalog",
+                        "Other",
+                        "Unknown"
+                      ]
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "historical_importance": {
+                  "description": "Standardized measure of historical importance on a scale from 1 (lowest) to 7 (highest). If not explicitly discussed, deduce from the length of the discussion of the work in the text - if work is only mentioned very briefly, set to 1; if discussed extensively, set to 7.",
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "culinary_focus": {
+                  "description": "Topical emphases of the work. Select one or more values.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "description": "One topical focus value from the controlled list.",
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "General",
+                              "Baking and Pastry",
+                              "Brewing and Distilling",
+                              "Confectionery and Sweets",
+                              "Preserving and Pickling",
+                              "Medicinal and Health",
+                              "Vegetarian and Vegan",
+                              "Regional and Ethnic Cuisine",
+                              "Dietary and Nutrition",
+                              "Beverages and Drinks",
+                              "Carving and Presentation",
+                              "Wine and Viticulture",
+                              "Meat and Poultry",
+                              "Fish and Seafood",
+                              "Herbs and Spices",
+                              "Sauces and Condiments",
+                              "Culinary Techniques",
+                              "Culinary History",
+                              "Culinary Arts Education",
+                              "Agriculture and Viticulture",
+                              "Household Management",
+                              "Table Service and Etiquette",
+                              "Food Adulteration and Safety",
+                              "Food Science and Technology",
+                              "Food Trade and Commerce",
+                              "Culinary Philosophy and Ethics",
+                              "Hospitality Management",
+                              "Festive and Ceremonial Cuisine",
+                              "Religious and Ritual Cuisine",
+                              "Sustainability and Conservation",
+                              "Unknown",
+                              "Other"
+                            ]
+                          },
+                          { "type": "null" }
+                        ]
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "languages": {
+                  "description": "Languages in which the work is written (across editions if relevant).",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "description": "One language value from the controlled list.",
+                        "anyOf": [
+                          {
+                            "type": "string",
+                            "enum": [
+                              "Latin",
+                              "Italian",
+                              "French",
+                              "German",
+                              "English",
+                              "Spanish",
+                              "Dutch",
+                              "Portuguese",
+                              "Danish",
+                              "Swedish",
+                              "Norwegian",
+                              "Finnish",
+                              "Icelandic",
+                              "Czech",
+                              "Polish",
+                              "Hungarian",
+                              "Catalan",
+                              "Greek",
+                              "Russian",
+                              "Ukrainian",
+                              "Turkish",
+                              "Arabic",
+                              "Chinese",
+                              "Japanese",
+                              "Other",
+                              "Unknown"
+                            ]
+                          },
+                          { "type": "null" }
+                        ]
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "contributors": {
+                  "description": "People credited for the work. Include each contributor once with their role.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name_original": {
+                            "type": ["string", "null"],
+                            "description": "Contributor's name exactly as given in the source (preserve spelling and diacritics)."
+                          },
+                          "name_modern_english": {
+                            "type": ["string", "null"],
+                            "description": "Modern English or standardized form for linkage. If not applicable, repeat the original."
+                          },
+                          "role": {
+                            "description": "Contributor's function. If uncertain, choose Unknown.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Author",
+                                  "CoAuthor",
+                                  "Editor",
+                                  "Translator",
+                                  "Commentator",
+                                  "Annotator",
+                                  "Compiler",
+                                  "Contributor",
+                                  "Publisher",
+                                  "Printer",
+                                  "Illustrator",
+                                  "Cartographer",
+                                  "Engraver",
+                                  "Woodcutter",
+                                  "Lithographer",
+                                  "PrefaceWriter",
+                                  "IndexMaker",
+                                  "Dedicatee",
+                                  "Patron",
+                                  "Sponsor",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          }
+                        },
+                        "required": ["name_original", "name_modern_english", "role"],
+                        "additionalProperties": false
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "edition_years": {
+                  "description": "All known publication or edition years. Use null for uncertain or unspecified years.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": ["integer", "null"],
+                        "description": "Four-digit Gregorian year (e.g., 1549) or null when unknown."
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "publication_places": {
+                  "description": "Places of publication.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name_original": {
+                            "type": ["string", "null"],
+                            "description": "Place name as given in the source (preserve spelling and diacritics)."
+                          },
+                          "name_modern_english": {
+                            "type": ["string", "null"],
+                            "description": "Modern English equivalent for linkage."
+                          }
+                        },
+                        "required": ["name_original", "name_modern_english"],
+                        "additionalProperties": false
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "associated_places": {
+                  "description": "Places associated with the work's content, circulation, or influence.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name_original": {
+                            "type": ["string", "null"],
+                            "description": "Place name as found in source."
+                          },
+                          "name_modern_english": {
+                            "type": ["string", "null"],
+                            "description": "Modern English equivalent."
+                          },
+                          "association_type": {
+                            "description": "Nature of association. Example: 'recipe origin' or 'circulation area'.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "PublicationPlace",
+                                  "RecipeOrigin",
+                                  "DistributionArea",
+                                  "Setting",
+                                  "ReferencedLocation",
+                                  "SubjectLocation",
+                                  "EventLocation",
+                                  "Residence",
+                                  "Patronage",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          }
+                        },
+                        "required": ["name_original", "name_modern_english", "association_type"],
+                        "additionalProperties": false
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "associated_persons": {
+                  "description": "Persons associated with but not credited as formal contributors.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name_original": {
+                            "type": ["string", "null"],
+                            "description": "Person's name as found in source."
+                          },
+                          "name_modern_english": {
+                            "type": ["string", "null"],
+                            "description": "Modern English or standardized form."
+                          },
+                          "association_type": {
+                            "description": "Nature of association. Example: 'dedicatee' or 'patron'.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Contributor",
+                                  "Dedicatee",
+                                  "Patron",
+                                  "Sponsor",
+                                  "Owner",
+                                  "Collector",
+                                  "Subject",
+                                  "Mentioned",
+                                  "Inspired",
+                                  "InspiredBy",
+                                  "DocumentedBy",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          }
+                        },
+                        "required": ["name_original", "name_modern_english", "association_type"],
+                        "additionalProperties": false
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "links": {
+                  "description": "Cross-references to related entities.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "entity_type": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Person",
+                                  "Place",
+                                  "Work",
+                                  "Product",
+                                  "Event",
+                                  "Organization",
+                                  "Other"
+                                ]
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Type of entity being referenced."
+                          },
+                          "entity_label": {
+                            "description": "Name or label of the related entity.",
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ]
+                          },
+                          "relationship": {
+                            "description": "Nature of the relationship.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "AssociatedWith",
+                                  "LocatedIn",
+                                  "CreatedBy",
+                                  "Created",
+                                  "Mentions",
+                                  "MentionedBy",
+                                  "References",
+                                  "ReferencedBy",
+                                  "PartOf",
+                                  "Contains",
+                                  "OwnedBy",
+                                  "OperatedBy",
+                                  "PatronOf",
+                                  "SupportedBy",
+                                  "CollaboratedWith",
+                                  "SucceededBy",
+                                  "PrecededBy",
+                                  "TeacherOf",
+                                  "StudentOf",
+                                  "ApprenticeOf",
+                                  "MasterOf",
+                                  "Mentored",
+                                  "MentoredBy",
+                                  "Inspired",
+                                  "InspiredBy",
+                                  "DocumentedIn",
+                                  "DocumentedBy",
+                                  "AdaptedFrom",
+                                  "AdaptedInto",
+                                  "Cites",
+                                  "CitedBy",
+                                  "Influenced",
+                                  "InfluencedBy",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          }
+                        },
+                        "required": ["entity_type", "entity_label", "relationship"],
+                        "additionalProperties": false
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "title_original",
+                "title_modern_english",
+                "short_title",
+                "description",
+                "genre",
+                "historical_importance",
+                "culinary_focus",
+                "languages",
+                "contributors",
+                "edition_years",
+                "publication_places",
+                "associated_places",
+                "associated_persons",
+                "links"
               ],
-              "description": "Best-fitting genre from the controlled list."
-            },
-            "culinary_focus": {
-              "type": "array",
-              "description": "Topical emphases of the work. Select one or more values.",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "General",
-                  "Baking and Pastry",
-                  "Brewing and Distilling",
-                  "Confectionery and Sweets",
-                  "Preserving and Pickling",
-                  "Medicinal and Health",
-                  "Vegetarian and Vegan",
-                  "Regional and Ethnic Cuisine",
-                  "Dietary and Nutrition",
-                  "Beverages and Drinks",
-                  "Carving and Presentation",
-                  "Wine and Viticulture",
-                  "Meat and Poultry",
-                  "Fish and Seafood",
-                  "Herbs and Spices",
-                  "Sauces and Condiments",
-                  "Culinary Techniques",
-                  "Culinary History",
-                  "Culinary Arts Education",
-                  "Agriculture and Viticulture",
-                  "Household Management",
-                  "Table Service and Etiquette",
-                  "Food Adulteration and Safety",
-                  "Unknown",
-                  "Other"
-                ],
-                "description": "One topical focus value from the controlled list."
-              }
-            },
-            "languages": {
-              "type": "array",
-              "description": "Languages in which the work is written (across editions if relevant).",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "Latin",
-                  "Italian",
-                  "French",
-                  "German",
-                  "English",
-                  "Spanish",
-                  "Dutch",
-                  "Portuguese",
-                  "Danish",
-                  "Swedish",
-                  "Czech",
-                  "Polish",
-                  "Hungarian",
-                  "Catalan",
-                  "Other",
-                  "Unknown"
-                ],
-                "description": "One language value from the controlled list."
-              }
-            },
-            "contributors": {
-              "type": "array",
-              "description": "People credited for the work. Include each contributor once with their role.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "name_original": {
-                    "type": ["string", "null"],
-                    "description": "Contributor's name exactly as given in the source (preserve spelling and diacritics)."
-                  },
-                  "name_modern_english": {
-                    "type": ["string", "null"],
-                    "description": "Modern English or standardized form for linkage. If not applicable, repeat the original."
-                  },
-                  "role": {
-                    "type": "string",
-                    "enum": [
-                      "Author",
-                      "Editor",
-                      "Translator",
-                      "Publisher",
-                      "Printer",
-                      "Compiler",
-                      "Illustrator",
-                      "Cartographer",
-                      "Unknown",
-                      "Other"
-                    ],
-                    "description": "Contributor's function. If uncertain, choose Unknown."
-                  }
-                },
-                "required": ["name_original", "name_modern_english", "role"],
-                "additionalProperties": false
-              }
-            },
-            "edition_years": {
-              "type": "array",
-              "description": "All known publication or edition years. Use null for uncertain or unspecified years.",
-              "items": {
-                "type": ["integer", "null"],
-                "description": "Four-digit Gregorian year (e.g., 1549) or null when unknown."
-              }
-            },
-            "publication_places": {
-              "type": "array",
-              "description": "Places of publication.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "name_original": {
-                    "type": ["string", "null"],
-                    "description": "Place name as given in the source (preserve spelling and diacritics)."
-                  },
-                  "name_modern_english": {
-                    "type": ["string", "null"],
-                    "description": "Modern English equivalent for linkage."
-                  }
-                },
-                "required": ["name_original", "name_modern_english"],
-                "additionalProperties": false
-              }
-            },
-            "associated_places": {
-              "type": "array",
-              "description": "Places associated with the work's content, circulation, or influence.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "name_original": {
-                    "type": ["string", "null"],
-                    "description": "Place name as found in source."
-                  },
-                  "name_modern_english": {
-                    "type": ["string", "null"],
-                    "description": "Modern English equivalent."
-                  },
-                  "association_type": {
-                    "type": "string",
-                    "description": "Nature of association. Example: 'recipe origin' or 'circulation area'."
-                  }
-                },
-                "required": ["name_original", "name_modern_english", "association_type"],
-                "additionalProperties": false
-              }
-            },
-            "associated_persons": {
-              "type": "array",
-              "description": "Persons associated with but not credited as formal contributors.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "name_original": {
-                    "type": ["string", "null"],
-                    "description": "Person's name as found in source."
-                  },
-                  "name_modern_english": {
-                    "type": ["string", "null"],
-                    "description": "Modern English or standardized form."
-                  },
-                  "association_type": {
-                    "type": "string",
-                    "description": "Nature of association. Example: 'dedicatee' or 'patron'."
-                  }
-                },
-                "required": ["name_original", "name_modern_english", "association_type"],
-                "additionalProperties": false
-              }
-            },
-            "notes": {
-              "type": ["string", "null"],
-              "description": "Additional context or clarifications. Use null if none."
-            },
-            "links": {
-              "type": "array",
-              "description": "Cross-references to related entities.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "entity_type": {
-                    "type": "string",
-                    "enum": ["Person", "Place", "Work", "Other"],
-                    "description": "Type of entity being referenced."
-                  },
-                  "entity_label": {
-                    "type": "string",
-                    "description": "Name or label of the related entity."
-                  },
-                  "relationship": {
-                    "type": "string",
-                    "description": "Nature of the relationship."
-                  }
-                },
-                "required": ["entity_type", "entity_label", "relationship"],
-                "additionalProperties": false
-              }
+              "additionalProperties": false
             }
           },
-          "required": [
-            "title_original",
-            "title_modern_english",
-            "short_title",
-            "description",
-            "genre",
-            "culinary_focus",
-            "languages",
-            "contributors",
-            "edition_years",
-            "publication_places",
-            "associated_places",
-            "associated_persons",
-            "notes",
-            "links"
-          ],
-          "additionalProperties": false
-        }
+          { "type": "null" }
+        ]
       }
     },
     "required": ["contains_no_content_of_requested_type", "entries"],
