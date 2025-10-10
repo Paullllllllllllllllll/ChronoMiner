@@ -10,10 +10,10 @@ DATA EXTRACTION RULES
 - Populate field values only when the text supports them; otherwise use `null` (or any explicit placeholder described in the schema)
 - If additional context is provided, treat it as authoritative for extracting data
 - If no additional context is provided, use the basic context and your reasoning to extract data accurately
-- Use only information present in the input text—do not invent or infer unsupported data
 
 OUTPUT REQUIREMENTS
 - Return only valid JSON matching the schema below—no commentary, code fences, or additional fields
+- Use only information present in the input text—do not invent or infer unsupported data
 
 Basic context:
 {{BASIC_CONTEXT}}
