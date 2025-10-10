@@ -96,40 +96,6 @@
                     { "type": "null" }
                   ]
                 },
-                "cultural_identity": {
-                  "description": "Cultural, national, or religious identity of the person.",
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "nationality_original": {
-                          "anyOf": [
-                            { "type": "string" },
-                            { "type": "null" }
-                          ],
-                          "description": "Nationality or polity as recorded in the source."
-                        },
-                        "nationality_modern": {
-                          "anyOf": [
-                            { "type": "string" },
-                            { "type": "null" }
-                          ],
-                          "description": "Modern equivalent nationality or country."
-                        },
-                        "religious_tradition": {
-                          "anyOf": [
-                            { "type": "string" },
-                            { "type": "null" }
-                          ],
-                          "description": "Religious or spiritual tradition, if relevant."
-                        }
-                      },
-                      "required": ["nationality_original", "nationality_modern", "religious_tradition"],
-                      "additionalProperties": false
-                    },
-                    { "type": "null" }
-                  ]
-                },
                 "historical_importance": {
                   "description": "Standardized measure of historical importance on a scale from 1 (lowest) to 7 (highest). If not explicitly discussed, deduce from the length of the discussion of the person in the text - if person is only mentioned very briefly, set to 1; if discussed extensively, set to 7.",
                   "anyOf": [
@@ -404,7 +370,7 @@
                             ]
                           }
                         },
-                        "required": ["entity_type", "entity_label_original", "relationship"],
+                        "required": ["entity_type", "entity_label_original", "entity_label_modern", "relationship", "role"],
                         "additionalProperties": false
                       }
                     },
@@ -417,7 +383,6 @@
                 "short_notes",
                 "timeframe",
                 "lifespan",
-                "cultural_identity",
                 "geography",
                 "historical_importance",
                 "gender",

@@ -376,7 +376,7 @@
                             ]
                           }
                         },
-                        "required": ["entity_type", "entity_label_original", "relationship"],
+                        "required": ["entity_type", "entity_label_original", "entity_label_modern", "relationship", "role"],
                         "additionalProperties": false
                       }
                     },
