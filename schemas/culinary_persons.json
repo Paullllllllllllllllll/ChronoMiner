@@ -18,34 +18,114 @@
             "items": {
               "type": "object",
               "properties": {
-                "canonical_name_original": {
-                  "description": "Person's canonical name as it appears in the source (preserve spelling and diacritics).",
+                "names": {
+                  "description": "Canonical identifiers for the person in original language and modern English form.",
+                  "type": "object",
+                  "properties": {
+                    "original": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Person's canonical name as it appears in the source (preserve spelling and diacritics)."
+                    },
+                    "modern_english": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Modern English or standardized form of the name for linkage. If no standardized form exists, repeat the original."
+                    }
+                  },
+                  "required": ["original", "modern_english"],
+                  "additionalProperties": false
+                },
+                "short_notes": {
+                  "description": "1–3 sentences summarizing the person's significance or context.",
                   "anyOf": [
                     { "type": "string" },
                     { "type": "null" }
                   ]
                 },
-                "canonical_name_modern_english": {
-                  "description": "Modern English or standardized form of the name for linkage. If no standardized form exists, repeat the original.",
-                  "anyOf": [
-                    { "type": "string" },
-                    { "type": "null" }
-                  ]
-                },
-                "gender": {
-                  "description": "Person's gender. Use Unknown if not stated; use Other when not covered by listed values.",
+                "timeframe": {
+                  "description": "Active period or for the person.",
                   "anyOf": [
                     {
-                      "type": "string",
-                      "enum": [
-                        "Female",
-                        "Male",
-                        "Nonbinary",
-                        "Genderqueer",
-                        "Other",
-                        "Unknown",
-                        "PreferNotToSay"
-                      ]
+                      "type": "object",
+                      "properties": {
+                        "start_year": {
+                          "type": ["integer", "null"],
+                          "description": "Earliest relevant year (four-digit Gregorian). Use null if unknown."
+                        },
+                        "end_year": {
+                          "type": ["integer", "null"],
+                          "description": "Latest relevant year (four-digit Gregorian). Use null if unknown."
+                        },
+                        "notation": {
+                          "type": ["string", "null"],
+                          "description": "Human-readable note about the timeframe. Example: 'fl. 1465–1475' or 'early 17th c.'."
+                        }
+                      },
+                      "required": ["start_year", "end_year", "notation"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "lifespan": {
+                  "description": "Birth and death years of the person.",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "birth_year": {
+                          "type": ["integer", "null"],
+                          "description": "Year of birth. Use null if unknown"
+                        },
+                        "death_year": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "description": "Year of death. Use null if unknown"
+                        }
+                      },
+                      "required": ["birth_year", "death_year"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "cultural_identity": {
+                  "description": "Cultural, national, or religious identity of the person.",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "nationality_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Nationality or polity as recorded in the source."
+                        },
+                        "nationality_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern equivalent nationality or country."
+                        },
+                        "religious_tradition": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Religious or spiritual tradition, if relevant."
+                        }
+                      },
+                      "required": ["nationality_original", "nationality_modern", "religious_tradition"],
+                      "additionalProperties": false
                     },
                     { "type": "null" }
                   ]
@@ -57,6 +137,21 @@
                       "type": "integer",
                       "minimum": 1,
                       "maximum": 7
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "gender": {
+                  "description": "Person's gender. Use Unknown if not stated or obvious; use Other when not covered by listed values.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "Female",
+                        "Male",
+                        "Other",
+                        "Unknown"
+                      ]
                     },
                     { "type": "null" }
                   ]
@@ -86,6 +181,7 @@
                           "Translator",
                           "Publisher",
                           "Printer",
+                          "Painter",
                           "FoodWriter",
                           "FoodCritic",
                           "Gastronome",
@@ -111,168 +207,49 @@
                     { "type": "null" }
                   ]
                 },
-                "name_variants": {
-                  "description": "Additional historical or orthographic variants of the person's name.",
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name_original": {
-                            "description": "Variant name form as found in the source (preserve spelling).",
-                            "anyOf": [
-                              { "type": "string" },
-                              { "type": "null" }
-                            ]
-                          },
-                          "name_modern_english": {
-                            "description": "Modern English or standardized form of the variant for linkage; null if not applicable.",
-                            "anyOf": [
-                              { "type": "string" },
-                              { "type": "null" }
-                            ]
-                          }
-                        },
-                        "required": ["name_original", "name_modern_english"],
-                        "additionalProperties": false
-                      }
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "period": {
-                  "description": "Active period or relevant timeframe for the person.",
+                "geography": {
+                  "description": "Standardized geographical context for the person.",
                   "anyOf": [
                     {
                       "type": "object",
                       "properties": {
-                        "start_year": {
-                          "type": ["integer", "null"],
-                          "description": "Earliest relevant year (four-digit Gregorian). Use null if unknown."
+                        "city_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "City or locality as recorded in the source."
                         },
-                        "end_year": {
-                          "type": ["integer", "null"],
-                          "description": "Latest relevant year (four-digit Gregorian). Use null if unknown."
+                        "city_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern English name for the city or locality."
                         },
-                        "notation": {
-                          "type": ["string", "null"],
-                          "description": "Human-readable note about the timeframe. Example: 'fl. 1465–1475' or 'early 17th c.'."
+                        "country_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Country name as written in the source."
+                        },
+                        "country_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern English country name."
                         }
                       },
-                      "required": ["start_year", "end_year", "notation"],
+                      "required": ["city_original", "city_modern", "country_original", "country_modern"],
                       "additionalProperties": false
                     },
                     { "type": "null" }
                   ]
                 },
-                "associated_places": {
-                  "description": "Places connected to the person (birthplace, residence, court, workplace).",
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "place_original": {
-                            "type": ["string", "null"],
-                            "description": "Place name as found in source (preserve spelling)."
-                          },
-                          "place_modern_english": {
-                            "type": ["string", "null"],
-                            "description": "Modern English equivalent. If no change is customary, repeat the original."
-                          },
-                          "association_type": {
-                            "description": "Type of association between person and place.",
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "enum": [
-                                  "Birthplace",
-                                  "Residence",
-                                  "Court",
-                                  "Workplace",
-                                  "Apprenticeship",
-                                  "Education",
-                                  "Travel",
-                                  "BurialPlace",
-                                  "Patronage",
-                                  "Other",
-                                  "Unknown"
-                                ]
-                              },
-                              { "type": "null" }
-                            ]
-                          }
-                        },
-                        "required": ["place_original", "place_modern_english", "association_type"],
-                        "additionalProperties": false
-                      }
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "associated_works": {
-                  "description": "Works authored, edited, or associated with the person.",
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "title_original": {
-                            "type": ["string", "null"],
-                            "description": "Work title as found in source (preserve spelling)."
-                          },
-                          "title_modern_english": {
-                            "type": ["string", "null"],
-                            "description": "Modern English or standardized form for linkage."
-                          },
-                          "role": {
-                            "description": "Person's role with respect to the work.",
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "enum": [
-                                  "Author",
-                                  "CoAuthor",
-                                  "Editor",
-                                  "Translator",
-                                  "Commentator",
-                                  "Annotator",
-                                  "Compiler",
-                                  "Contributor",
-                                  "Publisher",
-                                  "Printer",
-                                  "Illustrator",
-                                  "Cartographer",
-                                  "Dedicatee",
-                                  "Patron",
-                                  "Subject",
-                                  "Other",
-                                  "Unknown"
-                                ]
-                              },
-                              { "type": "null" }
-                            ]
-                          }
-                        },
-                        "required": ["title_original", "title_modern_english", "role"],
-                        "additionalProperties": false
-                      }
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "notes": {
-                  "description": "Additional context or clarifications about the person. Use null if none.",
-                  "anyOf": [
-                    { "type": "string" },
-                    { "type": "null" }
-                  ]
-                },
-                "links": {
-                  "description": "Cross-references to related entities.",
+                "associations": {
+                  "description": "Unified list of related entities (people, places, works, products, establishments, organizations, etc.) connected to this person.",
                   "anyOf": [
                     {
                       "type": "array",
@@ -288,6 +265,7 @@
                                   "Place",
                                   "Work",
                                   "Product",
+                                  "Establishment",
                                   "Event",
                                   "Organization",
                                   "Other"
@@ -295,17 +273,24 @@
                               },
                               { "type": "null" }
                             ],
-                            "description": "Type of entity being referenced."
+                            "description": "Type of associated entity."
                           },
-                          "entity_label": {
-                            "description": "Name or label of the related entity.",
+                          "entity_label_original": {
+                            "description": "Name or label of the associated entity as it appears in the source.",
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ]
+                          },
+                          "entity_label_modern": {
+                            "description": "Modern English or standardized label for the associated entity, if applicable.",
                             "anyOf": [
                               { "type": "string" },
                               { "type": "null" }
                             ]
                           },
                           "relationship": {
-                            "description": "Nature of the relationship. Example: 'teacher of' or 'worked at'.",
+                            "description": "Nature of the connection between the person and the associated entity.",
                             "anyOf": [
                               {
                                 "type": "string",
@@ -318,6 +303,8 @@
                                   "MentionedBy",
                                   "References",
                                   "ReferencedBy",
+                                  "Cites",
+                                  "CitedBy",
                                   "PartOf",
                                   "Contains",
                                   "OwnedBy",
@@ -339,6 +326,76 @@
                                   "DocumentedBy",
                                   "AdaptedFrom",
                                   "AdaptedInto",
+                                  "Influenced",
+                                  "InfluencedBy",
+                                  "Birthplace",
+                                  "Residence",
+                                  "Court",
+                                  "Workplace",
+                                  "Apprenticeship",
+                                  "Education",
+                                  "Travel",
+                                  "BurialPlace",
+                                  "Patronage",
+                                  "PublicationPlace",
+                                  "RecipeOrigin",
+                                  "DistributionArea",
+                                  "Setting",
+                                  "ReferencedLocation",
+                                  "SubjectLocation",
+                                  "EventLocation",
+                                  "Founded",
+                                  "WorkedAt",
+                                  "Owned",
+                                  "Visited",
+                                  "Patron",
+                                  "Resident",
+                                  "Contributor",
+                                  "Dedicatee",
+                                  "Sponsor",
+                                  "Collector",
+                                  "Mentioned",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "role": {
+                            "description": "Specific role played by the associated entity in relation to the person, when applicable.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Author",
+                                  "CoAuthor",
+                                  "Editor",
+                                  "Translator",
+                                  "Commentator",
+                                  "Annotator",
+                                  "Compiler",
+                                  "Contributor",
+                                  "Publisher",
+                                  "Printer",
+                                  "Illustrator",
+                                  "Cartographer",
+                                  "Engraver",
+                                  "Woodcutter",
+                                  "Lithographer",
+                                  "PrefaceWriter",
+                                  "IndexMaker",
+                                  "Dedicatee",
+                                  "Patron",
+                                  "Sponsor",
+                                  "Owner",
+                                  "Collector",
+                                  "Subject",
+                                  "Mentioned",
+                                  "Inspired",
+                                  "InspiredBy",
+                                  "DocumentedBy",
+                                  "Painter",
                                   "Other",
                                   "Unknown"
                                 ]
@@ -347,7 +404,7 @@
                             ]
                           }
                         },
-                        "required": ["entity_type", "entity_label", "relationship"],
+                        "required": ["entity_type", "entity_label_original", "relationship"],
                         "additionalProperties": false
                       }
                     },
@@ -356,17 +413,16 @@
                 }
               },
               "required": [
-                "canonical_name_original",
-                "canonical_name_modern_english",
-                "gender",
+                "names",
+                "short_notes",
+                "timeframe",
+                "lifespan",
+                "cultural_identity",
+                "geography",
                 "historical_importance",
+                "gender",
                 "roles",
-                "name_variants",
-                "period",
-                "associated_places",
-                "associated_works",
-                "notes",
-                "links"
+                "associations"
               ],
               "additionalProperties": false
             }

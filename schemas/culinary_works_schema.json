@@ -18,31 +18,116 @@
             "items": {
               "type": "object",
               "properties": {
-                "title_original": {
-                  "description": "Full title exactly as printed in the historical source (preserve spelling, capitalization, and diacritics).",
+                "titles": {
+                  "description": "Canonical titles for the work including original, modern English, and optional short form.",
+                  "type": "object",
+                  "properties": {
+                    "original": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Full title exactly as printed in the historical source (preserve spelling, capitalization, and diacritics)."
+                    },
+                    "modern_english": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Normalized modern English title for linkage. Translate or standardize if customary; otherwise repeat the original."
+                    },
+                    "short": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Concise reference form (≤ 100 characters). Use null if no clear short form exists."
+                    }
+                  },
+                  "required": ["original", "modern_english"],
+                  "additionalProperties": false
+                },
+                "short_notes": {
+                  "description": "1–3 sentences summarizing the work's significance, features, or editorial context.",
                   "anyOf": [
                     { "type": "string" },
                     { "type": "null" }
                   ]
                 },
-                "title_modern_english": {
-                  "description": "Normalized modern English title for linkage. Translate or standardize if customary; otherwise repeat the original.",
+                "timeframe": {
+                  "description": "Active or publication timeframe most relevant to the work.",
                   "anyOf": [
-                    { "type": "string" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "start_year": {
+                          "type": ["integer", "null"],
+                          "description": "Earliest relevant year (four-digit Gregorian). Use null if unknown."
+                        },
+                        "end_year": {
+                          "type": ["integer", "null"],
+                          "description": "Latest relevant year (four-digit Gregorian). Use null if unknown."
+                        },
+                        "notation": {
+                          "type": ["string", "null"],
+                          "description": "Human-readable note about the timeframe. Example: 'First ed. 1549; expanded 1573'."
+                        }
+                      },
+                      "required": ["start_year", "end_year", "notation"],
+                      "additionalProperties": false
+                    },
                     { "type": "null" }
                   ]
                 },
-                "short_title": {
-                  "description": "Concise reference form (≤ 100 characters). Use null if no clear short form exists.",
+                "geography": {
+                  "description": "Standardized geographical context summarizing principal publication location(s).",
                   "anyOf": [
-                    { "type": "string" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "city_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "City as recorded in the source for the primary edition."
+                        },
+                        "city_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern English city name for the primary edition."
+                        },
+                        "country_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Country name as recorded in the source."
+                        },
+                        "country_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern English country name."
+                        }
+                      },
+                      "required": ["city_original", "city_modern", "country_original", "country_modern"],
+                      "additionalProperties": false
+                    },
                     { "type": "null" }
                   ]
                 },
-                "description": {
-                  "description": "1–3 sentences summarizing the work's significance or features. Use null if none available.",
+                "historical_importance": {
+                  "description": "Standardized measure of historical importance on a scale from 1 (lowest) to 7 (highest). If not explicitly discussed, deduce from the length of the discussion of the work in the text - if work is only mentioned very briefly, set to 1; if discussed extensively, set to 7.",
                   "anyOf": [
-                    { "type": "string" },
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
                     { "type": "null" }
                   ]
                 },
@@ -66,17 +151,6 @@
                         "Other",
                         "Unknown"
                       ]
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "historical_importance": {
-                  "description": "Standardized measure of historical importance on a scale from 1 (lowest) to 7 (highest). If not explicitly discussed, deduce from the length of the discussion of the work in the text - if work is only mentioned very briefly, set to 1; if discussed extensively, set to 7.",
-                  "anyOf": [
-                    {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 7
                     },
                     { "type": "null" }
                   ]
@@ -249,126 +323,8 @@
                     { "type": "null" }
                   ]
                 },
-                "publication_places": {
-                  "description": "Places of publication.",
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name_original": {
-                            "type": ["string", "null"],
-                            "description": "Place name as given in the source (preserve spelling and diacritics)."
-                          },
-                          "name_modern_english": {
-                            "type": ["string", "null"],
-                            "description": "Modern English equivalent for linkage."
-                          }
-                        },
-                        "required": ["name_original", "name_modern_english"],
-                        "additionalProperties": false
-                      }
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "associated_places": {
-                  "description": "Places associated with the work's content, circulation, or influence.",
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name_original": {
-                            "type": ["string", "null"],
-                            "description": "Place name as found in source."
-                          },
-                          "name_modern_english": {
-                            "type": ["string", "null"],
-                            "description": "Modern English equivalent."
-                          },
-                          "association_type": {
-                            "description": "Nature of association. Example: 'recipe origin' or 'circulation area'.",
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "enum": [
-                                  "PublicationPlace",
-                                  "RecipeOrigin",
-                                  "DistributionArea",
-                                  "Setting",
-                                  "ReferencedLocation",
-                                  "SubjectLocation",
-                                  "EventLocation",
-                                  "Residence",
-                                  "Patronage",
-                                  "Other",
-                                  "Unknown"
-                                ]
-                              },
-                              { "type": "null" }
-                            ]
-                          }
-                        },
-                        "required": ["name_original", "name_modern_english", "association_type"],
-                        "additionalProperties": false
-                      }
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "associated_persons": {
-                  "description": "Persons associated with but not credited as formal contributors.",
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name_original": {
-                            "type": ["string", "null"],
-                            "description": "Person's name as found in source."
-                          },
-                          "name_modern_english": {
-                            "type": ["string", "null"],
-                            "description": "Modern English or standardized form."
-                          },
-                          "association_type": {
-                            "description": "Nature of association. Example: 'dedicatee' or 'patron'.",
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "enum": [
-                                  "Contributor",
-                                  "Dedicatee",
-                                  "Patron",
-                                  "Sponsor",
-                                  "Owner",
-                                  "Collector",
-                                  "Subject",
-                                  "Mentioned",
-                                  "Inspired",
-                                  "InspiredBy",
-                                  "DocumentedBy",
-                                  "Other",
-                                  "Unknown"
-                                ]
-                              },
-                              { "type": "null" }
-                            ]
-                          }
-                        },
-                        "required": ["name_original", "name_modern_english", "association_type"],
-                        "additionalProperties": false
-                      }
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "links": {
-                  "description": "Cross-references to related entities.",
+                "associations": {
+                  "description": "Unified list of related entities such as people, places, products, establishments, organizations, or events connected to this work.",
                   "anyOf": [
                     {
                       "type": "array",
@@ -384,6 +340,7 @@
                                   "Place",
                                   "Work",
                                   "Product",
+                                  "Establishment",
                                   "Event",
                                   "Organization",
                                   "Other"
@@ -391,17 +348,24 @@
                               },
                               { "type": "null" }
                             ],
-                            "description": "Type of entity being referenced."
+                            "description": "Type of associated entity."
                           },
-                          "entity_label": {
-                            "description": "Name or label of the related entity.",
+                          "entity_label_original": {
+                            "description": "Name or label of the associated entity as it appears in the source.",
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ]
+                          },
+                          "entity_label_modern": {
+                            "description": "Modern English or standardized label for the associated entity, if applicable.",
                             "anyOf": [
                               { "type": "string" },
                               { "type": "null" }
                             ]
                           },
                           "relationship": {
-                            "description": "Nature of the relationship.",
+                            "description": "Nature of the connection between the work and the associated entity.",
                             "anyOf": [
                               {
                                 "type": "string",
@@ -414,6 +378,8 @@
                                   "MentionedBy",
                                   "References",
                                   "ReferencedBy",
+                                  "Cites",
+                                  "CitedBy",
                                   "PartOf",
                                   "Contains",
                                   "OwnedBy",
@@ -435,10 +401,76 @@
                                   "DocumentedBy",
                                   "AdaptedFrom",
                                   "AdaptedInto",
-                                  "Cites",
-                                  "CitedBy",
                                   "Influenced",
                                   "InfluencedBy",
+                                  "Birthplace",
+                                  "Residence",
+                                  "Court",
+                                  "Workplace",
+                                  "Apprenticeship",
+                                  "Education",
+                                  "Travel",
+                                  "BurialPlace",
+                                  "Patronage",
+                                  "PublicationPlace",
+                                  "RecipeOrigin",
+                                  "DistributionArea",
+                                  "Setting",
+                                  "ReferencedLocation",
+                                  "SubjectLocation",
+                                  "EventLocation",
+                                  "Founded",
+                                  "WorkedAt",
+                                  "Owned",
+                                  "Visited",
+                                  "Patron",
+                                  "Resident",
+                                  "Contributor",
+                                  "Dedicatee",
+                                  "Sponsor",
+                                  "Collector",
+                                  "Mentioned",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "role": {
+                            "description": "Specific role played by the associated entity in relation to this work, when applicable.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Author",
+                                  "CoAuthor",
+                                  "Editor",
+                                  "Translator",
+                                  "Commentator",
+                                  "Annotator",
+                                  "Compiler",
+                                  "Contributor",
+                                  "Publisher",
+                                  "Printer",
+                                  "Illustrator",
+                                  "Cartographer",
+                                  "Engraver",
+                                  "Woodcutter",
+                                  "Lithographer",
+                                  "PrefaceWriter",
+                                  "IndexMaker",
+                                  "Dedicatee",
+                                  "Patron",
+                                  "Sponsor",
+                                  "Owner",
+                                  "Collector",
+                                  "Subject",
+                                  "Mentioned",
+                                  "Inspired",
+                                  "InspiredBy",
+                                  "DocumentedBy",
+                                  "Painter",
                                   "Other",
                                   "Unknown"
                                 ]
@@ -447,7 +479,7 @@
                             ]
                           }
                         },
-                        "required": ["entity_type", "entity_label", "relationship"],
+                        "required": ["entity_type", "entity_label_original", "relationship"],
                         "additionalProperties": false
                       }
                     },
@@ -456,20 +488,17 @@
                 }
               },
               "required": [
-                "title_original",
-                "title_modern_english",
-                "short_title",
-                "description",
-                "genre",
+                "titles",
+                "short_notes",
+                "timeframe",
+                "geography",
                 "historical_importance",
+                "genre",
                 "culinary_focus",
                 "languages",
                 "contributors",
                 "edition_years",
-                "publication_places",
-                "associated_places",
-                "associated_persons",
-                "links"
+                "associations"
               ],
               "additionalProperties": false
             }

@@ -18,17 +18,156 @@
             "items": {
               "type": "object",
               "properties": {
-                "name_original": {
-                  "description": "Place name exactly as found in the source (preserve spelling, capitalization, and diacritics).",
+                "names": {
+                  "description": "Canonical identifiers for the place in original and modern English form.",
+                  "type": "object",
+                  "properties": {
+                    "original": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Place name exactly as found in the source (preserve spelling, capitalization, and diacritics)."
+                    },
+                    "modern_english": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Modern English equivalent of the place name. Example: 'Firenze' → 'Florence'. If no change is customary, repeat the original."
+                    }
+                  },
+                  "required": ["original", "modern_english"],
+                  "additionalProperties": false
+                },
+                "short_notes": {
+                  "description": "1–3 sentences summarizing the place's culinary relevance or key context.",
                   "anyOf": [
                     { "type": "string" },
                     { "type": "null" }
                   ]
                 },
-                "name_modern_english": {
-                  "description": "Modern English equivalent of the place name. Example: 'Firenze' → 'Florence'. If no change is customary, repeat the original.",
+                "timeframe": {
+                  "description": "Active period or most relevant timeframe for the place in the given context.",
                   "anyOf": [
-                    { "type": "string" },
+                    {
+                      "type": "object",
+                      "properties": {
+                        "start_year": {
+                          "type": ["integer", "null"],
+                          "description": "Earliest relevant year (four-digit Gregorian). Use null if unknown."
+                        },
+                        "end_year": {
+                          "type": ["integer", "null"],
+                          "description": "Latest relevant year (four-digit Gregorian). Use null if unknown."
+                        },
+                        "notation": {
+                          "type": ["string", "null"],
+                          "description": "Human-readable note about timing. Example: '18th c.' or 'opened 1896'."
+                        }
+                      },
+                      "required": ["start_year", "end_year", "notation"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "events": {
+                  "description": "Key historical events associated with the place (e.g., establishment, destruction, major renovations).",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "event_type": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Establishment",
+                                  "Destruction",
+                                  "Renovation",
+                                  "Expansion",
+                                  "Closure",
+                                  "Ownership Change",
+                                  "Major Event",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Type of event."
+                          },
+                          "year": {
+                            "type": ["integer", "null"],
+                            "description": "Year of the event (four-digit Gregorian). Use null if unknown."
+                          },
+                          "description": {
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ],
+                            "description": "Brief description of the event."
+                          }
+                        },
+                        "required": ["event_type", "year", "description"],
+                        "additionalProperties": false
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "geography": {
+                  "description": "Standardized geographical context for the place, capturing key city and country names.",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "city_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "City or locality as recorded in the source."
+                        },
+                        "city_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern English name for the city or locality."
+                        },
+                        "country_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Country name as written in the source."
+                        },
+                        "country_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern English country name."
+                        }
+                      },
+                      "required": ["city_original", "city_modern", "country_original", "country_modern"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "historical_importance": {
+                  "description": "Standardized measure of historical importance on a scale from 1 (lowest) to 7 (highest). If not explicitly discussed, deduce from the length of the discussion of the place in the text - if place is only mentioned very briefly, set to 1; if discussed extensively, set to 7.",
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
                     { "type": "null" }
                   ]
                 },
@@ -51,49 +190,6 @@
                         "Other",
                         "Unknown"
                       ]
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "historical_importance": {
-                  "description": "Standardized measure of historical importance on a scale from 1 (lowest) to 7 (highest). If not explicitly discussed, deduce from the length of the discussion of the place in the text - if place is only mentioned very briefly, set to 1; if discussed extensively, set to 7.",
-                  "anyOf": [
-                    {
-                      "type": "integer",
-                      "minimum": 1,
-                      "maximum": 7
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "country_modern": {
-                  "description": "Modern country name in English. Example: 'Italy' or 'France'. Avoid ISO codes.",
-                  "anyOf": [
-                    { "type": "string" },
-                    { "type": "null" }
-                  ]
-                },
-                "period": {
-                  "description": "Active period or most relevant timeframe for the place in the given context.",
-                  "anyOf": [
-                    {
-                      "type": "object",
-                      "properties": {
-                        "start_year": {
-                          "type": ["integer", "null"],
-                          "description": "Earliest relevant year (four-digit Gregorian). Use null if unknown."
-                        },
-                        "end_year": {
-                          "type": ["integer", "null"],
-                          "description": "Latest relevant year (four-digit Gregorian). Use null if unknown."
-                        },
-                        "notation": {
-                          "type": ["string", "null"],
-                          "description": "Human-readable note about timing. Example: '18th c.' or 'opened 1896'."
-                        }
-                      },
-                      "required": ["start_year", "end_year", "notation"],
-                      "additionalProperties": false
                     },
                     { "type": "null" }
                   ]
@@ -124,84 +220,34 @@
                     { "type": "null" }
                   ]
                 },
-                "associated_products": {
-                  "description": "Named products, dishes, or specialties linked to the place. Example: 'caciocavallo' or 'Argenteuil asparagus'.",
+                "roles_in_culinary_ecosystem": {
+                  "description": "Functional roles this place played in food systems and culture. Select one or more.",
                   "anyOf": [
                     {
                       "type": "array",
                       "items": {
                         "type": "string",
-                        "description": "Single product or dish name."
+                        "enum": [
+                          "MarketCenter",
+                          "ProductionArea",
+                          "Harbor/Gateway",
+                          "DistributionHub",
+                          "Restaurant",
+                          "CourtKitchen",
+                          "MonasticKitchen",
+                          "CulinarySchool",
+                          "Inn",
+                          "Other",
+                          "Unknown"
+                        ],
+                        "description": "One role value from the controlled list."
                       }
                     },
                     { "type": "null" }
                   ]
                 },
-                "notable_establishments": {
-                  "description": "Named establishments (restaurants, hotels, schools) associated with the place.",
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "string",
-                        "description": "Single establishment name. Example: 'La Tour d'Argent'."
-                      }
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "associated_people": {
-                  "description": "Notable persons associated with this place.",
-                  "anyOf": [
-                    {
-                      "type": "array",
-                      "items": {
-                        "type": "object",
-                        "properties": {
-                          "name_original": {
-                            "type": ["string", "null"],
-                            "description": "Person's name as found in source."
-                          },
-                          "name_modern_english": {
-                            "type": ["string", "null"],
-                            "description": "Modern English or standardized form for linkage."
-                          },
-                          "association_type": {
-                            "description": "Nature of association. Example: 'worked at' or 'founded'.",
-                            "anyOf": [
-                              {
-                                "type": "string",
-                                "enum": [
-                                  "Founded",
-                                  "WorkedAt",
-                                  "Owned",
-                                  "Visited",
-                                  "Patron",
-                                  "Resident",
-                                  "Other",
-                                  "Unknown"
-                                ]
-                              },
-                              { "type": "null" }
-                            ]
-                          }
-                        },
-                        "required": ["name_original", "name_modern_english", "association_type"],
-                        "additionalProperties": false
-                      }
-                    },
-                    { "type": "null" }
-                  ]
-                },
-                "notes": {
-                  "description": "Additional context or clarifications. Use null if none.",
-                  "anyOf": [
-                    { "type": "string" },
-                    { "type": "null" }
-                  ]
-                },
-                "links": {
-                  "description": "Cross-references to related entities.",
+                "associations": {
+                  "description": "Unified list of related entities such as people, products, works, establishments, organizations, or other places connected to this location.",
                   "anyOf": [
                     {
                       "type": "array",
@@ -217,6 +263,7 @@
                                   "Place",
                                   "Work",
                                   "Product",
+                                  "Establishment",
                                   "Event",
                                   "Organization",
                                   "Other"
@@ -224,17 +271,24 @@
                               },
                               { "type": "null" }
                             ],
-                            "description": "Type of entity being referenced."
+                            "description": "Type of associated entity."
                           },
-                          "entity_label": {
-                            "description": "Name or label of the related entity.",
+                          "entity_label_original": {
+                            "description": "Name or label of the associated entity as it appears in the source.",
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ]
+                          },
+                          "entity_label_modern": {
+                            "description": "Modern English or standardized label for the associated entity, if applicable.",
                             "anyOf": [
                               { "type": "string" },
                               { "type": "null" }
                             ]
                           },
                           "relationship": {
-                            "description": "Nature of the relationship.",
+                            "description": "Nature of the connection between the place and the associated entity.",
                             "anyOf": [
                               {
                                 "type": "string",
@@ -272,6 +326,74 @@
                                   "AdaptedInto",
                                   "Influenced",
                                   "InfluencedBy",
+                                  "Birthplace",
+                                  "Residence",
+                                  "Court",
+                                  "Workplace",
+                                  "Apprenticeship",
+                                  "Education",
+                                  "Travel",
+                                  "BurialPlace",
+                                  "Patronage",
+                                  "PublicationPlace",
+                                  "RecipeOrigin",
+                                  "DistributionArea",
+                                  "Setting",
+                                  "ReferencedLocation",
+                                  "SubjectLocation",
+                                  "EventLocation",
+                                  "Founded",
+                                  "WorkedAt",
+                                  "Owned",
+                                  "Visited",
+                                  "Patron",
+                                  "Resident",
+                                  "Contributor",
+                                  "Dedicatee",
+                                  "Sponsor",
+                                  "Collector",
+                                  "Mentioned",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "role": {
+                            "description": "Specific role played by the associated entity in relation to this place, when applicable.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Author",
+                                  "CoAuthor",
+                                  "Editor",
+                                  "Translator",
+                                  "Commentator",
+                                  "Annotator",
+                                  "Compiler",
+                                  "Contributor",
+                                  "Publisher",
+                                  "Printer",
+                                  "Illustrator",
+                                  "Cartographer",
+                                  "Engraver",
+                                  "Woodcutter",
+                                  "Lithographer",
+                                  "PrefaceWriter",
+                                  "IndexMaker",
+                                  "Dedicatee",
+                                  "Patron",
+                                  "Sponsor",
+                                  "Owner",
+                                  "Collector",
+                                  "Subject",
+                                  "Mentioned",
+                                  "Inspired",
+                                  "InspiredBy",
+                                  "DocumentedBy",
+                                  "Painter",
                                   "Other",
                                   "Unknown"
                                 ]
@@ -280,7 +402,7 @@
                             ]
                           }
                         },
-                        "required": ["entity_type", "entity_label", "relationship"],
+                        "required": ["entity_type", "entity_label_original", "relationship"],
                         "additionalProperties": false
                       }
                     },
@@ -289,18 +411,15 @@
                 }
               },
               "required": [
-                "name_original",
-                "name_modern_english",
-                "place_type",
+                "names",
+                "short_notes",
+                "timeframe",
+                "events",
+                "geography",
                 "historical_importance",
-                "country_modern",
-                "period",
+                "place_type",
                 "roles_in_culinary_ecosystem",
-                "associated_products",
-                "notable_establishments",
-                "associated_people",
-                "notes",
-                "links"
+                "associations"
               ],
               "additionalProperties": false
             }
