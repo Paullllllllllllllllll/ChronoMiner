@@ -24,6 +24,10 @@ class CSVConverter:
 
     def convert_to_csv(self, json_file: Path, output_csv: Path) -> None:
         entries: List[Any] = self.extract_entries(json_file)
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         if not entries:
             print("No entries found for CSV conversion.")
             return
@@ -395,6 +399,10 @@ class CSVConverter:
         Converts culinary persons entries to DataFrame according to schema v2.0.
         Handles nested arrays for name_variants, associated_places, works, sources, and links.
         """
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         rows = []
         for entry in entries:
             # Extract basic fields
@@ -456,6 +464,10 @@ class CSVConverter:
         Converts culinary places entries to DataFrame according to schema v2.0.
         Handles nested arrays for roles, products, establishments, people, and links.
         """
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         rows = []
         for entry in entries:
             # Extract basic fields
@@ -514,6 +526,10 @@ class CSVConverter:
         Converts culinary works entries to DataFrame according to schema v2.0.
         Handles nested arrays for culinary_focus, languages, contributors, edition_years, places, and links.
         """
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         rows = []
         for entry in entries:
             # Extract basic fields
@@ -580,6 +596,10 @@ class CSVConverter:
         Converts historical recipes entries to DataFrame according to schema v2.2.
         Handles deeply nested structures for ingredients, cooking methods, utensils, and more.
         """
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         rows = []
         for entry in entries:
             # Extract basic fields

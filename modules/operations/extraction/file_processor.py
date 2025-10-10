@@ -14,6 +14,7 @@ from modules.llm.batching import build_batch_files, submit_batch
 from modules.llm.prompt_utils import render_prompt_with_schema
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 from modules.core.path_utils import ensure_path_safe
+from tenacity import RetryError
 import logging
 
 logger = logging.getLogger(__name__)
@@ -452,7 +453,33 @@ class FileProcessor:
 										"chunk_range": chunk_range,
 										"response": parsed_response,
 									}
+								except RetryError as retry_exc:
+									# Handle exhausted retries from API calls (usually due to persistent 500 errors)
+									logger.error(
+										"Chunk %s of %s failed after all retry attempts (likely due to persistent API server errors): %s",
+										idx,
+										file_path.name,
+										retry_exc
+									)
+									error_record: Dict[str, Any] = {
+										"custom_id": f"{file_path.stem}-chunk-{idx}",
+										"chunk_index": idx,
+										"chunk_range": chunk_range,
+										"response": {"entries": []},
+										"error": f"RetryError: API server errors persisted after all retry attempts - {str(retry_exc)}",
+										"status": "failed_retries"
+									}
+									async with write_lock:
+										tempf.write(json.dumps(error_record) + "\n")
+										tempf.flush()
+									results_map[idx] = {
+										"custom_id": f"{file_path.stem}-chunk-{idx}",
+										"chunk_index": idx,
+										"chunk_range": chunk_range,
+										"response": {"entries": []},
+									}
 								except Exception as exc:
+									# Handle other unexpected errors
 									logger.error(
 										"Error processing chunk %s of %s: %s",
 										idx,
@@ -463,8 +490,9 @@ class FileProcessor:
 										"custom_id": f"{file_path.stem}-chunk-{idx}",
 										"chunk_index": idx,
 										"chunk_range": chunk_range,
-										"response": None,
+										"response": {"entries": []},
 										"error": str(exc),
+										"status": "failed"
 									}
 									async with write_lock:
 										tempf.write(json.dumps(error_record) + "\n")
@@ -473,7 +501,7 @@ class FileProcessor:
 										"custom_id": f"{file_path.stem}-chunk-{idx}",
 										"chunk_index": idx,
 										"chunk_range": chunk_range,
-										"response": None,
+										"response": {"entries": []},
 									}
 
 						tasks = [
@@ -551,30 +579,42 @@ class FileProcessor:
 			# Generate additional output formats if configured
 			try:
 				if schema_paths.get("csv_output", False):
-					output_csv_path: Path = output_json_path.with_suffix(".csv")
-					handler.convert_to_csv(output_json_path, output_csv_path)
-					console_print(
-						f"[INFO] CSV output saved to {output_csv_path}")
+					try:
+						output_csv_path: Path = output_json_path.with_suffix(".csv")
+						handler.convert_to_csv(output_json_path, output_csv_path)
+						console_print(
+							f"[INFO] CSV output saved to {output_csv_path}")
+					except Exception as csv_error:
+						logger.error(f"Failed to generate CSV output: {csv_error}")
+						console_print(f"[WARNING] Failed to generate CSV output: {csv_error}")
 
 				if schema_paths.get("docx_output", False):
-					output_docx_path: Path = output_json_path.with_suffix(
-						".docx")
-					handler.convert_to_docx(output_json_path, output_docx_path)
-					console_print(
-						f"[INFO] DOCX output saved to {output_docx_path}")
+					try:
+						output_docx_path: Path = output_json_path.with_suffix(
+							".docx")
+						handler.convert_to_docx(output_json_path, output_docx_path)
+						console_print(
+							f"[INFO] DOCX output saved to {output_docx_path}")
+					except Exception as docx_error:
+						logger.error(f"Failed to generate DOCX output: {docx_error}")
+						console_print(f"[WARNING] Failed to generate DOCX output: {docx_error}")
 
 				if schema_paths.get("txt_output", False):
-					output_txt_path: Path = output_json_path.with_suffix(".txt")
-					handler.convert_to_txt(output_json_path, output_txt_path)
-					console_print(
-						f"[INFO] TXT output saved to {output_txt_path}")
+					try:
+						output_txt_path: Path = output_json_path.with_suffix(".txt")
+						handler.convert_to_txt(output_json_path, output_txt_path)
+						console_print(
+							f"[INFO] TXT output saved to {output_txt_path}")
+					except Exception as txt_error:
+						logger.error(f"Failed to generate TXT output: {txt_error}")
+						console_print(f"[WARNING] Failed to generate TXT output: {txt_error}")
 			except Exception as e:
 				logger.error(
-					"Error writing output files for %s: %s",
+					"Unexpected error in output file generation for %s: %s",
 					file_path.name,
 					e
 				)
-				console_print(f"[ERROR] Failed to write output files: {e}")
+				console_print(f"[ERROR] Unexpected error in output file generation: {e}")
 
 		# -- Cleanup Temporary Files if Not Needed --
 		if use_batch:

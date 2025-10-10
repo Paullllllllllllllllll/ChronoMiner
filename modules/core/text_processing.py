@@ -35,6 +35,10 @@ class DocumentConverter:
 
     def convert_to_docx(self, json_file: Path, output_file: Path) -> None:
         entries: List[Any] = self.extract_entries(json_file)
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         document: Document = Document()
         document.add_heading(json_file.stem, 0)
         converters = {
@@ -731,6 +735,10 @@ class DocumentConverter:
     # --- Culinary Schemas DOCX Converters ---
     def _convert_culinary_persons_to_docx(self, entries: List[Any], document: Document) -> None:
         """Converts culinary persons entries to DOCX format."""
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         for entry in entries:
             name = entry.get("canonical_name_original", "Unknown")
             document.add_heading(name, level=1)
@@ -779,6 +787,10 @@ class DocumentConverter:
 
     def _convert_culinary_places_to_docx(self, entries: List[Any], document: Document) -> None:
         """Converts culinary places entries to DOCX format."""
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         for entry in entries:
             name = entry.get("name_original", "Unknown")
             document.add_heading(name, level=1)
@@ -826,6 +838,10 @@ class DocumentConverter:
 
     def _convert_culinary_works_to_docx(self, entries: List[Any], document: Document) -> None:
         """Converts culinary works entries to DOCX format."""
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         for entry in entries:
             title = entry.get("title_original", "Unknown")
             document.add_heading(title, level=1)
@@ -883,6 +899,10 @@ class DocumentConverter:
 
     def _convert_historical_recipes_to_docx(self, entries: List[Any], document: Document) -> None:
         """Converts historical recipes entries to DOCX format."""
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         for entry in entries:
             title = entry.get("title_original", "Unknown Recipe")
             document.add_heading(title, level=1)
@@ -959,6 +979,10 @@ class DocumentConverter:
     # --- Culinary Schemas TXT Converters ---
     def _convert_culinary_persons_to_txt(self, entries: List[Any]) -> List[str]:
         """Converts culinary persons entries to TXT format."""
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         lines: List[str] = []
         for entry in entries:
             name = entry.get("canonical_name_original", "Unknown")
@@ -1008,6 +1032,10 @@ class DocumentConverter:
 
     def _convert_culinary_places_to_txt(self, entries: List[Any]) -> List[str]:
         """Converts culinary places entries to TXT format."""
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         lines: List[str] = []
         for entry in entries:
             name = entry.get("name_original", "Unknown")
@@ -1052,6 +1080,10 @@ class DocumentConverter:
 
     def _convert_culinary_works_to_txt(self, entries: List[Any]) -> List[str]:
         """Converts culinary works entries to TXT format."""
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         lines: List[str] = []
         for entry in entries:
             title = entry.get("title_original", "Unknown")
@@ -1108,6 +1140,10 @@ class DocumentConverter:
 
     def _convert_historical_recipes_to_txt(self, entries: List[Any]) -> List[str]:
         """Converts historical recipes entries to TXT format."""
+        # Filter out None entries
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
         lines: List[str] = []
         for entry in entries:
             title = entry.get("title_original", "Unknown Recipe")
