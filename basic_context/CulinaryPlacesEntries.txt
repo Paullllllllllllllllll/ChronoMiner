@@ -1,11 +1,11 @@
 The input text consists of excerpts from secondary literature (e.g., culinary history works, food magazines, gastronomic studies) discussing historical places related to food culture, production, and consumption.
 
 Extraction task rules (use when extracting data)
-- Transcribe `name_original` exactly as printed and supply a normalized `name_modern_english`; repeat the original when no modernization exists.
-- Select `place_type` and all `roles_in_culinary_ecosystem` entries from the controlled vocabularies, reserving `Unknown` for cases with no evidence.
-- Fill `country_modern` with the English country name and capture temporal context in `period` (`start_year`, `end_year`, `notation`), using nulls where specific dates are missing but preserving the object structure.
-- List specialties in `associated_products`, institutions in `notable_establishments`, and record each linked person in `associated_people` with its `association_type`; use empty arrays instead of omitting these collections when no items are present.
-- Store interpretive remarks in `notes` and record every cross-reference under `links`, ensuring the array exists even when empty.
+- Record `names.original` exactly as printed and supply a normalized `names.modern_english`; repeat the original when no modernization exists.
+- Select `place_type` and all `roles_in_culinary_ecosystem` entries from the controlled vocabularies, reserving `Unknown` for cases with no evidence and keeping the array even when empty.
+- Populate `timeframe` with `start_year`, `end_year`, and `notation`, using nulls where specifics are missing; add `events` entries with `event_type`, `year`, and `description`, leaving the array empty rather than omitting it.
+- Capture `geography` using `city_original`, `city_modern`, `country_original`, and `country_modern`, setting nulls where information is absent while preserving the object structure.
+- Summarize each place in `short_notes`, assign `historical_importance`, and list related entities in `associations` with `entity_type`, `entity_label_original`, and `relationship`, keeping the array even when empty.
 
 Semantic Boundary task rules (use when identifying semantic boundaries)
 - Treat the start of a new place profile or geographical vignette as a boundary.

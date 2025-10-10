@@ -1,11 +1,11 @@
 The input text consists of excerpts from secondary literature (e.g., culinary history works, food magazines, gastronomic studies) discussing historical cooks, gastronomes, and culinary instructors.
 
 Extraction task rules (use when extracting data)
-- Record `canonical_name_original` exactly as written and supply a standardized `canonical_name_modern_english`; if no modern form exists, repeat the original.
-- Choose a `gender` value from the schema list and populate `roles` with all applicable controlled terms; default to `Unknown` only when the source is silent.
-- List all orthographic variants in `name_variants`, and capture `period` with `start_year`, `end_year`, and `notation`, using nulls where dates or modern forms are absent.
-- Include every relevant `associated_place`, `associated_work`, `source`, and `link`; represent missing collections with empty arrays rather than omitting them.
-- Preserve contextual commentary in `notes` when the text offers biographical nuance or historiographical interpretation.
+- Record `names.original` exactly as written and supply a standardized `names.modern_english`; if no modern form exists, repeat the original.
+- Capture `short_notes`, populate `timeframe` and `lifespan` objects with `start_year`/`end_year` or `birth_year`/`death_year`, and use nulls where values are missing while preserving the object structures.
+- Populate `cultural_identity` with `nationality_original`, `nationality_modern`, and `religious_tradition`; set nulls when evidence is lacking.
+- Choose a `gender` value from the schema list, fill `roles` with all applicable controlled terms, assign `historical_importance`, and retain empty arrays instead of omitting them.
+- Record each associated entity in `associations` with `entity_type`, `entity_label_original`, and `relationship`, keeping the array even when empty and using `geography` to store `city_*` and `country_*` values with nulls when absent.
 
 Semantic Boundary task rules (use when identifying semantic boundaries)
 - Treat the start of a description about a new historical person as a boundary.
