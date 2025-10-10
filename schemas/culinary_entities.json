@@ -92,24 +92,6 @@
         "required": ["original", "modern_english"],
         "additionalProperties": false
       },
-      "name_variant": {
-        "type": "object",
-        "properties": {
-          "original": {
-            "type": "string",
-            "description": "Variant name form as found in the source (preserve spelling)."
-          },
-          "modern_english": {
-            "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
-            ],
-            "description": "Modern English or standardized form of the variant for linkage; use null if not applicable."
-          }
-        },
-        "required": ["original", "modern_english"],
-        "additionalProperties": false
-      },
       "timeframe": {
         "type": "object",
         "properties": {
@@ -136,6 +118,27 @@
           }
         },
         "required": ["start_year", "end_year", "notation"],
+        "additionalProperties": false
+      },
+      "geography": {
+        "type": "object",
+        "properties": {
+          "primary_location": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "null" }
+            ],
+            "description": "Modern English location most relevant to the entity (city, region, country, or equivalent)."
+          },
+          "additional_context": {
+            "anyOf": [
+              { "type": "string" },
+              { "type": "null" }
+            ],
+            "description": "Optional note capturing finer-grained geographical or historical context."
+          }
+        },
+        "required": ["primary_location", "additional_context"],
         "additionalProperties": false
       },
       "topical_focus": {
@@ -166,6 +169,13 @@
             "Household Management",
             "Table Service and Etiquette",
             "Food Adulteration and Safety",
+            "Food Science and Technology",
+            "Nutrition Science",
+            "Hospitality Management",
+            "Culinary Tourism",
+            "Culinary Anthropology",
+            "Fermentation and Preservation",
+            "Sustainability and Food Systems",
             "Unknown",
             "Other"
           ],
@@ -191,103 +201,19 @@
             "Polish",
             "Hungarian",
             "Catalan",
+            "Norwegian",
+            "Finnish",
+            "Greek",
+            "Arabic",
+            "Hebrew",
+            "Chinese",
+            "Japanese",
+            "Korean",
+            "Russian",
             "Other",
             "Unknown"
           ],
           "description": "One language value from the controlled list."
-        }
-      },
-      "association_item": {
-        "type": "object",
-        "properties": {
-          "target_type": {
-            "type": "string",
-            "enum": ["Person", "Place", "Work", "Product", "Event", "Other"],
-            "description": "Type of associated entity being referenced."
-          },
-          "target_label_original": {
-            "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
-            ],
-            "description": "Name or label of the associated entity as found in the source (preserve spelling)."
-          },
-          "target_label_modern_english": {
-            "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
-            ],
-            "description": "Modern English or standardized form of the associated entity's label."
-          },
-          "relationship": {
-            "type": "string",
-            "description": "Nature of the relationship. Example: 'author of', 'worked at'."
-          }
-        },
-        "required": ["target_type", "target_label_original", "target_label_modern_english", "relationship"],
-        "additionalProperties": false
-      },
-      "associations": {
-        "type": "array",
-        "items": {
-          "$ref": "#/$defs/association_item"
-        }
-      },
-      "material_features": {
-        "type": "object",
-        "properties": {
-          "format": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "Folio",
-                  "Quarto",
-                  "Octavo",
-                  "Duodecimo",
-                  "Sextodecimo",
-                  "Pocket-Sized",
-                  "Miniature",
-                  "Unknown",
-                  "Other"
-                ]
-              },
-              { "type": "null" }
-            ],
-            "description": "Physical format of the work. Use a listed value or null if not provided."
-          },
-          "has_illustrations": {
-            "anyOf": [
-              { "type": "boolean" },
-              { "type": "null" }
-            ],
-            "description": "True if the work contains illustrations, plates, or engravings; false if it does not; null if unknown."
-          },
-          "page_count": {
-            "anyOf": [
-              { "type": "integer" },
-              { "type": "null" }
-            ],
-            "description": "Total number of pages or leaf count, or null if unknown."
-          },
-          "notes": {
-            "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
-            ],
-            "description": "Additional information about the physical presentation or notable features."
-          }
-        },
-        "required": ["format", "has_illustrations", "page_count", "notes"],
-        "additionalProperties": false
-      },
-      "edition_years": {
-        "type": "array",
-        "items": {
-          "anyOf": [
-            { "type": "integer" },
-            { "type": "null" }
-          ]
         }
       },
       "person_entry": {
@@ -296,12 +222,23 @@
           "names": {
             "$ref": "#/$defs/names"
           },
-          "entity_summary": {
+          "importance": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7
+              },
+              { "type": "null" }
+            ],
+            "description": "Relative prominence of this entity within the provided text (1 = least significant mention, 7 = central focus)."
+          },
+          "summary": {
             "anyOf": [
               { "type": "string" },
               { "type": "null" }
             ],
-            "description": "1–3 sentences summarizing the person's culinary significance or relevance to the passage."
+            "description": "1–3 sentences summarizing the person's culinary relevance."
           },
           "timeframe": {
             "anyOf": [
@@ -309,6 +246,13 @@
               { "type": "null" }
             ],
             "description": "Temporal scope associated with the person. Use null if no chronological information is available."
+          },
+          "geography": {
+            "anyOf": [
+              { "$ref": "#/$defs/geography" },
+              { "type": "null" }
+            ],
+            "description": "Geographical context where the person is active or associated."
           },
           "topical_focus": {
             "anyOf": [
@@ -324,30 +268,6 @@
             ],
             "description": "Languages associated with the person (e.g., languages of authored works or documentation). Use null if not mentioned."
           },
-          "associations": {
-            "anyOf": [
-              { "$ref": "#/$defs/associations" },
-              { "type": "null" }
-            ],
-            "description": "Associations connecting this person to other entities (places, works, products, events). Use null if none are mentioned."
-          },
-          "notes": {
-            "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
-            ],
-            "description": "Additional clarifications, ambiguities, or extraction notes relevant to the person. Use null if none."
-          },
-          "gender": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": ["Female", "Male", "Unknown", "Other"]
-              },
-              { "type": "null" }
-            ],
-            "description": "Person's gender. Use Unknown if not stated; use Other when not covered by listed values; use null if not applicable."
-          },
           "roles": {
             "anyOf": [
               {
@@ -356,31 +276,48 @@
                   "type": "string",
                   "enum": [
                     "Cook",
+                    "Chef",
+                    "Pastry Chef",
+                    "Pâtissier",
+                    "Confectioner",
+                    "Baker",
+                    "Butcher",
+                    "Fishmonger",
+                    "Winemaker",
+                    "Brewer",
+                    "Distiller",
                     "Steward",
                     "Butler",
                     "Carver",
+                    "Sommelier",
+                    "Restaurant Owner",
+                    "Innkeeper",
+                    "Caterer",
                     "Author",
                     "Editor",
                     "Publisher",
                     "Printer",
-                    "Winesteward",
+                    "Translator",
+                    "Compiler",
+                    "Food Historian",
+                    "Food Scientist",
+                    "Nutritionist",
                     "Physician",
-                    "Innkeeper",
-                    "Pâtissier",
-                    "Confectioner",
-                    "Pastry Chef",
-                    "Gastronome",
-                    "Housewife",
-                    "Female Cook",
-                    "Male Cook",
+                    "Agriculturalist",
                     "Monk",
-                    "Cardinal",
-                    "Pope",
+                    "Clergy",
                     "Noble",
+                    "Court Official",
+                    "Educator",
+                    "Housekeeper",
+                    "Merchant",
                     "Industrialist",
                     "Manufacturer",
                     "Scientist",
-                    "Restaurant Chef",
+                    "Gastronome",
+                    "Culinary Critic",
+                    "Food Journalist",
+                    "Food Activist",
                     "Other",
                     "Unknown"
                   ]
@@ -389,39 +326,17 @@
               { "type": "null" }
             ],
             "description": "Occupational or social roles relevant to culinary history. Use null if unspecified."
-          },
-          "name_variants": {
-            "anyOf": [
-              {
-                "type": "array",
-                "items": {
-                  "$ref": "#/$defs/name_variant"
-                }
-              },
-              { "type": "null" }
-            ],
-            "description": "Historical or orthographic variants of the person's name. Use null if none are mentioned."
-          },
-          "biographical_notes": {
-            "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
-            ],
-            "description": "Additional biographical context or clarifications about the person. Use null if none are provided."
           }
         },
         "required": [
           "names",
-          "entity_summary",
+          "importance",
+          "summary",
           "timeframe",
+          "geography",
           "topical_focus",
           "language_contexts",
-          "associations",
-          "notes",
-          "gender",
-          "roles",
-          "name_variants",
-          "biographical_notes"
+          "roles"
         ],
         "additionalProperties": false
       },
@@ -431,7 +346,18 @@
           "names": {
             "$ref": "#/$defs/names"
           },
-          "entity_summary": {
+          "importance": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7
+              },
+              { "type": "null" }
+            ],
+            "description": "Relative prominence of this entity within the provided text (1 = least significant mention, 7 = central focus)."
+          },
+          "summary": {
             "anyOf": [
               { "type": "string" },
               { "type": "null" }
@@ -444,6 +370,13 @@
               { "type": "null" }
             ],
             "description": "Temporal scope associated with the place. Use null if no chronological information is available."
+          },
+          "geography": {
+            "anyOf": [
+              { "$ref": "#/$defs/geography" },
+              { "type": "null" }
+            ],
+            "description": "Modern geographical framing for the place (primary location plus optional context)."
           },
           "topical_focus": {
             "anyOf": [
@@ -459,50 +392,6 @@
             ],
             "description": "Languages associated with the place (e.g., administrative or documentary languages). Use null if not mentioned."
           },
-          "associations": {
-            "anyOf": [
-              { "$ref": "#/$defs/associations" },
-              { "type": "null" }
-            ],
-            "description": "Associations connecting this place to other entities. Use null if none are mentioned."
-          },
-          "notes": {
-            "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
-            ],
-            "description": "Additional clarifications, ambiguities, or extraction notes relevant to the place. Use null if none."
-          },
-          "place_type": {
-            "anyOf": [
-              {
-                "type": "string",
-                "enum": [
-                  "City",
-                  "Region",
-                  "Country",
-                  "Market",
-                  "Harbor",
-                  "Restaurant",
-                  "CulinarySchool",
-                  "Court",
-                  "MonasticCenter",
-                  "Inn",
-                  "Other",
-                  "Unknown"
-                ]
-              },
-              { "type": "null" }
-            ],
-            "description": "Best-fitting category for the place. Use null if cannot be determined."
-          },
-          "country_modern": {
-            "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
-            ],
-            "description": "Modern country name in English. Use null if not stated."
-          },
           "roles_in_culinary_ecosystem": {
             "anyOf": [
               {
@@ -515,10 +404,20 @@
                     "Harbor/Gateway",
                     "DistributionHub",
                     "Restaurant",
+                    "RestaurantDistrict",
                     "CourtKitchen",
                     "MonasticKitchen",
                     "CulinarySchool",
                     "Inn",
+                    "EducationalCenter",
+                    "AgriculturalEstate",
+                    "HospitalityHub",
+                    "TradeFair",
+                    "FoodProcessingSite",
+                    "StorageFacility",
+                    "SupplyDepot",
+                    "PilgrimageSite",
+                    "FestivalGrounds",
                     "Other",
                     "Unknown"
                   ]
@@ -564,18 +463,13 @@
         },
         "required": [
           "names",
-          "entity_summary",
+          "importance",
+          "summary",
           "timeframe",
+          "geography",
           "topical_focus",
           "language_contexts",
-          "associations",
-          "notes",
-          "place_type",
-          "country_modern",
-          "roles_in_culinary_ecosystem",
-          "associated_products",
-          "notable_establishments",
-          "place_notes"
+          "roles_in_culinary_ecosystem"
         ],
         "additionalProperties": false
       },
@@ -585,7 +479,18 @@
           "names": {
             "$ref": "#/$defs/names"
           },
-          "entity_summary": {
+          "importance": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 7
+              },
+              { "type": "null" }
+            ],
+            "description": "Relative prominence of this entity within the provided text (1 = least significant mention, 7 = central focus)."
+          },
+          "summary": {
             "anyOf": [
               { "type": "string" },
               { "type": "null" }
@@ -613,20 +518,6 @@
             ],
             "description": "Languages in which the work appears or circulates. Use null if not mentioned."
           },
-          "associations": {
-            "anyOf": [
-              { "$ref": "#/$defs/associations" },
-              { "type": "null" }
-            ],
-            "description": "Associations connecting this work to other entities. Use null if none are mentioned."
-          },
-          "notes": {
-            "anyOf": [
-              { "type": "string" },
-              { "type": "null" }
-            ],
-            "description": "Additional clarifications, ambiguities, or extraction notes relevant to the work. Use null if none."
-          },
           "short_title": {
             "anyOf": [
               { "type": "string" },
@@ -648,6 +539,13 @@
                   "Bibliography",
                   "Culinary History",
                   "Magazine/Periodical",
+                  "Trade Catalogue",
+                  "Instructional Manual",
+                  "Technical Manual",
+                  "Recipe Collection",
+                  "Manuscript",
+                  "Pamphlet",
+                  "Reference Work",
                   "Other",
                   "Unknown"
                 ]
@@ -655,34 +553,17 @@
               { "type": "null" }
             ],
             "description": "Best-fitting genre from the controlled list. Use null if cannot be determined."
-          },
-          "edition_years": {
-            "anyOf": [
-              { "$ref": "#/$defs/edition_years" },
-              { "type": "null" }
-            ],
-            "description": "All known publication or edition years. Use null if the text gives no chronological information."
-          },
-          "material_features": {
-            "anyOf": [
-              { "$ref": "#/$defs/material_features" },
-              { "type": "null" }
-            ],
-            "description": "Physical characteristics of the work. Use null if no material information is provided."
           }
         },
         "required": [
           "names",
-          "entity_summary",
+          "importance",
+          "summary",
           "timeframe",
           "topical_focus",
           "language_contexts",
-          "associations",
-          "notes",
           "short_title",
-          "genre",
-          "edition_years",
-          "material_features"
+          "genre"
         ],
         "additionalProperties": false
       }
