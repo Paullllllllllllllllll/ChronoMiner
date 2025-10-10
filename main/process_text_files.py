@@ -28,7 +28,6 @@ from modules.cli.mode_detector import should_use_interactive_mode
 from modules.config.manager import ConfigManager
 from modules.core.logger import setup_logger
 from modules.core.prompt_context import load_basic_context
-from modules.core.text_utils import TextProcessor, TokenBasedChunking
 from modules.core.token_tracker import get_token_tracker
 from modules.core.workflow_utils import (
     load_core_resources,
@@ -39,6 +38,13 @@ from modules.llm.prompt_utils import load_prompt_template
 from modules.operations.extraction.file_processor import FileProcessor
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 from modules.ui.core import UserInterface
+
+# Import line range generation functions from sibling script
+sys.path.insert(0, str(Path(__file__).parent))
+try:
+    from generate_line_ranges import generate_line_ranges_for_file, write_line_ranges_file
+except ImportError:
+    from main.generate_line_ranges import generate_line_ranges_for_file, write_line_ranges_file
 
 # Initialize logger
 logger = setup_logger(__name__)
@@ -180,15 +186,40 @@ async def _adjust_line_ranges_workflow(
         # Find associated line ranges file
         line_ranges_file = text_file.with_name(f"{text_file.stem}_line_ranges.txt")
         if not line_ranges_file.exists():
+            # Auto-generate line ranges file
             if ui:
-                ui.print_warning(f"No line ranges file for {text_file.name}, skipping adjustment")
-            continue
+                ui.print_info(f"Generating line ranges for {text_file.name}...")
+            logger.info(f"Line ranges file not found for {text_file.name}, generating...")
+            
+            try:
+                # Get model configuration
+                model_name = model_config.get("transcription_model", {}).get("name", "o3-mini")
+                tokens_per_chunk = chunking_config.get("chunking", {}).get("default_tokens_per_chunk", 7500)
+                
+                # Generate line ranges
+                line_ranges = generate_line_ranges_for_file(
+                    text_file=text_file,
+                    default_tokens_per_chunk=tokens_per_chunk,
+                    model_name=model_name
+                )
+                
+                # Write line ranges file
+                line_ranges_file = write_line_ranges_file(text_file, line_ranges)
+                
+                if ui:
+                    ui.print_success(f"Generated {line_ranges_file.name}")
+                logger.info(f"Successfully generated line ranges file: {line_ranges_file}")
+            except Exception as e:
+                logger.exception(f"Failed to generate line ranges for {text_file}", exc_info=e)
+                if ui:
+                    ui.print_error(f"Failed to generate line ranges for {text_file.name}: {e}")
+                continue
         
         if ui:
             ui.print_info(f"Adjusting line ranges for {text_file.name}...")
         
         try:
-            adjusted_path = await readjuster.adjust_line_ranges(
+            adjusted_ranges = await readjuster.ensure_adjusted_line_ranges(
                 text_file=text_file,
                 line_ranges_file=line_ranges_file,
                 boundary_type=selected_schema_name,
@@ -198,7 +229,7 @@ async def _adjust_line_ranges_workflow(
             )
             
             if ui:
-                ui.print_success(f"Adjusted: {adjusted_path.name}")
+                ui.print_success(f"Adjusted {len(adjusted_ranges)} range(s) for {text_file.name}")
         except Exception as e:
             logger.exception(f"Failed to adjust line ranges for {text_file}", exc_info=e)
             if ui:

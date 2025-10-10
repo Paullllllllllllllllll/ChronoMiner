@@ -263,9 +263,9 @@ class UserInterface:
 
         chunking_options = [
             ("auto", "Automatic - System splits text into chunks based on token limits"),
-            ("auto-adjust", "Auto-adjust - Automatic chunking with intelligent boundary refinement"),
+            ("auto-adjust", "Manual adjustment - Automatic chunking with real-time manual boundary refinement"),
             ("line_ranges.txt", "Use existing line ranges - Process with pre-defined line range files"),
-            ("adjust-line-ranges", "Adjust & use - Refine line ranges with AI-detected boundaries, then process"),
+            ("adjust-line-ranges", "AI-assisted adjustment - Auto-generate line ranges, refine with AI boundary detection, then process"),
             ("per-file", "Per-file selection - Choose chunking method for each file individually")
         ]
 
@@ -476,9 +476,9 @@ class UserInterface:
 
         chunking_display = {
             "auto": "Automatic chunking",
-            "auto-adjust": "Auto-adjusted chunking",
+            "auto-adjust": "Manual real-time adjustment",
             "line_ranges.txt": "Manual chunking (using line_ranges.txt files)",
-            "adjust-line-ranges": "Adjust & use line ranges with semantic boundary detection",
+            "adjust-line-ranges": "AI-assisted line range adjustment",
             "per-file": "Per-file chunking selection"
         }
 
