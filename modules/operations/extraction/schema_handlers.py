@@ -1,84 +1,36 @@
-# modules/schema_handlers.py
+# modules/operations/extraction/schema_handlers.py
 
 import json
 import logging
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
+
 from modules.core.data_processing import CSVConverter
 from modules.core.text_processing import DocumentConverter
-from modules.llm.structured_outputs import build_structured_text_format
-from modules.llm.model_capabilities import detect_capabilities
+from modules.operations.extraction.payload_builder import PayloadBuilder
+from modules.operations.extraction.response_parser import ResponseParser
 
 logger = logging.getLogger(__name__)
 
 
 class BaseSchemaHandler:
+	"""Base handler for schema-based extraction with modular components."""
+	
 	def __init__(self, schema_name: str):
 		self.schema_name = schema_name
-
-	def get_json_schema_payload(self, dev_message: str, model_config: dict,
-	                            schema: dict) -> dict:
-		return {
-			"name": self.schema_name,
-			"schema": schema,
-			"strict": True
-		}
+		self.payload_builder = PayloadBuilder(schema_name)
+		self.response_parser = ResponseParser(schema_name)
 
 	def prepare_payload(self, text_chunk: str, dev_message: str,
-	                    model_config: dict, schema: dict) -> dict:
-		user_message = f"Input text:\n{text_chunk}"
+	                    model_config: Dict[str, Any], schema: Dict[str, Any]) -> Dict[str, Any]:
+		"""Prepare API request payload using PayloadBuilder."""
+		return self.payload_builder.build_payload(
+			text_chunk, dev_message, model_config, schema
+		)
 
-		json_schema_payload = self.get_json_schema_payload(dev_message,
-		                                                   model_config, schema)
-		# Build typed input and structured outputs for Responses API
-		model_cfg = model_config.get("transcription_model", {})
-		model_name = model_cfg.get("name")
-		
-		# Detect model capabilities to determine which parameters are supported
-		caps = detect_capabilities(model_name) if model_name else None
-		
-		fmt = build_structured_text_format(json_schema_payload, self.schema_name, True)
-		body = {
-			"model": model_name,
-			"max_output_tokens": model_cfg.get("max_output_tokens", 4096),
-			"input": [
-				{
-					"role": "system",
-					"content": [{"type": "input_text", "text": dev_message}]
-				},
-				{
-					"role": "user",
-					"content": [{"type": "input_text", "text": user_message}]
-				}
-			]
-		}
-		if fmt is not None:
-			body.setdefault("text", {})["format"] = fmt
-		
-		# Sampler controls only for non-reasoning families
-		if caps and caps.supports_sampler_controls:
-			for k in ("temperature", "top_p"):
-				if k in model_cfg and model_cfg[k] is not None:
-					body[k] = model_cfg[k]
-			# Only include penalties if non-zero to keep payload tidy
-			if model_cfg.get("frequency_penalty"):
-				body["frequency_penalty"] = model_cfg["frequency_penalty"]
-			if model_cfg.get("presence_penalty"):
-				body["presence_penalty"] = model_cfg["presence_penalty"]
-
-		request_obj = {
-			"custom_id": None,
-			"method": "POST",
-			"url": "/v1/responses",
-			"body": body,
-		}
-		return request_obj
-
-	def process_response(self, response_str: str) -> dict:
-		try:
-			return json.loads(response_str)
-		except Exception as e:
-			return {"error": str(e)}
+	def process_response(self, response_str: str) -> Dict[str, Any]:
+		"""Parse response string using ResponseParser."""
+		return self.response_parser.parse_response(response_str)
 
 	def convert_to_csv(self, json_file: Path, output_csv: Path) -> None:
 		csv_converter = CSVConverter(self.schema_name)

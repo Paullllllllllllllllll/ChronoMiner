@@ -25,7 +25,7 @@ from typing import Dict, List, Optional
 
 from modules.cli.args_parser import create_process_parser, get_files_from_path, resolve_path
 from modules.cli.mode_detector import should_use_interactive_mode
-from modules.config.manager import ConfigManager
+from modules.config.manager import ConfigManager, ConfigValidationError
 from modules.core.logger import setup_logger
 from modules.core.prompt_context import load_basic_context
 from modules.core.token_tracker import get_token_tracker
@@ -35,7 +35,7 @@ from modules.core.workflow_utils import (
     prepare_context_manager,
 )
 from modules.llm.prompt_utils import load_prompt_template
-from modules.operations.extraction.file_processor import FileProcessor
+from modules.operations.extraction.file_processor_refactored import FileProcessorRefactored as FileProcessor
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 from modules.ui.core import UserInterface
 
@@ -256,21 +256,27 @@ async def _run_interactive_mode(
     # Validate paths
     try:
         config_manager.validate_paths(paths_config)
-    except Exception as e:
+    except ConfigValidationError as e:
         ui.print_error(f"Path validation failed: {e}")
         logger.error(f"Path validation error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        ui.print_error(f"Unexpected validation error: {e}")
+        logger.error(f"Unexpected validation error: {e}")
         sys.exit(1)
     
     # Load other configs
     chunking_config = {
         "chunking": (chunking_and_context_config or {}).get("chunking", {})
     }
+    concurrency_config = config_loader.get_concurrency_config()
     
     # Initialize file processor
     file_processor = FileProcessor(
         paths_config=paths_config,
         model_config=model_config,
         chunking_config=chunking_config,
+        concurrency_config=concurrency_config,
     )
     
     # Schema selection
@@ -513,21 +519,27 @@ async def _run_cli_mode(
     # Validate paths
     try:
         config_manager.validate_paths(paths_config)
-    except Exception as e:
+    except ConfigValidationError as e:
         logger.error(f"Path validation error: {e}")
         print(f"[ERROR] Path validation failed: {e}")
+        sys.exit(1)
+    except Exception as e:
+        logger.error(f"Unexpected validation error: {e}")
+        print(f"[ERROR] Unexpected validation error: {e}")
         sys.exit(1)
     
     # Load other configs
     chunking_config = {
         "chunking": (chunking_and_context_config or {}).get("chunking", {})
     }
+    concurrency_config = config_loader.get_concurrency_config()
     
     # Initialize file processor
     file_processor = FileProcessor(
         paths_config=paths_config,
         model_config=model_config,
         chunking_config=chunking_config,
+        concurrency_config=concurrency_config,
     )
     
     # Get schema
