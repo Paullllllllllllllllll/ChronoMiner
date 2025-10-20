@@ -36,7 +36,7 @@
                 { "type": "string" },
                 { "type": "null" }
               ],
-              "description": "Modern English translation or the original recipe title. Use null if no title is given."
+              "description": "Modern English translation of the original recipe title. Use null if no title is given."
             },
             "recipe_type": {
               "type": "string",
@@ -52,15 +52,18 @@
                 "Preserve",
                 "Condiment",
                 "Confection",
+                "Salad",
+                "Appetizer",
+                "Household Recipe",
                 "Preparation Technique",
                 "Other",
                 "Unknown"
               ],
-              "description": "Primary category of the recipe."
-            },
+              "description": "Primary category of the recipe, following course- and purpose-based groupings found in historical cookery manuals (e.g., main dishes, sauces, invalid cookery chapters, household remedy sections)."
+          },
             "ingredients": {
               "type": "array",
-              "description": "List of ingredients with original names, translations, quantities, and preparation notes.",
+              "description": "List of ingredients with original names, translations, quantities, and preparation notes. Ingredients are typically listed in the order they appear in the recipe, and may include ingredients used in preparation steps or as garnishes.",
               "items": {
                 "type": "object",
                 "properties": {
@@ -167,7 +170,7 @@
             },
             "yield": {
               "type": "array",
-              "description": "Yield information with original and modern English versions.",
+              "description": "Yield information with original and modern English versions. Null if not specified.",
               "items": {
                 "type": "object",
                 "properties": {
@@ -206,7 +209,7 @@
             },
             "preparation_time": {
               "type": "array",
-              "description": "Preparation time with original and modern English versions.",
+              "description": "Preparation time with original and modern English versions. Null if not specified",
               "items": {
                 "type": "object",
                 "properties": {
@@ -245,7 +248,7 @@
             },
             "cooking_time": {
               "type": "array",
-              "description": "Cooking time with original and modern English versions.",
+              "description": "Cooking time with original and modern English versions. Null if not specified",
               "items": {
                 "type": "object",
                 "properties": {
@@ -324,11 +327,11 @@
                 },
                 "contains_refined_sugar": {
                   "type": "boolean",
-                  "description": "True if the recipe contains refined sugar."
+                  "description": "True if the recipe contains refined sugar (refined cane, muscovado/raw)."
                 },
                 "contains_honey": {
                   "type": "boolean",
-                  "description": "True if the recipe contains honey as a sweetener."
+                  "description": "True if the recipe contains honey."
                 },
                 "contains_other_sweeteners": {
                   "type": "boolean",
@@ -336,7 +339,7 @@
                 },
                 "contains_foreign_spices": {
                   "type": "boolean",
-                  "description": "True if the recipe contains imported/exotic spices (pepper, cinnamon, cloves, nutmeg, ginger, saffron, etc.)."
+                  "description": "True if the recipe contains imported exotic spices (pepper, cinnamon, cloves, nutmeg, ginger, saffron, etc.)."
                 },
                 "contains_luxury_ingredients": {
                   "type": "boolean",

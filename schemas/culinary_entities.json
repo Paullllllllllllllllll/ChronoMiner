@@ -138,7 +138,7 @@
             "description": "Optional note capturing finer-grained geographical or historical context."
           }
         },
-        "required": ["primary_location", "additional_context"],
+        "required": ["primary_location"],
         "additionalProperties": false
       },
       "topical_focus": {
@@ -180,7 +180,8 @@
             "Other"
           ],
           "description": "One topical focus value from the controlled list."
-        }
+        },
+        "required": []
       },
       "language_contexts": {
         "type": "array",
@@ -214,7 +215,8 @@
             "Unknown"
           ],
           "description": "One language value from the controlled list."
-        }
+        },
+        "required": []
       },
       "person_entry": {
         "type": "object",
@@ -469,7 +471,10 @@
           "geography",
           "topical_focus",
           "language_contexts",
-          "roles_in_culinary_ecosystem"
+          "roles_in_culinary_ecosystem",
+          "associated_products",
+          "notable_establishments",
+          "place_notes"
         ],
         "additionalProperties": false
       },
