@@ -565,12 +565,9 @@ class LineRangeReadjuster:
         original_range: Tuple[int, int],
         total_lines: int,
     ) -> Iterable[Tuple[int, int]]:
-        start, end = original_range
+        start, _ = original_range
         radius = self.context_window
-        base_start = max(1, start - radius)
-        base_end = min(total_lines, end + radius)
-        window_size = base_end - base_start
-        step = max(1, radius // 2)
+        max_multiplier = max(1, int(self.scan_range_multiplier))
 
         yielded: set[Tuple[int, int]] = set()
 
@@ -582,28 +579,13 @@ class LineRangeReadjuster:
                 yielded.add(bounded)
                 yield bounded
 
-        yield from emit(base_start, base_end)
+        # Base window: focus on the original start with configured radius
+        yield from emit(start - radius, start + radius)
 
-        for multiplier in range(2, 4):
-            expanded_start = max(1, start - radius * multiplier)
-            expanded_end = min(total_lines, end + radius * multiplier)
-            yield from emit(expanded_start, expanded_end)
-
-        window_length = max(1, base_end - base_start)
-
-        cursor = base_start
-        while cursor > 1:
-            cursor = max(1, cursor - step)
-            yield from emit(cursor, cursor + window_length)
-            if cursor == 1:
-                break
-
-        cursor = base_start
-        while cursor + window_length <= total_lines:
-            cursor = min(total_lines - window_length, cursor + step)
-            yield from emit(cursor, cursor + window_length)
-            if cursor + window_length >= total_lines:
-                break
+        # Expanded windows: scale outward around the start using scan_range_multiplier
+        for multiplier in range(2, max_multiplier + 2):
+            expanded_radius = radius * multiplier
+            yield from emit(start - expanded_radius, start + expanded_radius)
 
     def _format_context(
         self,
