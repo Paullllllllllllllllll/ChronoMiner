@@ -1,7 +1,7 @@
 # chunking_and_context.yaml
 
 chunking:
-  default_tokens_per_chunk: 7500  # Chunk size (in tokens) for splitting the text into manageable pieces.
+  default_tokens_per_chunk: 5000  # Chunk size (in tokens) for splitting the text into manageable pieces.
 
 context: # Define whether or not to pass additional context to the model
   use_additional_context: true
@@ -32,13 +32,26 @@ matching:
   min_substring_length: 8
 
 retry:
-  # Configuration for retrying semantic boundary detection when model is unsure or finds no marker
+  # Configuration for retrying in semantic boundary detection
   
-  # max_retries_on_unsure: Maximum number of retries when model returns unsure=true
-  max_retries_on_unsure: 2
+  # certainty_threshold: Minimum certainty score (0-100) required to accept a model response
+  # Responses below this threshold trigger retries with different context windows
+  certainty_threshold: 70
   
-  # max_retries_on_no_marker: Maximum number of retries when model returns no_semantic_marker=true
-  max_retries_on_no_marker: 1
+  # max_low_certainty_retries: Maximum retries when model returns certainty below threshold
+  max_low_certainty_retries: 3
   
-  # expand_context_on_retry: If true, expand the context window on each retry attempt
-  expand_context_on_retry: true
+  # max_marker_mismatch_retries: Attempts to request a different semantic substring when prior markers weren't found
+  max_marker_mismatch_retries: 3
+    
+  # max_context_expansion_attempts: Maximum number of times to expand context when model requests more context
+  # This handles the needs_more_context response from the model
+  max_context_expansion_attempts: 5
+  
+  # delete_ranges_with_no_content: If true, delete line ranges after confirming no semantic content exists
+  # If the broader scan also finds no content, the range is deleted
+  delete_ranges_with_no_content: true
+  
+  # scan_range_multiplier: Multiplier for broader scan when verifying no content
+  # The scan area will be (original_range_size * multiplier) lines in each direction
+  scan_range_multiplier: 6

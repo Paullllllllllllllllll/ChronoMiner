@@ -103,6 +103,7 @@ class LineRangeReadjuster:
         self.max_context_expansion_attempts = self.retry_config.get("max_context_expansion_attempts", 3)
         self.delete_ranges_with_no_content = self.retry_config.get("delete_ranges_with_no_content", True)
         self.scan_range_multiplier = self.retry_config.get("scan_range_multiplier", 3)
+        self.max_marker_mismatch_retries = self.retry_config.get("max_marker_mismatch_retries", 2)
 
     async def ensure_adjusted_line_ranges(
         self,
@@ -239,134 +240,159 @@ class LineRangeReadjuster:
         low_certainty_retries = 0
         context_expansion_attempts = 0
 
+        stop_processing = False
+
         for window_idx, window in enumerate(windows):
-            payload = await self._run_model(
-                extractor=extractor,
-                raw_lines=raw_lines,
-                original_range=original_range,
-                context_window=window,
-                window_index=window_idx,
-                boundary_type=boundary_type,
-                basic_context=basic_context,
-                additional_context=additional_context,
-            )
-            decision = BoundaryDecision.from_payload(payload)
-            
-            # ========================================================================
-            # PRIORITY 1: Check certainty threshold (applies to all response types)
-            # ========================================================================
-            if decision.certainty < self.certainty_threshold:
-                low_certainty_retries += 1
-                if low_certainty_retries <= self.max_low_certainty_retries:
-                    logger.info(
-                        "[Range %d, Window %d] Low certainty (%d < %d); retry %d/%d",
-                        range_index,
-                        window_idx,
-                        decision.certainty,
-                        self.certainty_threshold,
-                        low_certainty_retries,
-                        self.max_low_certainty_retries,
-                    )
-                    continue  # Try next window
-                else:
-                    logger.warning(
-                        "[Range %d] Certainty remains low after %d retries (best: %d); keeping original range",
-                        range_index,
-                        self.max_low_certainty_retries,
-                        decision.certainty,
-                    )
-                    break  # Give up, keep original
-            
-            # ========================================================================
-            # High certainty response - route by decision type
-            # ========================================================================
-            
-            # ROUTE 1: Model requests more context → Expand window
-            if decision.needs_more_context:
-                context_expansion_attempts += 1
-                if context_expansion_attempts <= self.max_context_expansion_attempts:
-                    logger.info(
-                        "[Range %d, Window %d] Requests more context (certainty: %d); expansion %d/%d",
-                        range_index,
-                        window_idx,
-                        decision.certainty,
-                        context_expansion_attempts,
-                        self.max_context_expansion_attempts,
-                    )
-                    continue  # Try next (larger) window
-                else:
-                    logger.warning(
-                        "[Range %d] Max context expansions reached (%d); keeping original range",
-                        range_index,
-                        self.max_context_expansion_attempts,
-                    )
-                    break  # Give up, keep original
-            
-            # ROUTE 2: Model confident no content exists → Verify immediately with broad scan
-            elif decision.contains_no_semantic_boundary:
-                logger.info(
-                    "[Range %d, Window %d] High-certainty no-content response (certainty: %d); triggering verification",
-                    range_index,
-                    window_idx,
-                    decision.certainty,
+            failed_markers: List[str] = []
+            marker_mismatch_retries = 0
+
+            while True:
+                payload = await self._run_model(
+                    extractor=extractor,
+                    raw_lines=raw_lines,
+                    original_range=original_range,
+                    context_window=window,
+                    window_index=window_idx,
+                    boundary_type=boundary_type,
+                    basic_context=basic_context,
+                    additional_context=additional_context,
+                    failed_markers=failed_markers,
                 )
-                
-                if self.delete_ranges_with_no_content:
-                    # Immediately verify with broader scan (up + down)
-                    should_delete = await self._verify_no_content(
-                        extractor=extractor,
-                        raw_lines=raw_lines,
-                        original_range=original_range,
-                        range_index=range_index,
-                        boundary_type=boundary_type,
-                        basic_context=basic_context,
-                        additional_context=additional_context,
-                    )
-                    if should_delete:
-                        return decision, original_range, True  # Confirmed deletion
+                decision = BoundaryDecision.from_payload(payload)
+
+                # ====================================================================
+                # PRIORITY 1: Check certainty threshold (applies to all responses)
+                # ====================================================================
+                if decision.certainty < self.certainty_threshold:
+                    low_certainty_retries += 1
+                    if low_certainty_retries <= self.max_low_certainty_retries:
+                        logger.info(
+                            "[Range %d, Window %d] Low certainty (%d < %d); retry %d/%d",
+                            range_index,
+                            window_idx,
+                            decision.certainty,
+                            self.certainty_threshold,
+                            low_certainty_retries,
+                            self.max_low_certainty_retries,
+                        )
+                        break  # Move to next window
                     else:
-                        # Broader scan found content, keep the range
+                        logger.warning(
+                            "[Range %d] Certainty remains low after %d retries (best: %d); keeping original range",
+                            range_index,
+                            self.max_low_certainty_retries,
+                            decision.certainty,
+                        )
+                        stop_processing = True
+                        break
+
+                # ====================================================================
+                # High certainty response - route by decision type
+                # ====================================================================
+
+                # ROUTE 1: Model requests more context → Expand window
+                if decision.needs_more_context:
+                    context_expansion_attempts += 1
+                    if context_expansion_attempts <= self.max_context_expansion_attempts:
+                        logger.info(
+                            "[Range %d, Window %d] Requests more context (certainty: %d); expansion %d/%d",
+                            range_index,
+                            window_idx,
+                            decision.certainty,
+                            context_expansion_attempts,
+                            self.max_context_expansion_attempts,
+                        )
+                        break  # Move to next (larger) window
+                    else:
+                        logger.warning(
+                            "[Range %d] Max context expansions reached (%d); keeping original range",
+                            range_index,
+                            self.max_context_expansion_attempts,
+                        )
+                        stop_processing = True
+                        break
+
+                # ROUTE 2: Model confident no content exists → Verify immediately with broad scan
+                elif decision.contains_no_semantic_boundary:
+                    logger.info(
+                        "[Range %d, Window %d] High-certainty no-content response (certainty: %d); triggering verification",
+                        range_index,
+                        window_idx,
+                        decision.certainty,
+                    )
+
+                    if self.delete_ranges_with_no_content:
+                        should_delete = await self._verify_no_content(
+                            extractor=extractor,
+                            raw_lines=raw_lines,
+                            original_range=original_range,
+                            range_index=range_index,
+                            boundary_type=boundary_type,
+                            basic_context=basic_context,
+                            additional_context=additional_context,
+                        )
+                        if should_delete:
+                            return decision, original_range, True
                         logger.info(
                             "[Range %d] Verification scan found content in broader area; keeping range",
                             range_index,
                         )
-                        break  # Keep original
+                        stop_processing = True
+                        break
+                    else:
+                        logger.info(
+                            "[Range %d] No content detected but deletion disabled; keeping range",
+                            range_index,
+                        )
+                        stop_processing = True
+                        break
+
+                # ROUTE 3: Success → Marker found with high certainty, validate and apply
                 else:
-                    # Deletion disabled, just keep the range
-                    logger.info(
-                        "[Range %d] No content detected but deletion disabled; keeping range",
-                        range_index,
+                    candidate_range = self._validate_and_apply_decision(
+                        decision=decision,
+                        raw_lines=raw_lines,
+                        context_window=window,
+                        fallback_range=original_range,
                     )
-                    break  # Keep original
-            
-            # ROUTE 3: Success → Marker found with high certainty, validate and apply
-            else:
-                # All booleans are false and semantic_marker should be present
-                candidate_range = self._validate_and_apply_decision(
-                    decision=decision,
-                    raw_lines=raw_lines,
-                    context_window=window,
-                    fallback_range=original_range,
-                )
-                if candidate_range:
-                    adjusted_range = candidate_range
-                    logger.info(
-                        "[Range %d] Successfully adjusted to %s using marker '%s' (certainty: %d)",
-                        range_index,
-                        adjusted_range,
-                        decision.semantic_marker,
-                        decision.certainty,
-                    )
-                    break  # Success!
-                else:
-                    # Marker provided but couldn't match in text - continue searching
-                    logger.debug(
-                        "[Range %d, Window %d] Semantic marker '%s' not matched; trying next window",
+                    if candidate_range:
+                        adjusted_range = candidate_range
+                        logger.info(
+                            "[Range %d] Successfully adjusted to %s using marker '%s' (certainty: %d)",
+                            range_index,
+                            adjusted_range,
+                            decision.semantic_marker,
+                            decision.certainty,
+                        )
+                        stop_processing = True
+                        break
+
+                    marker_text = decision.semantic_marker or ""
+                    if marker_text:
+                        failed_markers.append(marker_text)
+                    marker_mismatch_retries += 1
+
+                    if marker_mismatch_retries <= self.max_marker_mismatch_retries:
+                        logger.info(
+                            "[Range %d, Window %d] Semantic marker '%s' not matched; retry %d/%d",
+                            range_index,
+                            window_idx,
+                            marker_text or "<empty>",
+                            marker_mismatch_retries,
+                            self.max_marker_mismatch_retries,
+                        )
+                        continue  # Retry same window with additional guidance
+
+                    logger.warning(
+                        "[Range %d, Window %d] Semantic marker not matched after %d retries; trying next window",
                         range_index,
                         window_idx,
-                        decision.semantic_marker,
+                        self.max_marker_mismatch_retries,
                     )
-                    continue  # Try next window
+                    break
+
+            if stop_processing:
+                break
 
         # No windows examined or all attempts exhausted
         if decision is None:
@@ -490,6 +516,7 @@ class LineRangeReadjuster:
         boundary_type: str,
         basic_context: Optional[str],
         additional_context: Optional[str],
+        failed_markers: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
         start, end = original_range
         context_start, context_end = context_window
