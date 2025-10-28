@@ -105,6 +105,19 @@ class LineRangeReadjuster:
         self.scan_range_multiplier = self.retry_config.get("scan_range_multiplier", 3)
         self.max_marker_mismatch_retries = self.retry_config.get("max_marker_mismatch_retries", 2)
 
+        max_gap_setting = self.retry_config.get("max_gap_between_ranges")
+        if max_gap_setting is None:
+            self.max_gap_between_ranges: Optional[int] = None
+        else:
+            try:
+                self.max_gap_between_ranges = max(0, int(max_gap_setting))
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Invalid max_gap_between_ranges value '%s'; disabling gap enforcement.",
+                    max_gap_setting,
+                )
+                self.max_gap_between_ranges = None
+
     async def ensure_adjusted_line_ranges(
         self,
         *,
@@ -192,7 +205,10 @@ class LineRangeReadjuster:
                         )
 
         adjusted_ranges = self._remove_overlaps(adjusted_ranges)
-        
+
+        if self.max_gap_between_ranges is not None:
+            adjusted_ranges = self._enforce_max_gap(adjusted_ranges)
+
         if ranges_to_delete:
             logger.info(
                 "Deleted %d range(s) with no semantic content: %s",
@@ -770,64 +786,150 @@ class LineRangeReadjuster:
     def _remove_overlaps(ranges: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
         """
         Remove overlaps from a list of line ranges by adjusting end boundaries.
-        
+
         When range[i].end >= range[i+1].start, we have an overlap.
         This is resolved by setting range[i].end = range[i+1].start - 1.
-        
+
         This preserves the semantic start boundaries identified by the LLM
         while ensuring no overlaps exist. Gaps are acceptable and expected.
-        
+
         Args:
             ranges: List of (start, end) tuples, assumed to be in sequential order
-            
+
         Returns:
             List of non-overlapping (start, end) tuples
         """
         if not ranges:
             return []
-        
+
         if len(ranges) == 1:
             return list(ranges)
-        
-        adjusted_ranges: List[Tuple[int, int]] = []
-        
-        for i in range(len(ranges)):
-            start, end = ranges[i]
-            
-            # Check if this range overlaps with the next range
-            if i < len(ranges) - 1:
-                next_start, next_end = ranges[i + 1]
-                
-                if end >= next_start:
-                    # Overlap detected - adjust this range's end
-                    original_end = end
-                    end = next_start - 1
-                    
-                    # Ensure the range is still valid (start <= end)
-                    if end < start:
-                        logger.warning(
-                            "Range (%d, %d) would become invalid after overlap removal. "
-                            "Adjusting start to %d.",
-                            start,
+
+        annotated = [
+            {
+                "start": start,
+                "end": end,
+                "original_start": start,
+                "original_end": end,
+                "original_index": idx,
+            }
+            for idx, (start, end) in enumerate(ranges)
+        ]
+
+        # Sort by start (stable on original index) so out-of-order ranges are processed safely.
+        annotated.sort(key=lambda item: (item["start"], item["original_index"]))
+
+        processed: List[Dict[str, int]] = []
+
+        for entry in annotated:
+            current_start = entry["start"]
+            current_end = entry["end"]
+            original_start = entry["original_start"]
+            original_end = entry["original_end"]
+
+            if current_start > current_end:
+                logger.warning(
+                    "Range (%d, %d) has end before start; clamping end to %d before overlap removal.",
+                    original_start,
+                    original_end,
+                    current_start,
+                )
+                current_end = current_start
+
+            if processed:
+                previous = processed[-1]
+
+                if previous["end"] >= current_start:
+                    trimmed_prev_end = min(previous["end"], max(previous["start"], current_start - 1))
+
+                    if trimmed_prev_end < previous["end"]:
+                        logger.info(
+                            "Overlap removed: range (%d, %d) trimmed to (%d, %d) to respect next range (%d, %d)",
+                            previous["original_start"],
+                            previous["original_end"],
+                            previous["start"],
+                            trimmed_prev_end,
+                            original_start,
                             original_end,
-                            end,
                         )
-                        start = end
-                    
-                    logger.info(
-                        "Overlap removed: range (%d, %d) adjusted to (%d, %d) "
-                        "to avoid overlap with next range (%d, %d)",
-                        start,
-                        original_end,
-                        start,
-                        end,
-                        next_start,
-                        next_end,
-                    )
-            
-            adjusted_ranges.append((start, end))
-        
-        return adjusted_ranges
+                        previous["end"] = trimmed_prev_end
+
+                if previous["end"] >= current_start:
+                    shift_amount = previous["end"] + 1 - current_start
+                    current_start = previous["end"] + 1
+                    if shift_amount > 0:
+                        logger.info(
+                            "Adjusted start of range (%d, %d) forward by %d line(s) after trimming to avoid overlap.",
+                            original_start,
+                            original_end,
+                            shift_amount,
+                        )
+
+            if current_start > current_end:
+                logger.warning(
+                    "Range (%d, %d) would invert after overlap handling; clamping end to %d.",
+                    original_start,
+                    original_end,
+                    current_start,
+                )
+                current_end = current_start
+
+            processed.append(
+                {
+                    "start": current_start,
+                    "end": current_end,
+                    "original_start": original_start,
+                    "original_end": original_end,
+                    "original_index": entry["original_index"],
+                }
+            )
+
+        return [(item["start"], item["end"]) for item in processed]
+
+    def _enforce_max_gap(self, ranges: List[Tuple[int, int]]) -> List[Tuple[int, int]]:
+        """
+        Ensure gaps between consecutive ranges do not exceed configured maximum.
+
+        Ranges are assumed to be sorted and non-overlapping. When a gap exceeds
+        ``max_gap_between_ranges``, the previous range is extended forward to
+        reduce the gap while still ending before the next range.
+        """
+        if not ranges:
+            return []
+
+        max_gap = self.max_gap_between_ranges
+        if max_gap is None:
+            return list(ranges)
+
+        enforced: List[Tuple[int, int]] = []
+
+        for index, (start, end) in enumerate(ranges):
+            if index == 0:
+                enforced.append((start, end))
+                continue
+
+            prev_start, prev_end = enforced[-1]
+            gap = start - prev_end - 1
+
+            if gap > max_gap:
+                new_prev_end = start - max_gap - 1
+                logger.info(
+                    "Gap of %d lines detected between ranges (%d, %d) and (%d, %d); "
+                    "extending previous range to (%d, %d)",
+                    gap,
+                    prev_start,
+                    prev_end,
+                    start,
+                    end,
+                    prev_start,
+                    new_prev_end,
+                )
+                enforced[-1] = (prev_start, new_prev_end)
+                prev_end = new_prev_end
+
+            enforced.append((start, end))
+
+        return enforced
 
 
 async def adjust_line_ranges_for_paths(
