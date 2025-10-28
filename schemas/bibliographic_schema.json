@@ -27,6 +27,13 @@
               "type": "string",
               "description": "Primary author name. Use 'Anonymous' if no author is attributed."
             },
+            "short_note": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "A concise 3-10 sentence note describing this work in modern english. Set to null if no description is given in the input text."
+                  },
             "culinary_focus": {
               "type": "array",
               "items": {
@@ -222,13 +229,6 @@
                     ],
                     "description": "The category of the edition. Use a listed value, or null if the source omits it. Example: 'Original'."
                   },
-                  "short_note": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "A brief note of any important information. Example: 'Second edition with added chapters.' or 'Revised and enlarged'."
-                  },
                   "language": {
                     "anyOf": [
                       {
@@ -379,7 +379,6 @@
                   "contributors",
                   "publishers",
                   "edition_category",
-                  "short_note",
                   "language",
                   "translated_from",
                   "format",
@@ -397,6 +396,7 @@
             "full_title",
             "short_title",
             "main_author",
+            "short_note",
             "culinary_focus",
             "library_location",
             "edition_info"
