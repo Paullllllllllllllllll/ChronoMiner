@@ -29,7 +29,7 @@ matching:
   
   # min_substring_length: Minimum character length for a valid boundary substring match
   # Prevents false positives from very short strings
-  min_substring_length: 8
+  min_substring_length: 5
 
 retry:
   # Configuration for retrying in semantic boundary detection
@@ -39,14 +39,14 @@ retry:
   certainty_threshold: 70
   
   # max_low_certainty_retries: Maximum retries when model returns certainty below threshold
-  max_low_certainty_retries: 3
+  max_low_certainty_retries: 12
   
   # max_marker_mismatch_retries: Attempts to request a different semantic substring when prior markers weren't found
-  max_marker_mismatch_retries: 3
+  max_marker_mismatch_retries: 12
     
   # max_context_expansion_attempts: Maximum number of times to expand context when model requests more context
   # This handles the needs_more_context response from the model
-  max_context_expansion_attempts: 5
+  max_context_expansion_attempts: 6
   
   # delete_ranges_with_no_content: If true, delete line ranges after confirming no semantic content exists
   # If the broader scan also finds no content, the range is deleted
@@ -54,4 +54,8 @@ retry:
   
   # scan_range_multiplier: Multiplier for broader scan when verifying no content
   # The scan area will be (original_range_size * multiplier) lines in each direction
-  scan_range_multiplier: 6
+  scan_range_multiplier: 2
+
+  # max_gap_between_ranges: Maximum number of unassigned lines allowed between adjusted ranges
+  # Set to 0 to keep ranges flush; increase if limited gaps are acceptable.
+  max_gap_between_ranges: 0

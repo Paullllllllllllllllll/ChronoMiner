@@ -39,7 +39,7 @@ SEMANTIC_BOUNDARY_SCHEMA: Dict[str, Any] = {
             },
             "semantic_marker": {
                 "type": "string",
-                "description": "A precise 10-15 character verbatim substring that marks the semantic boundary. Leave empty if contains_no_semantic_boundary or needs_more_context is true.",
+                "description": "A precise 5-15 character verbatim substring that marks the semantic boundary. Leave empty if contains_no_semantic_boundary or needs_more_context is true.",
             },
         },
         "required": ["contains_no_semantic_boundary", "needs_more_context", "certainty", "semantic_marker"],
@@ -258,8 +258,9 @@ class LineRangeReadjuster:
 
         stop_processing = False
 
+        failed_marker_history: List[str] = []
+
         for window_idx, window in enumerate(windows):
-            failed_markers: List[str] = []
             marker_mismatch_retries = 0
 
             while True:
@@ -272,7 +273,7 @@ class LineRangeReadjuster:
                     boundary_type=boundary_type,
                     basic_context=basic_context,
                     additional_context=additional_context,
-                    failed_markers=failed_markers,
+                    failed_markers=failed_marker_history,
                 )
                 decision = BoundaryDecision.from_payload(payload)
 
@@ -383,9 +384,9 @@ class LineRangeReadjuster:
                         stop_processing = True
                         break
 
-                    marker_text = decision.semantic_marker or ""
-                    if marker_text:
-                        failed_markers.append(marker_text)
+                    marker_text = (decision.semantic_marker or "").strip()
+                    if marker_text and marker_text not in failed_marker_history:
+                        failed_marker_history.append(marker_text)
                     marker_mismatch_retries += 1
 
                     if marker_mismatch_retries <= self.max_marker_mismatch_retries:
@@ -552,6 +553,16 @@ class LineRangeReadjuster:
         # Inject the semantic boundary schema into the prompt
         schema_json = json.dumps(SEMANTIC_BOUNDARY_SCHEMA["schema"], indent=2, ensure_ascii=False)
         system_prompt = system_prompt.replace("{{TRANSCRIPTION_SCHEMA}}", schema_json)
+
+        if failed_markers:
+            sanitized_failures = [marker.strip() for marker in failed_markers if marker and marker.strip()]
+            if sanitized_failures:
+                bullet_list = "\n".join(f"- {marker}" for marker in sanitized_failures)
+                system_prompt += (
+                    "\n\nThe following semantic markers previously failed to match the source text. "
+                    "Do not reuse any of them. Provide a new 5-15 character substring that excludes these markers:\n"
+                    f"{bullet_list}"
+                )
 
         response_payload = await process_text_chunk(
             text_chunk=chunk_text,
