@@ -32,76 +32,14 @@
                 { "type": "string" },
                 { "type": "null" }
               ],
-              "description": "A concise 3-10 sentence note describing this work in modern english. Set to null if no description is given in the input text."
+              "description": "A concise 3-10 sentence note with additional information about this work in modern english. Set to null if no additional information is given or all information is already captured in the other schema fields."
                   },
-            "culinary_focus": {
-              "type": "array",
-              "items": {
-                "type": "string",
-                "enum": [
-                  "General",
-                  "Baking and Pastry",
-                  "Brewing and Distilling",
-                  "Confectionery and Sweets",
-                  "Preserving and Pickling",
-                  "Medicinal and Health",
-                  "Vegetarian and Vegan",
-                  "Regional and Ethnic Cuisine",
-                  "Dietary and Nutrition",
-                  "Beverages and Drinks",
-                  "Carving and Presentation",
-                  "Wine and Viticulture",
-                  "Meat and Poultry",
-                  "Fish and Seafood",
-                  "Herbs and Spices",
-                  "Sauces and Condiments",
-                  "Culinary Techniques",
-                  "Culinary History",
-                  "Culinary Arts Education",
-                  "Agriculture and Viticulture",
-                  "Household Management",
-                  "Table Service and Etiquette",
-                  "Food Adulteration and Safety",
-                  "Food Science and Technology",
-                  "Food Trade and Commerce",
-                  "Culinary Philosophy and Ethics",
-                  "Hospitality Management",
-                  "Festive and Ceremonial Cuisine",
-                  "Religious and Ritual Cuisine",
-                  "Sustainability and Conservation",
-                  "Unknown",
-                  "Other"
-                ],
-                "description": "Culinary focus areas. Example: ['Baking and Pastry', 'Culinary Techniques']. Derived from the title if no further context can be found in the input text."
-              },
-              "description": "An array indicating the specific culinary areas the book focuses on."
-            },
-            "library_location": {
+            "library_abbreviation": {
               "anyOf": [
-                {
-                  "type": "object",
-                  "properties": {
-                    "library_name": {
-                      "anyOf": [
-                        { "type": "string" },
-                        { "type": "null" }
-                      ],
-                      "description": "Name of the library or archive holding the work. Example: 'Library of Congress' or 'Bibliothèque nationale'. Use null if not mentioned."
-                    },
-                    "library_city": {
-                      "anyOf": [
-                        { "type": "string" },
-                        { "type": "null" }
-                      ],
-                      "description": "City where the library is located, in modern English. Example: 'Washington' or 'Paris'. Use null if not mentioned."
-                    }
-                  },
-                  "required": ["library_name", "library_city"],
-                  "additionalProperties": false
-                },
+                { "type": "string" },
                 { "type": "null" }
               ],
-              "description": "Physical location of the work. Use null if not mentioned."
+              "description": "Abbreviation of the holding library or archive of the first/main edition of the work. Use null if not mentioned. Example: 'UBA = Universiteitsbibliotheek Amsterdam'"
             },
             "edition_info": {
               "type": "array",
@@ -132,14 +70,14 @@
                             { "type": "string" },
                             { "type": "null" }
                           ],
-                          "description": "Country of publication, modern English. Example: 'Italy'. Use null if unknown."
+                          "description": "Country of publication, modern English. Example: 'Italy'. Use null if not given; use 'Unknown' if you cannot determine the modern equivalent."
                         },
                         "city": {
                           "anyOf": [
                             { "type": "string" },
                             { "type": "null" }
                           ],
-                          "description": "City of publication, modern English. Example: 'Rome'. Use null if unknown."
+                          "description": "City of publication, modern English. Example: 'Rome'. Use null if given; use 'Unknown' if you cannot determine the modern equivalent."
                         }
                       },
                       "required": ["country", "city"],
@@ -337,13 +275,6 @@
                     ],
                     "description": "True if this edition contains illustrations, plates, or engravings; false if it does not; null if unknown."
                   },
-                  "dimensions": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Standardized dimensions in format 'height x width cm'. Example: '18.5 x 12.0 cm'. Use null if not specified."
-                  },
                   "price_information": {
                     "anyOf": [
                       {
@@ -384,12 +315,11 @@
                   "format",
                   "pages",
                   "has_illustrations",
-                  "dimensions",
                   "price_information"
                 ],
                 "additionalProperties": false
               },
-              "description": "Detailed information about each edition. The first edition should also be included here with its specific details."
+              "description": "Detailed information about each edition, including the first."
             }
           },
           "required": [
@@ -397,8 +327,7 @@
             "short_title",
             "main_author",
             "short_note",
-            "culinary_focus",
-            "library_location",
+            "library_abbreviation",
             "edition_info"
           ],
           "additionalProperties": false
