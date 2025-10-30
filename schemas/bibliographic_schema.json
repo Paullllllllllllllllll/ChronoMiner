@@ -1,6 +1,6 @@
 {
   "name": "BibliographicEntries",
-  "schema_version": "3.4",
+  "schema_version": "3.8",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -32,7 +32,7 @@
                 { "type": "string" },
                 { "type": "null" }
               ],
-              "description": "A concise 3-10 sentence note with additional information about this work in modern english. Set to null if no additional information is given or all information is already captured in the other schema fields."
+              "description": "A concise 3-10 sentence note with additional historiographical information (content, authors, historical context, etc.) about this work in modern english. Set to null if no such information is given."
                   },
             "library_abbreviation": {
               "anyOf": [
@@ -40,6 +40,29 @@
                 { "type": "null" }
               ],
               "description": "Abbreviation of the holding library or archive of the first/main edition of the work. Use null if not mentioned. Example: 'UBA = Universiteitsbibliotheek Amsterdam'"
+            },
+            "volumes_overview": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Brief summary of the work's volume structure (e.g., 'Three volumes: Vol. 1 (1645) original recipes; Vol. 2 (1783) expanded regional dishes; Vol. 3 (1978) facsimile reprint with modern annotations.'). Use null when the work is single-volume."
+            },
+            "volume_numbers": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "anyOf": [
+                      { "type": "integer" },
+                      { "type": "null" }
+                    ]
+                  },
+                  "description": "List of normalized volume numbers (integers)."
+                },
+                { "type": "null" }
+              ],
+              "description": "Explicit enumeration of volume numbers if the source lists them; use null for confirmed single-volume works."
             },
             "edition_info": {
               "type": "array",
@@ -59,6 +82,18 @@
                       { "type": "null" }
                     ],
                     "description": "Edition number (1,2,3...) or null if unknown."
+                  },
+                  "volume_numbers": {
+                    "anyOf": [
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "integer"
+                        }
+                      },
+                      { "type": "null" }
+                    ],
+                    "description": "Ordered list of volume numbers covered by this edition. Use null if the edition pertains to a single-volume work or volumes are not indicated."
                   },
                   "publication_locations": {
                     "type": "array",
@@ -306,6 +341,7 @@
                 "required": [
                   "year",
                   "edition_number",
+                  "volume_numbers",
                   "publication_locations",
                   "contributors",
                   "publishers",
@@ -328,6 +364,8 @@
             "main_author",
             "short_note",
             "library_abbreviation",
+            "volumes_overview",
+            "volume_numbers",
             "edition_info"
           ],
           "additionalProperties": false

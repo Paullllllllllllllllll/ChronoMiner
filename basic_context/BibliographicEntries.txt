@@ -6,4 +6,4 @@ Extraction task rules (use when extracting data)
 - When multiple editions describe the same work, keep them together under the same root entry.
 
 Semantic Boundary task rules (use when identifying semantic boundaries)
-- Treat the start of a full bibliographic entry (with all its editions) as one boundary.
+- Treat the start of a **full bibliographic entry (with all its editions and volumes)** as one boundary.
