@@ -322,21 +322,27 @@ class CSVConverter:
     def _convert_historicaladdressbookentries_to_df(self, entries: List[
         Any]) -> pd.DataFrame:
         rows: List[Dict[str, Any]] = []
+
         for entry in entries:
-            address = entry.get("address", {})
-            street = address.get("street", "Unknown")
-            street_number = address.get("street_number", "*0*")
+            if not isinstance(entry, dict):
+                continue
+
+            address_data = entry.get("address") or {}
+            if not isinstance(address_data, dict):
+                address_data = {}
+
             row: Dict[str, Any] = {
-                "last_name": entry.get("last_name", ""),
-                "first_name": entry.get("first_name", ""),
-                "street": street,
-                "street_number": street_number,
-                "occupation": entry.get("occupation", ""),
+                "last_name": entry.get("last_name"),
+                "first_name": entry.get("first_name"),
+                "street": address_data.get("street"),
+                "street_number": address_data.get("street_number"),
+                "occupation": entry.get("occupation"),
                 "section": entry.get("section"),
                 "honorific": entry.get("honorific"),
-                "additional_notes": entry.get("additional_notes")
+                "additional_notes": entry.get("additional_notes"),
             }
             rows.append(row)
+
         df = pd.DataFrame(rows)
         return df
 
