@@ -85,16 +85,16 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         results: List[Dict[str, Any]] = []
 
         # Extract concurrency settings
-        transcription_cfg = (
-            (self.concurrency_config.get("concurrency", {}) or {}).get("transcription", {}) or {}
+        extraction_cfg = (
+            (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
         )
         total_chunks = len(chunks)
         try:
-            configured_limit = int(transcription_cfg.get("concurrency_limit", total_chunks or 1))
+            configured_limit = int(extraction_cfg.get("concurrency_limit", total_chunks or 1))
         except Exception:
             configured_limit = total_chunks or 1
         concurrency_limit = max(1, min(configured_limit, total_chunks or 1))
-        delay_between_tasks = float(transcription_cfg.get("delay_between_tasks", 0.0) or 0.0)
+        delay_between_tasks = float(extraction_cfg.get("delay_between_tasks", 0.0) or 0.0)
 
         # Token tracking
         token_tracker = get_token_tracker()

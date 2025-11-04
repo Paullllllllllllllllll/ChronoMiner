@@ -31,18 +31,18 @@ def write_batch_file(request_lines: List[str], output_path: Path) -> Path:
     return safe_output_path
 
 
-def _get_transcription_config() -> Dict[str, Any]:
+def _get_extraction_config() -> Dict[str, Any]:
     try:
         loader = ConfigLoader()
         loader.load_configs()
         concurrency_cfg = loader.get_concurrency_config() or {}
-        return (concurrency_cfg.get("concurrency", {}) or {}).get("transcription", {}) or {}
+        return (concurrency_cfg.get("concurrency", {}) or {}).get("extraction", {}) or {}
     except Exception:
         return {}
 
 
 def get_batch_chunk_size() -> int:
-    cfg = _get_transcription_config()
+    cfg = _get_extraction_config()
     try:
         value = int(cfg.get("batch_chunk_size", DEFAULT_BATCH_CHUNK_SIZE))
         return value if value > 0 else DEFAULT_BATCH_CHUNK_SIZE
@@ -51,7 +51,7 @@ def get_batch_chunk_size() -> int:
 
 
 def get_max_batch_bytes() -> int:
-    cfg = _get_transcription_config()
+    cfg = _get_extraction_config()
     try:
         value = int(cfg.get("max_batch_bytes", DEFAULT_MAX_BATCH_BYTES))
         return value if value > 0 else DEFAULT_MAX_BATCH_BYTES

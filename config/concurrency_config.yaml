@@ -4,7 +4,7 @@ concurrency:
   text_processing:
     concurrency_limit: 500 # Max number of concurrent requests
     delay_between_tasks: 0.1 # Delay between single requests
-  transcription:
+  extraction:
     concurrency_limit: 100     # HTTP connector pool sizing hint
     delay_between_tasks: 0.0   # Optional delay between sequential tasks
     service_tier: default      # One of: auto, default, flex, priority
@@ -22,4 +22,4 @@ concurrency:
 # Daily Token Limit
 daily_token_limit:
   enabled: true  # Enable daily token limit enforcement
-  daily_tokens: 6500000  # Maximum tokens per day (9 million)
+  daily_tokens: 9000000  # Maximum tokens per day (9 million)

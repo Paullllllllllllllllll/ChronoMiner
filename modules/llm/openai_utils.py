@@ -45,8 +45,8 @@ def _load_retry_policy() -> tuple[int, float, float, float]:
         cl = ConfigLoader()
         cl.load_configs()
         cc = cl.get_concurrency_config() or {}
-        trans_cfg = (cc.get("concurrency", {}) or {}).get("transcription", {}) or {}
-        retry_cfg = (trans_cfg.get("retry", {}) or {})
+        extraction_cfg = (cc.get("concurrency", {}) or {}).get("extraction", {}) or {}
+        retry_cfg = (extraction_cfg.get("retry", {}) or {})
         attempts = int(retry_cfg.get("attempts", 5))
         wait_min = float(retry_cfg.get("wait_min_seconds", 4))
         wait_max = float(retry_cfg.get("wait_max_seconds", 60))
@@ -130,11 +130,11 @@ class OpenAIExtractor:
         self.text_params: Dict[str, Any] = tm.get("text", {"verbosity": "medium"})
         # Optional service tier from concurrency config
         try:
-            trans_cfg = (self.concurrency_config.get("concurrency", {}) or {}).get("transcription", {}) or {}
+            extraction_cfg = (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
         except Exception:
-            trans_cfg = {}
+            extraction_cfg = {}
 
-        raw_tier = trans_cfg.get("service_tier")
+        raw_tier = extraction_cfg.get("service_tier")
         service_tier_normalized: Optional[str]
         if raw_tier is None:
             service_tier_normalized = None
@@ -152,7 +152,7 @@ class OpenAIExtractor:
 
         # Configure aiohttp timeouts and connector pool based on concurrency settings
         try:
-            conn_limit = int(trans_cfg.get("concurrency_limit", 100))
+            conn_limit = int(extraction_cfg.get("concurrency_limit", 100))
             if conn_limit <= 0:
                 conn_limit = 100
         except Exception:
@@ -179,7 +179,7 @@ class OpenAIExtractor:
                 "sock_read": 420.0,
             }
 
-        timeout_overrides = trans_cfg.get("timeouts", {}) if isinstance(trans_cfg.get("timeouts"), dict) else {}
+        timeout_overrides = extraction_cfg.get("timeouts", {}) if isinstance(extraction_cfg.get("timeouts"), dict) else {}
         total_timeout = float(timeout_overrides.get("total", default_timeouts["total"]))
         connect_timeout = float(timeout_overrides.get("connect", default_timeouts["connect"]))
         sock_connect_timeout = float(timeout_overrides.get("sock_connect", default_timeouts["sock_connect"]))
