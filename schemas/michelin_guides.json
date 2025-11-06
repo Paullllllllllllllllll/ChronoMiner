@@ -1,6 +1,6 @@
 {
-  "name": "MichelinGuideEntries",
-  "schema_version": "1.0",
+  "name": "MichelinGuides",
+  "schema_version": "1.1",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -8,464 +8,417 @@
     "properties": {
       "contains_no_content_of_requested_type": {
         "type": "boolean",
-        "description": "True, wenn der Input keine Michelin-relevanten Einträge enthält; sonst false."
+        "description": "Set to true if the input text contains no bibliographic entries. Otherwise, set to false."
       },
       "entries": {
         "type": "array",
-        "description": "Liste von Etablissements (Restaurants; optional Hotels) mit ihren jahresbezogenen Guide-Einträgen.",
+        "description": "Array of Michelin Guide establishments extracted from the given page or chunk.",
         "items": {
           "type": "object",
+          "description": "One establishment as listed on the given page/chunk of a Michelin Guide.",
           "properties": {
-            "estab_name_raw": {
+            "establishment_name": {
               "type": "string",
-              "description": "Name wie gedruckt/online dargestellt."
+              "description": "Restaurant name exactly as printed (normalized spacing/casing allowed)."
             },
-            "estab_name_norm": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ],
-              "description": "Bereinigter, kanonischer Name (für ID-Bildung)."
-            },
-            "estab_id": {
-              "type": "string",
-              "description": "Persistente ID über Jahre (z. B. Hash aus Name+Adresse+Ort)."
-            },
-            "estab_type": {
-              "anyOf": [
-                { "type": "string", "enum": ["Restaurant", "Hotel", "Other"] },
-                { "type": "null" }
-              ],
-              "description": "Haupttyp laut Guide (historisch: Hotels im roten Band)."
-            },
-            "address_raw": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ]
-            },
-            "postal_code": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ]
-            },
-            "city_raw": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ]
-            },
-            "city_norm": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ]
-            },
-            "admin_unit_1": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ],
-              "description": "Bundesland/Region/Departement o. ä."
-            },
-            "admin_unit_2": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ]
-            },
-            "country_iso": {
-              "type": "string",
-              "description": "ISO-3166-ALPHA-2/3 oder ALPHA-2 bevorzugt."
-            },
-            "latitude": {
-              "anyOf": [
-                { "type": "number" },
-                { "type": "null" }
-              ]
-            },
-            "longitude": {
-              "anyOf": [
-                { "type": "number" },
-                { "type": "null" }
-              ]
-            },
-            "web_url": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ],
-              "description": "URL des Betriebs (falls im Guide verlinkt)."
-            },
-            "cuisine_tags": {
-              "type": "array",
-              "items": {
-                "type": "string"
+            "location": {
+              "type": "object",
+              "description": "Locality line(s) as printed in the guide header around the entry.",
+              "properties": {
+                "city_or_town": {
+                  "type": ["string", "null"],
+                  "description": "City or town name where the establishment is located."
+                },
+                "neighbourhood_or_area": {
+                  "type": ["string", "null"],
+                  "description": "Neighbourhood or area designation within the city."
+                }
               },
-              "description": "Küchenlabels gemäß Guide; Mehrfachnennungen erlaubt."
+              "required": ["city_or_town", "neighbourhood_or_area"],
+              "additionalProperties": false
             },
-            "edition_info": {
-              "type": "array",
-              "description": "Jahresweise Informationen zum Etablissement im jeweiligen Länderguide.",
-              "items": {
-                "type": "object",
-                "properties": {
-                  "edition_year": {
-                    "type": "integer",
-                    "description": "Jahr der betreffenden Guide-Edition."
-                  },
-                  "guide_id": {
-                    "type": "string",
-                    "description": "Kanonischer Code, z. B. 'FR', 'DE', 'GBIE', 'ESPT', 'IT', 'CH', 'BE-LU', 'NL', 'NORDIC', 'AT'."
-                  },
-                  "coverage_scope": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "Country",
-                          "Region",
-                          "City",
-                          "Other"
-                        ]
-                      },
-                      { "type": "null" }
-                    ],
-                    "description": "Abdeckungslogik der Edition (Land/Region/Stadt)."
-                  },
-                  "language": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "German",
-                          "French",
-                          "Italian",
-                          "Spanish",
-                          "English",
-                          "Dutch",
-                          "Portuguese",
-                          "Danish",
-                          "Swedish",
-                          "Norwegian",
-                          "Finnish",
-                          "Icelandic",
-                          "Unknown",
-                          "Other"
-                        ]
-                      },
-                      { "type": "null" }
-                    ]
-                  },
-                  "distinction": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "Selected",
-                          "BibGourmand",
-                          "GreenStar",
-                          "1Star",
-                          "2Stars",
-                          "3Stars"
-                        ]
-                      },
-                      { "type": "null" }
-                    ],
-                    "description": "Höchste verliehene Auszeichnung in dieser Edition (Kombinationen durch Flags unten erfassen)."
-                  },
-                  "is_bib_gourmand": {
-                    "anyOf": [
-                      { "type": "boolean" },
-                      { "type": "null" }
-                    ]
-                  },
-                  "is_green_star": {
-                    "anyOf": [
-                      { "type": "boolean" },
-                      { "type": "null" }
-                    ]
-                  },
-                  "stars_numeric": {
-                    "anyOf": [
-                      { "type": "integer" },
-                      { "type": "null" }
-                    ],
-                    "description": "0; 1; 2; 3 – ausschließlich Küchenleistung."
-                  },
-                  "fork_spoon": {
-                    "anyOf": [
-                      { "type": "integer" },
-                      { "type": "null" }
-                    ],
-                    "description": "Komfort-/Ambience-Grad (1–5)."
-                  },
-                  "price_band_raw": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Preisband wie im Guide (z. B. €, €€, €€€)."
-                  },
-                  "price_range_norm": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "currency_iso": {
-                            "anyOf": [
-                              { "type": "string" },
-                              { "type": "null" }
-                            ]
-                          },
-                          "low_nominal": {
-                            "anyOf": [
-                              { "type": "number" },
-                              { "type": "null" }
-                            ]
-                          },
-                          "high_nominal": {
-                            "anyOf": [
-                              { "type": "number" },
-                              { "type": "null" }
-                            ]
-                          },
-                          "year_price_base": {
-                            "anyOf": [
-                              { "type": "integer" },
-                              { "type": "null" }
-                            ],
-                            "description": "Basisjahr der Nominalangabe (meist = edition_year)."
-                          },
-                          "low_real": {
-                            "anyOf": [
-                              { "type": "number" },
-                              { "type": "null" }
-                            ],
-                            "description": "Reale Preise (CPI-deflationiert)."
-                          },
-                          "high_real": {
-                            "anyOf": [
-                              { "type": "number" },
-                              { "type": "null" }
-                            ]
-                          },
-                          "ppp_adjusted": {
-                            "anyOf": [
-                              { "type": "boolean" },
-                              { "type": "null" }
-                            ],
-                            "description": "True, wenn PPP-Korrektur angewendet."
-                          }
-                        },
-                        "required": [
-                          "currency_iso",
-                          "low_nominal",
-                          "high_nominal",
-                          "year_price_base",
-                          "low_real",
-                          "high_real",
-                          "ppp_adjusted"
-                        ],
-                        "additionalProperties": false
-                      },
-                      { "type": "null" }
-                    ],
-                    "description": "Normalisierte Preisangaben (für Ländervergleiche und Zeitreihen)."
-                  },
-                  "inspector_note_short": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ]
-                  },
-                  "ancillary_symbols": {
-                    "type": "array",
-                    "items": {
-                      "type": "string"
-                    },
-                    "description": "Weitere Piktogramme (z. B. Terrasse, besondere Weinkarte)."
-                  },
-                  "symbol_legend_version": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Edition-spezifische Legendenversion (z. B. Hash/ID eines Legendenschnappschusses)."
-                  },
-                  "booking_json": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Serialisierte Buchungsinfos/Links, falls vorhanden."
-                  },
-                  "status_change": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "new",
-                          "unchanged",
-                          "promoted",
-                          "demoted",
-                          "deleted"
-                        ]
-                      },
-                      { "type": "null" }
-                    ]
-                  },
-                  "events": {
-                    "type": "array",
-                    "items": {
-                      "type": "object",
-                      "properties": {
-                        "event_type": {
-                          "type": "string",
-                          "enum": [
-                            "first_listed",
-                            "first_star",
-                            "promoted",
-                            "demoted",
-                            "dropped",
-                            "reopened",
-                            "rebranded",
-                            "other"
-                          ]
-                        },
-                        "old_distinction": {
-                          "anyOf": [
-                            { "type": "string" },
-                            { "type": "null" }
-                          ]
-                        },
-                        "new_distinction": {
-                          "anyOf": [
-                            { "type": "string" },
-                            { "type": "null" }
-                          ]
-                        },
-                        "note": {
-                          "anyOf": [
-                            { "type": "string" },
-                            { "type": "null" }
-                          ]
-                        }
-                      },
-                      "required": [
-                        "event_type",
-                        "old_distinction",
-                        "new_distinction",
-                        "note"
-                      ],
-                      "additionalProperties": false
-                    }
-                  },
-                  "provenance": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "source_type": {
-                            "type": "string",
-                            "enum": [
-                              "print",
-                              "web",
-                              "app",
-                              "other"
-                            ]
-                          },
-                          "page_or_url": {
-                            "anyOf": [
-                              { "type": "string" },
-                              { "type": "null" }
-                            ]
-                          },
-                          "ocr_confidence": {
-                            "anyOf": [
-                              { "type": "number" },
-                              { "type": "null" }
-                            ]
-                          },
-                          "extraction_method": {
-                            "anyOf": [
-                              { "type": "string" },
-                              { "type": "null" }
-                            ]
-                          }
-                        },
-                        "required": [
-                          "source_type",
-                          "page_or_url",
-                          "ocr_confidence",
-                          "extraction_method"
-                        ],
-                        "additionalProperties": false
-                      },
-                      { "type": "null" }
-                    ],
-                    "description": "Beleg- und Qualitätsinformationen zur Extraktion."
-                  },
-                  "hotel_key_rating": {
-                    "anyOf": [
-                      { "type": "integer" },
-                      { "type": "null" }
-                    ],
-                    "description": "Nur falls Hotels integriert werden (1–3 Keys; digitales System)."
+            "address": {
+              "type": "object",
+              "description": "Postal address details if printed.",
+              "properties": {
+                "street": {
+                  "type": ["string", "null"],
+                  "description": "Street name of the establishment."
+                },
+                "house_number": {
+                  "type": ["string", "null"],
+                  "description": "House or building number."
+                },
+                "postal_code": {
+                  "type": ["string", "null"],
+                  "description": "Postal or ZIP code."
+                }
+              },
+              "required": ["street", "house_number", "postal_code"],
+              "additionalProperties": false
+            },
+            "contact": {
+              "type": "object",
+              "description": "Contact channels printed in the entry.",
+              "properties": {
+                "telephone": {
+                  "type": ["string", "null"],
+                  "description": "Telephone number as printed."
+                },
+                "fax": {
+                  "type": ["string", "null"],
+                  "description": "Fax number if provided."
+                },
+                "website": {
+                  "type": ["string", "null"],
+                  "description": "Website URL or web address."
+                },
+                "email": {
+                  "type": ["string", "null"],
+                  "description": "Email address if provided."
+                }
+              },
+              "required": ["telephone", "fax", "website", "email"],
+              "additionalProperties": false
+            },
+            "map_reference": {
+              "type": "object",
+              "description": "Town-plan or atlas grid references printed near the entry.",
+              "properties": {
+                "plan_grid": {
+                  "type": ["string", "null"],
+                  "description": "Grid reference code (e.g., 'A3', 'B2') for locating on map."
+                }
+              },
+              "required": ["plan_grid"],
+              "additionalProperties": false
+            },
+            "awards": {
+              "type": "object",
+              "description": "Quantitative and binary distinctions exactly as printed.",
+              "properties": {
+                "stars": {
+                  "type": ["integer", "null"],
+                  "description": "Number of MICHELIN Stars (0-3).",
+                  "minimum": 0,
+                  "maximum": 3
+                },
+                "bib_gourmand": {
+                  "type": ["boolean", "null"],
+                  "description": "Bib Gourmand award indicator."
+                },
+                "michelin_plate": {
+                  "type": ["boolean", "null"],
+                  "description": "MICHELIN Plate recognition indicator."
+                },
+                "green_star": {
+                  "type": ["boolean", "null"],
+                  "description": "Green Star for sustainable gastronomy."
+                },
+                "new_in_guide": {
+                  "type": ["boolean", "null"],
+                  "description": "Indicates if establishment is newly listed in this edition."
+                },
+                "pleasant_marker": {
+                  "type": ["boolean", "null"],
+                  "description": "Agréable/pleasant/angenehm mark if explicit."
+                },
+                "comfort_covers": {
+                  "type": ["integer", "null"],
+                  "description": "Historic comfort class for restaurants (1-5 'covers').",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              },
+              "required": ["stars", "bib_gourmand", "michelin_plate", "green_star", "new_in_guide", "pleasant_marker", "comfort_covers"],
+              "additionalProperties": false
+            },
+            "cuisine": {
+              "type": "object",
+              "description": "Culinary style and specialty information.",
+              "properties": {
+                "styles": {
+                  "type": ["array", "null"],
+                  "description": "Cuisine types or styles (e.g., 'French', 'Italian', 'Contemporary').",
+                  "items": {
+                    "type": "string"
                   }
                 },
-                "required": [
-                  "edition_year",
-                  "guide_id",
-                  "coverage_scope",
-                  "language",
-                  "distinction",
-                  "is_bib_gourmand",
-                  "is_green_star",
-                  "stars_numeric",
-                  "fork_spoon",
-                  "price_band_raw",
-                  "price_range_norm",
-                  "inspector_note_short",
-                  "ancillary_symbols",
-                  "symbol_legend_version",
-                  "booking_json",
-                  "status_change",
-                  "events",
-                  "provenance",
-                  "hotel_key_rating"
-                ],
-                "additionalProperties": false
-              }
+                "specialties": {
+                  "type": ["array", "null"],
+                  "description": "Signature dishes or specialties mentioned in the guide.",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "chef": {
+                  "type": ["string", "null"],
+                  "description": "Chef name if explicitly mentioned."
+                },
+                "keywords": {
+                  "type": ["array", "null"],
+                  "description": "Additional culinary keywords or descriptors.",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["styles", "specialties", "chef", "keywords"],
+              "additionalProperties": false
+            },
+            "opening": {
+              "type": "object",
+              "description": "Opening hours and closure patterns as printed.",
+              "properties": {
+                "lunch_hours": {
+                  "type": ["string", "null"],
+                  "description": "Lunch service hours or times."
+                },
+                "dinner_hours": {
+                  "type": ["string", "null"],
+                  "description": "Dinner service hours or times."
+                },
+                "days_closed": {
+                  "type": ["array", "null"],
+                  "description": "Days of the week when establishment is closed.",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "annual_closure": {
+                  "type": ["string", "null"],
+                  "description": "Annual closure periods (e.g., vacation dates)."
+                },
+                "open_for_breakfast": {
+                  "type": ["boolean", "null"],
+                  "description": "Indicates if breakfast service is available."
+                }
+              },
+              "required": ["lunch_hours", "dinner_hours", "days_closed", "annual_closure", "open_for_breakfast"],
+              "additionalProperties": false
+            },
+            "pricing": {
+              "type": "object",
+              "description": "Menu and à-la-carte price ranges.",
+              "properties": {
+                "currency": {
+                  "type": ["string", "null"],
+                  "description": "Currency code or symbol (e.g., 'EUR', '€', 'USD')."
+                },
+                "menu_price_min": {
+                  "type": ["number", "null"],
+                  "description": "Minimum price for set menus."
+                },
+                "menu_price_max": {
+                  "type": ["number", "null"],
+                  "description": "Maximum price for set menus."
+                },
+                "a_la_carte_price_min": {
+                  "type": ["number", "null"],
+                  "description": "Minimum price for à la carte dining."
+                },
+                "a_la_carte_price_max": {
+                  "type": ["number", "null"],
+                  "description": "Maximum price for à la carte dining."
+                },
+                "lunch_menu_price": {
+                  "type": ["number", "null"],
+                  "description": "Fixed price for lunch menu if specified separately."
+                },
+                "set_menus": {
+                  "type": ["array", "null"],
+                  "description": "Detailed information about specific set menu offerings.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "label": {
+                        "type": ["string", "null"],
+                        "description": "Name or description of the menu."
+                      },
+                      "price_min": {
+                        "type": ["number", "null"],
+                        "description": "Minimum price for this menu."
+                      },
+                      "price_max": {
+                        "type": ["number", "null"],
+                        "description": "Maximum price for this menu."
+                      }
+                    },
+                    "required": ["label", "price_min", "price_max"],
+                    "additionalProperties": false
+                  }
+                },
+                "price_note": {
+                  "type": ["string", "null"],
+                  "description": "Additional pricing notes or clarifications."
+                }
+              },
+              "required": ["currency", "menu_price_min", "menu_price_max", "a_la_carte_price_min", "a_la_carte_price_max", "lunch_menu_price", "set_menus", "price_note"],
+              "additionalProperties": false
+            },
+            "amenities": {
+              "type": "object",
+              "description": "Boolean mappings from printed pictograms/symbols.",
+              "properties": {
+                "wheelchair_access": {
+                  "type": ["boolean", "null"],
+                  "description": "Wheelchair accessibility available."
+                },
+                "air_conditioning": {
+                  "type": ["boolean", "null"],
+                  "description": "Air conditioning available."
+                },
+                "non_smoking": {
+                  "type": ["boolean", "null"],
+                  "description": "Non-smoking establishment or area."
+                },
+                "dogs_allowed": {
+                  "type": ["boolean", "null"],
+                  "description": "Dogs permitted. If 'no dogs' symbol appears, set to false and set no_dogs to true."
+                },
+                "no_dogs": {
+                  "type": ["boolean", "null"],
+                  "description": "Dogs explicitly not permitted."
+                },
+                "terrace": {
+                  "type": ["boolean", "null"],
+                  "description": "Terrace seating available."
+                },
+                "garden_or_park": {
+                  "type": ["boolean", "null"],
+                  "description": "Garden or park area on premises."
+                },
+                "outside_dining": {
+                  "type": ["boolean", "null"],
+                  "description": "Outdoor dining available."
+                },
+                "great_view": {
+                  "type": ["boolean", "null"],
+                  "description": "Establishment has a notable or scenic view."
+                },
+                "peaceful": {
+                  "type": ["boolean", "null"],
+                  "description": "Quiet or peaceful setting."
+                },
+                "notable_wine_list": {
+                  "type": ["boolean", "null"],
+                  "description": "Exceptional or extensive wine selection."
+                },
+                "notable_cocktail_list": {
+                  "type": ["boolean", "null"],
+                  "description": "Exceptional or extensive cocktail selection."
+                },
+                "private_dining_room": {
+                  "type": ["boolean", "null"],
+                  "description": "Private dining room available."
+                },
+                "conference_room": {
+                  "type": ["boolean", "null"],
+                  "description": "Conference or meeting room facilities."
+                },
+                "parking": {
+                  "type": ["boolean", "null"],
+                  "description": "Parking available on-site or nearby."
+                },
+                "garage": {
+                  "type": ["boolean", "null"],
+                  "description": "Garage parking available."
+                },
+                "valet_parking": {
+                  "type": ["boolean", "null"],
+                  "description": "Valet parking service available."
+                },
+                "mooring_or_landing": {
+                  "type": ["boolean", "null"],
+                  "description": "Boat mooring or landing facilities."
+                },
+                "open_for_breakfast": {
+                  "type": ["boolean", "null"],
+                  "description": "Breakfast service available."
+                },
+                "has_rooms": {
+                  "type": ["boolean", "null"],
+                  "description": "Restaurant/inn with letting rooms (symbol or text)."
+                }
+              },
+              "required": ["wheelchair_access", "air_conditioning", "non_smoking", "dogs_allowed", "no_dogs", "terrace", "garden_or_park", "outside_dining", "great_view", "peaceful", "notable_wine_list", "notable_cocktail_list", "private_dining_room", "conference_room", "parking", "garage", "valet_parking", "mooring_or_landing", "open_for_breakfast", "has_rooms"],
+              "additionalProperties": false
+            },
+            "rooms": {
+              "type": "object",
+              "description": "If 'has_rooms' is true and the guide prints room details.",
+              "properties": {
+                "room_count": {
+                  "type": ["integer", "null"],
+                  "description": "Number of guest rooms available."
+                },
+                "room_price_min": {
+                  "type": ["number", "null"],
+                  "description": "Minimum room price per night."
+                },
+                "room_price_max": {
+                  "type": ["number", "null"],
+                  "description": "Maximum room price per night."
+                },
+                "room_currency": {
+                  "type": ["string", "null"],
+                  "description": "Currency for room prices."
+                },
+                "breakfast_available": {
+                  "type": ["boolean", "null"],
+                  "description": "Breakfast included or available with rooms."
+                }
+              },
+              "required": ["room_count", "room_price_min", "room_price_max", "room_currency", "breakfast_available"],
+              "additionalProperties": false
+            },
+            "payments": {
+              "type": "object",
+              "description": "Boolean flags mapped from payment symbols/notes.",
+              "properties": {
+                "credit_cards_accepted": {
+                  "type": ["boolean", "null"],
+                  "description": "Credit cards accepted for payment."
+                },
+                "no_credit_cards": {
+                  "type": ["boolean", "null"],
+                  "description": "Credit cards explicitly not accepted."
+                },
+                "accept_visa": {
+                  "type": ["boolean", "null"],
+                  "description": "Visa cards accepted."
+                },
+                "accept_mastercard": {
+                  "type": ["boolean", "null"],
+                  "description": "Mastercard accepted."
+                },
+                "accept_amex": {
+                  "type": ["boolean", "null"],
+                  "description": "American Express accepted."
+                },
+                "accept_diners": {
+                  "type": ["boolean", "null"],
+                  "description": "Diners Club accepted."
+                },
+                "accept_jcb": {
+                  "type": ["boolean", "null"],
+                  "description": "JCB cards accepted."
+                }
+              },
+              "required": ["credit_cards_accepted", "no_credit_cards", "accept_visa", "accept_mastercard", "accept_amex", "accept_diners", "accept_jcb"],
+              "additionalProperties": false
+            },
+            "raw_entry_text": {
+              "type": "string",
+              "description": "Verbatim text span for this establishment (for QA and provenance)."
             }
           },
-          "required": [
-            "estab_name_raw",
-            "estab_name_norm",
-            "estab_id",
-            "estab_type",
-            "address_raw",
-            "postal_code",
-            "city_raw",
-            "city_norm",
-            "admin_unit_1",
-            "admin_unit_2",
-            "country_iso",
-            "latitude",
-            "longitude",
-            "web_url",
-            "cuisine_tags",
-            "edition_info"
-          ],
+          "required": ["establishment_name", "location", "address", "contact", "map_reference", "awards", "cuisine", "opening", "pricing", "amenities", "rooms", "payments", "raw_entry_text"],
           "additionalProperties": false
         }
       }
     },
-    "required": [
-      "contains_no_content_of_requested_type",
-      "entries"
-    ],
+    "required": ["contains_no_content_of_requested_type", "entries"],
     "additionalProperties": false
   }
 }
