@@ -95,10 +95,21 @@ class FileProcessorRefactored:
         logger.info(f"Starting processing for file: {file_path}")
 
         # Read and normalize text
+        # OpenAI API requires UTF-8, so try UTF-8 first, then fallback to detection
         try:
-            encoding = TextProcessor.detect_encoding(file_path)
-            with file_path.open("r", encoding=encoding) as f:
-                lines = f.readlines()
+            try:
+                with file_path.open("r", encoding="utf-8") as f:
+                    lines = f.readlines()
+                logger.info(f"Successfully read file {file_path.name} using UTF-8 encoding")
+            except UnicodeDecodeError:
+                # Fallback for non-UTF-8 files
+                messenger.warning(f"File {file_path.name} is not UTF-8, attempting encoding detection...")
+                logger.warning(f"UTF-8 decode failed for {file_path.name}, using chardet detection")
+                encoding = TextProcessor.detect_encoding(file_path)
+                messenger.info(f"Detected encoding: {encoding}")
+                with file_path.open("r", encoding=encoding) as f:
+                    lines = f.readlines()
+            
             normalized_lines = [TextProcessor.normalize_text(line) for line in lines]
             messenger.info(f"Successfully read and normalized {len(lines)} lines from {file_path.name}")
         except Exception as e:
