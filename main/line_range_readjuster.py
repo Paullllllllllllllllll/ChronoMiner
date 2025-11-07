@@ -313,7 +313,6 @@ async def main_async() -> None:
         print(f"[ERROR] {exc}; cannot select schema for input paths.")
         sys.exit(1)
     
-    basic_context = load_basic_context()
     default_context_window = int(chunking_config.get("line_range_context_window", 6) or 6)
     
     # Determine execution mode
@@ -331,7 +330,6 @@ async def main_async() -> None:
             chunking_config=chunking_config,
             matching_config=matching_config,
             retry_config=retry_config,
-            basic_context=basic_context,
             default_context_window=default_context_window,
         )
     else:
@@ -346,7 +344,6 @@ async def main_async() -> None:
             chunking_config=chunking_config,
             matching_config=matching_config,
             retry_config=retry_config,
-            basic_context=basic_context,
             default_context_window=default_context_window,
         )
 
@@ -359,7 +356,6 @@ async def _run_interactive_mode(
     chunking_config: Dict[str, any],
     matching_config: Dict[str, any],
     retry_config: Dict[str, any],
-    basic_context: Optional[str],
     default_context_window: int,
 ) -> None:
     """Run line range readjustment in interactive mode with back navigation support."""
@@ -383,6 +379,10 @@ async def _run_interactive_mode(
             state["selected_schema"] = selected_schema
             state["selected_schema_name"] = selected_schema_name
             state["boundary_type"] = selected_schema_name
+            
+            # Load schema-specific basic context
+            state["basic_context"] = load_basic_context(schema_name=selected_schema_name)
+            logger.info(f"Loaded basic context for schema '{selected_schema_name}'")
             
             # Determine base directory
             if selected_schema_name in schemas_paths:
@@ -483,7 +483,7 @@ async def _run_interactive_mode(
         context_window=state["context_window"],
         prompt_path=state["prompt_path"],
         boundary_type=state["boundary_type"],
-        basic_context=basic_context,
+        basic_context=state["basic_context"],
         context_settings=state["context_settings"],
         context_manager=state["context_manager"],
         matching_config=matching_config,
@@ -530,7 +530,6 @@ async def _run_cli_mode(
     chunking_config: Dict[str, any],
     matching_config: Dict[str, any],
     retry_config: Dict[str, any],
-    basic_context: Optional[str],
     default_context_window: int,
 ) -> None:
     """Run line range readjustment in CLI mode."""
@@ -565,6 +564,10 @@ async def _run_cli_mode(
     
     boundary_type = args.schema
     print(f"[INFO] Using boundary type: {boundary_type}")
+    
+    # Load schema-specific basic context
+    basic_context = load_basic_context(schema_name=boundary_type)
+    logger.info(f"Loaded basic context for schema '{boundary_type}'")
     
     # Setup context
     use_additional = bool(args.use_additional_context or args.use_default_context)

@@ -40,21 +40,28 @@ def _read_text_file(file_path: Path) -> Optional[str]:
         return None
 
 
-@lru_cache(maxsize=4)
-def load_basic_context(basic_context_dir: Optional[str] = None) -> str:
+@lru_cache(maxsize=32)
+def load_basic_context(
+    basic_context_dir: Optional[str] = None,
+    schema_name: Optional[str] = None
+) -> str:
     """
-    Load and concatenate all basic context files.
+    Load basic context files for a specific schema or all schemas.
 
     Parameters
     ----------
     basic_context_dir : Optional[str]
         Optional directory containing ``*.txt`` files with reusable context.
+    schema_name : Optional[str]
+        Optional schema name to load context for. If provided, only loads
+        the context file matching this schema (e.g., "BibliographicEntries.txt").
+        If None, loads all context files (legacy behavior).
 
     Returns
     -------
     str
         The aggregated basic context separated by blank lines. Empty string
-        when no files are present.
+        when no files are present or schema-specific file not found.
     """
     directory = _normalize_directory(Path(basic_context_dir) if basic_context_dir else None)
     if not directory.exists():
@@ -62,10 +69,29 @@ def load_basic_context(basic_context_dir: Optional[str] = None) -> str:
         return ""
 
     snippets = []
-    for context_file in sorted(directory.glob("*.txt")):
-        snippet = _read_text_file(context_file)
-        if snippet:
-            snippets.append(snippet)
+    
+    # If schema_name is provided, load only that specific context file
+    if schema_name:
+        context_file = directory / f"{schema_name}.txt"
+        if context_file.exists():
+            snippet = _read_text_file(context_file)
+            if snippet:
+                snippets.append(snippet)
+                logger.info("Loaded basic context for schema: %s", schema_name)
+            else:
+                logger.warning("Basic context file exists but is empty: %s", context_file)
+        else:
+            logger.warning("No basic context file found for schema: %s", schema_name)
+    else:
+        # Legacy behavior: load all context files
+        logger.warning(
+            "Loading all basic context files (no schema_name provided). "
+            "This may inject irrelevant context into prompts."
+        )
+        for context_file in sorted(directory.glob("*.txt")):
+            snippet = _read_text_file(context_file)
+            if snippet:
+                snippets.append(snippet)
 
     return "\n\n".join(snippets)
 

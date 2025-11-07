@@ -352,7 +352,7 @@ async def _run_interactive_mode(
         elif current_step == "confirm":
             # Handle line range adjustment workflow if selected
             if state["global_chunking_method"] == "adjust-line-ranges":
-                basic_context = load_basic_context()
+                basic_context = load_basic_context(schema_name=state["selected_schema_name"])
                 matching_config = (chunking_and_context_config or {}).get("matching", {})
                 retry_config = (chunking_and_context_config or {}).get("retry", {})
                 
@@ -612,7 +612,7 @@ async def _run_cli_mode(
     
     # Handle line range adjustment if requested
     if global_chunking_method == "adjust-line-ranges":
-        basic_context = load_basic_context()
+        basic_context = load_basic_context(schema_name=selected_schema_name)
         matching_config = (chunking_and_context_config or {}).get("matching", {})
         retry_config = (chunking_and_context_config or {}).get("retry", {})
         

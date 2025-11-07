@@ -49,7 +49,6 @@ class FileProcessorRefactored:
         self.concurrency_config = concurrency_config or {}
         
         self.text_processor = TextProcessor()
-        self.basic_context = load_basic_context()
         
         # Initialize chunking service
         chunking_settings = chunking_config.get("chunking", {})
@@ -148,6 +147,10 @@ class FileProcessorRefactored:
         if context_settings.get("use_additional_context", False):
             self._log_context_usage(messenger, context_settings, additional_context, schema_name, file_path)
 
+        # Load schema-specific basic context
+        basic_context = load_basic_context(schema_name=schema_name)
+        logger.info(f"Loaded basic context for schema '{schema_name}' ({len(basic_context)} chars)")
+
         # Render system prompt
         schema_definition = selected_schema.get("schema", {})
         effective_dev_message = render_prompt_with_schema(
@@ -156,7 +159,7 @@ class FileProcessorRefactored:
             schema_name=schema_name,
             inject_schema=inject_schema,
             additional_context=additional_context,
-            basic_context=self.basic_context,
+            basic_context=basic_context,
         )
 
         # Get schema handler
