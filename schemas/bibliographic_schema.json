@@ -310,6 +310,13 @@
                     ],
                     "description": "True if this edition contains illustrations, plates, or engravings; false if it does not; null if unknown."
                   },
+                  "is_manuscript": {
+                    "anyOf": [
+                      { "type": "boolean" },
+                      { "type": "null" }
+                    ],
+                    "description": "True if this edition is handwritten (not printed); false if it is not; null if unknown."
+                  },
                   "price_information": {
                     "anyOf": [
                       {
@@ -351,6 +358,7 @@
                   "format",
                   "pages",
                   "has_illustrations",
+                  "is_manuscript",
                   "price_information"
                 ],
                 "additionalProperties": false
