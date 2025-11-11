@@ -105,7 +105,7 @@
                             { "type": "string" },
                             { "type": "null" }
                           ],
-                          "description": "Country of publication, modern English. Example: 'Italy'. Use null if not given; use 'Unknown' if you cannot determine the modern equivalent."
+                          "description": "Country of publication, modern English. Example: 'Italy'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent."
                         },
                         "city": {
                           "anyOf": [
