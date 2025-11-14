@@ -237,7 +237,7 @@
                       },
                       { "type": "null" }
                     ],
-                    "description": "Language of this edition. Use a listed value, or null if not stated. Example: 'Italian'."
+                    "description": "Language of this edition. Use a listed value, can be deduced from context. Example: 'Italian'."
                   },
                   "translated_from": {
                     "anyOf": [
@@ -274,7 +274,7 @@
                       },
                       { "type": "null" }
                     ],
-                    "description": "The source language from which this edition was translated. Use a listed value, or null if not a translation. Example: 'French'."
+                    "description": "The source language from which this edition was translated. Use a listed value, can be deduced from context. Use null if not translated. Example: 'French'."
                   },
                   "format": {
                     "anyOf": [
