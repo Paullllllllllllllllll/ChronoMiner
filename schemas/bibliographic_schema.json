@@ -105,14 +105,14 @@
                             { "type": "string" },
                             { "type": "null" }
                           ],
-                          "description": "Country of publication, modern English. Example: 'Italy'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent."
+                          "description": "Country of publication, modern English, suitable for programmatic matching. Example: 'Italy'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent."
                         },
                         "city": {
                           "anyOf": [
                             { "type": "string" },
                             { "type": "null" }
                           ],
-                          "description": "City of publication, modern English. Example: 'Rome'. Use null if given; use 'Unknown' if you cannot determine the modern equivalent."
+                          "description": "City of publication, modern English, suitable for programmatic matching. Example: 'Rome'. Use null if given; use 'Unknown' if you cannot determine the modern equivalent."
                         }
                       },
                       "required": ["country", "city"],
