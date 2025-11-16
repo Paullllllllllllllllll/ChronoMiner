@@ -1,6 +1,6 @@
 {
   "name": "BibliographicEntries",
-  "schema_version": "4.0",
+  "schema_version": "4.1",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -17,11 +17,11 @@
           "properties": {
             "full_title": {
               "type": "string",
-              "description": "Complete official title in plain text, preserving archaic spelling."
+              "description": "Complete official title in plain text, preserving archaic spelling, but without formatting elements such as brackets (e.g. []) or markdown symbols."
             },
             "short_title": {
               "type": "string",
-              "description": "A concise title or reference name in plain text. Example: 'Art of Cooking'."
+              "description": "A concise title or reference name in plain text, without formatting elements such as brackets (e.g. []) or markdown symbols. Example: 'Art of Cooking'."
             },
             "main_author": {
               "type": "string",
