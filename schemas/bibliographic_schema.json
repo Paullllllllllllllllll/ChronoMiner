@@ -1,6 +1,6 @@
 {
   "name": "BibliographicEntries",
-  "schema_version": "4.1",
+  "schema_version": "4.2",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -26,6 +26,10 @@
             "main_author": {
               "type": "string",
               "description": "Primary author name as: First Name Middle Name(s) Last Name. Use 'Anonymous' if no author is attributed. Example: 'François Pierre de la Varenne'."
+            },
+            "institutional_main_author": {
+              "type": "boolean",
+              "description": "True if the main author is institutional (e.g. a comune, a chamber of commerce, etc .); false if not."
             },
             "short_note": {
               "anyOf": [
@@ -362,6 +366,7 @@
             "full_title",
             "short_title",
             "main_author",
+            "institutional_main_author",
             "short_note",
             "library_abbreviation",
             "volumes_overview",
