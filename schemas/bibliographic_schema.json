@@ -1,6 +1,6 @@
 {
   "name": "BibliographicEntries",
-  "schema_version": "3.8",
+  "schema_version": "4.0",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -25,21 +25,21 @@
             },
             "main_author": {
               "type": "string",
-              "description": "Primary author name. Use 'Anonymous' if no author is attributed."
+              "description": "Primary author name as: First Name Middle Name(s) Last Name. Use 'Anonymous' if no author is attributed. Example: 'François Pierre de la Varenne'."
             },
             "short_note": {
               "anyOf": [
                 { "type": "string" },
                 { "type": "null" }
               ],
-              "description": "A concise 3-10 sentence note with additional historiographical information (content, authors, historical context, etc.) about this work in modern english. Set to null if no such information is given."
+              "description": "A concise 3-10 sentence note with additional historiographical information (content, authors, historical context, etc.) about this work in modern english. Set to null if no such information is given in the input text."
                   },
             "library_abbreviation": {
               "anyOf": [
                 { "type": "string" },
                 { "type": "null" }
               ],
-              "description": "Abbreviation of the holding library or archive of the first/main edition of the work. Use null if not mentioned. Example: 'UBA = Universiteitsbibliotheek Amsterdam'"
+              "description": "Abbreviation of the holding library or archive of the first known/surviving edition of the work. Use null if not mentioned. Example: 'UBA = Universiteitsbibliotheek Amsterdam'"
             },
             "volumes_overview": {
               "anyOf": [
@@ -129,7 +129,8 @@
                           "anyOf": [
                             { "type": "string" },
                             { "type": "null" }
-                          ]
+                          ],
+                          "description": "Contributor name as: First Name Middle Name(s) Last Name. Use 'Anonymous' if contributor is anonymous."
                         },
                         "role": {
                           "anyOf": [
@@ -168,15 +169,7 @@
                       "required": ["name", "role"],
                       "additionalProperties": false
                     },
-                    "description": "Additional contributors for this specific edition (editors, translators, etc.). Use empty array if none."
-                  },
-                  "publishers": {
-                    "type": "array",
-                    "items": {
-                      "type": "string",
-                      "description": "Name of publisher or printer as recorded."
-                    },
-                    "description": "Publishers or printers for this edition. Use empty array if not specified."
+                    "description": "Contributors for this specific edition (editors, translators, etc.), including the main author. Use empty array if none."
                   },
                   "edition_category": {
                     "anyOf": [
@@ -351,7 +344,6 @@
                   "volume_numbers",
                   "publication_locations",
                   "contributors",
-                  "publishers",
                   "edition_category",
                   "language",
                   "translated_from",
