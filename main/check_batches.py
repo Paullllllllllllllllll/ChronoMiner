@@ -369,7 +369,7 @@ def process_all_batches(
         schema_config: Dict[str, Any],
         ui: Optional[UserInterface]
 ) -> None:
-    temp_files: List[Path] = list(root_folder.rglob("*_temp.jsonl"))
+    temp_files: List[Path] = list(root_folder.rglob("*_temp*.jsonl"))
     if not temp_files:
         _safe_print(ui, f"No temporary batch files found in {root_folder}", "info")
         logger.info(f"No temporary batch files found in {root_folder}.")
