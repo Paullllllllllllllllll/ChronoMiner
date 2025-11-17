@@ -1,6 +1,7 @@
 # modules/batching.py
 
 import logging
+import os
 from pathlib import Path
 from typing import List, Dict, Any
 
@@ -104,7 +105,12 @@ def submit_batch(batch_file_path: Path) -> Dict[str, Any]:
     :param batch_file_path: Path to the batch file (in binary mode).
     :return: The response dictionary from the batch submission.
     """
-    client: OpenAI = OpenAI()  # Instantiate a new client instance
+    # Get API key and strip any whitespace to prevent header errors
+    api_key = os.getenv("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise ValueError("OPENAI_API_KEY environment variable is not set or is empty")
+    
+    client: OpenAI = OpenAI(api_key=api_key)  # Instantiate a new client instance with stripped key
     with batch_file_path.open("rb") as f:
         file_response = client.files.create(
             file=f,

@@ -74,7 +74,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         console_print,
     ) -> List[Dict[str, Any]]:
         """Process chunks synchronously with concurrent API calls."""
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
         if not api_key:
             error_msg = "OPENAI_API_KEY is not set in environment variables."
             logger.error(error_msg)

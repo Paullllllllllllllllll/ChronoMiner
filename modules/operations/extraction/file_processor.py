@@ -369,7 +369,7 @@ class FileProcessor:
 			)
 		else:
 			# Synchronous processing: Process each chunk using async API calls
-			api_key: Optional[str] = os.getenv("OPENAI_API_KEY")
+			api_key: Optional[str] = os.getenv("OPENAI_API_KEY", "").strip()
 			if not api_key:
 				logger.error(
 					"OPENAI_API_KEY is not set in environment variables.")

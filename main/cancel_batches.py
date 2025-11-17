@@ -11,6 +11,7 @@ Supports two execution modes:
 2. CLI Mode: Command-line arguments with optional --force flag
 """
 
+import os
 from argparse import ArgumentParser, Namespace
 from typing import Any, List, Set
 
@@ -29,7 +30,10 @@ class CancelBatchesScript(DualModeScript):
     
     def __init__(self):
         super().__init__("cancel_batches")
-        self.client: OpenAI = OpenAI()
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set or is empty")
+        self.client: OpenAI = OpenAI(api_key=api_key)
     
     def create_argument_parser(self) -> ArgumentParser:
         """Create argument parser for CLI mode."""

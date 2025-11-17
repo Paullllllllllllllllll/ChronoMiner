@@ -151,7 +151,7 @@ class LineRangeReadjuster:
         with safe_text_file.open("r", encoding=encoding) as handle:
             raw_lines = handle.readlines()
 
-        api_key = os.getenv("OPENAI_API_KEY")
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
         if not api_key:
             raise RuntimeError("OPENAI_API_KEY environment variable is required for readjustment")
 

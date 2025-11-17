@@ -7,6 +7,7 @@ Supports two execution modes:
 """
 
 import json
+import os
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -198,7 +199,10 @@ class RepairExtractionsScript(DualModeScript):
     
     def __init__(self):
         super().__init__("repair_extractions")
-        self.client: OpenAI = OpenAI()
+        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        if not api_key:
+            raise ValueError("OPENAI_API_KEY environment variable is not set or is empty")
+        self.client: OpenAI = OpenAI(api_key=api_key)
         self.repo_info_list: List[Tuple[str, Path, Dict[str, Any]]] = []
         self.processing_settings: Dict[str, Any] = []
     
