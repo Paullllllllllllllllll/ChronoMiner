@@ -438,8 +438,8 @@ def process_all_batches(
                         local_batch_cache[batch_id] = batch
                     except Exception as exc:
                         logger.error(f"Error retrieving batch {batch_id}: {exc}")
-                        _safe_print(ui, f"Failed to retrieve batch {batch_id}", "error")
-                        failed_batches.append((track, f"error: {exc}"))
+                        _safe_print(ui, f"Batch {batch_id} not found (may have expired or been deleted)", "error")
+                        failed_batches.append((track, f"not found: {exc}"))
                         missing_batches.append(batch_id)
                         all_finished = False
                         continue
@@ -447,15 +447,20 @@ def process_all_batches(
                 status: str = str(batch.get("status", "")).lower()
                 if status == "completed":
                     completed_batches.append(track)
+                    _safe_print(ui, f"Batch {batch_id}: completed ✓", "success")
+                    logger.info(f"Batch {batch_id} completed.")
                 elif status in {"expired", "failed", "cancelled"}:
                     if status == "failed":
                         diagnosis: str = diagnose_batch_failure(batch_id, client)
                         _safe_print(ui, f"Batch {batch_id} failed: {diagnosis}", "warning")
                         logger.warning(f"Batch {batch_id} failed: {diagnosis}")
+                    else:
+                        _safe_print(ui, f"Batch {batch_id}: {status}", "warning")
+                        logger.warning(f"Batch {batch_id} is {status}.")
                     failed_batches.append((track, status))
                     all_finished = False
                 else:
-                    _safe_print(ui, f"Batch {batch_id} status: {status} (waiting for completion)", "info")
+                    _safe_print(ui, f"Batch {batch_id}: {status} (still processing...)", "info")
                     logger.info(f"Batch {batch_id} is {status}; not finished.")
                     all_finished = False
 
@@ -466,7 +471,11 @@ def process_all_batches(
                 )
 
             if not all_finished:
-                _safe_print(ui, f"Not all batches are completed for {temp_file.name}. Skipping finalization.", "warning")
+                in_progress_count = len([t for t in tracking if t.get("batch_id") not in missing_batches]) - len(completed_batches)
+                if in_progress_count > 0:
+                    _safe_print(ui, f"{in_progress_count} batch(es) still processing. Run this script again once complete.", "info")
+                else:
+                    _safe_print(ui, f"Cannot finalize {temp_file.name} - some batches failed or expired.", "warning")
                 logger.info(f"Skipping finalization for {temp_file} (incomplete batches).")
                 continue
 
