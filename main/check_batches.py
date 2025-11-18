@@ -156,6 +156,50 @@ def _download_error_file(
     return None
 
 
+def _group_temp_files_by_base(temp_files: List[Path]) -> Dict[str, List[Path]]:
+    """Group temp files by their base identifier (removing _part suffixes).
+    
+    For example:
+    - file_temp.jsonl -> base: file_temp
+    - file_temp_part1.jsonl, file_temp_part2.jsonl -> base: file_temp
+    """
+    groups: Dict[str, List[Path]] = {}
+    
+    for temp_file in temp_files:
+        stem = temp_file.stem
+        # Remove _part{n} suffix if present
+        base_match = re.match(r"(.+?)(?:_part\d+)?$", stem)
+        if base_match:
+            base_identifier = base_match.group(1)
+        else:
+            base_identifier = stem
+        
+        if base_identifier not in groups:
+            groups[base_identifier] = []
+        groups[base_identifier].append(temp_file)
+    
+    # Sort files within each group by part number
+    for base_id in groups:
+        groups[base_id].sort(key=lambda p: (
+            int(re.search(r"_part(\d+)$", p.stem).group(1))
+            if re.search(r"_part(\d+)$", p.stem)
+            else 0
+        ))
+    
+    return groups
+
+
+def _get_output_directory(schema_config: Dict[str, Any], paths_config: Dict[str, Any]) -> Path:
+    """Determine the output directory from schema configuration."""
+    # Always use the output directory from schema config
+    output_dir = schema_config.get("output")
+    if output_dir:
+        return Path(output_dir)
+    
+    # Fallback: if output is not specified, this shouldn't happen but handle it
+    raise ValueError("Output directory not specified in schema configuration")
+
+
 def _recover_missing_batch_ids(
     temp_file: Path,
     identifier: str,
@@ -374,6 +418,22 @@ def process_all_batches(
         _safe_print(ui, f"No temporary batch files found in {root_folder}", "info")
         logger.info(f"No temporary batch files found in {root_folder}.")
         return
+    
+    # Group temp files by base identifier (handling split files)
+    file_groups = _group_temp_files_by_base(temp_files)
+    
+    # Determine output directory
+    try:
+        # Get paths_config to pass to _get_output_directory
+        config_loader = ConfigLoader()
+        config_loader.load_configs()
+        paths_config = config_loader.get_paths_config()
+        output_dir = _get_output_directory(schema_config, paths_config)
+        output_dir.mkdir(parents=True, exist_ok=True)
+    except Exception as exc:
+        logger.error(f"Failed to determine output directory: {exc}")
+        _safe_print(ui, f"Failed to determine output directory: {exc}", "error")
+        return
 
     try:
         batch_listing = list_all_batches(client)
@@ -384,20 +444,46 @@ def process_all_batches(
         logger.warning("Unable to list all batches (falling back to on-demand retrieval): %s", exc)
         batch_dict = {}
 
-    for temp_file in temp_files:
+    # Process each group of temp files (handling merged outputs for split files)
+    for base_identifier, temp_file_group in file_groups.items():
         try:
-            _safe_subsection(ui, f"Processing: {temp_file.name}")
-            logger.info(f"Processing temporary batch file: {temp_file}")
+            if len(temp_file_group) > 1:
+                _safe_subsection(ui, f"Processing merged file: {base_identifier} ({len(temp_file_group)} parts)")
+                logger.info(f"Processing {len(temp_file_group)} split files for base: {base_identifier}")
+            else:
+                _safe_subsection(ui, f"Processing: {temp_file_group[0].name}")
+                logger.info(f"Processing temporary batch file: {temp_file_group[0]}")
+            
+            # Aggregate responses and tracking from all parts
+            all_responses: List[Any] = []
+            all_tracking: List[Any] = []
+            combined_custom_id_map: Dict[str, Any] = {}
+            combined_order_map: Dict[str, int] = {}
 
-            # Load batch tracking info and responses
-            results: Dict[str, Any] = process_batch_output_file(temp_file)
-            responses: List[Any] = results.get("responses", [])
-            tracking: List[Any] = results.get("tracking", [])
-            custom_id_map, order_map = extract_custom_id_mapping(temp_file)
+            # Load batch tracking info and responses from all parts
+            for temp_file in temp_file_group:
+                results: Dict[str, Any] = process_batch_output_file(temp_file)
+                all_responses.extend(results.get("responses", []))
+                all_tracking.extend(results.get("tracking", []))
+                
+                # Merge custom_id mappings
+                custom_id_map, order_map = extract_custom_id_mapping(temp_file)
+                if custom_id_map:
+                    combined_custom_id_map.update(custom_id_map)
+                if order_map:
+                    # Offset order_map indices to account for multiple parts
+                    offset = len(combined_order_map)
+                    for cid, idx in order_map.items():
+                        combined_order_map[cid] = idx + offset
+            
+            responses = all_responses
+            tracking = all_tracking
+            custom_id_map = combined_custom_id_map if combined_custom_id_map else None
+            order_map = combined_order_map if combined_order_map else None
 
             if not tracking:
-                _safe_print(ui, f"Tracking information missing in {temp_file.name}. Skipping final output.", "warning")
-                logger.warning(f"Tracking information missing in {temp_file}. Skipping final output.")
+                _safe_print(ui, f"Tracking information missing for {base_identifier}. Skipping final output.", "warning")
+                logger.warning(f"Tracking information missing for {base_identifier}. Skipping final output.")
                 continue
 
             persist_recovered = processing_settings.get("persist_recovered_batch_ids", True)
@@ -408,14 +494,18 @@ def process_all_batches(
             }
             recovered_ids = set()
             if not batch_ids:
-                recovered_ids = _recover_missing_batch_ids(temp_file, temp_file.stem.replace("_temp", ""), persist_recovered)
-                for recovered in recovered_ids:
-                    tracking.append({"batch_id": recovered})
-                    batch_ids.add(recovered)
+                # Try to recover from any of the temp files in the group
+                for temp_file in temp_file_group:
+                    temp_identifier = temp_file.stem.replace("_temp", "")
+                    recovered = _recover_missing_batch_ids(temp_file, temp_identifier, persist_recovered)
+                    recovered_ids.update(recovered)
+                    for batch_id in recovered:
+                        tracking.append({"batch_id": batch_id})
+                        batch_ids.add(batch_id)
 
             if not batch_ids:
-                _safe_print(ui, f"No batch IDs found for {temp_file.name}. Unable to finalize this file.", "warning")
-                logger.warning("No batch IDs recovered for %s", temp_file)
+                _safe_print(ui, f"No batch IDs found for {base_identifier}. Unable to finalize this file.", "warning")
+                logger.warning("No batch IDs recovered for %s", base_identifier)
                 continue
 
             # Check batch status and retrieve completed results
@@ -428,7 +518,8 @@ def process_all_batches(
             for track in tracking:
                 batch_id: Any = track.get("batch_id")
                 if not batch_id:
-                    logger.error(f"Missing batch_id in tracking record in {temp_file}")
+                    logger.error(f"Missing batch_id in tracking record for {base_identifier}")
+                    continue
                 batch_id = str(batch_id)
                 batch: Optional[Dict[str, Any]] = local_batch_cache.get(batch_id)
                 if not batch:
@@ -467,7 +558,7 @@ def process_all_batches(
             # Display progress
             if ui:
                 ui.display_batch_processing_progress(
-                    temp_file, list(batch_ids), len(completed_batches), len(missing_batches), failed_batches
+                    temp_file_group[0], list(batch_ids), len(completed_batches), len(missing_batches), failed_batches
                 )
 
             if not all_finished:
@@ -475,28 +566,29 @@ def process_all_batches(
                 if in_progress_count > 0:
                     _safe_print(ui, f"{in_progress_count} batch(es) still processing. Run this script again once complete.", "info")
                 else:
-                    _safe_print(ui, f"Cannot finalize {temp_file.name} - some batches failed or expired.", "warning")
-                logger.info(f"Skipping finalization for {temp_file} (incomplete batches).")
+                    _safe_print(ui, f"Cannot finalize {base_identifier} - some batches failed or expired.", "warning")
+                logger.info(f"Skipping finalization for {base_identifier} (incomplete batches).")
                 continue
 
             # Retrieve responses from completed batches
             for track in completed_batches:
                 batch_responses: List[Any] = retrieve_responses_from_batch(
-                    track, client, temp_file.parent, local_batch_cache
+                    track, client, temp_file_group[0].parent, local_batch_cache
                 )
                 responses.extend(batch_responses)
 
             if not responses:
-                _safe_print(ui, f"No responses retrieved for {temp_file.name}. Cannot finalize.", "warning")
-                logger.warning(f"No responses retrieved for {temp_file}.")
+                _safe_print(ui, f"No responses retrieved for {base_identifier}. Cannot finalize.", "warning")
+                logger.warning(f"No responses retrieved for {base_identifier}.")
                 continue
 
             # Order responses
             ordered_responses: List[Any] = _order_responses(responses, order_map)
 
-            # Write final output
-            identifier: str = temp_file.stem.replace("_temp", "")
-            final_json_path: Path = temp_file.parent / f"{identifier}_final_output.json"
+            # Write final output to output directory (not temp file parent)
+            # Remove _temp suffix from base identifier
+            final_identifier = base_identifier.replace("_temp", "")
+            final_json_path: Path = output_dir / f"{final_identifier}_final_output.json"
 
             final_results: Dict[str, Any] = {
                 "responses": ordered_responses,
@@ -519,8 +611,21 @@ def process_all_batches(
             final_json_path.write_text(
                 json.dumps(final_results, indent=2), encoding="utf-8"
             )
-            _safe_print(ui, f"Final output written: {final_json_path.name}", "success")
+            _safe_print(ui, f"Final output written to: {final_json_path}", "success")
             logger.info(f"Final output written to {final_json_path}")
+            
+            # Log info about merged files
+            if len(temp_file_group) > 1:
+                _safe_print(ui, f"Merged {len(temp_file_group)} split files into single output", "info")
+            
+            # Summary of processed chunks
+            num_responses = len(ordered_responses)
+            num_batches = len(completed_batches)
+            _safe_print(
+                ui, 
+                f"✓ Successfully processed {num_responses} chunk(s) from {num_batches} batch(es) for '{final_identifier}'",
+                "success"
+            )
 
             # Generate additional output formats
             handler = get_schema_handler(schema_name)
@@ -528,27 +633,28 @@ def process_all_batches(
                 handler.convert_to_csv_safely(
                     final_json_path, final_json_path.with_suffix(".csv")
                 )
-                _safe_print(ui, f"CSV output generated for {identifier}", "info")
+                _safe_print(ui, f"CSV output generated for {final_identifier}", "info")
             if schema_config.get("docx_output", False):
                 handler.convert_to_docx_safely(
                     final_json_path, final_json_path.with_suffix(".docx")
                 )
-                _safe_print(ui, f"DOCX output generated for {identifier}", "info")
+                _safe_print(ui, f"DOCX output generated for {final_identifier}", "info")
             if schema_config.get("txt_output", False):
                 handler.convert_to_csv_safely(
                     final_json_path, final_json_path.with_suffix(".txt")
                 )
-                _safe_print(ui, f"TXT output generated for {identifier}", "info")
+                _safe_print(ui, f"TXT output generated for {final_identifier}", "info")
 
-            # Optionally remove temp file
+            # Optionally remove temp files (all parts in the group)
             if not processing_settings.get("retain_temporary_jsonl", False):
-                temp_file.unlink()
-                _safe_print(ui, f"Removed temporary file: {temp_file.name}", "info")
-                logger.info(f"Removed temporary file {temp_file}")
+                for temp_file in temp_file_group:
+                    temp_file.unlink()
+                    _safe_print(ui, f"Removed temporary file: {temp_file.name}", "info")
+                    logger.info(f"Removed temporary file {temp_file}")
 
         except Exception as exc:
-            logger.exception(f"Error processing {temp_file}", exc_info=exc)
-            _safe_print(ui, f"Failed to process {temp_file.name}: {exc}", "error")
+            logger.exception(f"Error processing {base_identifier}", exc_info=exc)
+            _safe_print(ui, f"Failed to process {base_identifier}: {exc}", "error")
 
 
 class CheckBatchesScript(DualModeScript):
