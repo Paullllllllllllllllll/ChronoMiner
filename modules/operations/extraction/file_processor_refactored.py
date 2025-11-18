@@ -5,6 +5,7 @@ Refactored file processor using modular components.
 Simplified orchestration with separated concerns.
 """
 
+import asyncio
 import json
 import logging
 from pathlib import Path
@@ -181,7 +182,10 @@ class FileProcessorRefactored:
 
         # Create processing strategy and execute
         strategy = create_processing_strategy(use_batch, self.concurrency_config)
-        
+
+        processing_cancelled = False
+        processing_exception: Optional[Exception] = None
+
         try:
             await strategy.process_chunks(
                 chunks=chunks,
@@ -193,20 +197,51 @@ class FileProcessorRefactored:
                 temp_jsonl_path=temp_jsonl_path,
                 console_print=messenger.console_print,
             )
-        except Exception as e:
-            messenger.error(f"Error during processing: {e}", exc_info=e)
-            return
-
-        # For synchronous processing, generate output files
-        if not use_batch:
-            await self._generate_output_files(
-                temp_jsonl_path, output_json_path, handler, schema_paths, messenger
+        except asyncio.CancelledError:
+            processing_cancelled = True
+            messenger.warning(
+                "Processing interrupted by user. Attempting to persist completed chunks before exit..."
             )
+            raise
+        except Exception as e:
+            processing_exception = e
+            messenger.error(f"Error during processing: {e}", exc_info=e)
+        finally:
+            wrote_output = False
+            if not use_batch:
+                try:
+                    if temp_jsonl_path.exists() and temp_jsonl_path.stat().st_size > 0:
+                        await asyncio.shield(
+                            self._generate_output_files(
+                                temp_jsonl_path,
+                                output_json_path,
+                                handler,
+                                schema_paths,
+                                messenger,
+                                partial=processing_cancelled or processing_exception is not None,
+                            )
+                        )
+                        wrote_output = True
+                    elif processing_cancelled:
+                        messenger.warning(
+                            "Processing was interrupted before any chunks completed; no output file generated."
+                        )
+                except Exception as gen_exc:
+                    messenger.error(f"Failed to write final output: {gen_exc}", exc_info=gen_exc)
 
-        # Cleanup temporary files
-        self._cleanup_temp_files(use_batch, temp_jsonl_path, messenger)
-        
-        messenger.success(f"Completed processing of file: {file_path.name}")
+            self._cleanup_temp_files(use_batch, temp_jsonl_path, messenger)
+
+            if processing_cancelled:
+                if wrote_output:
+                    messenger.warning(
+                        f"Processing cancelled. Partial results saved to {output_json_path}"
+                    )
+                # Allow cancellation to propagate after cleanup and messaging
+            elif processing_exception is None:
+                messenger.success(f"Completed processing of file: {file_path.name}")
+
+        if processing_exception is not None:
+            return
 
     def _determine_chunking_method(
         self,
@@ -276,7 +311,9 @@ class FileProcessorRefactored:
         output_json_path: Path,
         handler,
         schema_paths: Dict[str, Any],
-        messenger: MessagingAdapter
+        messenger: MessagingAdapter,
+        *,
+        partial: bool = False,
     ) -> None:
         """Generate final output files from temporary JSONL."""
         try:
@@ -309,7 +346,13 @@ class FileProcessorRefactored:
             
             with output_json_path.open("w", encoding="utf-8") as outf:
                 json.dump(results, outf, indent=2)
-            messenger.success(f"Final structured JSON output saved to {output_json_path}")
+
+            if partial:
+                messenger.warning(
+                    f"Partial structured JSON output saved to {output_json_path}"
+                )
+            else:
+                messenger.success(f"Final structured JSON output saved to {output_json_path}")
         except Exception as e:
             messenger.error(f"Failed to write final output: {e}", exc_info=e)
             return
