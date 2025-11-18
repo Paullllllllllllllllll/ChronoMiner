@@ -350,7 +350,7 @@ class UserInterface:
 
     def select_input_source(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """
-        Guide user through selecting input source (single file or folder).
+        Guide user through selecting input source (single file, multiple files, or folder).
 
         :param raw_text_dir: Base directory for input files
         :param allow_back: Whether to allow going back to previous step
@@ -360,6 +360,7 @@ class UserInterface:
 
         mode_options = [
             ("single", "Process a single file"),
+            ("multi", "Process selected files from a folder"),
             ("folder", "Process all files in a folder")
         ]
 
@@ -434,6 +435,76 @@ class UserInterface:
                             self.print_error(f"Please enter a number between 1 and {len(file_candidates)}.")
                     except ValueError:
                         self.print_error("Invalid input. Please enter a number.")
+
+        elif mode == "multi":
+            # Get all .txt files, filtering out auxiliary files
+            all_files = [f for f in raw_text_dir.rglob("*.txt")
+                         if not (f.name.endswith("_line_ranges.txt") or
+                                 f.name.endswith("_context.txt"))]
+            
+            if not all_files:
+                self.print_error(f"No .txt files found in {raw_text_dir}")
+                sys.exit(1)
+            
+            # Sort files for consistent ordering
+            all_files = sorted(all_files)
+            
+            self.print_info(f"Found {len(all_files)} text files in {raw_text_dir.name}")
+            self.console_print(self.HORIZONTAL_LINE)
+            
+            # Display all files with numbers
+            for idx, f in enumerate(all_files, 1):
+                self.console_print(f"  {idx}. {f.relative_to(raw_text_dir)}")
+            
+            self.console_print("")  # Empty line for spacing
+            self.print_info("Enter file numbers to process (comma-separated, e.g., '1,3,5' or '1-3,5')")
+            
+            while True:
+                selection = self.get_input("File selection", allow_back=True, allow_quit=True)
+                
+                if not selection:
+                    # User went back
+                    return self.select_input_source(raw_text_dir, allow_back=allow_back)
+                
+                try:
+                    # Parse comma-separated indices and ranges
+                    selected_indices = set()
+                    parts = selection.split(',')
+                    
+                    for part in parts:
+                        part = part.strip()
+                        if '-' in part:
+                            # Range like "1-3"
+                            start, end = part.split('-', 1)
+                            start_idx = int(start.strip())
+                            end_idx = int(end.strip())
+                            if start_idx < 1 or end_idx > len(all_files) or start_idx > end_idx:
+                                raise ValueError(f"Invalid range: {part}")
+                            selected_indices.update(range(start_idx, end_idx + 1))
+                        else:
+                            # Single index
+                            idx = int(part)
+                            if idx < 1 or idx > len(all_files):
+                                raise ValueError(f"Index {idx} out of range")
+                            selected_indices.add(idx)
+                    
+                    if not selected_indices:
+                        self.print_error("No files selected. Please enter at least one file number.")
+                        continue
+                    
+                    # Convert to file paths
+                    files = [all_files[idx - 1] for idx in sorted(selected_indices)]
+                    
+                    # Confirm selection
+                    self.print_success(f"Selected {len(files)} file(s):")
+                    for f in files:
+                        self.console_print(f"  • {f.name}")
+                    
+                    break
+                    
+                except ValueError as e:
+                    self.print_error(f"Invalid selection: {e}")
+                    self.print_info(f"Please enter numbers between 1 and {len(all_files)}, comma-separated")
 
         elif mode == "folder":
             # Get all .txt files, filtering out auxiliary files

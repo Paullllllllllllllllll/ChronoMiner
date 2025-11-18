@@ -381,6 +381,9 @@ The interactive interface guides you through:
 3. Select Processing Mode (Synchronous or Batch)
 4. Configure Additional Context (Optional)
 5. Select Input Files
+   - Process a single file
+   - Process selected files from a folder (choose specific files via comma-separated indices or ranges)
+   - Process all files in a folder
 6. Review and Confirm
 
 #### CLI Mode
