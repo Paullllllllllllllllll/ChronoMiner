@@ -2,24 +2,24 @@
 
 concurrency:
   text_processing:
-    concurrency_limit: 500 # Max number of concurrent requests
+    concurrency_limit: 20 # Max number of concurrent requests
     delay_between_tasks: 0.1 # Delay between single requests
   extraction:
-    concurrency_limit: 100     # HTTP connector pool sizing hint
-    delay_between_tasks: 0.0   # Optional delay between sequential tasks
-    service_tier: default      # One of: auto, default, flex, priority
+    concurrency_limit: 20     # HTTP connector pool sizing hint
+    delay_between_tasks: 0.1   # Optional delay between sequential tasks
+    service_tier: flex      # One of: auto, default, flex, priority
     timeouts:                  # Optional overrides per request stage (seconds)
       total: 900               # Overall request timeout
       connect: 120             # Connection acquisition timeout
       sock_connect: 120        # TCP handshake timeout
       sock_read: 600           # Server response timeout
     retry:                     # Retry policy for transient failures
-      attempts: 15
+      attempts: 150
       wait_min_seconds: 15
       wait_max_seconds: 120
       jitter_max_seconds: 5
 
 # Daily Token Limit
 daily_token_limit:
-  enabled: true  # Enable daily token limit enforcement
+  enabled: false  # Enable daily token limit enforcement
   daily_tokens: 9000000  # Maximum tokens per day (9 million)

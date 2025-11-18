@@ -1,7 +1,7 @@
 # chunking_and_context.yaml
 
 chunking:
-  default_tokens_per_chunk: 5000  # Chunk size (in tokens) for splitting the text into manageable pieces.
+  default_tokens_per_chunk: 3000  # Chunk size (in tokens) for splitting the text into manageable pieces.
 
 context: # Define whether or not to pass additional context to the model
   use_additional_context: true
@@ -58,4 +58,4 @@ retry:
 
   # max_gap_between_ranges: Maximum number of unassigned lines allowed between adjusted ranges
   # Set to 0 to keep ranges flush; increase if limited gaps are acceptable.
-  max_gap_between_ranges: 0
+  max_gap_between_ranges: 2

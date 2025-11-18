@@ -3,16 +3,11 @@ transcription_model:  # Model used with the OpenAI Responses API
   name: "gpt-5-mini"  # default model; change per OpenAI documentation
   max_output_tokens: 128000  # budget for model outputs
   reasoning:  # used for GPT-5 and o-series
-    effort: low
+    effort: medium
   text:  # GPT-5 family control
-    verbosity: medium
+    verbosity: high
   # Classic sampler controls apply to non-reasoning families (e.g., GPT-4o/4.1)
   temperature: 0.0
   top_p: 1.0
   frequency_penalty: 0.0
   presence_penalty: 0.0
-
-# Daily Token Limit
-daily_token_limit:
-  enabled: true  # Enable daily token limit enforcement
-  daily_tokens: 9000000  # Maximum tokens per day (9 million)
