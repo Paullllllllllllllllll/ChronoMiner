@@ -308,45 +308,46 @@ class UserInterface:
         :param allow_back: Whether to allow going back to previous step
         :return: Dictionary with context settings or None if back selected
         """
-        self.print_section_header("Additional Context")
+        while True:  # Allow retry within context configuration
+            self.print_section_header("Additional Context")
 
-        use_context_options = [
-            ("yes", "Yes - Provide additional context to improve extraction accuracy"),
-            ("no", "No - Process text without additional context")
-        ]
-
-        use_context = self.select_option(
-            "Would you like to provide additional context for extraction?",
-            use_context_options,
-            allow_back=allow_back,
-            allow_quit=True
-        )
-
-        if use_context is None:
-            return None
-
-        context_settings = {"use_additional_context": use_context == "yes"}
-
-        if context_settings["use_additional_context"]:
-            context_source_options = [
-                ("default", "Default - Use schema-specific context files from additional_context/"),
-                ("file", "File-specific - Use individual context files (e.g., filename_context.txt)")
+            use_context_options = [
+                ("yes", "Yes - Provide additional context to improve extraction accuracy"),
+                ("no", "No - Process text without additional context")
             ]
 
-            context_source = self.select_option(
-                "Which source of context would you like to use?",
-                context_source_options,
-                allow_back=True,
+            use_context = self.select_option(
+                "Would you like to provide additional context for extraction?",
+                use_context_options,
+                allow_back=allow_back,
                 allow_quit=True
             )
 
-            if context_source is None:
-                # User went back, loop again
-                return self.ask_additional_context_mode(allow_back=allow_back)
+            if use_context is None:
+                return None
 
-            context_settings["use_default_context"] = context_source == "default"
+            context_settings = {"use_additional_context": use_context == "yes"}
 
-        return context_settings
+            if context_settings["use_additional_context"]:
+                context_source_options = [
+                    ("default", "Default - Use schema-specific context files from additional_context/"),
+                    ("file", "File-specific - Use individual context files (e.g., filename_context.txt)")
+                ]
+
+                context_source = self.select_option(
+                    "Which source of context would you like to use?",
+                    context_source_options,
+                    allow_back=True,
+                    allow_quit=True
+                )
+
+                if context_source is None:
+                    # User went back - return to "Yes/No" context question
+                    continue
+
+                context_settings["use_default_context"] = context_source == "default"
+
+            return context_settings
 
     def select_input_source(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """
@@ -356,169 +357,183 @@ class UserInterface:
         :param allow_back: Whether to allow going back to previous step
         :return: List of selected file paths or None if back selected
         """
-        self.print_section_header("Input Selection")
+        while True:  # Allow retry on errors
+            self.print_section_header("Input Selection")
 
-        mode_options = [
-            ("single", "Process a single file"),
-            ("multi", "Process selected files from a folder"),
-            ("folder", "Process all files in a folder")
-        ]
-
-        mode = self.select_option(
-            "Select how you would like to specify input:",
-            mode_options,
-            allow_back=allow_back,
-            allow_quit=True
-        )
-
-        if mode is None:
-            return None
-
-        files = []
-
-        if mode == "single":
-            self.print_info("Enter the filename to process (with or without .txt extension)")
-            self.console_print("  • Enter the base text filename")
-            self.console_print("  • Or enter the line range filename ending in '_line_ranges.txt'")
-            
-            file_input = self.get_input("Filename", allow_back=True, allow_quit=True)
-            if not file_input:
-                # User went back
-                return self.select_input_source(raw_text_dir, allow_back=allow_back)
-            
-            normalized_input = (
-                file_input if file_input.lower().endswith(".txt") else f"{file_input}.txt"
-            )
-
-            wants_line_range = normalized_input.lower().endswith(
-                ("_line_ranges.txt", "_line_range.txt")
-            )
-            excluded_suffixes = ["_context.txt"]
-            if not wants_line_range:
-                excluded_suffixes.extend(["_line_ranges.txt", "_line_range.txt"])
-
-            file_candidates = [
-                f
-                for f in raw_text_dir.rglob(normalized_input)
-                if not any(f.name.endswith(suffix) for suffix in excluded_suffixes)
+            mode_options = [
+                ("single", "Process a single file"),
+                ("multi", "Process selected files from a folder"),
+                ("folder", "Process all files in a folder")
             ]
 
-            if not file_candidates:
-                self.print_error(f"File '{normalized_input}' not found in {raw_text_dir}")
-                sys.exit(1)
-            elif len(file_candidates) == 1:
-                files.append(file_candidates[0])
-                self.print_success(f"Selected: {files[0].name}")
-            else:
-                self.print_warning(f"Found {len(file_candidates)} matching files:")
-                self.console_print(self.HORIZONTAL_LINE)
+            mode = self.select_option(
+                "Select how you would like to specify input:",
+                mode_options,
+                allow_back=allow_back,
+                allow_quit=True
+            )
 
-                file_options = [(str(i), str(f.relative_to(raw_text_dir))) for i, f in enumerate(file_candidates)]
-                
-                for idx, f in enumerate(file_candidates, 1):
-                    self.console_print(f"  {idx}. {f.relative_to(raw_text_dir)}")
+            if mode is None:
+                return None
 
-                while True:
-                    selected_index = self.get_input("Select file by number", allow_back=True, allow_quit=True)
+            files = []
+
+            if mode == "single":
+                while True:  # Inner loop for single file selection
+                    self.print_info("Enter the filename to process (with or without .txt extension)")
+                    self.console_print("  • Enter the base text filename")
+                    self.console_print("  • Or enter the line range filename ending in '_line_ranges.txt'")
                     
-                    if not selected_index:
-                        # User went back to file name input
-                        return self.select_input_source(raw_text_dir, allow_back=allow_back)
+                    file_input = self.get_input("Filename", allow_back=True, allow_quit=True)
+                    if not file_input:
+                        # User went back - break to mode selection
+                        break
+                    
+                    normalized_input = (
+                        file_input if file_input.lower().endswith(".txt") else f"{file_input}.txt"
+                    )
 
+                    wants_line_range = normalized_input.lower().endswith(
+                        ("_line_ranges.txt", "_line_range.txt")
+                    )
+                    excluded_suffixes = ["_context.txt"]
+                    if not wants_line_range:
+                        excluded_suffixes.extend(["_line_ranges.txt", "_line_range.txt"])
+
+                    file_candidates = [
+                        f
+                        for f in raw_text_dir.rglob(normalized_input)
+                        if not any(f.name.endswith(suffix) for suffix in excluded_suffixes)
+                    ]
+
+                    if not file_candidates:
+                        self.print_error(f"File '{normalized_input}' not found in {raw_text_dir}")
+                        self.print_info("Please try again or press 'b' to go back.")
+                        continue  # Retry filename input
+                    elif len(file_candidates) == 1:
+                        files.append(file_candidates[0])
+                        self.print_success(f"Selected: {files[0].name}")
+                        return files
+                    else:
+                        self.print_warning(f"Found {len(file_candidates)} matching files:")
+                        self.console_print(self.HORIZONTAL_LINE)
+
+                        file_options = [(str(i), str(f.relative_to(raw_text_dir))) for i, f in enumerate(file_candidates)]
+                        
+                        for idx, f in enumerate(file_candidates, 1):
+                            self.console_print(f"  {idx}. {f.relative_to(raw_text_dir)}")
+
+                        while True:
+                            selected_index = self.get_input("Select file by number", allow_back=True, allow_quit=True)
+                            
+                            if not selected_index:
+                                # User went back - break to filename input
+                                break
+
+                            try:
+                                idx = int(selected_index) - 1
+                                if 0 <= idx < len(file_candidates):
+                                    files.append(file_candidates[idx])
+                                    self.print_success(f"Selected: {files[0].name}")
+                                    return files
+                                else:
+                                    self.print_error(f"Please enter a number between 1 and {len(file_candidates)}.")
+                            except ValueError:
+                                self.print_error("Invalid input. Please enter a number.")
+                        
+                        # If we broke out of the number selection loop, retry filename input
+                        continue
+                
+                # If we broke out of the filename loop, return to mode selection
+                continue
+
+            elif mode == "multi":
+                # Get all .txt files, filtering out auxiliary files
+                all_files = [f for f in raw_text_dir.rglob("*.txt")
+                             if not (f.name.endswith("_line_ranges.txt") or
+                                     f.name.endswith("_context.txt"))]
+                
+                if not all_files:
+                    self.print_error(f"No .txt files found in {raw_text_dir}")
+                    self.print_info("Please check the directory or go back to select a different option.")
+                    continue
+                
+                # Sort files for consistent ordering
+                all_files = sorted(all_files)
+                
+                self.print_info(f"Found {len(all_files)} text files in {raw_text_dir.name}")
+                self.console_print(self.HORIZONTAL_LINE)
+                
+                # Display all files with numbers
+                for idx, f in enumerate(all_files, 1):
+                    self.console_print(f"  {idx}. {f.relative_to(raw_text_dir)}")
+                
+                self.console_print("")  # Empty line for spacing
+                self.print_info("Enter file numbers to process (comma-separated, e.g., '1,3,5' or '1-3,5')")
+                
+                while True:
+                    selection = self.get_input("File selection", allow_back=True, allow_quit=True)
+                    
+                    if not selection:
+                        # User went back to mode selection
+                        break
+                    
                     try:
-                        idx = int(selected_index) - 1
-                        if 0 <= idx < len(file_candidates):
-                            files.append(file_candidates[idx])
-                            self.print_success(f"Selected: {files[0].name}")
-                            break
-                        else:
-                            self.print_error(f"Please enter a number between 1 and {len(file_candidates)}.")
-                    except ValueError:
-                        self.print_error("Invalid input. Please enter a number.")
+                        # Parse comma-separated indices and ranges
+                        selected_indices = set()
+                        parts = selection.split(',')
+                        
+                        for part in parts:
+                            part = part.strip()
+                            if '-' in part:
+                                # Range like "1-3"
+                                start, end = part.split('-', 1)
+                                start_idx = int(start.strip())
+                                end_idx = int(end.strip())
+                                if start_idx < 1 or end_idx > len(all_files) or start_idx > end_idx:
+                                    raise ValueError(f"Invalid range: {part}")
+                                selected_indices.update(range(start_idx, end_idx + 1))
+                            else:
+                                # Single index
+                                idx = int(part)
+                                if idx < 1 or idx > len(all_files):
+                                    raise ValueError(f"Index {idx} out of range")
+                                selected_indices.add(idx)
+                        
+                        if not selected_indices:
+                            self.print_error("No files selected. Please enter at least one file number.")
+                            continue
+                        
+                        # Convert to file paths
+                        files = [all_files[idx - 1] for idx in sorted(selected_indices)]
+                        
+                        # Confirm selection
+                        self.print_success(f"Selected {len(files)} file(s):")
+                        for f in files:
+                            self.console_print(f"  • {f.name}")
+                        
+                        return files
+                        
+                    except ValueError as e:
+                        self.print_error(f"Invalid selection: {e}")
+                        self.print_info(f"Please enter numbers between 1 and {len(all_files)}, comma-separated")
+                
+                # If we broke out of selection loop, return to mode selection
+                continue
 
-        elif mode == "multi":
-            # Get all .txt files, filtering out auxiliary files
-            all_files = [f for f in raw_text_dir.rglob("*.txt")
+            elif mode == "folder":
+                # Get all .txt files, filtering out auxiliary files
+                files = [f for f in raw_text_dir.rglob("*.txt")
                          if not (f.name.endswith("_line_ranges.txt") or
                                  f.name.endswith("_context.txt"))]
-            
-            if not all_files:
-                self.print_error(f"No .txt files found in {raw_text_dir}")
-                sys.exit(1)
-            
-            # Sort files for consistent ordering
-            all_files = sorted(all_files)
-            
-            self.print_info(f"Found {len(all_files)} text files in {raw_text_dir.name}")
-            self.console_print(self.HORIZONTAL_LINE)
-            
-            # Display all files with numbers
-            for idx, f in enumerate(all_files, 1):
-                self.console_print(f"  {idx}. {f.relative_to(raw_text_dir)}")
-            
-            self.console_print("")  # Empty line for spacing
-            self.print_info("Enter file numbers to process (comma-separated, e.g., '1,3,5' or '1-3,5')")
-            
-            while True:
-                selection = self.get_input("File selection", allow_back=True, allow_quit=True)
-                
-                if not selection:
-                    # User went back
-                    return self.select_input_source(raw_text_dir, allow_back=allow_back)
-                
-                try:
-                    # Parse comma-separated indices and ranges
-                    selected_indices = set()
-                    parts = selection.split(',')
-                    
-                    for part in parts:
-                        part = part.strip()
-                        if '-' in part:
-                            # Range like "1-3"
-                            start, end = part.split('-', 1)
-                            start_idx = int(start.strip())
-                            end_idx = int(end.strip())
-                            if start_idx < 1 or end_idx > len(all_files) or start_idx > end_idx:
-                                raise ValueError(f"Invalid range: {part}")
-                            selected_indices.update(range(start_idx, end_idx + 1))
-                        else:
-                            # Single index
-                            idx = int(part)
-                            if idx < 1 or idx > len(all_files):
-                                raise ValueError(f"Index {idx} out of range")
-                            selected_indices.add(idx)
-                    
-                    if not selected_indices:
-                        self.print_error("No files selected. Please enter at least one file number.")
-                        continue
-                    
-                    # Convert to file paths
-                    files = [all_files[idx - 1] for idx in sorted(selected_indices)]
-                    
-                    # Confirm selection
-                    self.print_success(f"Selected {len(files)} file(s):")
-                    for f in files:
-                        self.console_print(f"  • {f.name}")
-                    
-                    break
-                    
-                except ValueError as e:
-                    self.print_error(f"Invalid selection: {e}")
-                    self.print_info(f"Please enter numbers between 1 and {len(all_files)}, comma-separated")
 
-        elif mode == "folder":
-            # Get all .txt files, filtering out auxiliary files
-            files = [f for f in raw_text_dir.rglob("*.txt")
-                     if not (f.name.endswith("_line_ranges.txt") or
-                             f.name.endswith("_context.txt"))]
+                if not files:
+                    self.print_error(f"No .txt files found in {raw_text_dir}")
+                    self.print_info("Please check the directory or go back to select a different option.")
+                    continue
 
-            if not files:
-                self.print_error(f"No .txt files found in {raw_text_dir}")
-                sys.exit(1)
-
-            self.print_success(f"Found {len(files)} text files to process")
-
-        return files
+                self.print_success(f"Found {len(files)} text files to process")
+                return files
 
     def display_processing_summary(
         self,
