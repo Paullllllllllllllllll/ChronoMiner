@@ -34,7 +34,11 @@ def render_prompt_with_schema(
         return prompt_text
 
     try:
-        schema_str = json.dumps(schema_obj, indent=2, ensure_ascii=False)
+        schema_str = json.dumps(
+            schema_obj,
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
     except Exception:
         schema_str = str(schema_obj)
 

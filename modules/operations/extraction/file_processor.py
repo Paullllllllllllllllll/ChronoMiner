@@ -305,7 +305,9 @@ class FileProcessor:
 						selected_schema["schema"],
 					)
 					request_obj["custom_id"] = f"{file_path.stem}-chunk-{idx}"
-					request_lines.append(json.dumps(request_obj))
+					request_lines.append(
+						json.dumps(request_obj, separators=(",", ":"), ensure_ascii=False)
+					)
 
 				batch_files = build_batch_files(request_lines, temp_jsonl_path)
 				if not batch_files:
