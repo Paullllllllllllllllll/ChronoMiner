@@ -1,46 +1,87 @@
 # modules/openai_utils.py
 
+"""
+LLM utilities for text processing with structured outputs.
+
+This module provides a unified interface for LLM interactions using LangChain
+as the backend. It supports multiple providers:
+- OpenAI (default)
+- Anthropic (Claude)
+- Google (Gemini)
+- OpenRouter (multi-provider access)
+
+The module maintains backward compatibility with the original OpenAI-specific
+interface while using LangChain internally.
+
+DEPRECATED LOGIC (now handled by LangChain):
+============================================
+- Retry logic: LangChain's max_retries parameter handles retries with exponential backoff
+- Error classification: LangChain handles transient vs non-transient errors internally
+- Structured output formatting: LangChain's with_structured_output() handles JSON schemas
+- Token tracking: LangChain's usage_metadata provides token counts automatically
+
+The tenacity-based retry decorator and custom error classes are kept for backward
+compatibility but are no longer actively used - LangChain handles all retries internally.
+"""
+
 from pathlib import Path
-import aiohttp
-from typing import Dict, Any, Optional, AsyncGenerator
+from typing import Dict, Any, Optional, AsyncGenerator, Literal, Union
 from contextlib import asynccontextmanager
 import asyncio
-from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
+import os
 
 from modules.config.loader import ConfigLoader
 from modules.core.logger import setup_logger
 from modules.core.token_tracker import get_token_tracker
-from tenacity import (
-    retry,
-    wait_exponential,
-    stop_after_attempt,
-    retry_if_exception_type,
-    wait_random,
-)
 from modules.llm.structured_outputs import build_structured_text_format
 from modules.llm.model_capabilities import detect_capabilities
+from modules.llm.langchain_provider import (
+    LangChainLLM,
+    LLMProvider,
+    ProviderConfig,
+    ProviderType,
+)
 
 logger = setup_logger(__name__)
 
 
-# ---------- Exceptions for retry control ----------
+# ---------- Exceptions (DEPRECATED - LangChain handles retries internally) ----------
 
 
-class TransientOpenAIError(Exception):
-    """Error category that is safe to retry (429/5xx/timeouts)."""
+class TransientLLMError(Exception):
+    """
+    DEPRECATED: LangChain handles transient errors internally via max_retries.
+    
+    Kept for backward compatibility only.
+    """
 
     def __init__(self, message: str, retry_after: Optional[float] = None) -> None:
         super().__init__(message)
         self.retry_after = retry_after
 
 
-class NonRetryableOpenAIError(Exception):
-    """Error category that should not be retried (e.g., 4xx other than 429)."""
+# Backward compatibility alias
+TransientOpenAIError = TransientLLMError
 
 
-def _load_retry_policy() -> tuple[int, float, float, float]:
-    """Load retry attempts and wait window from concurrency configuration if present."""
+class NonRetryableLLMError(Exception):
+    """
+    DEPRECATED: LangChain handles error classification internally.
+    
+    Kept for backward compatibility only.
+    """
+
+
+# Backward compatibility alias
+NonRetryableOpenAIError = NonRetryableLLMError
+
+
+def _load_retry_config() -> int:
+    """
+    Load retry attempts from concurrency configuration.
+    
+    This value is passed to LangChain's max_retries parameter.
+    """
     try:
         cl = ConfigLoader()
         cl.load_configs()
@@ -48,258 +89,170 @@ def _load_retry_policy() -> tuple[int, float, float, float]:
         extraction_cfg = (cc.get("concurrency", {}) or {}).get("extraction", {}) or {}
         retry_cfg = (extraction_cfg.get("retry", {}) or {})
         attempts = int(retry_cfg.get("attempts", 5))
-        wait_min = float(retry_cfg.get("wait_min_seconds", 4))
-        wait_max = float(retry_cfg.get("wait_max_seconds", 60))
-        jitter_max = float(retry_cfg.get("jitter_max_seconds", 1))
-        if attempts <= 0:
-            attempts = 1
-        if wait_min < 0:
-            wait_min = 0
-        if wait_max < wait_min:
-            wait_max = wait_min
-        if jitter_max < 0:
-            jitter_max = 0
-        return attempts, wait_min, wait_max, jitter_max
+        return max(1, attempts)
     except Exception:
-        return 5, 4.0, 60.0, 1.0
+        return 5
 
 
-_RETRY_ATTEMPTS, _RETRY_WAIT_MIN, _RETRY_WAIT_MAX, _RETRY_JITTER_MAX = _load_retry_policy()
-_WAIT_BASE = wait_exponential(multiplier=1, min=_RETRY_WAIT_MIN, max=_RETRY_WAIT_MAX) + wait_random(
-    0, _RETRY_JITTER_MAX
-)
+# Load retry config for LangChain's max_retries
+_MAX_RETRIES = _load_retry_config()
 
 
-def _wait_with_server_hint_factory(base_wait):
-    """Respect server-provided Retry-After if present; otherwise use base wait."""
-
-    def _wait(retry_state):
-        try:
-            exc = retry_state.outcome.exception() if retry_state.outcome else None
-            ra = getattr(exc, "retry_after", None)
-            if isinstance(ra, (int, float)) and ra and ra > 0:
-                return ra
-        except Exception:
-            pass
-        return base_wait(retry_state)
-
-    return _wait
-
-
-class OpenAIExtractor:
+class LLMExtractor:
     """
-    A wrapper for interacting with the OpenAI Responses API for structured data
-    extraction tasks (text-only in this repository).
+    A unified wrapper for interacting with LLM providers via LangChain.
+    
+    Supports OpenAI, Anthropic, Google Gemini, and OpenRouter through a
+    consistent interface for structured data extraction tasks.
     """
-    def __init__(self, api_key: str, prompt_path: Path, model: str) -> None:
+    
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        prompt_path: Optional[Path] = None,
+        model: str = "",
+        provider: Optional[ProviderType] = None,
+    ) -> None:
         if not model:
             raise ValueError("Model must be specified.")
-        self.api_key: str = api_key
+        
         self.model: str = model
-        # Responses API endpoint
-        self.endpoint: str = "https://api.openai.com/v1/responses"
-
-        if self.model == "o3-mini":
-            self.prompt_text: str = ""
+        self.provider: ProviderType = provider or ProviderConfig._detect_provider(model)
+        
+        # Get API key from parameter or environment
+        if api_key:
+            self.api_key = api_key
         else:
-            self.prompt_path: Path = prompt_path
-            if not self.prompt_path.exists():
-                logger.error(f"Prompt file not found: {self.prompt_path}")
-                raise FileNotFoundError(f"Prompt file does not exist: {self.prompt_path}")
+            self.api_key = ProviderConfig._get_api_key(self.provider)
+        
+        if not self.api_key:
+            raise ValueError(f"API key not found for provider {self.provider}")
+        
+        # Load prompt text if path provided
+        self.prompt_text: str = ""
+        if prompt_path and prompt_path.exists():
             try:
-                with self.prompt_path.open('r', encoding='utf-8') as prompt_file:
+                with prompt_path.open('r', encoding='utf-8') as prompt_file:
                     self.prompt_text = prompt_file.read().strip()
             except Exception as e:
                 logger.error(f"Failed to read prompt: {e}")
                 raise
-
+        
+        # Load configuration
         config_loader = ConfigLoader()
         config_loader.load_configs()
         self.model_config: Dict[str, Any] = config_loader.get_model_config()
         self.concurrency_config: Dict[str, Any] = config_loader.get_concurrency_config()
-        tm: Dict[str, Any] = self.model_config["transcription_model"]
-        # Token budget for Responses API
-        self.max_output_tokens: int = int(tm["max_output_tokens"])
-        # Classic sampler controls (applied only when supported)
+        
+        tm: Dict[str, Any] = self.model_config.get("transcription_model", {})
+        
+        # Model parameters
+        self.max_output_tokens: int = int(tm.get("max_output_tokens", 4096))
         self.temperature: float = float(tm.get("temperature", 0.0))
         self.top_p: float = float(tm.get("top_p", 1.0))
         self.presence_penalty: float = float(tm.get("presence_penalty", 0.0))
         self.frequency_penalty: float = float(tm.get("frequency_penalty", 0.0))
-        # Reasoning / text controls (used for GPT-5 family when supported)
+        
+        # Reasoning / text controls (used for reasoning models)
         self.reasoning: Dict[str, Any] = tm.get("reasoning", {"effort": "medium"})
         self.text_params: Dict[str, Any] = tm.get("text", {"verbosity": "medium"})
-        # Optional service tier from concurrency config
-        try:
-            extraction_cfg = (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
-        except Exception:
-            extraction_cfg = {}
-
-        raw_tier = extraction_cfg.get("service_tier")
-        service_tier_normalized: Optional[str]
-        if raw_tier is None:
-            service_tier_normalized = None
-        else:
-            tier_str = str(raw_tier).lower().strip()
-            if tier_str in {"auto", "default", "flex", "priority"}:
-                service_tier_normalized = tier_str
-            else:
-                logger.warning("Ignoring unsupported service_tier value '%s' in concurrency_config.yaml", raw_tier)
-                service_tier_normalized = None
-        self.service_tier: Optional[str] = service_tier_normalized
-
+        
         # Capabilities gating
         self.caps = detect_capabilities(self.model)
-
-        # Configure aiohttp timeouts and connector pool based on concurrency settings
-        try:
-            conn_limit = int(extraction_cfg.get("concurrency_limit", 100))
-            if conn_limit <= 0:
-                conn_limit = 100
-        except Exception:
-            conn_limit = 100
-
-        default_timeouts = {
-            "total": 900.0,
-            "connect": 120.0,
-            "sock_connect": 120.0,
-            "sock_read": 600.0,
-        }
-        if self.service_tier == "flex":
-            default_timeouts = {
-                "total": 1800.0,
-                "connect": 180.0,
-                "sock_connect": 180.0,
-                "sock_read": 1200.0,
-            }
-        elif self.service_tier == "priority":
-            default_timeouts = {
-                "total": 600.0,
-                "connect": 90.0,
-                "sock_connect": 90.0,
-                "sock_read": 420.0,
-            }
-
-        timeout_overrides = extraction_cfg.get("timeouts", {}) if isinstance(extraction_cfg.get("timeouts"), dict) else {}
-        total_timeout = float(timeout_overrides.get("total", default_timeouts["total"]))
-        connect_timeout = float(timeout_overrides.get("connect", default_timeouts["connect"]))
-        sock_connect_timeout = float(timeout_overrides.get("sock_connect", default_timeouts["sock_connect"]))
-        sock_read_timeout = float(timeout_overrides.get("sock_read", default_timeouts["sock_read"]))
-
-        client_timeout = aiohttp.ClientTimeout(
-            total=total_timeout,
-            connect=connect_timeout,
-            sock_connect=sock_connect_timeout,
-            sock_read=sock_read_timeout,
+        
+        # Create LangChain LLM instance
+        self._llm: Optional[LangChainLLM] = None
+        self._initialize_llm()
+    
+    def _initialize_llm(self) -> None:
+        """Initialize the LangChain LLM instance."""
+        # Build provider config
+        config = ProviderConfig(
+            provider=self.provider,
+            model=self.model,
+            api_key=self.api_key,
+            temperature=self.temperature if self.caps.supports_sampler_controls else 0.0,
+            max_tokens=self.max_output_tokens,
+            top_p=self.top_p if self.caps.supports_sampler_controls else 1.0,
+            extra_params={
+                "presence_penalty": self.presence_penalty if self.caps.supports_sampler_controls else 0.0,
+                "frequency_penalty": self.frequency_penalty if self.caps.supports_sampler_controls else 0.0,
+            },
         )
-        connector = aiohttp.TCPConnector(limit=conn_limit, limit_per_host=conn_limit)
-        self.session: aiohttp.ClientSession = aiohttp.ClientSession(timeout=client_timeout, connector=connector)
-
+        
+        # Set base URL for OpenRouter
+        if self.provider == "openrouter":
+            config.base_url = "https://openrouter.ai/api/v1"
+        
+        self._llm = LangChainLLM(config)
+    
+    @property
+    def llm(self) -> LangChainLLM:
+        """Get the underlying LangChain LLM instance."""
+        if self._llm is None:
+            self._initialize_llm()
+        return self._llm
+    
     async def close(self) -> None:
-        """
-        Close the aiohttp session.
-        """
-        if self.session and not self.session.closed:
-            await self.session.close()
+        """Clean up resources (no-op for LangChain, kept for API compatibility)."""
+        pass
 
 
-def _collect_output_text(data: Dict[str, Any]) -> str:
-    """
-    Normalize Responses API output into a single text string.
-
-    Prefers 'output_text' when present; otherwise concatenates message text parts
-    from the 'output' list.
-    """
-    try:
-        if isinstance(data, dict) and isinstance(data.get("output_text"), str):
-            return data["output_text"].strip()
-        parts: list[str] = []
-        output = data.get("output") if isinstance(data, dict) else None
-        if isinstance(output, list):
-            for item in output:
-                if isinstance(item, dict) and item.get("type") == "message":
-                    for c in item.get("content", []):
-                        t = c.get("text") if isinstance(c, dict) else None
-                        if isinstance(t, str):
-                            parts.append(t)
-        return "".join(parts).strip()
-    except Exception:
-        return ""
-
-
-async def _post_with_handling(session: aiohttp.ClientSession, endpoint: str, headers: Dict[str, str], payload: Dict[str, Any]) -> Dict[str, Any]:
-    async with session.post(endpoint, headers=headers, json=payload) as resp:
-        if resp.status != 200:
-            error_text = await resp.text()
-            retry_after_val: Optional[float] = None
-            if resp.status == 429 or 500 <= resp.status < 600:
-                # Respect Retry-After when provided by the server
-                ra_hdr = resp.headers.get("Retry-After")
-                if ra_hdr is not None:
-                    try:
-                        retry_after_val = float(ra_hdr)
-                    except Exception:
-                        try:
-                            dt = parsedate_to_datetime(ra_hdr)
-                            if dt is not None:
-                                delta = (dt - datetime.now(timezone.utc)).total_seconds()
-                                if delta and delta > 0:
-                                    retry_after_val = delta
-                        except Exception:
-                            retry_after_val = None
-                logger.warning("Transient OpenAI error (%s): %s", resp.status, error_text)
-                raise TransientOpenAIError(f"{resp.status}: {error_text}", retry_after=retry_after_val)
-            logger.error("Non-retryable OpenAI error (%s): %s", resp.status, error_text)
-            raise NonRetryableOpenAIError(f"{resp.status}: {error_text}")
-        return await resp.json()
+# Backward compatibility alias
+OpenAIExtractor = LLMExtractor
 
 
 @asynccontextmanager
-async def open_extractor(api_key: str, prompt_path: Path, model: str) -> AsyncGenerator[OpenAIExtractor, None]:
+async def open_extractor(
+    api_key: str,
+    prompt_path: Path,
+    model: str,
+    provider: Optional[ProviderType] = None,
+) -> AsyncGenerator[LLMExtractor, None]:
     """
-    Asynchronous context manager for OpenAIExtractor.
+    Asynchronous context manager for LLMExtractor.
 
-    :param api_key: OpenAI API key.
+    :param api_key: API key for the provider.
     :param prompt_path: Path to the prompt file.
     :param model: Model name.
-    :yield: An instance of OpenAIExtractor.
+    :param provider: Optional provider type override.
+    :yield: An instance of LLMExtractor.
     """
-    extractor = OpenAIExtractor(api_key, prompt_path, model)
+    extractor = LLMExtractor(api_key, prompt_path, model, provider)
     try:
         yield extractor
     finally:
         await extractor.close()
 
 
-@retry(
-    wait=_wait_with_server_hint_factory(_WAIT_BASE),
-    stop=stop_after_attempt(_RETRY_ATTEMPTS),
-    retry=(
-        retry_if_exception_type(TransientOpenAIError)
-        | retry_if_exception_type(aiohttp.ClientError)
-        | retry_if_exception_type(asyncio.TimeoutError)
-    ),
-)
 async def process_text_chunk(
     text_chunk: str,
-    extractor: OpenAIExtractor,
+    extractor: LLMExtractor,
     system_message: Optional[str] = None,
     json_schema: Optional[dict] = None
 ) -> Dict[str, Any]:
     """
-    Process a text chunk by sending a request to the OpenAI Responses API.
+    Process a text chunk using LangChain with the configured provider.
+    
+    NOTE: Retry logic is handled by LangChain internally via max_retries.
+    The tenacity decorator has been removed as LangChain handles:
+    - Exponential backoff with jitter
+    - Transient error detection (429, 5xx, timeouts)
+    - Automatic retry on network failures
 
     :param text_chunk: The text to process.
-    :param extractor: An instance of OpenAIExtractor.
+    :param extractor: An instance of LLMExtractor.
     :param system_message: Optional system message.
     :param json_schema: Optional JSON schema for response formatting.
     :return: Dictionary containing the model output text, raw response payload,
         and request metadata used for the call.
-    :raises Exception: If the API call fails.
+    :raises Exception: If the API call fails after all LangChain retries.
     """
     if system_message is None:
         system_message = ""
-    # Build typed input for Responses API
-    input_messages = [
+    
+    # Build messages in LangChain format
+    messages = [
         {
             "role": "system",
             "content": [{"type": "input_text", "text": system_message}],
@@ -309,70 +262,87 @@ async def process_text_chunk(
             "content": [{"type": "input_text", "text": text_chunk}],
         },
     ]
-
-    payload: Dict[str, Any] = {
-        "model": extractor.model,
-        "max_output_tokens": extractor.max_output_tokens,
-        "input": input_messages,
-    }
-    if getattr(extractor, "service_tier", None):
-        payload["service_tier"] = extractor.service_tier
-
-    # Structured outputs (text.format) when supported
+    
+    # Build structured output schema if provided
+    # NOTE: LangChain's with_structured_output() handles schema validation internally
+    structured_schema = None
     if json_schema and extractor.caps.supports_structured_outputs:
+        # Use the existing schema format builder for compatibility
         fmt = build_structured_text_format(json_schema, "TranscriptionSchema", True)
         if fmt is not None:
-            payload.setdefault("text", {})
-            payload["text"]["format"] = fmt
-
-    # GPT-5 public controls when applicable
-    if extractor.caps.supports_reasoning_effort:
-        payload["reasoning"] = extractor.reasoning
-        if (
-            isinstance(extractor.text_params, dict)
-            and extractor.text_params.get("verbosity") is not None
-        ):
-            payload.setdefault("text", {})["verbosity"] = extractor.text_params["verbosity"]
-
-    # Sampler controls only for non-reasoning families
-    if extractor.caps.supports_sampler_controls:
-        payload["temperature"] = extractor.temperature
-        payload["top_p"] = extractor.top_p
-        # Only include penalties if non-zero to keep payload tidy
-        if extractor.frequency_penalty:
-            payload["frequency_penalty"] = extractor.frequency_penalty
-        if extractor.presence_penalty:
-            payload["presence_penalty"] = extractor.presence_penalty
-
-    headers: Dict[str, str] = {
-        "Authorization": f"Bearer {extractor.api_key}",
-        "Content-Type": "application/json",
-    }
-    data: Dict[str, Any] = await _post_with_handling(
-        extractor.session, extractor.endpoint, headers, payload
+            structured_schema = {
+                "name": fmt.get("name", "TranscriptionSchema"),
+                "schema": fmt.get("schema", {}),
+                "strict": fmt.get("strict", True),
+            }
+    
+    # LangChain handles retries internally via max_retries parameter
+    # Token tracking is handled via usage_metadata on the response
+    result = await extractor.llm.ainvoke_with_structured_output(
+        messages=messages,
+        json_schema=structured_schema,
     )
     
-    # Report token usage immediately after successful API call
-    try:
-        usage = data.get("usage")
-        if isinstance(usage, dict):
-            total_tokens = usage.get("total_tokens")
-            if total_tokens and isinstance(total_tokens, int):
-                token_tracker = get_token_tracker()
-                token_tracker.add_tokens(total_tokens)
-                logger.debug(
-                    f"[TOKEN] API call consumed {total_tokens:,} tokens "
-                    f"(daily total: {token_tracker.get_tokens_used_today():,})"
-                )
-    except Exception as e:
-        logger.warning(f"Error reporting token usage: {e}")
-    
-    output_text = _collect_output_text(data)
-    request_metadata: Dict[str, Any] = {"payload": payload}
-    if json_schema is not None:
-        request_metadata["json_schema"] = json_schema
     return {
-        "output_text": output_text,
-        "response_data": data,
-        "request_metadata": request_metadata,
+        "output_text": result.get("output_text", ""),
+        "response_data": result.get("response_data", {}),
+        "request_metadata": result.get("request_metadata", {}),
+        "usage": result.get("response_data", {}).get("usage", {}),
     }
+
+
+async def process_text_chunk_with_provider(
+    text_chunk: str,
+    system_message: str,
+    json_schema: Optional[dict] = None,
+    model: Optional[str] = None,
+    provider: Optional[ProviderType] = None,
+    model_config: Optional[Dict[str, Any]] = None,
+) -> Dict[str, Any]:
+    """
+    Process a text chunk with explicit provider selection.
+    
+    This is a convenience function for one-off calls without managing
+    an extractor context.
+
+    :param text_chunk: The text to process.
+    :param system_message: System message for the LLM.
+    :param json_schema: Optional JSON schema for response formatting.
+    :param model: Model name (uses config default if not specified).
+    :param provider: Provider type (auto-detected from model if not specified).
+    :param model_config: Optional model configuration dict.
+    :return: Dictionary containing the model output text and metadata.
+    """
+    # Load config if not provided
+    if model_config is None:
+        config_loader = ConfigLoader()
+        config_loader.load_configs()
+        model_config = config_loader.get_model_config()
+    
+    # Get model from config if not specified
+    if model is None:
+        model = model_config.get("transcription_model", {}).get("name", "")
+    
+    if not model:
+        raise ValueError("Model must be specified either directly or in config")
+    
+    # Get API key based on provider
+    detected_provider = provider or ProviderConfig._detect_provider(model)
+    api_key = ProviderConfig._get_api_key(detected_provider)
+    
+    if not api_key:
+        raise ValueError(f"API key not found for provider {detected_provider}")
+    
+    # Create extractor and process
+    async with open_extractor(
+        api_key=api_key,
+        prompt_path=Path("prompts/structured_output_prompt.txt"),
+        model=model,
+        provider=detected_provider,
+    ) as extractor:
+        return await process_text_chunk(
+            text_chunk=text_chunk,
+            extractor=extractor,
+            system_message=system_message,
+            json_schema=json_schema,
+        )

@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+"""
+OpenAI SDK utilities for batch operations.
+
+NOTE: These utilities are specific to OpenAI's Batch API and are used
+for batch job management (listing, retrieving, etc.). They are not used
+by the LangChain-based synchronous processing pipeline.
+
+For LangChain multi-provider support, see langchain_provider.py.
+"""
+
 import json
 from typing import Any, Dict, List, Optional
 

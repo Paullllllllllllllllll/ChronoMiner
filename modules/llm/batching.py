@@ -1,5 +1,21 @@
 # modules/batching.py
 
+"""
+OpenAI Batch API utilities.
+
+NOTE: Batch processing is currently OPENAI-ONLY.
+======================================================
+The OpenAI Batch API is a proprietary feature that allows submitting
+large batches of requests for deferred processing at lower cost.
+
+Other providers (Anthropic, Google Gemini, OpenRouter) do not currently
+support equivalent batch APIs. When using non-OpenAI providers, use
+synchronous processing mode instead.
+
+Future versions may add provider-specific batch support as APIs become
+available.
+"""
+
 import logging
 import os
 from pathlib import Path

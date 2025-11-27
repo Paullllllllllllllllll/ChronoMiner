@@ -3,6 +3,12 @@
 """
 Processing strategy abstraction for synchronous vs batch execution.
 Separates execution logic from file processing orchestration.
+
+Supports multiple LLM providers via LangChain:
+- OpenAI (default)
+- Anthropic (Claude)
+- Google (Gemini)
+- OpenRouter (multi-provider access)
 """
 
 import asyncio
@@ -16,6 +22,7 @@ from typing import List, Dict, Any, Optional
 from modules.core.token_tracker import get_token_tracker
 from modules.llm.batching import build_batch_files, submit_batch
 from modules.llm.openai_utils import open_extractor, process_text_chunk
+from modules.llm.langchain_provider import ProviderConfig
 
 logger = logging.getLogger(__name__)
 
@@ -74,9 +81,13 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         console_print,
     ) -> List[Dict[str, Any]]:
         """Process chunks synchronously with concurrent API calls."""
-        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        # Detect provider from model name
+        model_name = model_config["transcription_model"]["name"]
+        provider = ProviderConfig._detect_provider(model_name)
+        api_key = ProviderConfig._get_api_key(provider)
+        
         if not api_key:
-            error_msg = "OPENAI_API_KEY is not set in environment variables."
+            error_msg = f"API key not found for provider {provider}. Set the appropriate environment variable."
             logger.error(error_msg)
             console_print(f"[ERROR] {error_msg}")
             raise ValueError(error_msg)

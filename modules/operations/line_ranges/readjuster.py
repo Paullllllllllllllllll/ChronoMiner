@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+"""
+Line range readjustment module for semantic boundary detection.
+
+Supports multiple LLM providers via LangChain:
+- OpenAI (default)
+- Anthropic (Claude)
+- Google (Gemini)
+- OpenRouter (multi-provider access)
+"""
+
 import asyncio
 import json
 import logging
@@ -13,6 +23,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 from modules.core.prompt_context import apply_context_placeholders, resolve_additional_context
 from modules.core.text_utils import TextProcessor, load_line_ranges
 from modules.llm.openai_utils import open_extractor, process_text_chunk
+from modules.llm.langchain_provider import ProviderConfig, ProviderType
 from modules.llm.prompt_utils import load_prompt_template
 from modules.core.path_utils import ensure_path_safe
 
@@ -151,9 +162,11 @@ class LineRangeReadjuster:
         with safe_text_file.open("r", encoding=encoding) as handle:
             raw_lines = handle.readlines()
 
-        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        # Detect provider from model name and get appropriate API key
+        provider = ProviderConfig._detect_provider(self.model_name)
+        api_key = ProviderConfig._get_api_key(provider)
         if not api_key:
-            raise RuntimeError("OPENAI_API_KEY environment variable is required for readjustment")
+            raise RuntimeError(f"API key not found for provider {provider}. Set the appropriate environment variable.")
 
         additional_context = resolve_additional_context(
             boundary_type,

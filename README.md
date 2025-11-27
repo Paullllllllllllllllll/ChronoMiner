@@ -1,11 +1,14 @@
 # ChronoMiner
 
-A Python-based tool designed for researchers and archivists to extract structured data from large-scale historical and academic text files. ChronoMiner leverages OpenAI's API with schema-based extraction to transform unstructured text into well-organized, analyzable datasets in multiple formats (JSON, CSV, DOCX, TXT).
+A Python-based tool designed for researchers and archivists to extract structured data from large-scale historical and academic text files. ChronoMiner leverages multiple LLM providers through LangChain with schema-based extraction to transform unstructured text into well-organized, analyzable datasets in multiple formats (JSON, CSV, DOCX, TXT).
+
+Supported LLM providers include OpenAI (GPT-5, GPT-5.1, GPT-4.1, o3, o4-mini), Anthropic (Claude Opus 4.5, Sonnet 4.5, Haiku 4.5), Google (Gemini 3 Pro, Gemini 2.5), and OpenRouter for access to additional models.
 
 ## Table of Contents
 
 - [Overview](#overview)
 - [Features](#features)
+- [Supported Models](#supported-models)
 - [System Requirements](#system-requirements)
 - [Installation](#installation)
 - [Configuration](#configuration)
@@ -75,13 +78,25 @@ The mode is determined automatically: if command-line arguments are provided, CL
   - File-specific context: Uses `{filename}_context.txt` files located next to the input files
 - Context Hierarchy: All applicable context levels are combined and injected into the system prompt
 
+### Multi-Provider LLM Support
+
+ChronoMiner uses LangChain to provide unified access to multiple LLM providers:
+
+- OpenAI: GPT-5.1, GPT-5, GPT-4.1, GPT-4o, o3, o4-mini and variants
+- Anthropic: Claude Opus 4.5, Sonnet 4.5, Haiku 4.5 and earlier versions
+- Google: Gemini 3 Pro, Gemini 2.5 Pro/Flash and earlier versions
+- OpenRouter: Access to 100+ models through a unified API
+
+The provider is automatically detected from the model name. Capability guarding ensures that unsupported parameters (like temperature for reasoning models) are automatically filtered.
+
 ### API Integration
 
+- LangChain Backend: Unified interface for all supported LLM providers with automatic retry handling
 - Schema Handler Registry: Uses handler registry to prepare API requests with appropriate JSON schema and extraction instructions
 - Processing Modes:
-  - Synchronous: Real-time processing with immediate results, higher API costs
-  - Batch: 50% cost savings, results within 24 hours, ideal for large-scale processing
-- Retry Logic: Automatic exponential backoff for transient API errors with configurable retry settings
+  - Synchronous: Real-time processing with immediate results via LangChain (all providers)
+  - Batch: 50% cost savings, results within 24 hours (OpenAI only)
+- Retry Logic: LangChain handles retries with exponential backoff automatically; configurable via max_retries
 
 ### Output Generation
 
@@ -97,26 +112,95 @@ The mode is determined automatically: if command-line arguments are provided, CL
 - Metadata Tracking: Each request includes custom_id and metadata for reliable reconstruction
 - Debug Artifacts: Submission metadata saved for batch tracking and repair operations
 
+## Supported Models
+
+ChronoMiner supports a wide range of LLM models through LangChain. The provider is automatically detected from the model name.
+
+### OpenAI Models
+
+| Model Family | Model Names | Type | Notes |
+|--------------|-------------|------|-------|
+| GPT-5.1 | `gpt-5.1`, `gpt-5.1-instant`, `gpt-5.1-thinking` | Reasoning | Latest, adaptive thinking |
+| GPT-5 | `gpt-5`, `gpt-5-mini`, `gpt-5-nano` | Reasoning | 256K context |
+| GPT-4.1 | `gpt-4.1`, `gpt-4.1-mini`, `gpt-4.1-nano` | Standard | Workhorse model |
+| GPT-4o | `gpt-4o`, `gpt-4o-mini` | Standard | Multimodal |
+| o4-mini | `o4-mini` | Reasoning | Tool use optimized |
+| o3 | `o3`, `o3-mini`, `o3-pro` | Reasoning | Deep reasoning |
+| o1 | `o1`, `o1-mini` | Reasoning | Legacy reasoning |
+
+### Anthropic Claude Models
+
+| Model Family | Model Names | Notes |
+|--------------|-------------|-------|
+| Opus 4.5 | `claude-opus-4-5-20251101` | Most intelligent |
+| Opus 4.1 | `claude-opus-4-1-20250805` | Previous flagship |
+| Opus 4 | `claude-opus-4-20250514` | Code and agents |
+| Sonnet 4.5 | `claude-sonnet-4-5-*` | Most aligned |
+| Sonnet 4 | `claude-sonnet-4-20250514` | Balanced |
+| Haiku 4.5 | `claude-haiku-4-5-*` | Fast, cost-effective |
+| Sonnet 3.7 | `claude-3-7-sonnet-20250219` | February 2025 |
+| Sonnet 3.5 | `claude-3-5-sonnet-20241022` | October 2024 |
+| Haiku 3.5 | `claude-3-5-haiku-20241022` | Lightweight |
+
+### Google Gemini Models
+
+| Model Family | Model Names | Type | Notes |
+|--------------|-------------|------|-------|
+| Gemini 3 Pro | `gemini-3-pro-preview` | Thinking | Most powerful |
+| Gemini 2.5 Pro | `gemini-2.5-pro` | Thinking | 1M context |
+| Gemini 2.5 Flash | `gemini-2.5-flash` | Thinking | Best price-performance |
+| Gemini 2.5 Flash-Lite | `gemini-2.5-flash-lite` | Standard | Ultra fast |
+| Gemini 2.0 Flash | `gemini-2.0-flash` | Standard | Previous gen |
+| Gemini 1.5 Pro | `gemini-1.5-pro` | Standard | 2M context |
+| Gemini 1.5 Flash | `gemini-1.5-flash` | Standard | Legacy |
+
+### OpenRouter Models
+
+OpenRouter provides access to models from multiple providers through a unified API. Use the format `openrouter/{provider}/{model}`:
+
+- `openrouter/anthropic/claude-opus-4-5`
+- `openrouter/google/gemini-2.5-pro`
+- `openrouter/meta/llama-3.1-405b`
+- `openrouter/mistral/mixtral-8x22b`
+
+### Model Capabilities
+
+ChronoMiner automatically detects model capabilities and adjusts API parameters accordingly:
+
+- Reasoning Models (GPT-5, o-series, Gemini thinking): Temperature and top_p are disabled
+- Standard Models (GPT-4.1, GPT-4o, Claude, Gemini non-thinking): Full sampler control
+- Structured Outputs: Supported by all models via LangChain
+- Batch Processing: OpenAI only (50% cost savings)
+
 ## System Requirements
 
 ### Software Dependencies
 
 - Python: 3.12 or higher
-- OpenAI API Key: Required for using the OpenAI API
-  - Set as environment variable: `OPENAI_API_KEY=your_key_here`
-  - Ensure your account has access to the Responses API and Batch API
+- LLM Provider API Key: At least one of the following is required:
+  - OpenAI: `OPENAI_API_KEY=your_key_here`
+  - Anthropic: `ANTHROPIC_API_KEY=your_key_here`
+  - Google: `GOOGLE_API_KEY=your_key_here`
+  - OpenRouter: `OPENROUTER_API_KEY=your_key_here`
+
+For OpenAI, ensure your account has access to the Responses API and Batch API.
 
 ### Python Packages
 
 All Python dependencies are listed in `requirements.txt`. Key packages include:
 
-- `openai>=1.57.4`: OpenAI SDK for API interactions
-- `tiktoken`: Accurate token counting
-- `pandas`: Data manipulation
-- `python-docx`: Document generation
-- `pyyaml>=6.0.2`: Configuration file parsing
-- `aiohttp>=3.11.10`: Asynchronous HTTP requests
-- `tqdm>=4.67.1`: Progress bars
+- `langchain==1.1.0`: Multi-provider LLM framework
+- `langchain-openai==1.1.0`: OpenAI provider integration
+- `langchain-anthropic==1.2.0`: Anthropic Claude provider integration
+- `langchain-google-genai==3.2.0`: Google Gemini provider integration
+- `openai==2.8.1`: OpenAI SDK (required for batch processing)
+- `anthropic==0.75.0`: Anthropic SDK
+- `tiktoken==0.12.0`: Accurate token counting
+- `pandas==2.3.3`: Data manipulation
+- `pydantic==2.12.5`: Data validation
+- `python-docx==1.2.0`: Document generation
+- `PyYAML==6.0.3`: Configuration file parsing
+- `tqdm==4.67.1`: Progress bars
 
 ## Installation
 
@@ -145,22 +229,33 @@ source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### Configure OpenAI API Key
+### Configure LLM Provider API Keys
 
-Set your API key:
+Set your API key(s) for the provider(s) you want to use:
 
 ```bash
 # Windows PowerShell
-$env:OPENAI_API_KEY="your_api_key_here"
+$env:OPENAI_API_KEY="your_openai_key_here"
+$env:ANTHROPIC_API_KEY="your_anthropic_key_here"
+$env:GOOGLE_API_KEY="your_google_key_here"
+$env:OPENROUTER_API_KEY="your_openrouter_key_here"
 
 # Windows Command Prompt
-set OPENAI_API_KEY=your_api_key_here
+set OPENAI_API_KEY=your_openai_key_here
+set ANTHROPIC_API_KEY=your_anthropic_key_here
+set GOOGLE_API_KEY=your_google_key_here
+set OPENROUTER_API_KEY=your_openrouter_key_here
 
 # Linux/macOS
-export OPENAI_API_KEY=your_api_key_here
+export OPENAI_API_KEY=your_openai_key_here
+export ANTHROPIC_API_KEY=your_anthropic_key_here
+export GOOGLE_API_KEY=your_google_key_here
+export OPENROUTER_API_KEY=your_openrouter_key_here
 ```
 
-For persistent configuration, add the environment variable to your system settings or shell profile.
+You only need to set the API key for the provider you want to use. The provider is automatically detected from the model name in `model_config.yaml`.
+
+For persistent configuration, add the environment variables to your system settings or shell profile.
 
 ### Configure File Paths
 
@@ -198,22 +293,40 @@ Key Parameters:
 
 ### 2. Model Configuration (`model_config.yaml`)
 
-Controls which model to use and its behavioral parameters.
+Controls which model to use and its behavioral parameters. ChronoMiner supports multiple LLM providers through LangChain, with automatic provider detection based on model name.
 
 ```yaml
 transcription_model:
-  name: gpt-4o  # Options: gpt-4o, gpt-4.1, gpt-5, gpt-5-mini, o1, o3
+  # OpenAI models
+  name: gpt-5.1              # Options: gpt-5.1, gpt-5.1-instant, gpt-5, gpt-5-mini, gpt-5-nano
+  # name: gpt-4.1            # Options: gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, gpt-4o, gpt-4o-mini
+  # name: o3                 # Options: o3, o3-mini, o3-pro, o4-mini
+  
+  # Anthropic Claude models
+  # name: claude-opus-4-5-20251101    # Latest Opus
+  # name: claude-sonnet-4-5           # Latest Sonnet
+  # name: claude-haiku-4-5            # Latest Haiku (fast)
+  
+  # Google Gemini models
+  # name: gemini-3-pro-preview        # Most powerful
+  # name: gemini-2.5-pro              # Thinking model
+  # name: gemini-2.5-flash            # Fast, cost-effective
+  
+  # OpenRouter (access any model)
+  # name: openrouter/anthropic/claude-opus-4-5
+  
   max_output_tokens: 128000
   
-  # GPT-5 and o-series only
+  # Reasoning models only (GPT-5, o-series, Gemini thinking models)
   reasoning:
-    effort: medium  # Options: low, medium, high
+    effort: medium  # Options: low, medium, high, none (GPT-5.1 only)
   
   # GPT-5 only
   text:
     verbosity: medium  # Options: low, medium, high
   
-  # Classic models (GPT-4o, GPT-4.1) only
+  # Non-reasoning models only (GPT-4o, GPT-4.1, Claude, Gemini non-thinking)
+  # Note: These are automatically disabled for reasoning models
   temperature: 0.01
   top_p: 1.0
   frequency_penalty: 0.01
@@ -222,14 +335,16 @@ transcription_model:
 
 Key Parameters:
 
-- `name`: Model identifier
+- `name`: Model identifier (provider is auto-detected from the name)
 - `max_output_tokens`: Maximum tokens the model can generate per request
-- `reasoning.effort`: Controls reasoning depth for GPT-5 and o-series models
+- `reasoning.effort`: Controls reasoning depth for reasoning models (GPT-5, o-series, Gemini thinking)
 - `text.verbosity`: Controls response verbosity for GPT-5 models
-- `temperature`: Controls randomness (0.0-2.0)
-- `top_p`: Nucleus sampling probability (0.0-1.0)
+- `temperature`: Controls randomness (0.0-2.0) - automatically disabled for reasoning models
+- `top_p`: Nucleus sampling probability (0.0-1.0) - automatically disabled for reasoning models
 - `frequency_penalty`: Penalizes token repetition (-2.0 to 2.0)
 - `presence_penalty`: Penalizes repeated topics (-2.0 to 2.0)
+
+Capability Guarding: ChronoMiner automatically detects model capabilities and filters unsupported parameters. For example, reasoning models (o3, o4-mini, GPT-5) do not support temperature or top_p, so these parameters are automatically excluded from API requests.
 
 ### 3. Chunking Configuration (`chunking_config.yaml`)
 
@@ -964,7 +1079,7 @@ ChronoMiner/
 - `modules/core/`: Core utilities including text processing, JSON manipulation, data processing, context management, logging, and workflow helpers
 - `modules/infra/`: Infrastructure layer providing logging setup, concurrency control, and async task management
 - `modules/io/`: File I/O operations including path validation, directory scanning, file reading/writing, and output management
-- `modules/llm/`: LLM interaction layer including OpenAI SDK utilities, batch processing, model validation, prompt management, and structured output parsing
+- `modules/llm/`: LLM interaction layer including LangChain multi-provider support, model capability detection, batch processing (OpenAI only), prompt management, and structured output parsing
 - `modules/operations/`: High-level operation orchestration (extraction, line ranges, repair workflows)
 - `modules/ui/`: User interface components including interactive prompts, selection menus, and status displays
 
@@ -982,15 +1097,23 @@ ChronoMiner separates orchestration logic from CLI entry points to improve testa
 
 #### API key not found
 
-Solution: Ensure `OPENAI_API_KEY` environment variable is set:
+Solution: Ensure the appropriate API key environment variable is set for your chosen provider:
 
 ```bash
 # Windows PowerShell
-$env:OPENAI_API_KEY="your_api_key_here"
+$env:OPENAI_API_KEY="your_key_here"      # For OpenAI models
+$env:ANTHROPIC_API_KEY="your_key_here"   # For Claude models
+$env:GOOGLE_API_KEY="your_key_here"      # For Gemini models
+$env:OPENROUTER_API_KEY="your_key_here"  # For OpenRouter models
 
 # Linux/macOS
-export OPENAI_API_KEY=your_api_key_here
+export OPENAI_API_KEY=your_key_here
+export ANTHROPIC_API_KEY=your_key_here
+export GOOGLE_API_KEY=your_key_here
+export OPENROUTER_API_KEY=your_key_here
 ```
+
+The required API key depends on the model specified in `model_config.yaml`. The provider is auto-detected from the model name.
 
 #### Schema not found in paths_config
 
@@ -1349,7 +1472,7 @@ If you'd like to contribute code:
 
 Potential areas where contributions would be valuable:
 
-- Additional LLM providers: Support for Anthropic, Google, or other APIs
+- Additional LLM providers: Extended support for new models and providers via LangChain
 - Enhanced chunking: Improved semantic boundary detection algorithms
 - Output formats: Support for different output formats (XML, etc.)
 - Testing: Unit tests and integration tests

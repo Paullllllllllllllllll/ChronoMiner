@@ -1,3 +1,30 @@
+"""
+Structured output utilities for JSON schema formatting.
+
+DEPRECATED: This module is largely deprecated as LangChain now handles
+structured outputs internally via with_structured_output().
+
+The functions here are kept for backward compatibility with existing code
+that uses the build_structured_text_format() function. New code should
+use LangChain's native structured output support instead:
+
+    # LangChain native approach (recommended):
+    llm.with_structured_output(schema_def, method="json_schema")
+    
+    # Or use response_format binding:
+    llm.bind(response_format={"type": "json_schema", "json_schema": {...}})
+
+LangChain handles:
+- Schema validation
+- Provider-specific formatting (OpenAI, Anthropic, Google)
+- Automatic retry on schema validation errors
+- Strict mode enforcement
+
+These utilities remain for:
+- Legacy compatibility with existing batch processing code
+- Custom schema wrapping requirements
+"""
+
 from __future__ import annotations
 
 from typing import Any, Dict, Optional, Tuple

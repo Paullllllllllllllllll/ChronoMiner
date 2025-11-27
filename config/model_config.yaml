@@ -1,12 +1,44 @@
 # model_config.yaml
-transcription_model:  # Model used with the OpenAI Responses API
-  name: "gpt-5-mini"  # default model; change per OpenAI documentation
-  max_output_tokens: 128000  # budget for model outputs
-  reasoning:  # used for GPT-5 and o-series
-    effort: medium
-  text:  # GPT-5 family control
-    verbosity: high
-  # Classic sampler controls apply to non-reasoning families (e.g., GPT-4o/4.1)
+#
+# LangChain Multi-Provider Configuration
+# ======================================
+# The application now uses LangChain to support multiple LLM providers.
+# Provider is auto-detected from the model name, or can be explicitly set.
+#
+# Supported Providers:
+#   - openai:     GPT-4o, GPT-4.1, o1, o3, GPT-5 (env: OPENAI_API_KEY)
+#   - anthropic:  Claude 3.5 Sonnet, Claude 3 Opus, etc. (env: ANTHROPIC_API_KEY)
+#   - google:     Gemini 2.0 Flash, Gemini 1.5 Pro, etc. (env: GOOGLE_API_KEY)
+#   - openrouter: Unified access to 100+ models (env: OPENROUTER_API_KEY)
+#
+# Model Name Examples:
+#   OpenAI:      gpt-4o, gpt-4.1-mini, o1, o3, gpt-5-mini
+#   Anthropic:   claude-3-5-sonnet-20241022, claude-3-opus-20240229
+#   Google:      gemini-2.0-flash, gemini-1.5-pro
+#   OpenRouter:  openrouter/anthropic/claude-3-5-sonnet, openrouter/google/gemini-pro
+#
+
+transcription_model:
+  # Model name - provider is auto-detected from the model name prefix
+  # Examples:
+  #   - "gpt-4o" -> OpenAI
+  #   - "claude-3-5-sonnet-20241022" -> Anthropic
+  #   - "gemini-2.0-flash" -> Google
+  #   - "openrouter/anthropic/claude-3-5-sonnet" -> OpenRouter
+  name: "gpt-5-mini"
+  
+  # Maximum output tokens (budget for model outputs)
+  max_output_tokens: 128000
+  
+  # Reasoning controls (used for GPT-5 and o-series models)
+  reasoning:
+    effort: low  # low, medium, high
+  
+  # Text output controls (GPT-5 family)
+  text:
+    verbosity: high  # low, medium, high
+  
+  # Classic sampler controls (apply to non-reasoning models: GPT-4o, Claude, Gemini)
   temperature: 0.0
   top_p: 1.0
   frequency_penalty: 0.0

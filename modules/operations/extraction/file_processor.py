@@ -1,5 +1,15 @@
 # modules/operations/extraction/file_processor.py
 
+"""
+File processing module for text extraction with LLM support.
+
+Supports multiple LLM providers via LangChain:
+- OpenAI (default)
+- Anthropic (Claude)
+- Google (Gemini)
+- OpenRouter (multi-provider access)
+"""
+
 import os
 import json
 import asyncio
@@ -9,13 +19,15 @@ from typing import List, Dict, Any, Optional, Tuple
 from modules.core.prompt_context import load_basic_context, resolve_additional_context
 from modules.core.text_utils import TextProcessor, perform_chunking
 from modules.llm.openai_utils import open_extractor, process_text_chunk
+from modules.llm.langchain_provider import ProviderConfig, ProviderType
 from modules.operations.extraction.schema_handlers import get_schema_handler
 from modules.llm.batching import build_batch_files, submit_batch
 from modules.llm.prompt_utils import render_prompt_with_schema
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 from modules.core.path_utils import ensure_path_safe
-from tenacity import RetryError
 import logging
+
+# NOTE: tenacity/RetryError import removed - LangChain handles retries internally
 
 logger = logging.getLogger(__name__)
 
@@ -371,12 +383,16 @@ class FileProcessor:
 			)
 		else:
 			# Synchronous processing: Process each chunk using async API calls
-			api_key: Optional[str] = os.getenv("OPENAI_API_KEY", "").strip()
+			# Detect provider from model name and get appropriate API key
+			model_name = self.model_config["transcription_model"]["name"]
+			provider = ProviderConfig._detect_provider(model_name)
+			api_key: Optional[str] = ProviderConfig._get_api_key(provider)
+			
 			if not api_key:
 				logger.error(
-					"OPENAI_API_KEY is not set in environment variables.")
+					f"API key not found for provider {provider}. Set the appropriate environment variable.")
 				console_print(
-					"[ERROR] OPENAI_API_KEY is not set in environment variables.")
+					f"[ERROR] API key not found for provider {provider}. Set the appropriate environment variable.")
 				return
 
 			console_print(
@@ -455,31 +471,9 @@ class FileProcessor:
 										"chunk_range": chunk_range,
 										"response": parsed_response,
 									}
-								except RetryError as retry_exc:
-									# Handle exhausted retries from API calls (usually due to persistent 500 errors)
-									logger.error(
-										"Chunk %s of %s failed after all retry attempts (likely due to persistent API server errors): %s",
-										idx,
-										file_path.name,
-										retry_exc
-									)
-									error_record: Dict[str, Any] = {
-										"custom_id": f"{file_path.stem}-chunk-{idx}",
-										"chunk_index": idx,
-										"chunk_range": chunk_range,
-										"response": {"entries": []},
-										"error": f"RetryError: API server errors persisted after all retry attempts - {str(retry_exc)}",
-										"status": "failed_retries"
-									}
-									async with write_lock:
-										tempf.write(json.dumps(error_record) + "\n")
-										tempf.flush()
-									results_map[idx] = {
-										"custom_id": f"{file_path.stem}-chunk-{idx}",
-										"chunk_index": idx,
-										"chunk_range": chunk_range,
-										"response": {"entries": []},
-									}
+								# NOTE: RetryError handling removed - LangChain handles retries internally
+								# via max_retries parameter. Any error reaching here means all retries
+								# were exhausted by LangChain.
 								except Exception as exc:
 									# Handle other unexpected errors
 									logger.error(
