@@ -169,8 +169,68 @@ ChronoMiner automatically detects model capabilities and adjusts API parameters 
 
 - Reasoning Models (GPT-5, o-series, Gemini thinking): Temperature and top_p are disabled
 - Standard Models (GPT-4.1, GPT-4o, Claude, Gemini non-thinking): Full sampler control
-- Structured Outputs: Supported by all models via LangChain
+- Structured Outputs: Supported by all models via LangChain (with provider-specific limitations)
 - Batch Processing: OpenAI only (50% cost savings)
+
+### Structured Output Limitations by Provider
+
+Each LLM provider has different limitations for JSON Schema-based structured outputs. Understanding these limitations helps you design schemas that work across providers.
+
+#### OpenAI
+
+OpenAI has the most robust structured output support with strict schema validation. See [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs) for details.
+
+| Limitation | Value |
+|------------|-------|
+| Maximum nesting depth | 5 levels |
+| Maximum object properties | 100 total across all objects |
+| Required fields | All fields must be marked `required` |
+| Additional properties | `additionalProperties: false` required on all objects |
+| Default values | Not supported |
+| Unsupported keywords | `minLength`, `maxLength`, `minimum`, `maximum`, `pattern`, etc. |
+
+#### Anthropic (Claude)
+
+Claude supports structured outputs via tool/function calling with flexible schema handling. See [Claude Structured Outputs documentation](https://platform.claude.com/docs/en/build-with-claude/structured-outputs) for details.
+
+| Limitation | Value |
+|------------|-------|
+| Schema format | Standard JSON Schema with some limitations |
+| Nesting depth | No strict limit documented; complex schemas generally work |
+| Validation | Less strict than OpenAI; model follows schema guidance |
+| Tool use pattern | Structured output achieved through tool definitions |
+
+Claude is generally more permissive with complex, deeply nested schemas like `BibliographicEntries`.
+
+#### Google (Gemini)
+
+Gemini has stricter schema complexity limits that may reject deeply nested schemas. See [Gemini Structured Outputs documentation](https://ai.google.dev/gemini-api/docs/structured-output) for details.
+
+| Limitation | Value |
+|------------|-------|
+| Schema subset | Not all JSON Schema features supported |
+| Nesting depth | Limited; complex schemas may be rejected |
+| Schema complexity | API rejects very large or deeply nested schemas |
+| Supported types | `string`, `number`, `integer`, `boolean`, `object`, `array`, `null` |
+| Descriptive properties | `title`, `description` supported for guidance |
+
+**Known Issue**: The `BibliographicEntries` schema exceeds Gemini's nesting depth limit and will fail with error: `400 A schema in GenerationConfig in the request exceeds the maximum allowed nesting depth.`
+
+**Workarounds for Gemini**:
+- Use simpler, flatter schemas (e.g., `StructuredSummaries`)
+- Shorten property names and reduce nesting levels
+- Limit the number of constraints per property
+- Consider using OpenAI or Claude for complex extraction tasks
+
+#### Provider Compatibility Matrix
+
+| Schema | OpenAI | Anthropic | Google Gemini |
+|--------|--------|-----------|---------------|
+| BibliographicEntries | ✓ | ✓ | ✗ (too nested) |
+| StructuredSummaries | ✓ | ✓ | ✓ |
+| HistoricalAddressBookEntries | ✓ | ✓ | Untested |
+| Simple custom schemas | ✓ | ✓ | ✓ |
+| Deeply nested schemas (>5 levels) | ✓ | ✓ | ✗ |
 
 ## System Requirements
 
