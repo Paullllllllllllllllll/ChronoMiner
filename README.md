@@ -169,7 +169,7 @@ ChronoMiner automatically detects model capabilities and adjusts API parameters 
 
 - Reasoning Models (GPT-5, o-series, Gemini thinking): Temperature and top_p are disabled
 - Standard Models (GPT-4.1, GPT-4o, Claude, Gemini non-thinking): Full sampler control
-- Structured Outputs: Supported by all models via LangChain (with provider-specific limitations)
+**- Structured Outputs: Supported by all models via LangChain (with provider-specific limitations)
 - Batch Processing: OpenAI only (50% cost savings)
 
 ### Structured Output Limitations by Provider
@@ -178,7 +178,7 @@ Each LLM provider has different limitations for JSON Schema-based structured out
 
 #### OpenAI
 
-OpenAI has the most robust structured output support with strict schema validation. See [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs) for details.
+OpenAI has the most robust structured output support with strict schema validation**. See [OpenAI Structured Outputs documentation](https://platform.openai.com/docs/guides/structured-outputs) for details.
 
 | Limitation | Value |
 |------------|-------|
