@@ -100,9 +100,3 @@ six==1.17.0
 typing-inspection==0.4.2
 typing_extensions==4.15.0
 tzdata==2025.2
-
-# =====================================================
-# Legacy/Backward Compatibility
-# =====================================================
-# tenacity: Kept for backward compatibility - LangChain handles retries internally
-tenacity==9.1.2

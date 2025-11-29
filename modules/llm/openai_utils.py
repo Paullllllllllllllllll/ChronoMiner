@@ -10,70 +10,24 @@ as the backend. It supports multiple providers:
 - Google (Gemini)
 - OpenRouter (multi-provider access)
 
-The module maintains backward compatibility with the original OpenAI-specific
-interface while using LangChain internally.
-
-DEPRECATED LOGIC (now handled by LangChain):
-============================================
-- Retry logic: LangChain's max_retries parameter handles retries with exponential backoff
-- Error classification: LangChain handles transient vs non-transient errors internally
-- Structured output formatting: LangChain's with_structured_output() handles JSON schemas
-- Token tracking: LangChain's usage_metadata provides token counts automatically
-
-The tenacity-based retry decorator and custom error classes are kept for backward
-compatibility but are no longer actively used - LangChain handles all retries internally.
+LangChain handles retries, error classification, and structured outputs internally.
 """
 
 from pathlib import Path
-from typing import Dict, Any, Optional, AsyncGenerator, Literal, Union
+from typing import Dict, Any, Optional, AsyncGenerator
 from contextlib import asynccontextmanager
-import asyncio
-import os
 
 from modules.config.loader import ConfigLoader
 from modules.core.logger import setup_logger
-from modules.core.token_tracker import get_token_tracker
 from modules.llm.structured_outputs import build_structured_text_format
 from modules.llm.model_capabilities import detect_capabilities
 from modules.llm.langchain_provider import (
     LangChainLLM,
-    LLMProvider,
     ProviderConfig,
     ProviderType,
 )
 
 logger = setup_logger(__name__)
-
-
-# ---------- Exceptions (DEPRECATED - LangChain handles retries internally) ----------
-
-
-class TransientLLMError(Exception):
-    """
-    DEPRECATED: LangChain handles transient errors internally via max_retries.
-    
-    Kept for backward compatibility only.
-    """
-
-    def __init__(self, message: str, retry_after: Optional[float] = None) -> None:
-        super().__init__(message)
-        self.retry_after = retry_after
-
-
-# Backward compatibility alias
-TransientOpenAIError = TransientLLMError
-
-
-class NonRetryableLLMError(Exception):
-    """
-    DEPRECATED: LangChain handles error classification internally.
-    
-    Kept for backward compatibility only.
-    """
-
-
-# Backward compatibility alias
-NonRetryableOpenAIError = NonRetryableLLMError
 
 
 def _load_retry_config() -> int:
@@ -198,10 +152,6 @@ class LLMExtractor:
         pass
 
 
-# Backward compatibility alias
-OpenAIExtractor = LLMExtractor
-
-
 @asynccontextmanager
 async def open_extractor(
     api_key: str,
@@ -233,12 +183,6 @@ async def process_text_chunk(
 ) -> Dict[str, Any]:
     """
     Process a text chunk using LangChain with the configured provider.
-    
-    NOTE: Retry logic is handled by LangChain internally via max_retries.
-    The tenacity decorator has been removed as LangChain handles:
-    - Exponential backoff with jitter
-    - Transient error detection (429, 5xx, timeouts)
-    - Automatic retry on network failures
 
     :param text_chunk: The text to process.
     :param extractor: An instance of LLMExtractor.
