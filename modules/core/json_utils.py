@@ -30,7 +30,6 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
             data = json.load(f)
     except Exception as e:
         logger.error(f"Error reading JSON file {json_file}: {e}")
-        print(f"Error reading JSON file {json_file}: {e}")
         return []
 
     entries: List[Any] = []
@@ -39,7 +38,6 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
         # Check if the model indicated no content of requested type
         if data.get("contains_no_content_of_requested_type", False):
             logger.info(f"Model indicated no content of requested type in {json_file.name}")
-            print(f"Note: Model found no extractable content in {json_file.name}")
             return []
         
         # Direct entries format

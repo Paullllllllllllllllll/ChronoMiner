@@ -1,11 +1,16 @@
 # modules/core/text_utils.py
 
+"""Text processing utilities for chunking and encoding detection."""
+
 import logging
+import warnings
+from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
+
 import chardet
 import tiktoken
-from abc import ABC, abstractmethod
+
 from modules.core.path_utils import ensure_path_safe
 
 logger = logging.getLogger(__name__)
@@ -240,6 +245,20 @@ def perform_chunking(
 ) -> Tuple[List[str], List[Tuple[int, int]]]:
     """
     Perform text chunking using the specified strategy.
+    
+    .. deprecated::
+        Use :class:`ChunkingService` from ``modules.core.chunking_service`` instead.
+        This function will be removed in a future version.
+    
+    Example migration::
+    
+        # Old approach (deprecated)
+        chunks, ranges = perform_chunking(lines, processor, config, "auto")
+        
+        # New approach (recommended)
+        from modules.core.chunking_service import ChunkingService
+        service = ChunkingService(model_name, tokens_per_chunk)
+        chunks, ranges = service.chunk_text(lines, strategy="auto")
 
     Strategies:
       - "auto": Automatic token-based chunking.
@@ -254,6 +273,12 @@ def perform_chunking(
     :param line_ranges_file: Optional path to an existing line ranges file.
     :return: Tuple of list of text chunks and the corresponding line ranges.
     """
+    warnings.warn(
+        "perform_chunking() is deprecated. Use ChunkingService.chunk_text() instead. "
+        "See modules.core.chunking_service for the recommended approach.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     if chunk_choice == "line_ranges.txt":
         if line_ranges_file and line_ranges_file.exists():
             line_ranges = load_line_ranges(line_ranges_file)
@@ -266,7 +291,6 @@ def perform_chunking(
             logger.info(f"Using user-provided line ranges from {line_ranges_file}")
             return chunks, line_ranges
         else:
-            print("Line ranges file not found; defaulting to automatic chunking.")
             logger.warning("Line ranges file not found; defaulting to auto chunking.")
             chunk_choice = "auto"
 

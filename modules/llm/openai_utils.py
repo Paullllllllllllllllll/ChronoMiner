@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional, AsyncGenerator
 from contextlib import asynccontextmanager
 
-from modules.config.loader import ConfigLoader
+from modules.config.loader import get_config_loader
 from modules.core.logger import setup_logger
 from modules.llm.structured_outputs import build_structured_text_format
 from modules.llm.model_capabilities import detect_capabilities
@@ -35,11 +35,11 @@ def _load_retry_config() -> int:
     Load retry attempts from concurrency configuration.
     
     This value is passed to LangChain's max_retries parameter.
+    Uses cached config loader for efficiency.
     """
     try:
-        cl = ConfigLoader()
-        cl.load_configs()
-        cc = cl.get_concurrency_config() or {}
+        config = get_config_loader()
+        cc = config.get_concurrency_config() or {}
         extraction_cfg = (cc.get("concurrency", {}) or {}).get("extraction", {}) or {}
         retry_cfg = (extraction_cfg.get("retry", {}) or {})
         attempts = int(retry_cfg.get("attempts", 5))
@@ -92,11 +92,10 @@ class LLMExtractor:
                 logger.error(f"Failed to read prompt: {e}")
                 raise
         
-        # Load configuration
-        config_loader = ConfigLoader()
-        config_loader.load_configs()
-        self.model_config: Dict[str, Any] = config_loader.get_model_config()
-        self.concurrency_config: Dict[str, Any] = config_loader.get_concurrency_config()
+        # Load configuration using cached loader
+        config = get_config_loader()
+        self.model_config: Dict[str, Any] = config.get_model_config()
+        self.concurrency_config: Dict[str, Any] = config.get_concurrency_config()
         
         tm: Dict[str, Any] = self.model_config.get("transcription_model", {})
         
@@ -257,11 +256,9 @@ async def process_text_chunk_with_provider(
     :param model_config: Optional model configuration dict.
     :return: Dictionary containing the model output text and metadata.
     """
-    # Load config if not provided
+    # Load config if not provided (uses cached loader)
     if model_config is None:
-        config_loader = ConfigLoader()
-        config_loader.load_configs()
-        model_config = config_loader.get_model_config()
+        model_config = get_config_loader().get_model_config()
     
     # Get model from config if not specified
     if model is None:

@@ -1,44 +1,47 @@
 # modules/core/text_processing.py
 
-from pathlib import Path
-import json
-from docx import Document
-from typing import Any, List
-from modules.core.json_utils import extract_entries_from_json
+"""Document conversion utilities for DOCX and TXT output formats."""
 
-class DocumentConverter:
+import logging
+from pathlib import Path
+from typing import Any, List
+
+from docx import Document
+
+from modules.core.converter_base import BaseConverter
+
+logger = logging.getLogger(__name__)
+
+
+class DocumentConverter(BaseConverter):
     """
     Converts JSON-extracted data to DOCX or TXT documents.
+    
+    Inherits from BaseConverter for shared entry extraction and utility methods.
     """
-    def __init__(self, schema_name: str) -> None:
-        self.schema_name: str = schema_name.lower()
+    
+    def _safe_str(self, value: Any) -> str:
+        """Alias for base class safe_str method for backward compatibility."""
+        return self.safe_str(value)
 
-    def extract_entries(self, json_file: Path) -> List[Any]:
+    def convert(self, json_file: Path, output_file: Path) -> None:
         """
-        Extract entries from JSON file.
-
-        :param json_file: Path to the JSON file
-        :return: List of entries extracted from the JSON file
+        Convert JSON to output format based on file extension.
+        
+        :param json_file: Input JSON file path
+        :param output_file: Output file path (.docx or .txt)
         """
-        return extract_entries_from_json(json_file)
-
-    def _safe_str(self, value) -> str:
-        """
-        Safely convert a value to string, handling None values.
-
-        :param value: Any value that might be None
-        :return: String representation or empty string if None
-        """
-        if value is None:
-            return ""
-        return str(value)
-
+        suffix = output_file.suffix.lower()
+        if suffix == ".docx":
+            self.convert_to_docx(json_file, output_file)
+        elif suffix == ".txt":
+            self.convert_to_txt(json_file, output_file)
+        else:
+            logger.warning(f"Unsupported output format: {suffix}")
+    
     def convert_to_docx(self, json_file: Path, output_file: Path) -> None:
-        entries: List[Any] = self.extract_entries(json_file)
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        """Convert JSON entries to a DOCX document."""
+        entries = self.get_entries(json_file)
         document: Document = Document()
         document.add_heading(json_file.stem, 0)
         converters = {
@@ -53,33 +56,24 @@ class DocumentConverter:
             "culinaryentitiesentries": self._convert_culinary_entities_to_docx,
             "historicalrecipesentries": self._convert_historical_recipes_to_docx
         }
-        key = self.schema_name.lower()
-        if key in converters:
-            converters[key](entries, document)
+        converter = self.get_converter(converters)
+        if converter:
+            converter(entries, document)
         else:
             for entry in entries:
                 document.add_paragraph(str(entry))
         try:
             document.save(output_file)
-            print(f"DOCX file generated at {output_file}")
+            logger.info(f"DOCX file generated at {output_file}")
         except Exception as e:
-            print(f"Error saving DOCX file {output_file}: {e}")
+            logger.error(f"Error saving DOCX file {output_file}: {e}")
 
     def convert_to_txt(self, json_file: Path, output_file: Path) -> None:
-        """
-        Convert JSON entries to a plain text file with improved null handling.
-
-        :param json_file: Input JSON file path
-        :param output_file: Output text file path
-        """
-        entries: List[Any] = self.extract_entries(json_file)
-
-        # Filter out None entries
-        entries = [entry for entry in entries if entry is not None]
+        """Convert JSON entries to a plain text file."""
+        entries = self.get_entries(json_file)
 
         if not entries:
-            print(f"Warning: No valid entries found in {json_file.name}")
-            # Create an empty file with a message
+            logger.warning(f"No valid entries found in {json_file.name}")
             with output_file.open("w", encoding="utf-8") as f:
                 f.write(f"No valid entries found in {json_file.name}\n")
             return
@@ -98,24 +92,19 @@ class DocumentConverter:
         }
 
         try:
-            key = self.schema_name.lower()
-            if key in converters:
-                lines = converters[key](entries)
+            converter = self.get_converter(converters)
+            if converter:
+                lines = converter(entries)
             else:
-                # Default conversion with null handling
-                lines = []
-                for entry in entries:
-                    if entry is not None:
-                        lines.append(self._safe_str(entry))
+                lines = [self._safe_str(entry) for entry in entries]
 
-            # Filter out None values in lines
             lines = [line for line in lines if line is not None]
 
             with output_file.open("w", encoding="utf-8") as f:
                 f.write("\n".join(lines))
-            print(f"TXT file generated at {output_file}")
+            logger.info(f"TXT file generated at {output_file}")
         except Exception as e:
-            print(f"Error writing TXT file {output_file}: {e}")
+            logger.error(f"Error writing TXT file {output_file}: {e}")
 
     # --- Schema-Specific DOCX Converters ---
     def _convert_structured_summaries_to_docx(self, entries: list,
@@ -538,8 +527,9 @@ class DocumentConverter:
             document.add_page_break()
 
     # --- Schema-Specific TXT Converters ---
-    def _convert_structured_summaries_to_txt(self,
-                                             entries: List[Any]) -> List[str]:
+    def _convert_structured_summaries_to_txt(
+        self, entries: List[Any]
+    ) -> List[str]:
         lines: List[str] = []
         literature_set = set()
         for entry in entries:
@@ -575,8 +565,9 @@ class DocumentConverter:
                 lines.append(f" - {lit}")
         return lines
 
-    def _convert_bibliographic_entries_to_txt(self, entries: List[Any]) -> List[
-        str]:
+    def _convert_bibliographic_entries_to_txt(
+        self, entries: List[Any]
+    ) -> List[str]:
         lines: List[str] = []
         for entry in entries:
             if entry is None:
@@ -652,9 +643,9 @@ class DocumentConverter:
 
         return lines
 
-    def _convert_historicaladdressbookentries_to_txt(self,
-                                                     entries: List[Any]) -> \
-        List[str]:
+    def _convert_historicaladdressbookentries_to_txt(
+        self, entries: List[Any]
+    ) -> List[str]:
         lines: List[str] = []
         for entry in entries:
             last_name = entry.get("last_name", "Unknown")

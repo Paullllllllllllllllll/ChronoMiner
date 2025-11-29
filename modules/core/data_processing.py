@@ -1,35 +1,34 @@
-# data_processing.py
+# modules/core/data_processing.py
 
+"""CSV conversion utilities for JSON data transformation."""
+
+import logging
 from pathlib import Path
-import json
-from modules.core.json_utils import extract_entries_from_json
+from typing import Any, Dict, List
+
 import pandas as pd
-from typing import Any, List, Dict
 
-class CSVConverter:
+from modules.core.converter_base import BaseConverter
+
+logger = logging.getLogger(__name__)
+
+
+class CSVConverter(BaseConverter):
     """
-    A converter class to transform JSON extracted data into CSV format.
+    Converts JSON-extracted data to CSV format.
+    
+    Inherits from BaseConverter for shared entry extraction and utility methods.
     """
-    def __init__(self, schema_name: str) -> None:
-        self.schema_name: str = schema_name.lower()
-
-    def extract_entries(self, json_file: Path) -> List[Any]:
-        """
-        Extract entries from JSON file.
-
-        :param json_file: Path to the JSON file
-        :return: List of entries extracted from the JSON file
-        """
-        return extract_entries_from_json(json_file)
-
+    
+    def convert(self, json_file: Path, output_file: Path) -> None:
+        """Convert JSON to CSV format."""
+        self.convert_to_csv(json_file, output_file)
+    
     def convert_to_csv(self, json_file: Path, output_csv: Path) -> None:
-        entries: List[Any] = self.extract_entries(json_file)
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        """Convert JSON entries to a CSV file."""
+        entries = self.get_entries(json_file)
         if not entries:
-            print("No entries found for CSV conversion.")
+            logger.warning("No entries found for CSV conversion.")
             return
 
         converters = {
@@ -44,19 +43,20 @@ class CSVConverter:
             "culinaryentitiesentries": self._convert_culinary_entities_to_df,
             "historicalrecipesentries": self._convert_historical_recipes_to_df
         }
-        key = self.schema_name.lower()
-        if key in converters:
-            df = converters[key](entries)
+        converter = self.get_converter(converters)
+        if converter:
+            df = converter(entries)
         else:
             df = pd.json_normalize(entries, sep='_')
         try:
             df.to_csv(output_csv, index=False)
-            print(f"CSV file generated at {output_csv}")
+            logger.info(f"CSV file generated at {output_csv}")
         except Exception as e:
-            print(f"Error saving CSV file {output_csv}: {e}")
+            logger.error(f"Error saving CSV file {output_csv}: {e}")
 
-    def _convert_bibliographic_entries_to_df(self, entries: List[
-        Any]) -> pd.DataFrame:
+    def _convert_bibliographic_entries_to_df(
+        self, entries: List[Any]
+    ) -> pd.DataFrame:
         """
         Converts bibliographic entries to a pandas DataFrame according to schema version 3.3.
         Creates one row per edition with all entry-level data repeated.
@@ -319,8 +319,9 @@ class CSVConverter:
         df = pd.DataFrame(rows)
         return df
 
-    def _convert_historicaladdressbookentries_to_df(self, entries: List[
-        Any]) -> pd.DataFrame:
+    def _convert_historicaladdressbookentries_to_df(
+        self, entries: List[Any]
+    ) -> pd.DataFrame:
         rows: List[Dict[str, Any]] = []
 
         for entry in entries:

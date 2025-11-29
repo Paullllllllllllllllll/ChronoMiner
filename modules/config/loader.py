@@ -1,12 +1,18 @@
-# modules/config_loader.py
+# modules/config/loader.py
 
-import re
+"""Configuration loading and validation for ChronoMiner."""
+
 import logging
-import yaml
+import re
 from pathlib import Path
 from typing import Any, Dict, Optional
 
+import yaml
+
 logger = logging.getLogger(__name__)
+
+# Module-level cache for loaded configurations
+_config_cache: Optional["ConfigLoader"] = None
 
 
 class ConfigLoader:
@@ -186,3 +192,43 @@ class ConfigLoader:
         :return: A dictionary mapping schema names to their paths.
         """
         return self.paths_config.get("schemas_paths", {})  # type: ignore
+
+
+def get_config_loader(force_reload: bool = False) -> ConfigLoader:
+    """
+    Get a cached ConfigLoader instance.
+    
+    Uses module-level caching to avoid redundant config file reads.
+    This is the recommended way to access configuration throughout
+    the application.
+    
+    :param force_reload: If True, reload configs even if cached
+    :return: Configured ConfigLoader instance
+    
+    Example::
+    
+        from modules.config.loader import get_config_loader
+        
+        config = get_config_loader()
+        model_config = config.get_model_config()
+    """
+    global _config_cache
+    
+    if _config_cache is None or force_reload:
+        _config_cache = ConfigLoader()
+        _config_cache.load_configs()
+        logger.debug("Configuration loaded and cached")
+    
+    return _config_cache
+
+
+def clear_config_cache() -> None:
+    """
+    Clear the configuration cache.
+    
+    Use this when configuration files have been modified and need
+    to be reloaded.
+    """
+    global _config_cache
+    _config_cache = None
+    logger.debug("Configuration cache cleared")

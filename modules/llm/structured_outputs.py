@@ -27,6 +27,7 @@ These utilities remain for:
 
 from __future__ import annotations
 
+import warnings
 from typing import Any, Dict, Optional, Tuple
 
 
@@ -65,6 +66,11 @@ def build_structured_text_format(
 ) -> Optional[Dict[str, Any]]:
     """
     Build the Responses API `text.format` object for Structured Outputs.
+    
+    .. deprecated::
+        This function is deprecated. Use LangChain's native structured output
+        support instead via ``llm.with_structured_output(schema)``. This
+        function is kept for backward compatibility with batch processing code.
 
     Returns:
       dict with shape:
@@ -76,6 +82,12 @@ def build_structured_text_format(
         }
       or None if the provided schema is not usable.
     """
+    warnings.warn(
+        "build_structured_text_format() is deprecated. Use LangChain's "
+        "with_structured_output() method instead for new code.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     name, schema, strict = _unwrap_schema(schema_obj, default_name, default_strict)
     if not isinstance(schema, dict) or not schema:
         return None

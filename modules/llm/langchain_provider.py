@@ -16,12 +16,13 @@ import asyncio
 import json
 import logging
 import os
+import warnings
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Sequence, Type, Union
 
 from pydantic import BaseModel
 
-from modules.config.loader import ConfigLoader
+from modules.config.loader import get_config_loader
 from modules.core.logger import setup_logger
 from modules.core.token_tracker import get_token_tracker
 
@@ -33,9 +34,7 @@ ProviderType = Literal["openai", "anthropic", "google", "openrouter"]
 def _load_concurrency_config() -> Dict[str, Any]:
     """Load concurrency config for retry and rate limiting settings."""
     try:
-        config_loader = ConfigLoader()
-        config_loader.load_configs()
-        return config_loader.get_concurrency_config() or {}
+        return get_config_loader().get_concurrency_config() or {}
     except Exception:
         return {}
 
@@ -305,9 +304,16 @@ class LangChainLLM:
         """
         Check if the model is a reasoning model (o1, o3, gpt-5).
         
-        DEPRECATED: Use _get_capabilities().is_reasoning_model instead.
-        This method is kept for backward compatibility.
+        .. deprecated::
+            Use ``_get_capabilities().is_reasoning_model`` instead.
+            This method will be removed in a future version.
         """
+        warnings.warn(
+            "_is_reasoning_model() is deprecated. "
+            "Use _get_capabilities().is_reasoning_model instead.",
+            DeprecationWarning,
+            stacklevel=2
+        )
         caps = self._get_capabilities()
         return caps.is_reasoning_model
     
