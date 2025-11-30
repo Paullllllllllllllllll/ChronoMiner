@@ -1,0 +1,133 @@
+# Evaluation Configuration for ChronoMiner
+# This file defines models to evaluate and dataset paths for extraction quality assessment
+
+# =============================================================================
+# Dataset Configuration
+# =============================================================================
+dataset:
+  base_path: "test_data"
+  
+  input_path: "test_data/input"
+  output_path: "test_data/output"
+  ground_truth_path: "test_data/ground_truth"
+  
+  categories:
+    - name: "address_books"
+      description: "Swiss address book pages (Basel 1900)"
+      schema: "HistoricalAddressBookEntries"
+      
+    - name: "bibliography"
+      description: "European culinary bibliographies"
+      schema: "BibliographicEntries"
+      
+    - name: "military_records"
+      description: "Brazilian military enlistment cards"
+      schema: "BrazilianMilitaryRecords"
+
+# =============================================================================
+# Models to Evaluate
+# =============================================================================
+models:
+  # OpenAI Models
+  - name: "gpt_5.1_medium"
+    provider: "openai"
+    model_id: "gpt-5.1"
+    reasoning_effort: "medium"
+    description: "GPT-5.1 with medium reasoning"
+    
+  - name: "gpt_5_mini_medium"
+    provider: "openai"
+    model_id: "gpt-5-mini"
+    reasoning_effort: "medium"
+    description: "GPT-5 Mini with medium reasoning"
+  
+  # Google Models
+  - name: "gemini_3.0_pro_medium"
+    provider: "google"
+    model_id: "gemini-3.0-pro"
+    reasoning_effort: "medium"
+    description: "Gemini 3.0 Pro with medium reasoning"
+    
+  - name: "gemini_2.5_flash"
+    provider: "google"
+    model_id: "gemini-2.5-flash"
+    reasoning_effort: null
+    description: "Gemini 2.5 Flash (no reasoning)"
+  
+  # Anthropic Models
+  - name: "claude_sonnet_4.5_medium"
+    provider: "anthropic"
+    model_id: "claude-sonnet-4-5-20241022"
+    reasoning_effort: "medium"
+    description: "Claude Sonnet 4.5 with medium reasoning"
+    
+  - name: "claude_haiku_4.5_medium"
+    provider: "anthropic"
+    model_id: "claude-haiku-4-5-20241022"
+    reasoning_effort: "medium"
+    description: "Claude Haiku 4.5 with medium reasoning"
+
+# =============================================================================
+# Evaluation Settings
+# =============================================================================
+evaluation:
+  # Matching settings for field comparison
+  string_similarity_threshold: 0.85  # Levenshtein ratio threshold for fuzzy matching
+  case_sensitive: false  # Whether to use case-sensitive comparison
+  normalize_whitespace: true  # Normalize whitespace before comparison
+  
+  # Fields to evaluate per schema (if empty, evaluate all fields)
+  schema_fields:
+    BibliographicEntries:
+      - "full_title"
+      - "short_title"
+      - "authors"
+      - "edition_info.year"
+      - "edition_info.language"
+      - "culinary_focus"
+    HistoricalAddressBookEntries:
+      - "last_name"
+      - "first_name"
+      - "occupation"
+      - "address.street"
+      - "address.street_number"
+    BrazilianMilitaryRecords:
+      - "surname"
+      - "first_name"
+      - "profession"
+      - "birth_date"
+      - "birth_place"
+      - "height"
+      - "civil_status"
+  
+  # Output settings
+  save_per_file_metrics: true
+  save_per_entry_metrics: true
+  save_aggregated_metrics: true
+  output_formats:
+    - "json"
+    - "csv"
+    - "markdown"
+  
+  # Report path
+  reports_path: "reports"
+
+# =============================================================================
+# Runtime Settings
+# =============================================================================
+runtime:
+  # Concurrency for API calls
+  max_concurrent_requests: 3
+  delay_between_requests_ms: 500
+  
+  # Retry settings
+  max_retries: 3
+  retry_delay_seconds: 2
+  
+  # Cost tracking
+  track_costs: true
+  track_latency: true
+  
+  # Chunking settings for evaluation runs
+  chunking_method: "auto"
+  tokens_per_chunk: 7500
