@@ -1,8 +1,8 @@
-# modules/operations/extraction/file_processor_refactored.py
+# modules/operations/extraction/file_processor.py
 
 """
-Refactored file processor using modular components.
-Simplified orchestration with separated concerns.
+File processor for schema-based structured data extraction.
+Uses modular components with simplified orchestration and separated concerns.
 """
 
 import asyncio

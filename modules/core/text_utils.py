@@ -3,7 +3,6 @@
 """Text processing utilities for chunking and encoding detection."""
 
 import logging
-import warnings
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import List, Optional, Tuple
@@ -233,97 +232,3 @@ def load_line_ranges(line_ranges_file: Path) -> List[Tuple[int, int]]:
     
     logger.info(f"Loaded {len(ranges)} line ranges from {line_ranges_file}")
     return ranges
-
-
-def perform_chunking(
-    selected_lines: List[str],
-    text_processor: TextProcessor,
-    openai_config_task: dict,
-    chunk_choice: str,
-    original_start_line: int = 1,
-    line_ranges_file: Optional[Path] = None
-) -> Tuple[List[str], List[Tuple[int, int]]]:
-    """
-    Perform text chunking using the specified strategy.
-    
-    .. deprecated::
-        Use :class:`ChunkingService` from ``modules.core.chunking_service`` instead.
-        This function will be removed in a future version.
-    
-    Example migration::
-    
-        # Old approach (deprecated)
-        chunks, ranges = perform_chunking(lines, processor, config, "auto")
-        
-        # New approach (recommended)
-        from modules.core.chunking_service import ChunkingService
-        service = ChunkingService(model_name, tokens_per_chunk)
-        chunks, ranges = service.chunk_text(lines, strategy="auto")
-
-    Strategies:
-      - "auto": Automatic token-based chunking.
-      - "auto-adjust": Automatic token-based chunking with interactive adjustments.
-      - "line_ranges.txt": Use an existing line ranges file.
-
-    :param selected_lines: List of normalized text lines.
-    :param text_processor: Instance of TextProcessor.
-    :param openai_config_task: Configuration with model name and token count.
-    :param chunk_choice: Chunking strategy choice.
-    :param original_start_line: Starting line number.
-    :param line_ranges_file: Optional path to an existing line ranges file.
-    :return: Tuple of list of text chunks and the corresponding line ranges.
-    """
-    warnings.warn(
-        "perform_chunking() is deprecated. Use ChunkingService.chunk_text() instead. "
-        "See modules.core.chunking_service for the recommended approach.",
-        DeprecationWarning,
-        stacklevel=2
-    )
-    if chunk_choice == "line_ranges.txt":
-        if line_ranges_file and line_ranges_file.exists():
-            line_ranges = load_line_ranges(line_ranges_file)
-            chunk_handler = ChunkHandler(
-                model_name=openai_config_task["model_name"],
-                default_tokens_per_chunk=openai_config_task["default_tokens_per_chunk"],
-                text_processor=text_processor
-            )
-            chunks = chunk_handler.split_text_into_chunks(selected_lines, line_ranges)
-            logger.info(f"Using user-provided line ranges from {line_ranges_file}")
-            return chunks, line_ranges
-        else:
-            logger.warning("Line ranges file not found; defaulting to auto chunking.")
-            chunk_choice = "auto"
-
-    chunk_handler = ChunkHandler(
-        model_name=openai_config_task["model_name"],
-        default_tokens_per_chunk=openai_config_task["default_tokens_per_chunk"],
-        text_processor=text_processor
-    )
-    strategy: TokenBasedChunking = TokenBasedChunking(
-        tokens_per_chunk=openai_config_task["default_tokens_per_chunk"],
-        model_name=openai_config_task["model_name"],
-        text_processor=text_processor
-    )
-    token_ranges: List[Tuple[int, int]] = chunk_handler.get_line_ranges(strategy, selected_lines)
-
-    if chunk_choice == 'auto':
-        final_ranges: List[Tuple[int, int]] = [
-            (original_start_line + start - 1, original_start_line + end - 1)
-            for (start, end) in token_ranges
-        ]
-        chunks: List[str] = chunk_handler.split_text_into_chunks(selected_lines, token_ranges)
-        return chunks, final_ranges
-    else:
-        print("\nThe following default token-based chunks were created:")
-        for i, (start, end) in enumerate(token_ranges, 1):
-            actual_start: int = original_start_line + start - 1
-            actual_end: int = original_start_line + end - 1
-            print(f"  Chunk {i}: Lines {actual_start} - {actual_end}")
-        print("\nYou can now adjust the chunk boundaries if you wish. Press Enter to keep the default for each chunk.")
-        final_ranges = chunk_handler.adjust_line_ranges(token_ranges, original_start_line, len(selected_lines))
-        adjusted_ranges: List[Tuple[int, int]] = [
-            (start - original_start_line + 1, end - original_start_line + 1)
-            for (start, end) in final_ranges
-        ]
-        chunks = chunk_handler.split_text_into_chunks(selected_lines, adjusted_ranges)
-        return chunks, final_ranges

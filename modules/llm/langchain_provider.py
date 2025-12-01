@@ -16,7 +16,6 @@ import asyncio
 import json
 import logging
 import os
-import warnings
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Literal, Optional, Sequence, Type, Union
 
@@ -25,6 +24,7 @@ from pydantic import BaseModel
 from modules.config.loader import get_config_loader
 from modules.core.logger import setup_logger
 from modules.core.token_tracker import get_token_tracker
+from modules.llm.model_capabilities import detect_provider as _canonical_detect_provider
 
 logger = setup_logger(__name__)
 
@@ -107,23 +107,17 @@ class ProviderConfig:
     
     @staticmethod
     def _detect_provider(model_name: str) -> ProviderType:
-        """Detect provider from model name."""
-        m = model_name.lower().strip()
+        """
+        Detect provider from model name.
         
-        # OpenRouter models typically have openrouter/ prefix or contain /
-        if m.startswith("openrouter/") or "/" in m:
-            return "openrouter"
-        
-        # Anthropic models
-        if m.startswith("claude") or "anthropic" in m:
-            return "anthropic"
-        
-        # Google models
-        if m.startswith("gemini") or "google" in m:
-            return "google"
-        
-        # Default to OpenAI
-        return "openai"
+        Delegates to the canonical detect_provider() in model_capabilities.py,
+        but defaults to "openai" for backward compatibility when provider is unknown.
+        """
+        provider = _canonical_detect_provider(model_name)
+        # Default to "openai" for backward compatibility (canonical returns "unknown")
+        if provider == "unknown":
+            return "openai"
+        return provider  # type: ignore[return-value]
     
     @staticmethod
     def _get_api_key(provider: ProviderType) -> Optional[str]:
@@ -300,23 +294,6 @@ class LangChainLLM:
         else:
             raise ValueError(f"Unsupported provider: {provider}")
     
-    def _is_reasoning_model(self) -> bool:
-        """
-        Check if the model is a reasoning model (o1, o3, gpt-5).
-        
-        .. deprecated::
-            Use ``_get_capabilities().is_reasoning_model`` instead.
-            This method will be removed in a future version.
-        """
-        warnings.warn(
-            "_is_reasoning_model() is deprecated. "
-            "Use _get_capabilities().is_reasoning_model instead.",
-            DeprecationWarning,
-            stacklevel=2
-        )
-        caps = self._get_capabilities()
-        return caps.is_reasoning_model
-    
     @property
     def supports_structured_outputs(self) -> bool:
         """
@@ -387,23 +364,32 @@ class LangChainLLM:
             # Extract content
             output_text = response.content if hasattr(response, 'content') else str(response)
             
-            # Track token usage
+            # Track token usage - usage_metadata can be dict or object
             usage_metadata = getattr(response, 'usage_metadata', None)
             if usage_metadata:
+                # Handle both dict and object access patterns
+                if isinstance(usage_metadata, dict):
+                    input_tokens = usage_metadata.get('input_tokens', 0)
+                    output_tokens = usage_metadata.get('output_tokens', 0)
+                    total_tokens = usage_metadata.get('total_tokens', 0)
+                else:
+                    input_tokens = getattr(usage_metadata, 'input_tokens', 0)
+                    output_tokens = getattr(usage_metadata, 'output_tokens', 0)
+                    total_tokens = getattr(usage_metadata, 'total_tokens', 0)
+                
                 response_data["usage"] = {
-                    "input_tokens": getattr(usage_metadata, 'input_tokens', 0),
-                    "output_tokens": getattr(usage_metadata, 'output_tokens', 0),
-                    "total_tokens": getattr(usage_metadata, 'total_tokens', 0),
+                    "input_tokens": input_tokens,
+                    "output_tokens": output_tokens,
+                    "total_tokens": total_tokens,
                 }
                 
                 # Report to token tracker
                 try:
-                    total = response_data["usage"].get("total_tokens", 0)
-                    if total:
+                    if total_tokens:
                         token_tracker = get_token_tracker()
-                        token_tracker.add_tokens(total)
+                        token_tracker.add_tokens(total_tokens)
                         logger.debug(
-                            f"[TOKEN] API call consumed {total:,} tokens "
+                            f"[TOKEN] API call consumed {total_tokens:,} tokens "
                             f"(daily total: {token_tracker.get_tokens_used_today():,})"
                         )
                 except Exception as e:
@@ -492,12 +478,17 @@ class LangChainLLM:
     ):
         """Invoke Anthropic with structured output via tool calling."""
         # Anthropic uses tool calling for structured output
-        # Create a dynamic Pydantic model from schema
+        # Use include_raw=True to get AIMessage with usage_metadata
         structured_model = self._chat_model.with_structured_output(
             schema_def,
             method="json_mode",
+            include_raw=True,
         )
-        return await structured_model.ainvoke(messages)
+        result = await structured_model.ainvoke(messages)
+        # include_raw returns {"raw": AIMessage, "parsed": dict, "parsing_error": ...}
+        if isinstance(result, dict) and "raw" in result:
+            return result["raw"]
+        return result
     
     async def _invoke_google_structured(
         self,
@@ -505,11 +496,17 @@ class LangChainLLM:
         schema_def: Dict[str, Any],
     ):
         """Invoke Google Gemini with structured output."""
+        # Use include_raw=True to get AIMessage with usage_metadata
         structured_model = self._chat_model.with_structured_output(
             schema_def,
             method="json_schema",
+            include_raw=True,
         )
-        return await structured_model.ainvoke(messages)
+        result = await structured_model.ainvoke(messages)
+        # include_raw returns {"raw": AIMessage, "parsed": dict, "parsing_error": ...}
+        if isinstance(result, dict) and "raw" in result:
+            return result["raw"]
+        return result
     
     def invoke_with_structured_output(
         self,

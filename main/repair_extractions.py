@@ -184,14 +184,26 @@ def _repair_temp_file(
 
     handler = get_schema_handler(schema_name)
     if schema_config.get("csv_output", False):
-        handler.convert_to_csv_safely(final_json_path, final_json_path.with_suffix(".csv"))
-        ui.log("CSV output generated", "info")
+        try:
+            handler.convert_to_csv(final_json_path, final_json_path.with_suffix(".csv"))
+            ui.log("CSV output generated", "info")
+        except Exception as e:
+            logger.error(f"Error converting {final_json_path} to CSV: {e}")
+            ui.log(f"Error converting to CSV: {e}", "error")
     if schema_config.get("docx_output", False):
-        handler.convert_to_docx_safely(final_json_path, final_json_path.with_suffix(".docx"))
-        ui.log("DOCX output generated", "info")
+        try:
+            handler.convert_to_docx(final_json_path, final_json_path.with_suffix(".docx"))
+            ui.log("DOCX output generated", "info")
+        except Exception as e:
+            logger.error(f"Error converting {final_json_path} to DOCX: {e}")
+            ui.log(f"Error converting to DOCX: {e}", "error")
     if schema_config.get("txt_output", False):
-        handler.convert_to_txt_safely(final_json_path, final_json_path.with_suffix(".txt"))
-        ui.log("TXT output generated", "info")
+        try:
+            handler.convert_to_txt(final_json_path, final_json_path.with_suffix(".txt"))
+            ui.log("TXT output generated", "info")
+        except Exception as e:
+            logger.error(f"Error converting {final_json_path} to TXT: {e}")
+            ui.log(f"Error converting to TXT: {e}", "error")
 
 
 class RepairExtractionsScript(DualModeScript):

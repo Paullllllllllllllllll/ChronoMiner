@@ -19,7 +19,6 @@ from contextlib import asynccontextmanager
 
 from modules.config.loader import get_config_loader
 from modules.core.logger import setup_logger
-from modules.llm.structured_outputs import build_structured_text_format
 from modules.llm.model_capabilities import detect_capabilities
 from modules.llm.langchain_provider import (
     LangChainLLM,
@@ -210,13 +209,18 @@ async def process_text_chunk(
     # NOTE: LangChain's with_structured_output() handles schema validation internally
     structured_schema = None
     if json_schema and extractor.caps.supports_structured_outputs:
-        # Use the existing schema format builder for compatibility
-        fmt = build_structured_text_format(json_schema, "TranscriptionSchema", True)
-        if fmt is not None:
+        # Handle both wrapped {"name", "schema", "strict"} and bare JSON Schema formats
+        if "schema" in json_schema and isinstance(json_schema.get("schema"), dict):
             structured_schema = {
-                "name": fmt.get("name", "TranscriptionSchema"),
-                "schema": fmt.get("schema", {}),
-                "strict": fmt.get("strict", True),
+                "name": json_schema.get("name", "TranscriptionSchema"),
+                "schema": json_schema.get("schema", {}),
+                "strict": bool(json_schema.get("strict", True)),
+            }
+        elif isinstance(json_schema, dict) and json_schema:
+            structured_schema = {
+                "name": "TranscriptionSchema",
+                "schema": json_schema,
+                "strict": True,
             }
     
     # LangChain handles retries internally via max_retries parameter

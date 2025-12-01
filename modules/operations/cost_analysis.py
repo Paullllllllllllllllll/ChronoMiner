@@ -16,7 +16,9 @@ logger = setup_logger(__name__)
 
 # Model pricing per million tokens (input, cached_input, output)
 # Note: Use 0.0 for cached_input when not available
+# Pricing last updated: December 2024
 MODEL_PRICING = {
+    # ============== OpenAI Models ==============
     # GPT-5 family
     "gpt-5": (1.25, 0.125, 10.00),
     "gpt-5-mini": (0.25, 0.025, 2.00),
@@ -49,10 +51,39 @@ MODEL_PRICING = {
     "o3-deep-research": (10.00, 2.50, 40.00),
     "o4-mini": (1.10, 0.275, 4.40),
     "o4-mini-deep-research": (2.00, 0.50, 8.00),
-    # Other models
+    # Other OpenAI models
     "codex-mini-latest": (1.50, 0.375, 6.00),
     "computer-use-preview": (3.00, 0.00, 12.00),
     "gpt-image-1": (5.00, 1.25, 0.00),  # Image generation (no output tokens)
+    
+    # ============== Anthropic Models ==============
+    # Claude 4 family (Haiku 4.5: $1/$5 per million tokens)
+    "claude-haiku-4-5": (1.00, 0.10, 5.00),
+    "claude-haiku-4-5-20251101": (1.00, 0.10, 5.00),
+    # Claude 3.5 family
+    "claude-3-5-sonnet": (3.00, 0.30, 15.00),
+    "claude-3-5-sonnet-20241022": (3.00, 0.30, 15.00),
+    "claude-3-5-haiku": (1.00, 0.10, 5.00),
+    "claude-3-5-haiku-20241022": (1.00, 0.10, 5.00),
+    # Claude 3 family
+    "claude-3-opus": (15.00, 1.50, 75.00),
+    "claude-3-opus-20240229": (15.00, 1.50, 75.00),
+    "claude-3-sonnet": (3.00, 0.30, 15.00),
+    "claude-3-sonnet-20240229": (3.00, 0.30, 15.00),
+    "claude-3-haiku": (0.25, 0.03, 1.25),
+    "claude-3-haiku-20240307": (0.25, 0.03, 1.25),
+    
+    # ============== Google Gemini Models ==============
+    # Gemini 2.5 family
+    "gemini-2.5-pro": (1.25, 0.125, 10.00),
+    "gemini-2.5-flash": (0.30, 0.03, 2.50),
+    "gemini-2.5-flash-lite": (0.10, 0.01, 0.40),
+    # Gemini 2.0 family
+    "gemini-2.0-flash": (0.10, 0.01, 0.40),
+    "gemini-2.0-flash-lite": (0.08, 0.008, 0.30),
+    # Gemini 1.5 family (legacy)
+    "gemini-1.5-pro": (1.25, 0.125, 5.00),
+    "gemini-1.5-flash": (0.075, 0.0075, 0.30),
 }
 
 
@@ -126,6 +157,10 @@ def extract_token_usage_from_record(record: Dict[str, Any]) -> Optional[TokenUsa
     """
     Extract token usage from a single JSONL record.
     
+    Handles both structures:
+    - Direct: record["response_data"]
+    - Nested: record["response"]["body"]["response_data"] (temp.jsonl from sync processing)
+    
     Args:
         record: Dictionary containing the JSONL record
         
@@ -134,17 +169,28 @@ def extract_token_usage_from_record(record: Dict[str, Any]) -> Optional[TokenUsa
     """
     usage = TokenUsage()
     
-    # Try to get model from response_data or request_metadata
+    # Try to get response_data from different locations
+    # 1. Direct at record level (batch API responses)
     response_data = record.get("response_data", {})
     request_metadata = record.get("request_metadata", {})
+    
+    # 2. Nested under response.body (sync processing temp.jsonl)
+    if not response_data:
+        body = record.get("response", {}).get("body", {})
+        if isinstance(body, dict):
+            response_data = body.get("response_data", {})
+            request_metadata = body.get("request_metadata", request_metadata)
     
     # Extract model
     if isinstance(response_data, dict):
         usage.model = response_data.get("model", "")
     if not usage.model and isinstance(request_metadata, dict):
-        payload = request_metadata.get("payload", {})
-        if isinstance(payload, dict):
-            usage.model = payload.get("model", "")
+        # Try from request_metadata
+        usage.model = request_metadata.get("model", "")
+        if not usage.model:
+            payload = request_metadata.get("payload", {})
+            if isinstance(payload, dict):
+                usage.model = payload.get("model", "")
     
     # Extract usage data from response_data
     if isinstance(response_data, dict):
@@ -154,6 +200,10 @@ def extract_token_usage_from_record(record: Dict[str, Any]) -> Optional[TokenUsa
             usage.prompt_tokens = usage_data.get("input_tokens", usage_data.get("prompt_tokens", 0))
             usage.completion_tokens = usage_data.get("output_tokens", usage_data.get("completion_tokens", 0))
             usage.total_tokens = usage_data.get("total_tokens", 0)
+            
+            # Calculate total if not provided
+            if usage.total_tokens == 0 and (usage.prompt_tokens > 0 or usage.completion_tokens > 0):
+                usage.total_tokens = usage.prompt_tokens + usage.completion_tokens
             
             # Extract cached tokens from input_tokens_details or prompt_tokens_details
             input_details = usage_data.get("input_tokens_details", usage_data.get("prompt_tokens_details", {}))
@@ -237,11 +287,17 @@ def analyze_jsonl_file(jsonl_path: Path) -> FileStats:
                 
                 try:
                     record = json.loads(line)
+                    
+                    # Skip batch tracking records
+                    if "batch_tracking" in record:
+                        continue
+                    
                     stats.total_chunks += 1
                     
-                    # Check status
+                    # Check status - consider records with response data as successful
                     status = record.get("status", "")
-                    if status == "success":
+                    has_response = bool(record.get("response", {}).get("body"))
+                    if status == "success" or (not status and has_response):
                         stats.successful_chunks += 1
                     else:
                         stats.failed_chunks += 1

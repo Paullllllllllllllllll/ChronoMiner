@@ -28,7 +28,7 @@ transcription_model:
   name: "gpt-5-mini"
   
   # Maximum output tokens (budget for model outputs)
-  max_output_tokens: 8192
+  max_output_tokens: 32000
   
   # Reasoning controls (used for GPT-5 and o-series models)
   # Not applicable for Claude - uses temperature instead

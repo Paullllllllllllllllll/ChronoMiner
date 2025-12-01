@@ -35,16 +35,12 @@ from modules.core.workflow_utils import (
     prepare_context_manager,
 )
 from modules.llm.prompt_utils import load_prompt_template
-from modules.operations.extraction.file_processor_refactored import FileProcessorRefactored as FileProcessor
+from modules.operations.extraction.file_processor import FileProcessorRefactored as FileProcessor
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 from modules.ui.core import UserInterface
 
 # Import line range generation functions from sibling script
-sys.path.insert(0, str(Path(__file__).parent))
-try:
-    from generate_line_ranges import generate_line_ranges_for_file, write_line_ranges_file
-except ImportError:
-    from main.generate_line_ranges import generate_line_ranges_for_file, write_line_ranges_file
+from main.generate_line_ranges import generate_line_ranges_for_file, write_line_ranges_file
 
 # Initialize logger
 logger = setup_logger(__name__)

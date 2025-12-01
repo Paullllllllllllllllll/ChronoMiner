@@ -79,8 +79,19 @@ def _norm(name: str) -> str:
     return name.strip().lower()
 
 
-def _detect_provider(model_name: str) -> ProviderType:
-    """Detect provider from model name."""
+def detect_provider(model_name: str) -> ProviderType:
+    """
+    Detect LLM provider from model name.
+    
+    This is the canonical provider detection function. All other modules
+    should use this function or delegate to it.
+    
+    Args:
+        model_name: The model identifier string.
+        
+    Returns:
+        ProviderType literal: "openai", "anthropic", "google", "openrouter", or "unknown"
+    """
     m = _norm(model_name)
     
     # OpenRouter models typically have openrouter/ prefix or contain /
@@ -100,6 +111,10 @@ def _detect_provider(model_name: str) -> ProviderType:
         return "openai"
     
     return "unknown"
+
+
+# Backward compatibility alias
+_detect_provider = detect_provider
 
 
 def detect_capabilities(model_name: str) -> Capabilities:
