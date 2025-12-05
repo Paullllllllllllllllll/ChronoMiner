@@ -18,14 +18,14 @@ general: # General processing settings
 
 schemas_paths: # Schema specific input and output paths and settings
   BibliographicEntries:
-    input: ""
-    output: ""
+    input: "C:/Users/pagoetz/Desktop/working_dir/test_folders/test_folder_chrono_miner"
+    output: "C:/Users/pagoetz/Desktop/working_dir/test_folders/test_folder_chrono_miner/output"
     csv_output: True
     docx_output: True
     txt_output: True
   StructuredSummaries:
-    input: "C:/path"
-    output: "C:/path"
+    input: "C:/Users/pagoetz/Desktop/working_dir/test_folders/test_folder_chrono_miner"
+    output: "C:/Users/pagoetz/Desktop/working_dir/test_folders/test_folder_chrono_miner/output"
     csv_output: True
     docx_output: True
     txt_output: True

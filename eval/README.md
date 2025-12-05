@@ -6,6 +6,13 @@ This directory contains the evaluation framework for measuring structured data e
 
 The evaluation computes **precision**, **recall**, and **F1 scores** at both entry and field levels by comparing model outputs against manually corrected ground truth extractions.
 
+### Chunk-Level Evaluation
+
+Metrics are computed **chunk-by-chunk** using the temporary JSONL files produced by the extractor. This approach:
+- **Eliminates formatting penalties** from whitespace differences in final JSON output
+- **Enables accurate per-chunk error attribution** for debugging
+- **Isolates extraction quality** from post-processing effects
+
 This framework mirrors the transcription evaluation in ChronoTranscriber (`ChronoTranscriber/eval/`), using the same dataset categories and model lineup for consistent end-to-end pipeline assessment.
 
 ## Models Evaluated
@@ -34,19 +41,21 @@ eval/
 ├── README.md                    # This file
 ├── eval_config.yaml             # Configuration for models and paths
 ├── metrics.py                   # Precision/recall/F1 computation
+├── jsonl_eval.py                # JSONL parsing for chunk-level evaluation
 ├── extraction_eval.ipynb        # Main evaluation notebook
 ├── test_data/
 │   ├── input/                   # Transcribed text files (from ChronoTranscriber ground truth)
 │   │   ├── address_books/       # .txt files
 │   │   ├── bibliography/        # .txt files
 │   │   └── military_records/    # .txt files
-│   ├── output/                  # Model extraction outputs
+│   ├── output/                  # Model extraction outputs (JSONL per source)
 │   │   └── {category}/
-│   │       └── {model_name}/    # e.g., gpt_5.1_medium/
-│   └── ground_truth/            # Manually corrected JSON extractions
-│       ├── address_books/
-│       ├── bibliography/
-│       └── military_records/
+│   │       └── {model_name}/
+│   │           └── {source}/
+│   │               └── {source}_temp.jsonl
+│   └── ground_truth/            # Manually corrected JSONL extractions
+│       └── {category}/
+│           └── {source}.jsonl
 └── reports/                     # Generated evaluation reports
 ```
 
@@ -77,25 +86,40 @@ This ensures the extraction evaluation starts from flawless transcriptions, isol
 
 ### Step 1: Create Ground Truth Extractions
 
-1. Run extraction using a high-quality model (e.g., GPT-5.1 with high reasoning):
+Use the helper script to extract and edit ground truth:
+
+1. **Run extraction** using a high-quality model (e.g., GPT-5.1 with high reasoning):
    ```bash
    cd ..
    python main/process_text_files.py --input eval/test_data/input/bibliography \
-       --schema BibliographicEntries --chunking auto
+       --schema BibliographicEntries --chunking auto \
+       --output eval/test_data/output/bibliography/gpt_5.1_medium
    ```
 
-2. Copy outputs to ground truth draft folder:
+2. **Extract** chunk-level extractions to editable text format:
    ```bash
-   mkdir -p eval/test_data/ground_truth/bibliography
-   cp output/bibliography/*.json eval/test_data/ground_truth/bibliography/
+   python main/prepare_extraction_ground_truth.py --extract \
+       --input eval/test_data/output/bibliography/gpt_5.1_medium
    ```
+   This creates `*_editable.txt` files with chunk markers like `=== chunk 001 ===`.
 
-3. **Manually review and correct** each JSON file:
-   - Verify all entries are correctly extracted
+3. **Edit** the generated text files to correct extraction errors:
+   - Each chunk is marked with `=== chunk NNN ===`
+   - Correct the JSON content below each marker
+   - Ensure all entries are correctly extracted
    - Fix any missing or incorrect field values
-   - Ensure consistent formatting
 
-4. The corrected files become your ground truth for evaluation.
+4. **Apply** corrections to create ground truth JSONL:
+   ```bash
+   python main/prepare_extraction_ground_truth.py --apply \
+       --input eval/test_data/output/bibliography/gpt_5.1_medium
+   ```
+   This creates JSONL files in `test_data/ground_truth/{category}/`.
+
+5. **Check** ground truth status:
+   ```bash
+   python main/prepare_extraction_ground_truth.py --status
+   ```
 
 ### Step 2: Run Model Extractions
 
@@ -120,9 +144,9 @@ jupyter notebook extraction_eval.ipynb
 ```
 
 The notebook will:
-- Discover available outputs and ground truth
-- Compute precision, recall, and F1 for each model/category combination
-- Generate summary tables and rankings
+- Discover available outputs and ground truth JSONL files
+- Compute precision, recall, and F1 **chunk-by-chunk** for each model/category combination
+- Generate summary tables and per-page rankings
 - Export results to `reports/` in JSON, CSV, and Markdown formats
 
 ## Metrics
@@ -188,9 +212,17 @@ After running the evaluation:
 | `eval_results_*.csv` | Tabular format for spreadsheets |
 | `eval_results_*.md` | Markdown summary for documentation |
 
-## Ground Truth JSON Format
+## Ground Truth JSONL Format
 
-Ground truth files should match the schema structure. Example for BibliographicEntries:
+Ground truth files use JSONL format with one chunk per line. Example structure:
+
+```jsonl
+{"metadata": {"source_name": "source_file", "chunk_count": 2, "is_ground_truth": true}}
+{"chunk_index": 1, "custom_id": "source_file-chunk-1", "extraction_data": {"entries": [...]}}
+{"chunk_index": 2, "custom_id": "source_file-chunk-2", "extraction_data": {"entries": [...]}}
+```
+
+Each chunk's `extraction_data` should match the schema structure. Example for BibliographicEntries:
 
 ```json
 {
@@ -208,6 +240,8 @@ Ground truth files should match the schema structure. Example for BibliographicE
   ]
 }
 ```
+
+**Note:** Legacy JSON ground truth files (single merged output) are still supported for backward compatibility but will be treated as a single chunk.
 
 ## Integration with ChronoTranscriber Evaluation
 

@@ -1,5 +1,8 @@
 # Evaluation Configuration for ChronoMiner
 # This file defines models to evaluate and dataset paths for extraction quality assessment
+#
+# Evaluation Method: Chunk-level (using temporary JSONL files from extractor)
+# Ground Truth Format: JSONL with one chunk per line (legacy JSON also supported)
 
 # =============================================================================
 # Dataset Configuration
