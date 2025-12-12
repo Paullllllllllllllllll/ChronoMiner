@@ -1,6 +1,6 @@
 {
   "name": "BibliographicEntries",
-  "schema_version": "4.3",
+  "schema_version": "4.4",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -32,40 +32,22 @@
               "description": "True if the main author is institutional (e.g. a comune, a chamber of commerce, etc .); false if not."
             },
             "short_note": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ],
+              "type": ["string", "null"],
               "description": "A concise 3-10 sentence note with additional historiographical information (content, authors, historical context, etc.) about this work in modern english. Set to null if no such information is given in the input text."
                   },
             "library_abbreviation": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ],
+              "type": ["string", "null"],
               "description": "Abbreviation of the holding library or archive of the first known/surviving edition of the work. Use null if not mentioned. Example: 'UBA = Universiteitsbibliotheek Amsterdam'"
             },
             "volumes_overview": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ],
+              "type": ["string", "null"],
               "description": "Brief summary of the work's volume structure (e.g., 'Three volumes: Vol. 1 (1645) original recipes; Vol. 2 (1783) expanded regional dishes; Vol. 3 (1978) facsimile reprint with modern annotations.'). Use null when the work is single-volume."
             },
             "volume_numbers": {
-              "anyOf": [
-                {
-                  "type": "array",
-                  "items": {
-                    "anyOf": [
-                      { "type": "integer" },
-                      { "type": "null" }
-                    ]
-                  },
-                  "description": "List of normalized volume numbers (integers)."
-                },
-                { "type": "null" }
-              ],
+              "type": ["array", "null"],
+              "items": {
+                "type": ["integer", "null"]
+              },
               "description": "Explicit enumeration of volume numbers if the source lists them; use null for confirmed single-volume works."
             },
             "edition_info": {
@@ -74,29 +56,18 @@
                 "type": "object",
                 "properties": {
                   "year": {
-                    "anyOf": [
-                      { "type": "integer" },
-                      { "type": "null" }
-                    ],
+                    "type": ["integer", "null"],
                     "description": "The year of publication. Use an integer or null if unknown. Example: 1751."
                   },
                   "edition_number": {
-                    "anyOf": [
-                      { "type": "integer" },
-                      { "type": "null" }
-                    ],
+                    "type": ["integer", "null"],
                     "description": "Edition number (1,2,3...) or null if unknown."
                   },
                   "volume_numbers": {
-                    "anyOf": [
-                      {
-                        "type": "array",
-                        "items": {
-                          "type": "integer"
-                        }
-                      },
-                      { "type": "null" }
-                    ],
+                    "type": ["array", "null"],
+                    "items": {
+                      "type": "integer"
+                    },
                     "description": "Ordered list of volume numbers covered by this edition. Use null if the edition pertains to a single-volume work or volumes are not indicated."
                   },
                   "publication_locations": {
@@ -105,18 +76,12 @@
                       "type": "object",
                       "properties": {
                         "country": {
-                          "anyOf": [
-                            { "type": "string" },
-                            { "type": "null" }
-                          ],
-                          "description": "Country of publication, modern English, suitable for programmatic matching. Only the country, not the country and the city. Example: 'Italy'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent."
+                          "type": ["string", "null"],
+                          "description": "Country of publication, modern English equivalent for the historical region, suitable for programmatic matching. Only the country, not the country and the city. Example: 'Italy'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent."
                         },
                         "city": {
-                          "anyOf": [
-                            { "type": "string" },
-                            { "type": "null" }
-                          ],
-                          "description": "City of publication, modern English, suitable for programmatic matching. Only the city, not the city and the country. Example: 'Rome'. Use null if given; use 'Unknown' if you cannot determine the modern equivalent."
+                          "type": ["string", "null"],
+                          "description": "City of publication, modern English equivalent for the historical place, suitable for programmatic matching. Only the city, not the city and the country. Example: 'Rome'. Use null if given; use 'Unknown' if you cannot determine the modern equivalent."
                         }
                       },
                       "required": ["country", "city"],
@@ -130,42 +95,34 @@
                       "type": "object",
                       "properties": {
                         "name": {
-                          "anyOf": [
-                            { "type": "string" },
-                            { "type": "null" }
-                          ],
+                          "type": ["string", "null"],
                           "description": "Contributor name as: First Name Middle Name(s) Last Name. Use 'Anonymous' if contributor is anonymous."
                         },
                         "role": {
-                          "anyOf": [
-                            {
-                              "type": "string",
-                              "enum": [
-                                "Author",
-                                "CoAuthor",
-                                "Editor",
-                                "Translator",
-                                "Commentator",
-                                "Annotator",
-                                "Compiler",
-                                "Contributor",
-                                "Publisher",
-                                "Printer",
-                                "Illustrator",
-                                "Cartographer",
-                                "Engraver",
-                                "Woodcutter",
-                                "Lithographer",
-                                "PrefaceWriter",
-                                "IndexMaker",
-                                "Dedicatee",
-                                "Patron",
-                                "Sponsor",
-                                "Unknown",
-                                "Other"
-                              ]
-                            },
-                            { "type": "null" }
+                          "type": ["string", "null"],
+                          "enum": [
+                            "Author",
+                            "CoAuthor",
+                            "Editor",
+                            "Translator",
+                            "Commentator",
+                            "Annotator",
+                            "Compiler",
+                            "Contributor",
+                            "Publisher",
+                            "Printer",
+                            "Illustrator",
+                            "Cartographer",
+                            "Engraver",
+                            "Woodcutter",
+                            "Lithographer",
+                            "PrefaceWriter",
+                            "IndexMaker",
+                            "Dedicatee",
+                            "Patron",
+                            "Sponsor",
+                            "Unknown",
+                            "Other"
                           ],
                           "description": "Role of the contributor for this edition. Use null if unknown."
                         }
@@ -176,169 +133,129 @@
                     "description": "Contributors for this specific edition (editors, translators, etc.), including the main author. Use empty array if none."
                   },
                   "edition_category": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "Original",
-                          "Reprint",
-                          "Translation",
-                          "Plagiarism",
-                          "Modified Edition",
-                          "Revised Edition",
-                          "Enlarged Edition",
-                          "Compilation",
-                          "Facsimile",
-                          "Critical Edition",
-                          "Abridged Edition",
-                          "Unknown",
-                          "Other"
-                        ]
-                      },
-                      { "type": "null" }
+                    "type": ["string", "null"],
+                    "enum": [
+                      "Original",
+                      "Reprint",
+                      "Translation",
+                      "Plagiarism",
+                      "Modified Edition",
+                      "Revised Edition",
+                      "Enlarged Edition",
+                      "Compilation",
+                      "Facsimile",
+                      "Critical Edition",
+                      "Abridged Edition",
+                      "Unknown",
+                      "Other"
                     ],
                     "description": "The category of the edition. Use a listed value, or null if the source omits it. Example: 'Original'."
                   },
                   "language": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "German",
-                          "Spanish",
-                          "English",
-                          "French",
-                          "Italian",
-                          "Dutch",
-                          "Latin",
-                          "Portuguese",
-                          "Danish",
-                          "Swedish",
-                          "Norwegian",
-                          "Finnish",
-                          "Icelandic",
-                          "Czech",
-                          "Polish",
-                          "Hungarian",
-                          "Catalan",
-                          "Greek",
-                          "Russian",
-                          "Ukrainian",
-                          "Turkish",
-                          "Arabic",
-                          "Chinese",
-                          "Japanese",
-                          "Unknown",
-                          "Other"
-                        ]
-                      },
-                      { "type": "null" }
+                    "type": ["string", "null"],
+                    "enum": [
+                      "German",
+                      "Spanish",
+                      "English",
+                      "French",
+                      "Italian",
+                      "Dutch",
+                      "Latin",
+                      "Portuguese",
+                      "Danish",
+                      "Swedish",
+                      "Norwegian",
+                      "Finnish",
+                      "Icelandic",
+                      "Czech",
+                      "Polish",
+                      "Hungarian",
+                      "Catalan",
+                      "Greek",
+                      "Russian",
+                      "Ukrainian",
+                      "Turkish",
+                      "Arabic",
+                      "Chinese",
+                      "Japanese",
+                      "Unknown",
+                      "Other"
                     ],
                     "description": "Language of this edition. Use a listed value, can be deduced from context. Example: 'Italian'."
                   },
                   "translated_from": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "German",
-                          "Spanish",
-                          "English",
-                          "French",
-                          "Italian",
-                          "Dutch",
-                          "Latin",
-                          "Portuguese",
-                          "Danish",
-                          "Swedish",
-                          "Norwegian",
-                          "Finnish",
-                          "Icelandic",
-                          "Czech",
-                          "Polish",
-                          "Hungarian",
-                          "Catalan",
-                          "Greek",
-                          "Russian",
-                          "Ukrainian",
-                          "Turkish",
-                          "Arabic",
-                          "Chinese",
-                          "Japanese",
-                          "Unknown",
-                          "Other"
-                        ]
-                      },
-                      { "type": "null" }
+                    "type": ["string", "null"],
+                    "enum": [
+                      "German",
+                      "Spanish",
+                      "English",
+                      "French",
+                      "Italian",
+                      "Dutch",
+                      "Latin",
+                      "Portuguese",
+                      "Danish",
+                      "Swedish",
+                      "Norwegian",
+                      "Finnish",
+                      "Icelandic",
+                      "Czech",
+                      "Polish",
+                      "Hungarian",
+                      "Catalan",
+                      "Greek",
+                      "Russian",
+                      "Ukrainian",
+                      "Turkish",
+                      "Arabic",
+                      "Chinese",
+                      "Japanese",
+                      "Unknown",
+                      "Other"
                     ],
                     "description": "The source language from which this edition was translated. Use a listed value, can be deduced from context. Use null if not translated. Example: 'French'."
                   },
                   "format": {
-                    "anyOf": [
-                      {
-                        "type": "string",
-                        "enum": [
-                          "Folio",
-                          "Quarto",
-                          "Octavo",
-                          "Duodecimo",
-                          "Sextodecimo",
-                          "Pocket-Sized",
-                          "Miniature",
-                          "Unknown",
-                          "Other"
-                        ]
-                      },
-                      { "type": "null" }
+                    "type": ["string", "null"],
+                    "enum": [
+                      "Folio",
+                      "Quarto",
+                      "Octavo",
+                      "Duodecimo",
+                      "Sextodecimo",
+                      "Pocket-Sized",
+                      "Miniature",
+                      "Unknown",
+                      "Other"
                     ],
                     "description": "Physical format of this edition. Use a listed value, or null if not provided."
                   },
                   "pages": {
-                    "anyOf": [
-                      { "type": "integer" },
-                      { "type": "null" }
-                    ],
+                    "type": ["integer", "null"],
                     "description": "Total number of pages or leaf count for this edition, or null if unknown."
                   },
                   "has_illustrations": {
-                    "anyOf": [
-                      { "type": "boolean" },
-                      { "type": "null" }
-                    ],
+                    "type": ["boolean", "null"],
                     "description": "True if this edition contains illustrations, plates, or engravings; false if it does not; null if unknown."
                   },
                   "is_manuscript": {
-                    "anyOf": [
-                      { "type": "boolean" },
-                      { "type": "null" }
-                    ],
+                    "type": ["boolean", "null"],
                     "description": "True if this edition is handwritten (not printed); false if it is not; null if unknown."
                   },
                   "price_information": {
-                    "anyOf": [
-                      {
-                        "type": "object",
-                        "properties": {
-                          "price": {
-                            "anyOf": [
-                              { "type": "number" },
-                              { "type": "null" }
-                            ],
-                            "description": "Numeric price value. Example: 3.50. Use null if unknown."
-                          },
-                          "currency": {
-                            "anyOf": [
-                              { "type": "string" },
-                              { "type": "null" }
-                            ],
-                            "description": "Currency abbreviation. Example: 'fr.' or '£'. Use null if unknown."
-                          }
-                        },
-                        "required": ["price", "currency"],
-                        "additionalProperties": false
+                    "type": ["object", "null"],
+                    "properties": {
+                      "price": {
+                        "type": ["number", "null"],
+                        "description": "Numeric price value. Example: 3.50. Use null if unknown."
                       },
-                      { "type": "null" }
-                    ],
+                      "currency": {
+                        "type": ["string", "null"],
+                        "description": "Currency abbreviation. Example: 'fr.' or '£'. Use null if unknown."
+                      }
+                    },
+                    "required": ["price", "currency"],
+                    "additionalProperties": false,
                     "description": "Historical or catalog price for this edition. Use null if not mentioned."
                   }
                 },
