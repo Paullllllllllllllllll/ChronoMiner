@@ -75,19 +75,27 @@
                     "items": {
                       "type": "object",
                       "properties": {
-                        "country": {
+                        "original_city": {
                           "type": ["string", "null"],
-                          "description": "Country of publication, modern English equivalent for the historical region, suitable for programmatic matching. Only the country, not the country and the city. Example: 'Italy'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent."
+                          "description": "City of publication exactly as given in the input text, preserving original spelling and language. Example: 'Venedig' or 'Londini'. Use null if not provided."
                         },
-                        "city": {
+                        "original_country": {
                           "type": ["string", "null"],
-                          "description": "City of publication, modern English equivalent for the historical place, suitable for programmatic matching. Only the city, not the city and the country. Example: 'Rome'. Use null if given; use 'Unknown' if you cannot determine the modern equivalent."
+                          "description": "Country or region of publication exactly as given in the input text, preserving original spelling and language. Example: 'Preußen' or 'Regno di Napoli'. Use null if not provided."
+                        },
+                        "modern_city": {
+                          "type": ["string", "null"],
+                          "description": "City of publication as modern English equivalent, suitable for programmatic matching. Only the city, not the city and the country. Example: 'Venice' or 'London'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent."
+                        },
+                        "modern_country": {
+                          "type": ["string", "null"],
+                          "description": "Country of publication as modern English equivalent, suitable for programmatic matching. Only the country, not the country and the city. Example: 'Germany' or 'Italy'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent."
                         }
                       },
-                      "required": ["country", "city"],
+                      "required": ["original_city", "original_country", "modern_city", "modern_country"],
                       "additionalProperties": false
                     },
-                    "description": "Array of publication locations for this edition. Multiple cities indicate co-publication."
+                    "description": "Array of publication locations for this edition. Multiple entries indicate co-publication."
                   },
                   "contributors": {
                     "type": "array",
