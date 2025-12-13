@@ -75,27 +75,27 @@
                     "items": {
                       "type": "object",
                       "properties": {
-                        "original_city": {
+                        "original_place": {
                           "type": ["string", "null"],
-                          "description": "City of publication exactly as given in the input text, preserving original spelling and language. Example: 'Venedig' or 'Londini'. Use null if not provided."
+                          "description": "Place of publication exactly as given in the input text, preserving original spelling and language. Examples: 'Potsdam', 'Londini', or 'Venedig'. Use null if not provided."
                         },
-                        "original_country": {
+                        "original_region": {
                           "type": ["string", "null"],
-                          "description": "Country or region of publication exactly as given in the input text, preserving original spelling and language. Example: 'Preußen' or 'Regno di Napoli'. Use null if not provided."
+                          "description": "Region, territory, or country of publication exactly as given in the input text, preserving original spelling and language. If explicitly stated, copy it as-is; otherwise, infer the most likely original_region from context when you are highly confident; otherwise use null. Examples: 'Preußen', 'England', or 'Regno di Napoli'. Use null if original_place is null."
                         },
-                        "modern_city": {
+                        "modern_place": {
                           "type": ["string", "null"],
-                          "description": "City of publication as modern English equivalent, suitable for programmatic matching. Only the city, not the city and the country. Example: 'Venice' or 'London'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent."
+                          "description": "Place of publication as its modern English equivalent with modern English spelling, based on 2019 borders, suitable for programmatic matching. Examples: 'Potsdam', 'London', or 'Venice'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent; use null if original_place is null."
                         },
-                        "modern_country": {
+                        "modern_region": {
                           "type": ["string", "null"],
-                          "description": "Country of publication as modern English equivalent, suitable for programmatic matching. Only the country, not the country and the city. Example: 'Germany' or 'Italy'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent."
+                          "description": "Country of publication as its modern English equivalent with modern English spelling, based on 2019 borders, referring to the largest country-level geographic polity (e.g., 'United Kingdom' not 'England', 'Germany' not 'Bavaria'), suitable for programmatic matching. Examples: 'Germany', 'United Kingdom', or 'Italy'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent; use null if original_place is null."
                         }
                       },
-                      "required": ["original_city", "original_country", "modern_city", "modern_country"],
+                      "required": ["original_place", "original_region", "modern_place", "modern_region"],
                       "additionalProperties": false
                     },
-                    "description": "Array of publication locations for this edition. Multiple entries indicate co-publication."
+                    "description": "Array of publication locations for this edition. Multiple entries indicate co-publication. Each entry captures the place and region as given in the source (original_place, original_region) alongside their modern English equivalents (modern_place, modern_region). The original_place field is the anchor: when it is null, all other fields (original_region, modern_place, modern_region) must also be null. If a region/country is not explicitly stated, original_region may be inferred from context when highly confident; otherwise it should be null."
                   },
                   "contributors": {
                     "type": "array",
