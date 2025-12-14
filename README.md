@@ -13,6 +13,7 @@ Supported LLM providers include OpenAI (GPT-5, GPT-5.1, GPT-4.1, o3, o4-mini), A
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Usage](#usage)
+- [Fine-Tuning Workflow](#fine-tuning-workflow)
 - [Workflow Deep Dive](#workflow-deep-dive)
 - [Adding Custom Schemas](#adding-custom-schemas)
 - [Batch Processing](#batch-processing)
@@ -49,6 +50,7 @@ The mode is determined automatically: if command-line arguments are provided, CL
 - Dual Processing Modes: Choose between synchronous (real-time) or batch processing (50% cost savings)
 - Context-Aware Processing: Integrate domain-specific or file-specific context for improved accuracy
 - Multi-Format Output: Generate JSON, CSV, DOCX, and TXT outputs simultaneously
+- Fine-Tuning Dataset Prep: Prepare OpenAI SFT datasets via a txt-based per-chunk correction workflow (`fine_tuning/`)
 - Extensible Architecture: Easily add custom schemas and handlers for your specific use cases
 - Batch Management: Full suite of tools to manage, monitor, and repair batch jobs
 - Semantic Boundary Detection: LLM-powered chunk boundary optimization for coherent document segments
@@ -692,6 +694,68 @@ Extraction outputs are saved to the configured output directories for each schem
 - `<filename>.txt`: Plain text report (if enabled)
 - `<filename>_temporary.jsonl`: Temporary batch tracking file (deleted after successful completion unless `retain_temporary_jsonl: true`)
 - `<filename>_batch_submission_debug.json`: Batch metadata for tracking and repair
+
+## Fine-Tuning Workflow
+
+ChronoMiner includes a separate, eval-independent workflow to prepare OpenAI supervised fine-tuning (SFT) datasets from manually-provided chunk inputs. The workflow lives in `fine_tuning/` and uses a txt file for human corrections.
+
+Artifacts are written under `fine_tuning/artifacts/` by default:
+- `fine_tuning/artifacts/editable_txt/`: editable files for research assistants
+- `fine_tuning/artifacts/annotations_jsonl/`: imported, machine-readable corrected annotations
+- `fine_tuning/artifacts/datasets/<dataset_id>/`: `train.jsonl` and `val.jsonl`
+
+### 1) Prepare chunk inputs
+
+Create a text file containing numbered chunks (this is the source of truth for inputs):
+
+```text
+=== chunk 1 ===
+<paste chunk text here>
+=== chunk 2 ===
+<paste chunk text here>
+```
+
+### 2) Create an editable correction file
+
+Generate an `_editable.txt` file (optionally prefilled by the model):
+
+```bash
+.\.venv\Scripts\python.exe -m fine_tuning.cli create-editable --schema BibliographicEntries --chunks path\to\chunks.txt --model gpt-5-mini
+```
+
+If you want a blank template (no model call), add `--blank`:
+
+```bash
+.\.venv\Scripts\python.exe -m fine_tuning.cli create-editable --schema BibliographicEntries --chunks path\to\chunks.txt --blank
+```
+
+The editable file embeds the input text and an editable JSON block per chunk.
+
+### 3) Edit the JSON in the txt file
+
+In each chunk section:
+- Keep all markers unchanged
+- Edit only the JSON inside `--- OUTPUT_JSON_BEGIN ---` / `--- OUTPUT_JSON_END ---`
+- Output must be valid JSON and must be a JSON object
+- Use `null` for missing values
+
+### 4) Import corrected annotations into JSONL
+
+Convert the edited txt into canonical annotation JSONL:
+
+```bash
+.\.venv\Scripts\python.exe -m fine_tuning.cli import-annotations --schema BibliographicEntries --editable fine_tuning\artifacts\editable_txt\chunks_editable.txt --annotator-id RA1
+```
+
+### 5) Build an OpenAI SFT dataset (train/val JSONL)
+
+Create `train.jsonl` and `val.jsonl` suitable for OpenAI fine-tuning:
+
+```bash
+.\.venv\Scripts\python.exe -m fine_tuning.cli build-sft --schema BibliographicEntries --annotations fine_tuning\artifacts\annotations_jsonl\chunks.jsonl --dataset-id my_dataset_v1 --val-ratio 0.1 --seed 0
+```
+
+By default, the system prompt used for dataset examples is built from `prompts/structured_output_prompt.txt` with schema injection.
 
 ## Workflow Deep Dive
 
