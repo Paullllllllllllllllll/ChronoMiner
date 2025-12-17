@@ -1,5 +1,5 @@
 {
-  "name": "HistoricalRecipesEntriesLight",
+  "name": "HistoricalRecipesEntries",
   "schema_version": "3.0",
   "type": "json_schema",
   "strict": true,
@@ -479,6 +479,58 @@
               ],
               "additionalProperties": false
             },
+            "social_context": {
+              "type": "object",
+              "description": "Infer the intended audience and assumed capabilities from textual cues such as explanation level, assumed equipment, ingredient accessibility, and forms of address.",
+              "properties": {
+                "implied_audience": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Professional cook",
+                    "Household mistress/master",
+                    "Servant/domestic staff",
+                    "Elite/aristocratic household",
+                    "Bourgeois/middling household",
+                    "Modest/economizing household",
+                    "Invalid/convalescent",
+                    "Traveler/soldier",
+                    "Unclear",
+                    null
+                  ],
+                  "description": "Infer primary intended reader. Professional cook = assumes technical mastery; Household mistress/master = managing domestic economy; Servant/domestic staff = executing instructions; Elite/aristocratic = wealth assumed; Bourgeois/middling = comfortable but cost-conscious; Modest/economizing = frugality emphasized; Invalid/convalescent = health-focused; Traveler/soldier = portability/simplicity. Use null if no audience signals."
+                },
+                "assumed_skill_level_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Rate the skill level the recipe assumes of its reader. 1 = novice cook (explains basic terms, provides detailed step-by-step guidance); 4 = competent home cook; 7 = trained professional (assumes mastery of techniques, uses specialized terminology without explanation). Use null if skill assumptions are unclear."
+                },
+                "assumed_resource_level_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Rate the kitchen resources the recipe implicitly requires. 1 = minimal resources (basic hearth, few utensils, common ingredients); 4 = moderate household equipment; 7 = well-equipped kitchen (multiple heat sources, specialized equipment, servants/staff implied, access to diverse ingredients). Use null if resource assumptions are unclear."
+                },
+                "explanatory_density_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Rate the level of explanatory detail in the recipe text. 1 = terse/telegraphic (minimal explanation, assumes reader knows procedures); 4 = moderate detail; 7 = highly pedagogical (explains rationale, describes visual cues, offers alternatives, teaches technique). Use null if density is inconsistent or unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim quote (original language, ≤150 characters) that reveals audience assumptions, skill level, or resource expectations. Use null if inference is based on overall impression rather than specific passage."
+                }
+              },
+              "required": [
+                "implied_audience",
+                "assumed_skill_level_rating_1_7",
+                "assumed_resource_level_rating_1_7",
+                "explanatory_density_rating_1_7",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
             "aspiration_practice": {
               "type": "object",
               "description": "Infer the recipe's intended social function: whether it prioritizes display/status or everyday practicality, and what occasions it might serve.",
@@ -736,6 +788,172 @@
               ],
               "additionalProperties": false
             },
+            "sensory_emphasis": {
+              "type": "object",
+              "description": "Assess the recipe's emphasis on sensory qualities (taste, appearance, texture, aroma). Higher emphasis indicates explicit attention to these elements as goals rather than incidental outcomes.",
+              "properties": {
+                "taste_emphasis_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Rate the emphasis on taste in the recipe text. 1 = taste barely mentioned (no flavor descriptors or adjustment guidance); 4 = moderate taste references; 7 = extensive taste focus (rich flavor vocabulary, explicit seasoning adjustments, taste-testing instructions). Use null if taste emphasis is unclear."
+                },
+                "appearance_emphasis_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Rate the emphasis on visual appearance in the recipe. 1 = appearance unmentioned (no color, shape, or presentation guidance); 4 = moderate visual attention; 7 = detailed presentation focus (specific colors, plating instructions, garnishing, decorative elements). Use null if appearance emphasis is unclear."
+                },
+                "texture_emphasis_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Rate the emphasis on texture in the recipe. 1 = texture unmentioned (no references to consistency, doneness cues, or mouthfeel); 4 = moderate texture awareness; 7 = explicit texture focus (specific consistency goals, doneness tests, crispness/tenderness targets). Use null if texture emphasis is unclear."
+                },
+                "aroma_emphasis_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Rate the emphasis on aroma/fragrance in the recipe. 1 = aroma unmentioned; 4 = moderate aromatic attention; 7 = explicit aroma focus (fragrance as goal, aromatic ingredients highlighted, scent descriptors used). Use null if aroma emphasis is unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim quote (original language, ≤150 characters) demonstrating attention to taste, appearance, texture, or aroma. Use null if sensory language is absent."
+                }
+              },
+              "required": [
+                "taste_emphasis_rating_1_7",
+                "appearance_emphasis_rating_1_7",
+                "texture_emphasis_rating_1_7",
+                "aroma_emphasis_rating_1_7",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "health_medical_framing": {
+              "type": "object",
+              "description": "Detect health and medical framing in the recipe. Look for explicit therapeutic purposes, humoral language (hot/cold, moist/dry), digestibility concerns, or targeting of specific conditions.",
+              "properties": {
+                "health_purpose_stated": {
+                  "type": ["boolean", "null"],
+                  "description": "True if explicitly for health/invalids/convalescents/conditions. Null if unclear."
+                },
+                "humoral_reasoning_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if uses hot/cold, moist/dry, temperament language, or similar humoral framing. Null if unclear."
+                },
+                "digestibility_mentioned": {
+                  "type": ["boolean", "null"],
+                  "description": "True if discusses digestibility/lightness. Null if unclear."
+                },
+                "specific_condition_targeted": {
+                  "type": ["string", "null"],
+                  "description": "If a specific condition is named, record verbatim. Null if none."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim quote (original language, ≤150 characters) showing health purpose, humoral reasoning, or medical framing. Use null if no health/medical language is present."
+                }
+              },
+              "required": [
+                "health_purpose_stated",
+                "humoral_reasoning_present",
+                "digestibility_mentioned",
+                "specific_condition_targeted",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "textual_structure": {
+              "type": "object",
+              "description": "Characterize the recipe's textual organization and rhetorical style: how instructions are structured, whether quantities are precise, and how the reader is addressed.",
+              "properties": {
+                "structure_type": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Numbered/lettered steps",
+                    "Prose paragraph",
+                    "Ingredient list then prose",
+                    "Telegraphic/abbreviated",
+                    "Dialogic/epistolary",
+                    "Mixed",
+                    "Other",
+                    null
+                  ]
+                },
+                "precision_ethos_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Rate the recipe's commitment to precision and measurement. 1 = vague throughout (no quantities, imprecise terms like 'some' or 'enough'); 4 = mixed precision; 7 = precise throughout (exact measurements, specific times, detailed procedural steps). Use null if precision level is inconsistent or unclear."
+                },
+                "imperative_voice_dominant": {
+                  "type": ["boolean", "null"],
+                  "description": "True if primarily imperative verbs. Null if unclear."
+                },
+                "reader_addressed_directly": {
+                  "type": ["boolean", "null"],
+                  "description": "True if addresses reader directly ('you will', 'if you prefer'). Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim quote (original language, ≤150 characters) illustrating the recipe's structural style or precision level. Use null if structure is unremarkable."
+                }
+              },
+              "required": [
+                "structure_type",
+                "precision_ethos_rating_1_7",
+                "imperative_voice_dominant",
+                "reader_addressed_directly",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "labor_time_signals": {
+              "type": "object",
+              "description": "Infer labor and time requirements from the recipe's procedures, even when not explicitly stated. Consider number of steps, technique complexity, and cooking method duration.",
+              "properties": {
+                "labor_intensity_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Rate the labor intensity implied by the recipe. 1 = minimal labor (simple one-pot, few steps, passive cooking); 4 = moderate effort; 7 = extreme labor (multi-stage preparation, continuous attention, elaborate technique, multiple components prepared separately). Use null if labor requirements are unclear."
+                },
+                "time_horizon_implied": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Quick (under 1 hour)",
+                    "Moderate (1-3 hours)",
+                    "Long (half day)",
+                    "Very long (full day or overnight)",
+                    "Multi-day",
+                    "Unclear",
+                    null
+                  ],
+                  "description": "Infer total time from start to serving, even if not stated. Consider marinating, rising, slow cooking, cooling. Quick = simple frying/boiling; Moderate = roasts, stews; Long = complex multi-component dishes; Very long = overnight braises, yeasted breads; Multi-day = curing, preserving, elaborate preparations. Use null if time cannot be reasonably inferred."
+                },
+                "advance_preparation_required": {
+                  "type": ["boolean", "null"],
+                  "description": "True if requires advance prep (soaking, marinating, curing). Null if unclear."
+                },
+                "continuous_attention_required": {
+                  "type": ["boolean", "null"],
+                  "description": "True if requires continuous tending/stirring/watching. Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim quote (original language, ≤150 characters) indicating labor intensity or time requirements. Use null if labor/time signals are implicit rather than explicit."
+                }
+              },
+              "required": [
+                "labor_intensity_rating_1_7",
+                "time_horizon_implied",
+                "advance_preparation_required",
+                "continuous_attention_required",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
             "religious_calendar_signals": {
               "type": "object",
               "description": "Detect religious and liturgical calendar signals. Look for explicit fasting/Lenten markers, meat-day designations, feast-day associations, or confessional indicators (Catholic, Protestant, Jewish).",
@@ -822,11 +1040,16 @@
             "ingredient_categories",
             "culinary_style",
             "intertextuality",
+            "social_context",
             "aspiration_practice",
             "geographic_signals",
             "tradition_rhetoric",
             "economic_signals",
             "luxury_signals",
+            "sensory_emphasis",
+            "health_medical_framing",
+            "textual_structure",
+            "labor_time_signals",
             "religious_calendar_signals",
             "extraction_audit"
           ],
