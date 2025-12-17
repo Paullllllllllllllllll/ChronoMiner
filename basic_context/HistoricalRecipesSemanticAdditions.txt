@@ -1,0 +1,21 @@
+The input text consists of historical recipes from cookbooks, manuscripts, and culinary literature dating from approximately 1400 to 1950.
+Recipes typically contain ingredient lists, cooking instructions, yields, timing notes, and occasional commentary on techniques or presentation. The text may appear in various European languages with archaic spelling and historical culinary terminology.
+
+Extraction task rules (use when extracting data)
+- This schema captures only semantic/analytical annotations; it assumes core recipe data (text, title, ingredients, etc.) was extracted separately.
+- For `culinary_style`, rate modernity 1–7, select the closest style period, and populate innovation/archaism marker arrays based on textual signals.
+- For `intertextuality`, record verbatim any explicit source attributions, foreign style labels, or cross-references; assess temporal self-positioning.
+- For `social_context`, infer implied audience, assumed skill level (1–7), resource level (1–7), and explanatory density (1–7) from textual cues.
+- For `aspiration_practice`, rate display orientation and feasibility (1–7), identify occasion types, and note economy/luxury framing.
+- For `geographic_signals`, extract place references with their function, rate regional identity strength (1–7), and flag dialect usage.
+- For `tradition_rhetoric`, flag any explicit claims of tradition, authenticity, national identity, anti-foreign sentiment, or moral virtue.
+- For `economic_signals`, note cost/scarcity language, record substitutions with stated reasons, and flag leftover usage.
+- For `luxury_signals`, rate luxury intensity (1–7), select observed luxury types, and flag prominent global trade goods.
+- For `sensory_emphasis`, rate attention to taste, appearance, texture, and aroma (1–7 each).
+- For `health_medical_framing`, flag health purpose, humoral reasoning, digestibility concerns, and record any specific conditions targeted.
+- For `textual_structure`, classify structure type, rate precision ethos (1–7), and note voice/address patterns.
+- For `labor_time_signals`, rate labor intensity (1–7), infer time horizon, and flag advance prep or continuous attention requirements.
+- Provide short verbatim `evidence_quote` strings (≤150 chars, original language) for each analytical object where requested.
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+- Treat the start of a new recipe (e.g., title or text) as a boundary.
