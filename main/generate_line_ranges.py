@@ -107,12 +107,48 @@ class GenerateLineRangesScript(DualModeScript):
         _, selected_schema_name = result
         return selected_schema_name
     
+    def _validate_schema_paths(self, schema_name: str) -> bool:
+        """
+        Validate that a schema has input paths configured in paths_config.yaml.
+        
+        Args:
+            schema_name: The selected schema name.
+        
+        Returns:
+            True if paths are configured, False otherwise.
+        """
+        if schema_name not in self.schemas_paths:
+            error_msg = (
+                f"Schema '{schema_name}' has no path configuration in config/paths_config.yaml. "
+                f"Please add an entry under 'schemas_paths' with 'input' and 'output' paths."
+            )
+            self.logger.error(error_msg)
+            if self.ui:
+                self.ui.print_error(error_msg)
+            else:
+                print(f"[ERROR] {error_msg}")
+            return False
+        
+        schema_config = self.schemas_paths[schema_name]
+        input_path = schema_config.get("input")
+        
+        if not input_path:
+            error_msg = (
+                f"Schema '{schema_name}' has no 'input' path configured in config/paths_config.yaml."
+            )
+            self.logger.error(error_msg)
+            if self.ui:
+                self.ui.print_error(error_msg)
+            else:
+                print(f"[ERROR] {error_msg}")
+            return False
+        
+        return True
+    
     def _get_input_directory(self, schema_name: str) -> Path:
         """Get input directory for the selected schema."""
-        if schema_name in self.schemas_paths:
-            return Path(self.schemas_paths[schema_name].get("input"))
-        else:
-            return Path(self.paths_config.get("input_paths", {}).get("raw_text_dir", ""))
+        # Assumes validation has been done beforehand
+        return Path(self.schemas_paths[schema_name].get("input", ""))
     
     def _select_files_interactive(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """Prompt user to select files for processing."""
@@ -284,6 +320,12 @@ class GenerateLineRangesScript(DualModeScript):
             if current_step == "schema":
                 selected_schema_name = self._select_schema()
                 state["selected_schema_name"] = selected_schema_name
+                
+                # Validate schema has paths configured
+                if not self._validate_schema_paths(selected_schema_name):
+                    self.logger.error(f"Exiting: No path configuration for schema '{selected_schema_name}'")
+                    sys.exit(1)
+                
                 state["raw_text_dir"] = self._get_input_directory(selected_schema_name)
                 current_step = "files"
             

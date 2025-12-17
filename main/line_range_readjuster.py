@@ -93,6 +93,51 @@ def _check_token_limit_enabled() -> bool:
     return token_limit_config.get("enabled", False)
 
 
+def _validate_schema_paths(
+    schema_name: str,
+    schemas_paths: Dict,
+    ui: Optional[UserInterface] = None,
+) -> bool:
+    """
+    Validate that a schema has input/output paths configured in paths_config.yaml.
+    
+    Args:
+        schema_name: The selected schema name.
+        schemas_paths: The schemas_paths dict from paths_config.yaml.
+        ui: Optional UserInterface for formatted output (interactive mode).
+    
+    Returns:
+        True if paths are configured, False otherwise.
+    """
+    if schema_name not in schemas_paths:
+        error_msg = (
+            f"Schema '{schema_name}' has no path configuration in config/paths_config.yaml. "
+            f"Please add an entry under 'schemas_paths' with 'input' and 'output' paths."
+        )
+        logger.error(error_msg)
+        if ui:
+            ui.print_error(error_msg)
+        else:
+            print(f"[ERROR] {error_msg}")
+        return False
+    
+    schema_config = schemas_paths[schema_name]
+    input_path = schema_config.get("input")
+    
+    if not input_path:
+        error_msg = (
+            f"Schema '{schema_name}' has no 'input' path configured in config/paths_config.yaml."
+        )
+        logger.error(error_msg)
+        if ui:
+            ui.print_error(error_msg)
+        else:
+            print(f"[ERROR] {error_msg}")
+        return False
+    
+    return True
+
+
 def _check_and_wait_for_token_limit(ui: Optional[UserInterface] = None) -> bool:
     """
     Check if daily token limit is reached and wait until next day if needed.
@@ -340,6 +385,7 @@ async def main_async() -> None:
         await _run_cli_mode(
             args=args,
             schema_manager=schema_manager,
+            schemas_paths=schemas_paths,
             model_config=model_config,
             chunking_config=chunking_config,
             matching_config=matching_config,
@@ -380,15 +426,17 @@ async def _run_interactive_mode(
             state["selected_schema_name"] = selected_schema_name
             state["boundary_type"] = selected_schema_name
             
+            # Validate schema has paths configured
+            if not _validate_schema_paths(selected_schema_name, schemas_paths, ui):
+                logger.error(f"Exiting: No path configuration for schema '{selected_schema_name}'")
+                sys.exit(1)
+            
             # Load schema-specific basic context
             state["basic_context"] = load_basic_context(schema_name=selected_schema_name)
             logger.info(f"Loaded basic context for schema '{selected_schema_name}'")
             
-            # Determine base directory
-            if selected_schema_name in schemas_paths:
-                state["base_dir"] = Path(schemas_paths[selected_schema_name].get("input", ""))
-            else:
-                state["base_dir"] = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
+            # Determine base directory (validated above, so schema_name is in schemas_paths)
+            state["base_dir"] = Path(schemas_paths[selected_schema_name].get("input", ""))
             
             current_step = "files"
         
@@ -526,6 +574,7 @@ async def _run_interactive_mode(
 async def _run_cli_mode(
     args: argparse.Namespace,
     schema_manager: SchemaManager,
+    schemas_paths: Dict[str, any],
     model_config: Dict[str, any],
     chunking_config: Dict[str, any],
     matching_config: Dict[str, any],
@@ -563,6 +612,12 @@ async def _run_cli_mode(
         sys.exit(1)
     
     boundary_type = args.schema
+    
+    # Validate schema has paths configured
+    if not _validate_schema_paths(boundary_type, schemas_paths):
+        logger.error(f"Exiting: No path configuration for schema '{boundary_type}'")
+        sys.exit(1)
+    
     print(f"[INFO] Using boundary type: {boundary_type}")
     
     # Load schema-specific basic context
