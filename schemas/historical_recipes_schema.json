@@ -53,7 +53,7 @@
                 "Other",
                 "Unknown"
               ],
-              "description": "Primary category of the recipe, following course- and purpose-based groupings found in historical cookery manuals."
+              "description": "Classify the recipe's primary category based on its main purpose and typical position in a meal. Use 'Household Recipe' for non-food items (cleaning, medicine, cosmetics). Use 'Preparation Technique' for base preparations without a complete dish (stocks, pastry doughs). Use 'Other' if the category is identifiable but not listed; 'Unknown' if classification is impossible."
             },
             "ingredients": {
               "type": "array",
@@ -109,13 +109,13 @@
                       "Unclear",
                       null
                     ],
-                    "description": "Functional role of ingredient in the dish as inferred from recipe text."
+                    "description": "Classify the ingredient's functional role in the dish based on how it is used in the recipe. Primary/base = main component; Fat/cooking medium = oil, butter, lard used for cooking; Seasoning/spice = flavor enhancers in small quantities; Thickener/binder = flour, eggs, breadcrumbs for texture; Garnish = decorative finishing elements."
                   },
                   "luxury_signal_likert_1_7": {
                     "type": ["integer", "null"],
                     "minimum": 1,
                     "maximum": 7,
-                    "description": "1 = common staple; 7 = strong luxury/status item in the context implied by the text and any additional context provided. Use null if unclear."
+                    "description": "Rate ingredient's status/luxury connotation in the historical period implied by text. 1 = everyday staple accessible to common households (e.g., bread, onions, local vegetables); 4 = moderately valued or regionally variable; 7 = high-status luxury item (e.g., exotic spices, imported delicacies, expensive cuts). Base rating on period-appropriate valuation, not modern standards. Use null if insufficient evidence."
                   },
                   "origin_explicitly_stated": {
                     "type": ["string", "null"],
@@ -273,23 +273,23 @@
             },
             "ingredient_categories": {
               "type": "object",
-              "description": "Boolean flags indicating whether the recipe contains specific categories of historical ingredients.",
+              "description": "Boolean flags for ingredient categories relevant to historical culinary analysis. Use these to enable filtering and comparative analysis across recipes.",
               "properties": {
                 "contains_meat": {
                   "type": "boolean",
-                  "description": "True if the recipe contains meat (beef, pork, lamb, game, etc.)."
+                  "description": "True if recipe contains red meat from mammals (beef, pork, lamb, veal, venison, rabbit, etc.). Exclude poultry and fish."
                 },
                 "contains_poultry": {
                   "type": "boolean",
-                  "description": "True if the recipe contains poultry (chicken, duck, goose, etc.)."
+                  "description": "True if recipe contains domestic or wild birds (chicken, duck, goose, turkey, pigeon, pheasant, etc.)."
                 },
                 "contains_fish_seafood": {
                   "type": "boolean",
-                  "description": "True if the recipe contains fish or seafood."
+                  "description": "True if recipe contains any fish (freshwater or saltwater), shellfish, crustaceans, or other aquatic creatures."
                 },
                 "contains_dairy": {
                   "type": "boolean",
-                  "description": "True if the recipe contains dairy products (milk, cheese, cream, etc.)."
+                  "description": "True if recipe contains milk, cream, cheese, or other dairy products. Note: butter has its own separate flag."
                 },
                 "contains_eggs": {
                   "type": "boolean",
@@ -325,11 +325,11 @@
                 },
                 "contains_foreign_spices": {
                   "type": "boolean",
-                  "description": "True if the recipe contains imported exotic spices (pepper, cinnamon, cloves, nutmeg, ginger, saffron, etc.)."
+                  "description": "True if recipe contains spices that were imported to Europe via long-distance trade (pepper, cinnamon, cloves, nutmeg, mace, ginger, saffron, cardamom, etc.). Exclude local European herbs like parsley, thyme, rosemary."
                 },
                 "contains_luxury_ingredients": {
                   "type": "boolean",
-                  "description": "True if the recipe contains luxury or high-status ingredients (truffles, caviar, exotic fruits, expensive cuts, etc.)."
+                  "description": "True if recipe contains ingredients that signaled high status in the historical period (truffles, caviar, ortolans, elaborate pastry work, expensive cuts, imported delicacies, etc.)."
                 }
               },
               "required": [
@@ -352,13 +352,13 @@
             },
             "culinary_style": {
               "type": "object",
-              "description": "Culinary style/era signals derived from the recipe text.",
+              "description": "Classify the recipe's culinary-historical style based on technique, ingredient use, and structural features. Assess whether the recipe reflects older medieval traditions or newer rationalized cuisine.",
               "properties": {
                 "modernity_likert_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = late-medieval style; 7 = mature haute cuisine after strong La Varenne/Carême-style influence. Null if unclear."
+                  "description": "Rate the recipe's position on the culinary-historical spectrum. 1 = late-medieval style (heavy spicing, sweet-sour, vague quantities, humoral reasoning); 4 = transitional or mixed signals; 7 = mature 18th/19th-c. haute cuisine (stock-based sauces, precise measurements, refined presentation, La Varenne/Carême influence). Use null if style signals are ambiguous or absent."
                 },
                 "style_period_closest": {
                   "type": ["string", "null"],
@@ -420,7 +420,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet (original language; ideally ≤150 characters) supporting the classification. Null if no single snippet suffices."
+                  "description": "Short verbatim quote (original language, ≤150 characters) that best supports the culinary style classification. Preserve original spelling. Use null only if no single passage clearly supports the rating."
                 }
               },
               "required": [
@@ -434,7 +434,7 @@
             },
             "intertextuality": {
               "type": "object",
-              "description": "Signals of attribution, foreign-style referencing, and within-book cross-referencing.",
+              "description": "Detect textual signals of attribution, borrowing, and cross-referencing. Look for named authorities, foreign-style labels (e.g., 'à la française', 'alla milanese'), and internal references to other recipes in the same work.",
               "properties": {
                 "explicit_source_attribution": {
                   "type": ["string", "null"],
@@ -461,11 +461,11 @@
                     "Neutral/no positioning",
                     null
                   ],
-                  "description": "How the recipe positions itself in culinary time."
+                  "description": "Classify how the recipe text explicitly positions itself relative to culinary tradition and innovation. Look for phrases claiming novelty ('new method', 'modern way') or tradition ('as our ancestors', 'the old manner'). Use 'Neutral/no positioning' if no temporal claims are made."
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the intertextuality classification."
+                  "description": "Short verbatim quote (original language, ≤150 characters) showing source attribution, foreign reference, or cross-reference. Use null if no relevant passage exists."
                 }
               },
               "required": [
@@ -480,7 +480,7 @@
             },
             "social_context": {
               "type": "object",
-              "description": "LLM-inferred audience and skill/resource assumptions.",
+              "description": "Infer the intended audience and assumed capabilities from textual cues such as explanation level, assumed equipment, ingredient accessibility, and forms of address.",
               "properties": {
                 "implied_audience": {
                   "type": ["string", "null"],
@@ -501,23 +501,23 @@
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = assumes novice; 7 = assumes trained professional. Null if unclear."
+                  "description": "Rate the skill level the recipe assumes of its reader. 1 = novice cook (explains basic terms, provides detailed step-by-step guidance); 4 = competent home cook; 7 = trained professional (assumes mastery of techniques, uses specialized terminology without explanation). Use null if skill assumptions are unclear."
                 },
                 "assumed_resource_level_likert_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = minimal kitchen/resources; 7 = very well-resourced kitchen/household. Null if unclear."
+                  "description": "Rate the kitchen resources the recipe implicitly requires. 1 = minimal resources (basic hearth, few utensils, common ingredients); 4 = moderate household equipment; 7 = well-equipped kitchen (multiple heat sources, specialized equipment, servants/staff implied, access to diverse ingredients). Use null if resource assumptions are unclear."
                 },
                 "explanatory_density_likert_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = terse/telegraphic; 7 = highly detailed and pedagogical. Null if unclear."
+                  "description": "Rate the level of explanatory detail in the recipe text. 1 = terse/telegraphic (minimal explanation, assumes reader knows procedures); 4 = moderate detail; 7 = highly pedagogical (explains rationale, describes visual cues, offers alternatives, teaches technique). Use null if density is inconsistent or unclear."
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the social-context inference."
+                  "description": "Short verbatim quote (original language, ≤150 characters) that reveals audience assumptions, skill level, or resource expectations. Use null if inference is based on overall impression rather than specific passage."
                 }
               },
               "required": [
@@ -531,19 +531,19 @@
             },
             "aspiration_practice": {
               "type": "object",
-              "description": "LLM-inferred display orientation, feasibility, and occasion signals.",
+              "description": "Infer the recipe's intended social function: whether it prioritizes display/status or everyday practicality, and what occasions it might serve.",
               "properties": {
                 "display_orientation_likert_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = purely practical; 7 = maximal display/status orientation. Null if unclear."
+                  "description": "Rate the recipe's orientation toward display vs. practicality. 1 = purely practical/nourishing with no aesthetic concern; 4 = balanced utility and presentation; 7 = maximal display orientation (elaborate presentation, spectacle, status signaling prioritized over efficiency). Use null if orientation is unclear."
                 },
                 "feasibility_for_ordinary_household_likert_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = implausible for ordinary household; 7 = easily feasible. Null if unclear."
+                  "description": "Rate how feasible this recipe would be for a typical middling household of the period. 1 = implausible (requires rare ingredients, professional equipment, or extensive staff); 4 = moderately challenging but achievable; 7 = easily feasible (common ingredients, basic equipment, manageable labor). Use null if feasibility cannot be assessed."
                 },
                 "occasion_type": {
                   "type": "array",
@@ -573,7 +573,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the aspiration/practice inference."
+                  "description": "Short verbatim quote (original language, ≤150 characters) showing display orientation, feasibility indicators, or occasion markers. Use null if no specific passage supports the inference."
                 }
               },
               "required": [
@@ -588,7 +588,7 @@
             },
             "geographic_signals": {
               "type": "object",
-              "description": "Places and regional identity cues explicitly present in the recipe text.",
+              "description": "Extract geographic references and regional identity markers explicitly present in the recipe text. Include place names, regional style labels, and dialect terminology.",
               "properties": {
                 "place_references": {
                   "type": "array",
@@ -619,7 +619,7 @@
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = no regional marking; 7 = strongly marked regional identity. Null if unclear."
+                  "description": "Rate the strength of regional/local identity in the recipe. 1 = no regional marking (generic, cosmopolitan, or placeless); 4 = some regional flavor without strong identity claims; 7 = strongly marked regional identity (explicit local naming, dialect terms, regional pride). Use null if regional character is unclear."
                 },
                 "dialect_or_local_terminology_detected": {
                   "type": ["boolean", "null"],
@@ -627,7 +627,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the geographic-signal extraction."
+                  "description": "Short verbatim quote (original language, ≤150 characters) containing place names or regional markers. Use null if no geographic references are present."
                 }
               },
               "required": [
@@ -640,7 +640,7 @@
             },
             "tradition_rhetoric": {
               "type": "object",
-              "description": "Rhetorical markers relevant for debates on authenticity, tradition, and identity (often sparse at recipe-level).",
+              "description": "Detect rhetorical claims about tradition, authenticity, or national identity. These markers are often sparse in individual recipes but significant when present. Look for explicit claims, not implicit patterns.",
               "properties": {
                 "tradition_claim_present": {
                   "type": ["boolean", "null"],
@@ -664,7 +664,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the rhetoric classification."
+                  "description": "Short verbatim quote (original language, ≤150 characters) containing tradition, authenticity, or national identity claims. Use null if no rhetorical markers are present."
                 }
               },
               "required": [
@@ -679,7 +679,7 @@
             },
             "economic_signals": {
               "type": "object",
-              "description": "Explicit cost/scarcity/substitution and economy cues in the recipe text.",
+              "description": "Extract explicit economic signals from the recipe text: references to cost, affordability, scarcity, seasonal availability, and suggested substitutions with stated reasons.",
               "properties": {
                 "cost_language_present": {
                   "type": ["boolean", "null"],
@@ -730,7 +730,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the economic-signal extraction."
+                  "description": "Short verbatim quote (original language, ≤150 characters) showing cost language, scarcity mentions, or substitution suggestions. Use null if no economic signals are present."
                 }
               },
               "required": [
@@ -744,13 +744,13 @@
             },
             "luxury_signals": {
               "type": "object",
-              "description": "Luxury/prestige signaling inferred from ingredients, labor, and explicit framing in the recipe text.",
+              "description": "Assess luxury and prestige signaling based on ingredient cost/rarity, labor intensity, presentation emphasis, and explicit status language (e.g., 'fine', 'delicate', 'for lords').",
               "properties": {
                 "luxury_intensity_likert_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = no luxury signaling; 7 = maximal prestige display. Null if unclear."
+                  "description": "Rate the overall luxury/prestige signaling in the recipe. 1 = no luxury signaling (humble, economical, everyday fare); 4 = moderate status markers; 7 = maximal prestige display (expensive ingredients, elaborate technique, explicit elite associations). Use null if luxury level is ambiguous."
                 },
                 "luxury_type_observed": {
                   "type": "array",
@@ -775,7 +775,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the luxury-signal extraction."
+                  "description": "Short verbatim quote (original language, ≤150 characters) showing luxury markers such as expensive ingredients, elite associations, or explicit prestige language. Use null if no luxury signaling is present."
                 }
               },
               "required": [
@@ -788,25 +788,25 @@
             },
             "sensory_emphasis": {
               "type": "object",
-              "description": "Sensory and aesthetic emphasis detectable in the recipe text.",
+              "description": "Assess the recipe's emphasis on sensory qualities (taste, appearance, texture, aroma). Higher emphasis indicates explicit attention to these elements as goals rather than incidental outcomes.",
               "properties": {
                 "taste_emphasis_likert_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = taste barely mentioned; 7 = extensive taste description/adjustment language. Null if unclear."
+                  "description": "Rate the emphasis on taste in the recipe text. 1 = taste barely mentioned (no flavor descriptors or adjustment guidance); 4 = moderate taste references; 7 = extensive taste focus (rich flavor vocabulary, explicit seasoning adjustments, taste-testing instructions). Use null if taste emphasis is unclear."
                 },
                 "appearance_emphasis_likert_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = appearance unmentioned; 7 = detailed presentation/plating emphasis. Null if unclear."
+                  "description": "Rate the emphasis on visual appearance in the recipe. 1 = appearance unmentioned (no color, shape, or presentation guidance); 4 = moderate visual attention; 7 = detailed presentation focus (specific colors, plating instructions, garnishing, decorative elements). Use null if appearance emphasis is unclear."
                 },
                 "texture_emphasis_likert_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = texture unmentioned; 7 = explicit texture goals and cues. Null if unclear."
+                  "description": "Rate the emphasis on texture in the recipe. 1 = texture unmentioned (no references to consistency, doneness cues, or mouthfeel); 4 = moderate texture awareness; 7 = explicit texture focus (specific consistency goals, doneness tests, crispness/tenderness targets). Use null if texture emphasis is unclear."
                 },
                 "aroma_emphasis_present": {
                   "type": ["boolean", "null"],
@@ -818,7 +818,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the sensory-emphasis extraction."
+                  "description": "Short verbatim quote (original language, ≤150 characters) demonstrating attention to taste, appearance, texture, or aroma. Use null if sensory language is absent."
                 }
               },
               "required": [
@@ -833,7 +833,7 @@
             },
             "health_medical_framing": {
               "type": "object",
-              "description": "Health/medical framing signals, including humoral reasoning where present.",
+              "description": "Detect health and medical framing in the recipe. Look for explicit therapeutic purposes, humoral language (hot/cold, moist/dry), digestibility concerns, or targeting of specific conditions.",
               "properties": {
                 "health_purpose_stated": {
                   "type": ["boolean", "null"],
@@ -853,7 +853,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the health/medical framing extraction."
+                  "description": "Short verbatim quote (original language, ≤150 characters) showing health purpose, humoral reasoning, or medical framing. Use null if no health/medical language is present."
                 }
               },
               "required": [
@@ -867,7 +867,7 @@
             },
             "textual_structure": {
               "type": "object",
-              "description": "LLM characterization of how the recipe is written (structure and precision ethos).",
+              "description": "Characterize the recipe's textual organization and rhetorical style: how instructions are structured, whether quantities are precise, and how the reader is addressed.",
               "properties": {
                 "structure_type": {
                   "type": ["string", "null"],
@@ -886,7 +886,7 @@
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = vague throughout; 7 = precise throughout. Null if unclear."
+                  "description": "Rate the recipe's commitment to precision and measurement. 1 = vague throughout (no quantities, imprecise terms like 'some' or 'enough'); 4 = mixed precision; 7 = precise throughout (exact measurements, specific times, detailed procedural steps). Use null if precision level is inconsistent or unclear."
                 },
                 "imperative_voice_dominant": {
                   "type": ["boolean", "null"],
@@ -898,7 +898,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the textual-structure classification."
+                  "description": "Short verbatim quote (original language, ≤150 characters) illustrating the recipe's structural style or precision level. Use null if structure is unremarkable."
                 }
               },
               "required": [
@@ -912,13 +912,13 @@
             },
             "labor_time_signals": {
               "type": "object",
-              "description": "Implicit labor and time horizon signals inferred from the recipe text.",
+              "description": "Infer labor and time requirements from the recipe's procedures, even when not explicitly stated. Consider number of steps, technique complexity, and cooking method duration.",
               "properties": {
                 "labor_intensity_likert_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "1 = minimal labor; 7 = extreme labor/multi-stage/continuous attention. Null if unclear."
+                  "description": "Rate the labor intensity implied by the recipe. 1 = minimal labor (simple one-pot, few steps, passive cooking); 4 = moderate effort; 7 = extreme labor (multi-stage preparation, continuous attention, elaborate technique, multiple components prepared separately). Use null if labor requirements are unclear."
                 },
                 "time_horizon_implied": {
                   "type": ["string", "null"],
@@ -943,7 +943,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the labor/time inference."
+                  "description": "Short verbatim quote (original language, ≤150 characters) indicating labor intensity or time requirements. Use null if labor/time signals are implicit rather than explicit."
                 }
               },
               "required": [
@@ -957,7 +957,7 @@
             },
             "religious_calendar_signals": {
               "type": "object",
-              "description": "Religious/ritual calendar signals in the recipe text (fasting, Lent, feast days, etc.).",
+              "description": "Detect religious and liturgical calendar signals. Look for explicit fasting/Lenten markers, meat-day designations, feast-day associations, or confessional indicators (Catholic, Protestant, Jewish).",
               "properties": {
                 "fasting_context_indicated": {
                   "type": ["boolean", "null"],
@@ -985,7 +985,7 @@
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
-                  "description": "Short verbatim snippet supporting the religious/calendar inference."
+                  "description": "Short verbatim quote (original language, ≤150 characters) containing fasting markers, feast references, or religious indicators. Use null if no religious/calendar signals are present."
                 }
               },
               "required": [
@@ -999,22 +999,22 @@
             },
             "extraction_audit": {
               "type": "object",
-              "description": "Lightweight auditability fields. Keep evidence quotes short and verbatim. Do not include chain-of-thought.",
+              "description": "Extraction quality metadata for auditability. Provide overall confidence, key supporting quotes, and notes on ambiguous or uncertain classifications. Do not include reasoning chains.",
               "properties": {
                 "confidence_overall": {
                   "type": ["number", "null"],
                   "minimum": 0,
                   "maximum": 1,
-                  "description": "Overall self-assessed confidence (0.00–1.00). Null if not provided."
+                  "description": "Overall confidence in the extraction (0.00 = no confidence, 1.00 = complete confidence). Consider text legibility, language familiarity, and completeness of information. Use null only if confidence cannot be assessed."
                 },
                 "evidence_quotes_original": {
                   "type": "array",
-                  "description": "Short verbatim snippets supporting key classifications. Empty if none.",
+                  "description": "Array of short verbatim quotes (original language, each ≤150 characters) supporting the most important or uncertain classifications. Include quotes not captured in section-specific evidence fields. Return empty array if adequately covered elsewhere.",
                   "items": { "type": "string" }
                 },
                 "ambiguity_notes": {
                   "type": "array",
-                  "description": "Short notes on ambiguities (no chain-of-thought). Empty if none.",
+                  "description": "Brief notes on ambiguous elements, unclear readings, or low-confidence classifications (e.g., 'ingredient name illegible', 'unclear if satirical'). No reasoning chains. Return empty array if no significant ambiguities.",
                   "items": { "type": "string" }
                 }
               },
