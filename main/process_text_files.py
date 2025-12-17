@@ -33,6 +33,7 @@ from modules.core.workflow_utils import (
     load_core_resources,
     load_schema_manager,
     prepare_context_manager,
+    validate_schema_paths,
 )
 from modules.llm.prompt_utils import load_prompt_template
 from modules.operations.extraction.file_processor import FileProcessorRefactored as FileProcessor
@@ -54,63 +55,6 @@ def _check_token_limit_enabled(model_config: Dict) -> bool:
     concurrency_config = config_loader.get_concurrency_config()
     token_limit_config = concurrency_config.get("daily_token_limit", {})
     return token_limit_config.get("enabled", False)
-
-
-def _validate_schema_paths(
-    schema_name: str,
-    schemas_paths: Dict,
-    ui: Optional[UserInterface] = None,
-) -> bool:
-    """
-    Validate that a schema has input/output paths configured in paths_config.yaml.
-    
-    Args:
-        schema_name: The selected schema name.
-        schemas_paths: The schemas_paths dict from paths_config.yaml.
-        ui: Optional UserInterface for formatted output (interactive mode).
-    
-    Returns:
-        True if paths are configured, False otherwise.
-    """
-    if schema_name not in schemas_paths:
-        error_msg = (
-            f"Schema '{schema_name}' has no path configuration in config/paths_config.yaml. "
-            f"Please add an entry under 'schemas_paths' with 'input' and 'output' paths."
-        )
-        logger.error(error_msg)
-        if ui:
-            ui.print_error(error_msg)
-        else:
-            print(f"[ERROR] {error_msg}")
-        return False
-    
-    schema_config = schemas_paths[schema_name]
-    input_path = schema_config.get("input")
-    output_path = schema_config.get("output")
-    
-    if not input_path:
-        error_msg = (
-            f"Schema '{schema_name}' has no 'input' path configured in config/paths_config.yaml."
-        )
-        logger.error(error_msg)
-        if ui:
-            ui.print_error(error_msg)
-        else:
-            print(f"[ERROR] {error_msg}")
-        return False
-    
-    if not output_path:
-        error_msg = (
-            f"Schema '{schema_name}' has no 'output' path configured in config/paths_config.yaml."
-        )
-        logger.error(error_msg)
-        if ui:
-            ui.print_error(error_msg)
-        else:
-            print(f"[ERROR] {error_msg}")
-        return False
-    
-    return True
 
 
 def _check_and_wait_for_token_limit(ui: Optional[UserInterface] = None) -> bool:
@@ -363,7 +307,7 @@ async def _run_interactive_mode(
             state["selected_schema"], state["selected_schema_name"] = result
             
             # Validate schema has paths configured
-            if not _validate_schema_paths(state["selected_schema_name"], schemas_paths, ui):
+            if not validate_schema_paths(state["selected_schema_name"], schemas_paths, ui):
                 logger.error(f"Exiting: No path configuration for schema '{state['selected_schema_name']}'")
                 sys.exit(1)
             
@@ -617,7 +561,7 @@ async def _run_cli_mode(
         sys.exit(1)
     
     # Validate schema has paths configured
-    if not _validate_schema_paths(selected_schema_name, schemas_paths):
+    if not validate_schema_paths(selected_schema_name, schemas_paths):
         logger.error(f"Exiting: No path configuration for schema '{selected_schema_name}'")
         sys.exit(1)
     

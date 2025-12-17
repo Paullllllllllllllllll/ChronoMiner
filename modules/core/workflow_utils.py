@@ -5,8 +5,10 @@ from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from modules.config.loader import ConfigLoader
 from modules.core.context_manager import ContextManager
+from modules.core.logger import setup_logger
 from modules.core.schema_manager import SchemaManager
 
+logger = setup_logger(__name__)
 
 _TEXT_EXTENSIONS = {".txt"}
 _LINE_RANGE_SUFFIXES = {"_line_ranges.txt", "_line_range.txt"}
@@ -85,3 +87,60 @@ def collect_text_files(root: Path) -> List[Path]:
         return filter_text_files([root])
 
     return filter_text_files(sorted(root.rglob("*")))
+
+
+def validate_schema_paths(
+    schema_name: str,
+    schemas_paths: Dict[str, Any],
+    ui: Optional[Any] = None,
+) -> bool:
+    """
+    Validate that a schema has input/output paths configured in paths_config.yaml.
+    
+    Args:
+        schema_name: The selected schema name.
+        schemas_paths: The schemas_paths dict from paths_config.yaml.
+        ui: Optional UserInterface for formatted output (interactive mode).
+    
+    Returns:
+        True if paths are configured, False otherwise.
+    """
+    if schema_name not in schemas_paths:
+        error_msg = (
+            f"Schema '{schema_name}' has no path configuration in config/paths_config.yaml. "
+            f"Please add an entry under 'schemas_paths' with 'input' and 'output' paths."
+        )
+        logger.error(error_msg)
+        if ui:
+            ui.print_error(error_msg)
+        else:
+            print(f"[ERROR] {error_msg}")
+        return False
+    
+    schema_config = schemas_paths[schema_name]
+    input_path = schema_config.get("input")
+    output_path = schema_config.get("output")
+    
+    if not input_path:
+        error_msg = (
+            f"Schema '{schema_name}' has no 'input' path configured in config/paths_config.yaml."
+        )
+        logger.error(error_msg)
+        if ui:
+            ui.print_error(error_msg)
+        else:
+            print(f"[ERROR] {error_msg}")
+        return False
+    
+    if not output_path:
+        error_msg = (
+            f"Schema '{schema_name}' has no 'output' path configured in config/paths_config.yaml."
+        )
+        logger.error(error_msg)
+        if ui:
+            ui.print_error(error_msg)
+        else:
+            print(f"[ERROR] {error_msg}")
+        return False
+    
+    return True

@@ -20,6 +20,7 @@ from modules.cli.args_parser import create_generate_ranges_parser, get_files_fro
 from modules.cli.execution_framework import DualModeScript
 from modules.core.schema_manager import SchemaManager
 from modules.core.text_utils import TextProcessor, TokenBasedChunking
+from modules.core.workflow_utils import validate_schema_paths
 
 
 def generate_line_ranges_for_file(
@@ -106,44 +107,6 @@ class GenerateLineRangesScript(DualModeScript):
         
         _, selected_schema_name = result
         return selected_schema_name
-    
-    def _validate_schema_paths(self, schema_name: str) -> bool:
-        """
-        Validate that a schema has input paths configured in paths_config.yaml.
-        
-        Args:
-            schema_name: The selected schema name.
-        
-        Returns:
-            True if paths are configured, False otherwise.
-        """
-        if schema_name not in self.schemas_paths:
-            error_msg = (
-                f"Schema '{schema_name}' has no path configuration in config/paths_config.yaml. "
-                f"Please add an entry under 'schemas_paths' with 'input' and 'output' paths."
-            )
-            self.logger.error(error_msg)
-            if self.ui:
-                self.ui.print_error(error_msg)
-            else:
-                print(f"[ERROR] {error_msg}")
-            return False
-        
-        schema_config = self.schemas_paths[schema_name]
-        input_path = schema_config.get("input")
-        
-        if not input_path:
-            error_msg = (
-                f"Schema '{schema_name}' has no 'input' path configured in config/paths_config.yaml."
-            )
-            self.logger.error(error_msg)
-            if self.ui:
-                self.ui.print_error(error_msg)
-            else:
-                print(f"[ERROR] {error_msg}")
-            return False
-        
-        return True
     
     def _get_input_directory(self, schema_name: str) -> Path:
         """Get input directory for the selected schema."""
@@ -322,7 +285,7 @@ class GenerateLineRangesScript(DualModeScript):
                 state["selected_schema_name"] = selected_schema_name
                 
                 # Validate schema has paths configured
-                if not self._validate_schema_paths(selected_schema_name):
+                if not validate_schema_paths(selected_schema_name, self.schemas_paths, self.ui):
                     self.logger.error(f"Exiting: No path configuration for schema '{selected_schema_name}'")
                     sys.exit(1)
                 
