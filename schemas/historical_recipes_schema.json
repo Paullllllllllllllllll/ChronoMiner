@@ -1,6 +1,6 @@
 {
   "name": "HistoricalRecipesEntries",
-  "schema_version": "2.2",
+  "schema_version": "3.0",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -21,22 +21,16 @@
               "description": "Complete recipe text verbatim in its original language (preserve spelling, diacritics, and formatting)."
             },
             "recipe_text_modern_english": {
-              "type": "string",
-              "description": "Modern English translation of the complete recipe text. Use modern english equivalent if text is already in english."
+              "type": ["string", "null"],
+              "description": "Modern English translation of the complete recipe text. Use null if and only if the recipe is already in modern English."
             },
             "title_original": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ],
+              "type": ["string", "null"],
               "description": "Recipe title exactly as it appears in the source (preserve spelling and diacritics). Use null if no title is given."
             },
             "title_modern_english": {
-              "anyOf": [
-                { "type": "string" },
-                { "type": "null" }
-              ],
-              "description": "Modern English translation of the original recipe title. Use null if no title is given."
+              "type": ["string", "null"],
+              "description": "Modern English translation of the original recipe title. Use null if title_original is null or if the title is already in modern English."
             },
             "recipe_type": {
               "type": "string",
@@ -59,84 +53,103 @@
                 "Other",
                 "Unknown"
               ],
-              "description": "Primary category of the recipe, following course- and purpose-based groupings found in historical cookery manuals (e.g., main dishes, sauces, invalid cookery chapters, household remedy sections)."
-          },
+              "description": "Primary category of the recipe, following course- and purpose-based groupings found in historical cookery manuals."
+            },
             "ingredients": {
               "type": "array",
-              "description": "List of ingredients with original names, translations, quantities, and preparation notes. Ingredients are typically listed in the order they appear in the recipe, and may include ingredients used in preparation steps or as garnishes.",
+              "description": "List of ingredients with original names, translations, quantities, and preparation notes. Return an empty array if no ingredients can be reliably separated.",
               "items": {
                 "type": "object",
                 "properties": {
                   "name_original": {
                     "type": "string",
-                    "description": "Ingredient name as it appears in source (preserve spelling and diacritics). Example: 'farine' or 'sucre'."
+                    "description": "Ingredient name as it appears in source (preserve spelling and diacritics)."
                   },
                   "name_modern_english": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Modern English translation of the ingredient. Example: 'flour' or 'sugar'."
+                    "type": ["string", "null"],
+                    "description": "Modern English translation of the ingredient. Use null if name_original is null or if the ingredient is already given in modern English."
                   },
                   "quantity_original": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Quantity as recorded in source. Example: 'une poignée' or 'deux livres'. Use null if not specified."
+                    "type": ["string", "null"],
+                    "description": "Quantity as recorded in source. Use null if not specified."
                   },
                   "quantity_standardized_value": {
-                    "anyOf": [
-                      { "type": "number" },
-                      { "type": "null" }
-                    ],
-                    "description": "Numeric value of standardized quantity. Example: 500 or 2 or 1. Use null if cannot be standardized."
+                    "type": ["number", "null"],
+                    "description": "Numeric value of standardized quantity. Use null if cannot be standardized."
                   },
                   "quantity_standardized_unit": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Unit of standardized quantity. Example: 'g' or 'cups' or 'tablespoon'. Use null if cannot be standardized."
+                    "type": ["string", "null"],
+                    "description": "Unit of standardized quantity. Use null if cannot be standardized."
                   },
                   "preparation_note_original": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "How ingredient should be prepared, as recorded in source. Example: 'haché finement' or 'battu'. Use null if none."
+                    "type": ["string", "null"],
+                    "description": "How ingredient should be prepared, as recorded in source. Use null if none."
                   },
                   "preparation_note_modern_english": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
+                    "type": ["string", "null"],
+                    "description": "Modern English translation of preparation note. Use null if none."
+                  },
+                  "functional_role": {
+                    "type": ["string", "null"],
+                    "enum": [
+                      "Primary/base",
+                      "Secondary filling/component",
+                      "Fat/cooking medium",
+                      "Liquid/stock",
+                      "Seasoning/spice",
+                      "Sweetener",
+                      "Acid",
+                      "Thickener/binder",
+                      "Leavening",
+                      "Garnish",
+                      "Colorant",
+                      "Aromatic",
+                      "Preservative",
+                      "Optional",
+                      "Unclear",
+                      null
                     ],
-                    "description": "Modern English translation of preparation note. Example: 'finely chopped' or 'beaten'. Use null if none."
+                    "description": "Functional role of ingredient in the dish as inferred from recipe text."
+                  },
+                  "luxury_signal_likert_1_7": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "1 = common staple; 7 = strong luxury/status item in the context implied by the text and any additional context provided. Use null if unclear."
+                  },
+                  "origin_explicitly_stated": {
+                    "type": ["string", "null"],
+                    "description": "If the recipe text explicitly states an origin (e.g., 'Spanish oil'), record verbatim. Null if none."
                   }
                 },
-                "required": ["name_original", "name_modern_english", "quantity_original", "quantity_standardized_value", "quantity_standardized_unit", "preparation_note_original", "preparation_note_modern_english"],
+                "required": [
+                  "name_original",
+                  "name_modern_english",
+                  "quantity_original",
+                  "quantity_standardized_value",
+                  "quantity_standardized_unit",
+                  "preparation_note_original",
+                  "preparation_note_modern_english",
+                  "functional_role",
+                  "luxury_signal_likert_1_7",
+                  "origin_explicitly_stated"
+                ],
                 "additionalProperties": false
               }
             },
             "cooking_methods": {
               "type": "array",
-              "description": "Cooking techniques used in this recipe with original terms and translations.",
+              "description": "Cooking techniques used in this recipe with original terms and translations. Return empty array if none are mentioned.",
               "items": {
                 "type": "object",
                 "properties": {
                   "method_original": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Cooking method as it appears in source (preserve spelling). Example: 'rôtir' or 'bouillir'."
+                    "type": ["string", "null"],
+                    "description": "Cooking method as it appears in source (preserve spelling)."
                   },
                   "method_modern_english": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Modern English translation of the cooking method. Example: 'roasting' or 'boiling'."
+                    "type": ["string", "null"],
+                    "description": "Modern English translation of the cooking method."
                   }
                 },
                 "required": ["method_original", "method_modern_english"],
@@ -145,23 +158,17 @@
             },
             "utensils_equipment": {
               "type": "array",
-              "description": "Cooking tools and equipment mentioned in the recipe.",
+              "description": "Cooking tools and equipment mentioned in the recipe. Return empty array if none are mentioned.",
               "items": {
                 "type": "object",
                 "properties": {
                   "utensil_original": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Utensil as it appears in source (preserve spelling). Example: 'marmite' or 'broche'."
+                    "type": ["string", "null"],
+                    "description": "Utensil as it appears in source (preserve spelling)."
                   },
                   "utensil_modern_english": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Modern English translation of the utensil. Example: 'pot' or 'spit'."
+                    "type": ["string", "null"],
+                    "description": "Modern English translation of the utensil."
                   }
                 },
                 "required": ["utensil_original", "utensil_modern_english"],
@@ -170,118 +177,97 @@
             },
             "yield": {
               "type": "array",
-              "description": "Yield information with original and modern English versions. Null if not specified.",
+              "description": "Yield information with original and modern English versions. Return empty array if not specified.",
               "items": {
                 "type": "object",
                 "properties": {
                   "value_original": {
-                    "anyOf": [
-                      { "type": "number" },
-                      { "type": "null" }
-                    ],
-                    "description": "Numeric value of yield as recorded. Example: 6 or 2. Use null if not specified."
+                    "type": ["number", "null"],
+                    "description": "Numeric value of yield as recorded. Use null if not specified."
                   },
                   "unit_original": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Unit of yield as recorded in source. Example: 'personnes' or 'portions'. Use null if not specified."
+                    "type": ["string", "null"],
+                    "description": "Unit of yield as recorded in source. Use null if not specified."
                   },
                   "value_modern_english": {
-                    "anyOf": [
-                      { "type": "number" },
-                      { "type": "null" }
-                    ],
-                    "description": "Numeric value of yield (typically same as original). Example: 6 or 2. Use null if not specified."
+                    "type": ["number", "null"],
+                    "description": "Numeric value of yield (typically same as original). Use null if not specified."
                   },
                   "unit_modern_english": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Modern English translation of yield unit. Example: 'servings' or 'portions'. Use null if not specified."
+                    "type": ["string", "null"],
+                    "description": "Modern English translation of yield unit. Use null if not specified."
                   }
                 },
-                "required": ["value_original", "unit_original", "value_modern_english", "unit_modern_english"],
+                "required": [
+                  "value_original",
+                  "unit_original",
+                  "value_modern_english",
+                  "unit_modern_english"
+                ],
                 "additionalProperties": false
               }
             },
             "preparation_time": {
               "type": "array",
-              "description": "Preparation time with original and modern English versions. Null if not specified",
+              "description": "Preparation time with original and modern English versions. Return empty array if not specified.",
               "items": {
                 "type": "object",
                 "properties": {
                   "value_original": {
-                    "anyOf": [
-                      { "type": "number" },
-                      { "type": "null" }
-                    ],
-                    "description": "Numeric value of preparation time as recorded. Example: 2 or 30. Use null if not specified or non-numeric."
+                    "type": ["number", "null"],
+                    "description": "Numeric value of preparation time as recorded. Use null if not specified or non-numeric."
                   },
                   "unit_original": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Unit of preparation time as recorded in source. Example: 'heures' or 'minutes'. Use null if not specified."
+                    "type": ["string", "null"],
+                    "description": "Unit of preparation time as recorded in source. Use null if not specified."
                   },
                   "value_modern_english": {
-                    "anyOf": [
-                      { "type": "number" },
-                      { "type": "null" }
-                    ],
-                    "description": "Numeric value of preparation time (typically same as original). Example: 2 or 30. Use null if not specified or non-numeric."
+                    "type": ["number", "null"],
+                    "description": "Numeric value of preparation time (typically same as original). Use null if not specified or non-numeric."
                   },
                   "unit_modern_english": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Modern English translation of time unit. Example: 'hours' or 'minutes' or 'overnight'. Use null if not specified."
+                    "type": ["string", "null"],
+                    "description": "Modern English translation of time unit. Use null if not specified."
                   }
                 },
-                "required": ["value_original", "unit_original", "value_modern_english", "unit_modern_english"],
+                "required": [
+                  "value_original",
+                  "unit_original",
+                  "value_modern_english",
+                  "unit_modern_english"
+                ],
                 "additionalProperties": false
               }
             },
             "cooking_time": {
               "type": "array",
-              "description": "Cooking time with original and modern English versions. Null if not specified",
+              "description": "Cooking time with original and modern English versions. Return empty array if not specified.",
               "items": {
                 "type": "object",
                 "properties": {
                   "value_original": {
-                    "anyOf": [
-                      { "type": "number" },
-                      { "type": "null" }
-                    ],
-                    "description": "Numeric value of cooking time as recorded. Example: 30 or 2. Use null if not specified or non-numeric."
+                    "type": ["number", "null"],
+                    "description": "Numeric value of cooking time as recorded. Use null if not specified or non-numeric."
                   },
                   "unit_original": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Unit of cooking time as recorded in source. Example: 'minutes' or 'heures'. Use null if not specified."
+                    "type": ["string", "null"],
+                    "description": "Unit of cooking time as recorded in source. Use null if not specified."
                   },
                   "value_modern_english": {
-                    "anyOf": [
-                      { "type": "number" },
-                      { "type": "null" }
-                    ],
-                    "description": "Numeric value of cooking time (typically same as original). Example: 30 or 2. Use null if not specified or non-numeric."
+                    "type": ["number", "null"],
+                    "description": "Numeric value of cooking time (typically same as original). Use null if not specified or non-numeric."
                   },
                   "unit_modern_english": {
-                    "anyOf": [
-                      { "type": "string" },
-                      { "type": "null" }
-                    ],
-                    "description": "Modern English translation of time unit. Example: 'minutes' or 'hours' or 'until golden'. Use null if not specified."
+                    "type": ["string", "null"],
+                    "description": "Modern English translation of time unit. Use null if not specified."
                   }
                 },
-                "required": ["value_original", "unit_original", "value_modern_english", "unit_modern_english"],
+                "required": [
+                  "value_original",
+                  "unit_original",
+                  "value_modern_english",
+                  "unit_modern_english"
+                ],
                 "additionalProperties": false
               }
             },
@@ -327,7 +313,7 @@
                 },
                 "contains_refined_sugar": {
                   "type": "boolean",
-                  "description": "True if the recipe contains refined sugar (refined cane, muscovado/raw)."
+                  "description": "True if the recipe contains refined sugar."
                 },
                 "contains_honey": {
                   "type": "boolean",
@@ -335,7 +321,7 @@
                 },
                 "contains_other_sweeteners": {
                   "type": "boolean",
-                  "description": "True if the recipe contains other sweeteners that are neither honey, nor refined sugar (dried fruit, etc.)."
+                  "description": "True if the recipe contains other sweeteners that are neither honey nor refined sugar."
                 },
                 "contains_foreign_spices": {
                   "type": "boolean",
@@ -363,6 +349,681 @@
                 "contains_luxury_ingredients"
               ],
               "additionalProperties": false
+            },
+            "culinary_style": {
+              "type": "object",
+              "description": "Culinary style/era signals derived from the recipe text.",
+              "properties": {
+                "modernity_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = late-medieval style; 7 = mature haute cuisine after strong La Varenne/Carême-style influence. Null if unclear."
+                },
+                "style_period_closest": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Late Medieval",
+                    "Renaissance/Italianate",
+                    "Early Modern Courtly",
+                    "French Reform (La Varenne era)",
+                    "Haute Cuisine (Carême era)",
+                    "Bourgeois Domestic",
+                    "Rustic/Regional",
+                    "Other",
+                    "Unclear",
+                    null
+                  ]
+                },
+                "innovation_markers_observed": {
+                  "type": "array",
+                  "description": "Markers detected in the text itself. Empty if none detected.",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Measured quantities with units",
+                      "Explicit cooking times",
+                      "Temperature or heat control language",
+                      "Roux or flour-fat liaison",
+                      "Stock/bouillon/consommé base",
+                      "Reduction or concentration logic",
+                      "Egg or cream liaison for finishing",
+                      "Separate sauce preparation",
+                      "Taste-correction language (adjust salt/acid/sweet)",
+                      "Plating or presentation instructions",
+                      "Garnish as distinct step",
+                      "Mise en place or advance prep mentioned",
+                      "New World ingredients central",
+                      "Refined sugar as primary sweetener",
+                      "None detected"
+                    ]
+                  }
+                },
+                "archaism_markers_observed": {
+                  "type": "array",
+                  "description": "Markers suggesting older culinary style. Empty if none detected.",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Heavy mixed spicing (cinnamon + pepper + ginger etc.)",
+                      "Sweet-sour combinations prominent",
+                      "Honey as primary sweetener",
+                      "Verjuice prominent",
+                      "Color as explicit goal (saffron, etc.)",
+                      "Whole roast or spit-based method dominant",
+                      "Minimal sauce separation",
+                      "Quantities absent or vague throughout",
+                      "Strong humoral or medical framing",
+                      "None detected"
+                    ]
+                  }
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet (original language; ideally ≤150 characters) supporting the classification. Null if no single snippet suffices."
+                }
+              },
+              "required": [
+                "modernity_likert_1_7",
+                "style_period_closest",
+                "innovation_markers_observed",
+                "archaism_markers_observed",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "intertextuality": {
+              "type": "object",
+              "description": "Signals of attribution, foreign-style referencing, and within-book cross-referencing.",
+              "properties": {
+                "explicit_source_attribution": {
+                  "type": ["string", "null"],
+                  "description": "If the text explicitly names a source/authority, record verbatim. Null if none."
+                },
+                "explicit_foreign_style_reference": {
+                  "type": ["string", "null"],
+                  "description": "If the text explicitly names a foreign style or national manner, record verbatim. Null if none."
+                },
+                "cross_reference_to_other_recipe": {
+                  "type": ["boolean", "null"],
+                  "description": "True if recipe references another recipe/section in the same work. Null if unclear."
+                },
+                "contains_embedded_subrecipe": {
+                  "type": ["boolean", "null"],
+                  "description": "True if the recipe contains a full sub-procedure that could stand alone (e.g., a sauce/farce/paste described in detail). Null if unclear."
+                },
+                "self_positioning_temporal": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Claims modernity/novelty",
+                    "Claims tradition/old custom",
+                    "Contrasts old and new",
+                    "Neutral/no positioning",
+                    null
+                  ],
+                  "description": "How the recipe positions itself in culinary time."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the intertextuality classification."
+                }
+              },
+              "required": [
+                "explicit_source_attribution",
+                "explicit_foreign_style_reference",
+                "cross_reference_to_other_recipe",
+                "contains_embedded_subrecipe",
+                "self_positioning_temporal",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "social_context": {
+              "type": "object",
+              "description": "LLM-inferred audience and skill/resource assumptions.",
+              "properties": {
+                "implied_audience": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Professional cook",
+                    "Household mistress/master",
+                    "Servant/domestic staff",
+                    "Elite/aristocratic household",
+                    "Bourgeois/middling household",
+                    "Modest/economizing household",
+                    "Invalid/convalescent",
+                    "Traveler/soldier",
+                    "Unclear",
+                    null
+                  ]
+                },
+                "assumed_skill_level_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = assumes novice; 7 = assumes trained professional. Null if unclear."
+                },
+                "assumed_resource_level_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = minimal kitchen/resources; 7 = very well-resourced kitchen/household. Null if unclear."
+                },
+                "explanatory_density_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = terse/telegraphic; 7 = highly detailed and pedagogical. Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the social-context inference."
+                }
+              },
+              "required": [
+                "implied_audience",
+                "assumed_skill_level_likert_1_7",
+                "assumed_resource_level_likert_1_7",
+                "explanatory_density_likert_1_7",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "aspiration_practice": {
+              "type": "object",
+              "description": "LLM-inferred display orientation, feasibility, and occasion signals.",
+              "properties": {
+                "display_orientation_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = purely practical; 7 = maximal display/status orientation. Null if unclear."
+                },
+                "feasibility_for_ordinary_household_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = implausible for ordinary household; 7 = easily feasible. Null if unclear."
+                },
+                "occasion_type": {
+                  "type": "array",
+                  "description": "Occasion signals detected. Empty array if none detected.",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Everyday/ordinary",
+                      "Feast/banquet",
+                      "Religious fast/Lent",
+                      "Holiday/celebration",
+                      "Invalid/sick cookery",
+                      "Childcare",
+                      "Preservation/seasonal",
+                      "Travel/field",
+                      "Unclear"
+                    ]
+                  }
+                },
+                "economy_framing_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if explicitly framed as economical/thrifty. Null if unclear."
+                },
+                "luxury_framing_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if explicitly framed as luxurious/splendid/delicate. Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the aspiration/practice inference."
+                }
+              },
+              "required": [
+                "display_orientation_likert_1_7",
+                "feasibility_for_ordinary_household_likert_1_7",
+                "occasion_type",
+                "economy_framing_present",
+                "luxury_framing_present",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "geographic_signals": {
+              "type": "object",
+              "description": "Places and regional identity cues explicitly present in the recipe text.",
+              "properties": {
+                "place_references": {
+                  "type": "array",
+                  "description": "Places explicitly named in recipe text. Empty if none.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "place_name_original": {
+                        "type": "string",
+                        "description": "Place name exactly as in the text."
+                      },
+                      "reference_function": {
+                        "type": "string",
+                        "enum": [
+                          "Style label (alla/à la/nach Art)",
+                          "Ingredient origin",
+                          "Regional custom reference",
+                          "Audience location",
+                          "Other"
+                        ]
+                      }
+                    },
+                    "required": ["place_name_original", "reference_function"],
+                    "additionalProperties": false
+                  }
+                },
+                "regional_identity_strength_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = no regional marking; 7 = strongly marked regional identity. Null if unclear."
+                },
+                "dialect_or_local_terminology_detected": {
+                  "type": ["boolean", "null"],
+                  "description": "True if the text uses dialect/local terminology. Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the geographic-signal extraction."
+                }
+              },
+              "required": [
+                "place_references",
+                "regional_identity_strength_likert_1_7",
+                "dialect_or_local_terminology_detected",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "tradition_rhetoric": {
+              "type": "object",
+              "description": "Rhetorical markers relevant for debates on authenticity, tradition, and identity (often sparse at recipe-level).",
+              "properties": {
+                "tradition_claim_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if the recipe text claims tradition/old custom. Null if unclear."
+                },
+                "authenticity_claim_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if the recipe text claims authenticity/genuineness/originality. Null if unclear."
+                },
+                "national_identity_claim_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if the recipe text invokes national identity explicitly. Null if unclear."
+                },
+                "anti_foreign_sentiment_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if the recipe text disparages foreign cuisine or asserts native superiority. Null if unclear."
+                },
+                "moral_virtue_framing_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if recipe framing includes moral language (virtue of frugality, temperance, avoiding excess). Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the rhetoric classification."
+                }
+              },
+              "required": [
+                "tradition_claim_present",
+                "authenticity_claim_present",
+                "national_identity_claim_present",
+                "anti_foreign_sentiment_present",
+                "moral_virtue_framing_present",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "economic_signals": {
+              "type": "object",
+              "description": "Explicit cost/scarcity/substitution and economy cues in the recipe text.",
+              "properties": {
+                "cost_language_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if mentions cost, expense, cheapness, or affordability. Null if unclear."
+                },
+                "scarcity_language_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if mentions scarcity, availability constraints, seasonality, or difficulty obtaining. Null if unclear."
+                },
+                "substitutions": {
+                  "type": "array",
+                  "description": "Explicit substitutions ('or use Y instead of X'). Empty if none.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "preferred_item_original": {
+                        "type": "string",
+                        "description": "The preferred/primary item as stated."
+                      },
+                      "substitute_item_original": {
+                        "type": "string",
+                        "description": "The substitute item as stated."
+                      },
+                      "stated_reason": {
+                        "type": ["string", "null"],
+                        "enum": [
+                          "Cost/economy",
+                          "Availability/season",
+                          "Fasting/religious",
+                          "Health/invalid",
+                          "Taste preference",
+                          "No reason stated",
+                          null
+                        ]
+                      }
+                    },
+                    "required": [
+                      "preferred_item_original",
+                      "substitute_item_original",
+                      "stated_reason"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "leftover_usage_mentioned": {
+                  "type": ["boolean", "null"],
+                  "description": "True if explicitly mentions leftovers or yesterday's food. Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the economic-signal extraction."
+                }
+              },
+              "required": [
+                "cost_language_present",
+                "scarcity_language_present",
+                "substitutions",
+                "leftover_usage_mentioned",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "luxury_signals": {
+              "type": "object",
+              "description": "Luxury/prestige signaling inferred from ingredients, labor, and explicit framing in the recipe text.",
+              "properties": {
+                "luxury_intensity_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = no luxury signaling; 7 = maximal prestige display. Null if unclear."
+                },
+                "luxury_type_observed": {
+                  "type": "array",
+                  "description": "Types of luxury signaling detected. Empty if none detected.",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Rare/imported ingredients",
+                      "Expensive cuts or prime ingredients",
+                      "Elaborate multi-stage preparation",
+                      "Presentation/spectacle emphasis",
+                      "Named elite/aristocratic association",
+                      "Explicit 'fine' or 'delicate' language",
+                      "Time-intensive technique as marker",
+                      "None detected"
+                    ]
+                  }
+                },
+                "global_trade_goods_prominent": {
+                  "type": ["boolean", "null"],
+                  "description": "True if global trade goods are prominent beyond incidental seasoning. Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the luxury-signal extraction."
+                }
+              },
+              "required": [
+                "luxury_intensity_likert_1_7",
+                "luxury_type_observed",
+                "global_trade_goods_prominent",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "sensory_emphasis": {
+              "type": "object",
+              "description": "Sensory and aesthetic emphasis detectable in the recipe text.",
+              "properties": {
+                "taste_emphasis_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = taste barely mentioned; 7 = extensive taste description/adjustment language. Null if unclear."
+                },
+                "appearance_emphasis_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = appearance unmentioned; 7 = detailed presentation/plating emphasis. Null if unclear."
+                },
+                "texture_emphasis_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = texture unmentioned; 7 = explicit texture goals and cues. Null if unclear."
+                },
+                "aroma_emphasis_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if aroma/fragrance is mentioned as goal/indicator. Null if unclear."
+                },
+                "color_as_goal_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if achieving a specific color is an explicit goal. Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the sensory-emphasis extraction."
+                }
+              },
+              "required": [
+                "taste_emphasis_likert_1_7",
+                "appearance_emphasis_likert_1_7",
+                "texture_emphasis_likert_1_7",
+                "aroma_emphasis_present",
+                "color_as_goal_present",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "health_medical_framing": {
+              "type": "object",
+              "description": "Health/medical framing signals, including humoral reasoning where present.",
+              "properties": {
+                "health_purpose_stated": {
+                  "type": ["boolean", "null"],
+                  "description": "True if explicitly for health/invalids/convalescents/conditions. Null if unclear."
+                },
+                "humoral_reasoning_present": {
+                  "type": ["boolean", "null"],
+                  "description": "True if uses hot/cold, moist/dry, temperament language, or similar humoral framing. Null if unclear."
+                },
+                "digestibility_mentioned": {
+                  "type": ["boolean", "null"],
+                  "description": "True if discusses digestibility/lightness. Null if unclear."
+                },
+                "specific_condition_targeted": {
+                  "type": ["string", "null"],
+                  "description": "If a specific condition is named, record verbatim. Null if none."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the health/medical framing extraction."
+                }
+              },
+              "required": [
+                "health_purpose_stated",
+                "humoral_reasoning_present",
+                "digestibility_mentioned",
+                "specific_condition_targeted",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "textual_structure": {
+              "type": "object",
+              "description": "LLM characterization of how the recipe is written (structure and precision ethos).",
+              "properties": {
+                "structure_type": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Numbered/lettered steps",
+                    "Prose paragraph",
+                    "Ingredient list then prose",
+                    "Telegraphic/abbreviated",
+                    "Dialogic/epistolary",
+                    "Mixed",
+                    "Other",
+                    null
+                  ]
+                },
+                "precision_ethos_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = vague throughout; 7 = precise throughout. Null if unclear."
+                },
+                "imperative_voice_dominant": {
+                  "type": ["boolean", "null"],
+                  "description": "True if primarily imperative verbs. Null if unclear."
+                },
+                "reader_addressed_directly": {
+                  "type": ["boolean", "null"],
+                  "description": "True if addresses reader directly ('you will', 'if you prefer'). Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the textual-structure classification."
+                }
+              },
+              "required": [
+                "structure_type",
+                "precision_ethos_likert_1_7",
+                "imperative_voice_dominant",
+                "reader_addressed_directly",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "labor_time_signals": {
+              "type": "object",
+              "description": "Implicit labor and time horizon signals inferred from the recipe text.",
+              "properties": {
+                "labor_intensity_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "1 = minimal labor; 7 = extreme labor/multi-stage/continuous attention. Null if unclear."
+                },
+                "time_horizon_implied": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Quick (under 1 hour)",
+                    "Moderate (1-3 hours)",
+                    "Long (half day)",
+                    "Very long (full day or overnight)",
+                    "Multi-day",
+                    "Unclear",
+                    null
+                  ],
+                  "description": "Inferred total time horizon, even if not explicitly stated."
+                },
+                "advance_preparation_required": {
+                  "type": ["boolean", "null"],
+                  "description": "True if requires advance prep (soaking, marinating, curing). Null if unclear."
+                },
+                "continuous_attention_required": {
+                  "type": ["boolean", "null"],
+                  "description": "True if requires continuous tending/stirring/watching. Null if unclear."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the labor/time inference."
+                }
+              },
+              "required": [
+                "labor_intensity_likert_1_7",
+                "time_horizon_implied",
+                "advance_preparation_required",
+                "continuous_attention_required",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "religious_calendar_signals": {
+              "type": "object",
+              "description": "Religious/ritual calendar signals in the recipe text (fasting, Lent, feast days, etc.).",
+              "properties": {
+                "fasting_context_indicated": {
+                  "type": ["boolean", "null"],
+                  "description": "True if marked for fasting days/Lent/vigils/etc. Null if unclear."
+                },
+                "meat_day_context_indicated": {
+                  "type": ["boolean", "null"],
+                  "description": "True if marked for meat days or explicitly non-fasting. Null if unclear."
+                },
+                "specific_feast_or_holiday_named": {
+                  "type": ["string", "null"],
+                  "description": "If a specific feast/holiday is named (e.g., Christmas, Easter), record verbatim. Null if none."
+                },
+                "confessional_hint": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Explicitly Catholic markers",
+                    "Explicitly Protestant markers",
+                    "Explicitly Jewish markers",
+                    "No confessional signal",
+                    "Ambiguous",
+                    null
+                  ],
+                  "description": "Only classify if text contains explicit markers."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim snippet supporting the religious/calendar inference."
+                }
+              },
+              "required": [
+                "fasting_context_indicated",
+                "meat_day_context_indicated",
+                "specific_feast_or_holiday_named",
+                "confessional_hint",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
+            "extraction_audit": {
+              "type": "object",
+              "description": "Lightweight auditability fields. Keep evidence quotes short and verbatim. Do not include chain-of-thought.",
+              "properties": {
+                "confidence_overall": {
+                  "type": ["number", "null"],
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Overall self-assessed confidence (0.00–1.00). Null if not provided."
+                },
+                "evidence_quotes_original": {
+                  "type": "array",
+                  "description": "Short verbatim snippets supporting key classifications. Empty if none.",
+                  "items": { "type": "string" }
+                },
+                "ambiguity_notes": {
+                  "type": "array",
+                  "description": "Short notes on ambiguities (no chain-of-thought). Empty if none.",
+                  "items": { "type": "string" }
+                }
+              },
+              "required": [
+                "confidence_overall",
+                "evidence_quotes_original",
+                "ambiguity_notes"
+              ],
+              "additionalProperties": false
             }
           },
           "required": [
@@ -377,13 +1038,32 @@
             "yield",
             "preparation_time",
             "cooking_time",
-            "ingredient_categories"
+            "ingredient_categories",
+            "culinary_style",
+            "intertextuality",
+            "social_context",
+            "aspiration_practice",
+            "geographic_signals",
+            "tradition_rhetoric",
+            "economic_signals",
+            "luxury_signals",
+            "sensory_emphasis",
+            "health_medical_framing",
+            "textual_structure",
+            "labor_time_signals",
+            "religious_calendar_signals",
+            "extraction_audit"
           ],
           "additionalProperties": false
         }
       }
     },
-    "required": ["contains_no_content_of_requested_type", "entries"],
+    "required": [
+      "schema_name",
+      "schema_version",
+      "contains_no_content_of_requested_type",
+      "entries"
+    ],
     "additionalProperties": false
   }
 }
