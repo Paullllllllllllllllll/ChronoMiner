@@ -433,6 +433,52 @@
               ],
               "additionalProperties": false
             },
+            "intertextuality": {
+              "type": "object",
+              "description": "Detect textual signals of attribution, borrowing, and cross-referencing. Look for named authorities, foreign-style labels (e.g., 'à la française', 'alla milanese'), and internal references to other recipes in the same work.",
+              "properties": {
+                "explicit_source_attribution": {
+                  "type": ["string", "null"],
+                  "description": "If the text explicitly names a source/authority, record verbatim. Null if none."
+                },
+                "explicit_foreign_style_reference": {
+                  "type": ["string", "null"],
+                  "description": "If the text explicitly names a foreign style or national manner, record verbatim. Null if none."
+                },
+                "cross_reference_to_other_recipe": {
+                  "type": ["boolean", "null"],
+                  "description": "True if recipe references another recipe/section in the same work. Null if unclear."
+                },
+                "contains_embedded_subrecipe": {
+                  "type": ["boolean", "null"],
+                  "description": "True if the recipe contains a full sub-procedure that could stand alone (e.g., a sauce/farce/paste described in detail). Null if unclear."
+                },
+                "self_positioning_temporal": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Claims modernity/novelty",
+                    "Claims tradition/old custom",
+                    "Contrasts old and new",
+                    "Neutral/no positioning",
+                    null
+                  ],
+                  "description": "Classify how the recipe text explicitly positions itself relative to culinary tradition and innovation. Look for phrases claiming novelty ('new method', 'modern way') or tradition ('as our ancestors', 'the old manner'). Use 'Neutral/no positioning' if no temporal claims are made."
+                },
+                "evidence_quote": {
+                  "type": ["string", "null"],
+                  "description": "Short verbatim quote (original language, ≤150 characters) showing source attribution, foreign reference, or cross-reference. Use null if no relevant passage exists."
+                }
+              },
+              "required": [
+                "explicit_source_attribution",
+                "explicit_foreign_style_reference",
+                "cross_reference_to_other_recipe",
+                "contains_embedded_subrecipe",
+                "self_positioning_temporal",
+                "evidence_quote"
+              ],
+              "additionalProperties": false
+            },
             "social_context": {
               "type": "object",
               "description": "Infer the intended audience and assumed capabilities from textual cues such as explanation level, assumed equipment, ingredient accessibility, and forms of address.",
