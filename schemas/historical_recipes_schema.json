@@ -12,13 +12,13 @@
       },
       "entries": {
         "type": "array",
-        "description": "List of historical recipes extracted from text. If no recipes are found, return an empty array.",
+        "description": "List of historical recipes extracted from text. If no recipes are found, return an empty array. Each object in this list should be one individual recipe.",
         "items": {
           "type": "object",
           "properties": {
             "recipe_text_original": {
               "type": "string",
-              "description": "Complete recipe text verbatim in its original language (preserve spelling, diacritics, and formatting)."
+              "description": "Complete recipe text verbatim in its original language (preserve spelling, diacritics, and formatting), without page numbers or other formatting elements."
             },
             "recipe_text_modern_english": {
               "type": ["string", "null"],
@@ -67,7 +67,7 @@
                   },
                   "name_modern_english": {
                     "type": ["string", "null"],
-                    "description": "Modern English translation of the ingredient. Use null if name_original is null or if the ingredient is already given in modern English."
+                    "description": "Modern English translation of the ingredient. Use null if already in modern English."
                   },
                   "quantity_original": {
                     "type": ["string", "null"],
@@ -144,12 +144,12 @@
                 "type": "object",
                 "properties": {
                   "method_original": {
-                    "type": ["string", "null"],
+                    "type": "string",
                     "description": "Cooking method as it appears in source (preserve spelling)."
                   },
                   "method_modern_english": {
                     "type": ["string", "null"],
-                    "description": "Modern English translation of the cooking method."
+                    "description": "Modern English translation. Use null if already in modern English."
                   }
                 },
                 "required": ["method_original", "method_modern_english"],
@@ -163,12 +163,12 @@
                 "type": "object",
                 "properties": {
                   "utensil_original": {
-                    "type": ["string", "null"],
+                    "type": "string",
                     "description": "Utensil as it appears in source (preserve spelling)."
                   },
                   "utensil_modern_english": {
                     "type": ["string", "null"],
-                    "description": "Modern English translation of the utensil."
+                    "description": "Modern English translation. Use null if already in modern English."
                   }
                 },
                 "required": ["utensil_original", "utensil_modern_english"],
@@ -321,7 +321,7 @@
                 },
                 "contains_other_sweeteners": {
                   "type": "boolean",
-                  "description": "True if the recipe contains other sweeteners that are neither honey nor refined sugar."
+                  "description": "True if recipe contains sweeteners other than honey or refined sugar (e.g., molasses, maple, fruit syrups, dried fruits used as sweeteners)."
                 },
                 "contains_foreign_spices": {
                   "type": "boolean",
@@ -373,7 +373,8 @@
                     "Other",
                     "Unclear",
                     null
-                  ]
+                  ],
+                  "description": "Classify the recipe's closest culinary-historical period. Late Medieval = pre-1500 spiced style; Renaissance/Italianate = 16th-c. Italian influence; Early Modern Courtly = 17th-c. aristocratic; French Reform = post-1650 La Varenne simplification; Haute Cuisine = 19th-c. Carême codification; Bourgeois Domestic = middle-class practical; Rustic/Regional = local peasant traditions. Use null if insufficient evidence."
                 },
                 "innovation_markers_observed": {
                   "type": "array",
@@ -495,7 +496,8 @@
                     "Traveler/soldier",
                     "Unclear",
                     null
-                  ]
+                  ],
+                  "description": "Infer primary intended reader. Professional cook = assumes technical mastery; Household mistress/master = managing domestic economy; Servant/domestic staff = executing instructions; Elite/aristocratic = wealth assumed; Bourgeois/middling = comfortable but cost-conscious; Modest/economizing = frugality emphasized; Invalid/convalescent = health-focused; Traveler/soldier = portability/simplicity. Use null if no audience signals."
                 },
                 "assumed_skill_level_likert_1_7": {
                   "type": ["integer", "null"],
@@ -808,13 +810,11 @@
                   "maximum": 7,
                   "description": "Rate the emphasis on texture in the recipe. 1 = texture unmentioned (no references to consistency, doneness cues, or mouthfeel); 4 = moderate texture awareness; 7 = explicit texture focus (specific consistency goals, doneness tests, crispness/tenderness targets). Use null if texture emphasis is unclear."
                 },
-                "aroma_emphasis_present": {
-                  "type": ["boolean", "null"],
-                  "description": "True if aroma/fragrance is mentioned as goal/indicator. Null if unclear."
-                },
-                "color_as_goal_present": {
-                  "type": ["boolean", "null"],
-                  "description": "True if achieving a specific color is an explicit goal. Null if unclear."
+                "aroma_emphasis_likert_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Rate the emphasis on aroma/fragrance in the recipe. 1 = aroma unmentioned; 4 = moderate aromatic attention; 7 = explicit aroma focus (fragrance as goal, aromatic ingredients highlighted, scent descriptors used). Use null if aroma emphasis is unclear."
                 },
                 "evidence_quote": {
                   "type": ["string", "null"],
@@ -825,8 +825,7 @@
                 "taste_emphasis_likert_1_7",
                 "appearance_emphasis_likert_1_7",
                 "texture_emphasis_likert_1_7",
-                "aroma_emphasis_present",
-                "color_as_goal_present",
+                "aroma_emphasis_likert_1_7",
                 "evidence_quote"
               ],
               "additionalProperties": false
@@ -931,7 +930,7 @@
                     "Unclear",
                     null
                   ],
-                  "description": "Inferred total time horizon, even if not explicitly stated."
+                  "description": "Infer total time from start to serving, even if not stated. Consider marinating, rising, slow cooking, cooling. Quick = simple frying/boiling; Moderate = roasts, stews; Long = complex multi-component dishes; Very long = overnight braises, yeasted breads; Multi-day = curing, preserving, elaborate preparations. Use null if time cannot be reasonably inferred."
                 },
                 "advance_preparation_required": {
                   "type": ["boolean", "null"],
@@ -1059,8 +1058,6 @@
       }
     },
     "required": [
-      "schema_name",
-      "schema_version",
       "contains_no_content_of_requested_type",
       "entries"
     ],
