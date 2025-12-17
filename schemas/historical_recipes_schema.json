@@ -12,7 +12,7 @@
       },
       "entries": {
         "type": "array",
-        "description": "List of historical recipes extracted from text. If no recipes are found, return an empty array. Each object in this list should be one individual recipe.",
+        "description": "List of historical recipes extracted from text. If no recipes are found, return an empty array. Each object in this list has to be one individual recipe.",
         "items": {
           "type": "object",
           "properties": {
@@ -111,7 +111,7 @@
                     ],
                     "description": "Classify the ingredient's functional role in the dish based on how it is used in the recipe. Primary/base = main component; Fat/cooking medium = oil, butter, lard used for cooking; Seasoning/spice = flavor enhancers in small quantities; Thickener/binder = flour, eggs, breadcrumbs for texture; Garnish = decorative finishing elements."
                   },
-                  "luxury_signal_likert_1_7": {
+                  "luxury_signal_rating_1_7": {
                     "type": ["integer", "null"],
                     "minimum": 1,
                     "maximum": 7,
@@ -131,7 +131,7 @@
                   "preparation_note_original",
                   "preparation_note_modern_english",
                   "functional_role",
-                  "luxury_signal_likert_1_7",
+                  "luxury_signal_rating_1_7",
                   "origin_explicitly_stated"
                 ],
                 "additionalProperties": false
@@ -354,7 +354,7 @@
               "type": "object",
               "description": "Classify the recipe's culinary-historical style based on technique, ingredient use, and structural features. Assess whether the recipe reflects older medieval traditions or newer rationalized cuisine.",
               "properties": {
-                "modernity_likert_1_7": {
+                "modernity_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
@@ -425,56 +425,10 @@
                 }
               },
               "required": [
-                "modernity_likert_1_7",
+                "modernity_rating_1_7",
                 "style_period_closest",
                 "innovation_markers_observed",
                 "archaism_markers_observed",
-                "evidence_quote"
-              ],
-              "additionalProperties": false
-            },
-            "intertextuality": {
-              "type": "object",
-              "description": "Detect textual signals of attribution, borrowing, and cross-referencing. Look for named authorities, foreign-style labels (e.g., 'à la française', 'alla milanese'), and internal references to other recipes in the same work.",
-              "properties": {
-                "explicit_source_attribution": {
-                  "type": ["string", "null"],
-                  "description": "If the text explicitly names a source/authority, record verbatim. Null if none."
-                },
-                "explicit_foreign_style_reference": {
-                  "type": ["string", "null"],
-                  "description": "If the text explicitly names a foreign style or national manner, record verbatim. Null if none."
-                },
-                "cross_reference_to_other_recipe": {
-                  "type": ["boolean", "null"],
-                  "description": "True if recipe references another recipe/section in the same work. Null if unclear."
-                },
-                "contains_embedded_subrecipe": {
-                  "type": ["boolean", "null"],
-                  "description": "True if the recipe contains a full sub-procedure that could stand alone (e.g., a sauce/farce/paste described in detail). Null if unclear."
-                },
-                "self_positioning_temporal": {
-                  "type": ["string", "null"],
-                  "enum": [
-                    "Claims modernity/novelty",
-                    "Claims tradition/old custom",
-                    "Contrasts old and new",
-                    "Neutral/no positioning",
-                    null
-                  ],
-                  "description": "Classify how the recipe text explicitly positions itself relative to culinary tradition and innovation. Look for phrases claiming novelty ('new method', 'modern way') or tradition ('as our ancestors', 'the old manner'). Use 'Neutral/no positioning' if no temporal claims are made."
-                },
-                "evidence_quote": {
-                  "type": ["string", "null"],
-                  "description": "Short verbatim quote (original language, ≤150 characters) showing source attribution, foreign reference, or cross-reference. Use null if no relevant passage exists."
-                }
-              },
-              "required": [
-                "explicit_source_attribution",
-                "explicit_foreign_style_reference",
-                "cross_reference_to_other_recipe",
-                "contains_embedded_subrecipe",
-                "self_positioning_temporal",
                 "evidence_quote"
               ],
               "additionalProperties": false
@@ -499,19 +453,19 @@
                   ],
                   "description": "Infer primary intended reader. Professional cook = assumes technical mastery; Household mistress/master = managing domestic economy; Servant/domestic staff = executing instructions; Elite/aristocratic = wealth assumed; Bourgeois/middling = comfortable but cost-conscious; Modest/economizing = frugality emphasized; Invalid/convalescent = health-focused; Traveler/soldier = portability/simplicity. Use null if no audience signals."
                 },
-                "assumed_skill_level_likert_1_7": {
+                "assumed_skill_level_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
                   "description": "Rate the skill level the recipe assumes of its reader. 1 = novice cook (explains basic terms, provides detailed step-by-step guidance); 4 = competent home cook; 7 = trained professional (assumes mastery of techniques, uses specialized terminology without explanation). Use null if skill assumptions are unclear."
                 },
-                "assumed_resource_level_likert_1_7": {
+                "assumed_resource_level_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
                   "description": "Rate the kitchen resources the recipe implicitly requires. 1 = minimal resources (basic hearth, few utensils, common ingredients); 4 = moderate household equipment; 7 = well-equipped kitchen (multiple heat sources, specialized equipment, servants/staff implied, access to diverse ingredients). Use null if resource assumptions are unclear."
                 },
-                "explanatory_density_likert_1_7": {
+                "explanatory_density_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
@@ -524,9 +478,9 @@
               },
               "required": [
                 "implied_audience",
-                "assumed_skill_level_likert_1_7",
-                "assumed_resource_level_likert_1_7",
-                "explanatory_density_likert_1_7",
+                "assumed_skill_level_rating_1_7",
+                "assumed_resource_level_rating_1_7",
+                "explanatory_density_rating_1_7",
                 "evidence_quote"
               ],
               "additionalProperties": false
@@ -535,13 +489,13 @@
               "type": "object",
               "description": "Infer the recipe's intended social function: whether it prioritizes display/status or everyday practicality, and what occasions it might serve.",
               "properties": {
-                "display_orientation_likert_1_7": {
+                "display_orientation_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
                   "description": "Rate the recipe's orientation toward display vs. practicality. 1 = purely practical/nourishing with no aesthetic concern; 4 = balanced utility and presentation; 7 = maximal display orientation (elaborate presentation, spectacle, status signaling prioritized over efficiency). Use null if orientation is unclear."
                 },
-                "feasibility_for_ordinary_household_likert_1_7": {
+                "feasibility_for_ordinary_household_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
@@ -579,8 +533,8 @@
                 }
               },
               "required": [
-                "display_orientation_likert_1_7",
-                "feasibility_for_ordinary_household_likert_1_7",
+                "display_orientation_rating_1_7",
+                "feasibility_for_ordinary_household_rating_1_7",
                 "occasion_type",
                 "economy_framing_present",
                 "luxury_framing_present",
@@ -617,7 +571,7 @@
                     "additionalProperties": false
                   }
                 },
-                "regional_identity_strength_likert_1_7": {
+                "regional_identity_strength_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
@@ -634,7 +588,7 @@
               },
               "required": [
                 "place_references",
-                "regional_identity_strength_likert_1_7",
+                "regional_identity_strength_rating_1_7",
                 "dialect_or_local_terminology_detected",
                 "evidence_quote"
               ],
@@ -748,7 +702,7 @@
               "type": "object",
               "description": "Assess luxury and prestige signaling based on ingredient cost/rarity, labor intensity, presentation emphasis, and explicit status language (e.g., 'fine', 'delicate', 'for lords').",
               "properties": {
-                "luxury_intensity_likert_1_7": {
+                "luxury_intensity_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
@@ -781,7 +735,7 @@
                 }
               },
               "required": [
-                "luxury_intensity_likert_1_7",
+                "luxury_intensity_rating_1_7",
                 "luxury_type_observed",
                 "global_trade_goods_prominent",
                 "evidence_quote"
@@ -792,25 +746,25 @@
               "type": "object",
               "description": "Assess the recipe's emphasis on sensory qualities (taste, appearance, texture, aroma). Higher emphasis indicates explicit attention to these elements as goals rather than incidental outcomes.",
               "properties": {
-                "taste_emphasis_likert_1_7": {
+                "taste_emphasis_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
                   "description": "Rate the emphasis on taste in the recipe text. 1 = taste barely mentioned (no flavor descriptors or adjustment guidance); 4 = moderate taste references; 7 = extensive taste focus (rich flavor vocabulary, explicit seasoning adjustments, taste-testing instructions). Use null if taste emphasis is unclear."
                 },
-                "appearance_emphasis_likert_1_7": {
+                "appearance_emphasis_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
                   "description": "Rate the emphasis on visual appearance in the recipe. 1 = appearance unmentioned (no color, shape, or presentation guidance); 4 = moderate visual attention; 7 = detailed presentation focus (specific colors, plating instructions, garnishing, decorative elements). Use null if appearance emphasis is unclear."
                 },
-                "texture_emphasis_likert_1_7": {
+                "texture_emphasis_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
                   "description": "Rate the emphasis on texture in the recipe. 1 = texture unmentioned (no references to consistency, doneness cues, or mouthfeel); 4 = moderate texture awareness; 7 = explicit texture focus (specific consistency goals, doneness tests, crispness/tenderness targets). Use null if texture emphasis is unclear."
                 },
-                "aroma_emphasis_likert_1_7": {
+                "aroma_emphasis_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
@@ -822,10 +776,10 @@
                 }
               },
               "required": [
-                "taste_emphasis_likert_1_7",
-                "appearance_emphasis_likert_1_7",
-                "texture_emphasis_likert_1_7",
-                "aroma_emphasis_likert_1_7",
+                "taste_emphasis_rating_1_7",
+                "appearance_emphasis_rating_1_7",
+                "texture_emphasis_rating_1_7",
+                "aroma_emphasis_rating_1_7",
                 "evidence_quote"
               ],
               "additionalProperties": false
@@ -881,7 +835,7 @@
                     null
                   ]
                 },
-                "precision_ethos_likert_1_7": {
+                "precision_ethos_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
@@ -902,7 +856,7 @@
               },
               "required": [
                 "structure_type",
-                "precision_ethos_likert_1_7",
+                "precision_ethos_rating_1_7",
                 "imperative_voice_dominant",
                 "reader_addressed_directly",
                 "evidence_quote"
@@ -913,7 +867,7 @@
               "type": "object",
               "description": "Infer labor and time requirements from the recipe's procedures, even when not explicitly stated. Consider number of steps, technique complexity, and cooking method duration.",
               "properties": {
-                "labor_intensity_likert_1_7": {
+                "labor_intensity_rating_1_7": {
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
@@ -946,7 +900,7 @@
                 }
               },
               "required": [
-                "labor_intensity_likert_1_7",
+                "labor_intensity_rating_1_7",
                 "time_horizon_implied",
                 "advance_preparation_required",
                 "continuous_attention_required",
