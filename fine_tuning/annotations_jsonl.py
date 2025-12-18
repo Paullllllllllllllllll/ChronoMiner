@@ -15,6 +15,18 @@ def build_annotation_records(
     source_id: Optional[str] = None,
     annotator_id: Optional[str] = None,
 ) -> List[Dict[str, Any]]:
+    """
+    Build annotation records from chunk annotations.
+    
+    Args:
+        schema_wrapper: The schema wrapper containing schema name and version.
+        annotations: List of ChunkAnnotation objects.
+        source_id: Optional identifier for the source document.
+        annotator_id: Optional identifier for the annotator.
+        
+    Returns:
+        List of annotation records ready for JSONL serialization.
+    """
     schema_name = schema_wrapper.get("name")
     schema_version = schema_wrapper.get("schema_version")
 
@@ -31,6 +43,13 @@ def build_annotation_records(
             "output": ann.output,
             "annotated_at": datetime.now(timezone.utc).isoformat(),
         }
+        
+        # Include source file information for traceability
+        if ann.source_file is not None:
+            record["source_file"] = ann.source_file
+        if ann.source_path is not None:
+            record["source_path"] = ann.source_path
+        
         if source_id is not None:
             record["source_id"] = source_id
         if annotator_id is not None:

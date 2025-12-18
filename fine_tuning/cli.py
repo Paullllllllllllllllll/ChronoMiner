@@ -46,10 +46,23 @@ def _blank_output(schema_wrapper: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def cmd_create_editable(args: argparse.Namespace) -> None:
+    """
+    Create an editable text file from input chunks.
+    
+    The generated file includes:
+    - Clear chunk headers with source file name for identification
+    - Full source path so annotator can locate the original file
+    - Pretty-printed JSON output for easy editing in Notepad++
+    """
     schema_wrapper = load_schema(args.schema)
 
     chunk_inputs = read_chunk_inputs_txt(Path(args.chunks))
     chunk_texts = [c.input_text for c in chunk_inputs]
+    
+    # Determine source file info from the chunks file path
+    chunks_path = Path(args.chunks).resolve()
+    default_source_file = chunks_path.name
+    default_source_path = str(chunks_path)
 
     annotations: List[ChunkAnnotation] = []
 
@@ -60,6 +73,8 @@ def cmd_create_editable(args: argparse.Namespace) -> None:
                     chunk_index=c.chunk_index,
                     input_text=c.input_text,
                     output=_blank_output(schema_wrapper),
+                    source_file=c.source_file or default_source_file,
+                    source_path=c.source_path or default_source_path,
                 )
             )
     else:
@@ -92,6 +107,8 @@ def cmd_create_editable(args: argparse.Namespace) -> None:
                     chunk_index=c.chunk_index,
                     input_text=c.input_text,
                     output=out_obj,
+                    source_file=c.source_file or default_source_file,
+                    source_path=c.source_path or default_source_path,
                 )
             )
 

@@ -6,13 +6,27 @@ from pathlib import Path
 from typing import List, Optional
 
 
-CHUNK_HEADER_RE = re.compile(r"^===\s*chunk\s+(\d+)\s*===\s*$", re.IGNORECASE)
+# Header pattern: === chunk N === or === chunk N | source_file.txt ===
+CHUNK_HEADER_RE = re.compile(
+    r"^===\s*chunk\s+(\d+)(?:\s*\|\s*(.+?))?\s*===\s*$",
+    re.IGNORECASE,
+)
 
 
 @dataclass
 class ChunkInput:
+    """Represents a single input chunk.
+    
+    Attributes:
+        chunk_index: The index of this chunk (0-based).
+        input_text: The raw input text for this chunk.
+        source_file: Optional source file name for identification.
+        source_path: Optional full path to the source file.
+    """
     chunk_index: int
     input_text: str
+    source_file: Optional[str] = None
+    source_path: Optional[str] = None
 
 
 def read_chunk_inputs_txt(path: Path) -> List[ChunkInput]:
