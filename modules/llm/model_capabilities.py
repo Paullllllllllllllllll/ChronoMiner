@@ -798,8 +798,73 @@ def detect_capabilities(model_name: str) -> Capabilities:
         # Extract underlying model name for capability detection
         underlying = m.split("/")[-1] if "/" in m else m
         
-        # OpenRouter Anthropic models
-        if "claude" in underlying:
+        # OpenRouter DeepSeek models (reasoning capable)
+        if "deepseek" in m:
+            is_r1 = "deepseek-r1" in m
+            is_terminus = "terminus" in m
+            return Capabilities(
+                model=model_name,
+                family="openrouter-deepseek",
+                provider="openrouter",
+                supports_responses_api=False,
+                supports_chat_completions=True,
+                api_preference="langchain",
+                is_reasoning_model=is_r1 or is_terminus,
+                supports_reasoning_effort=True,  # DeepSeek supports reasoning via enabled flag
+                supports_developer_messages=True,
+                supports_image_input=True,
+                supports_image_detail=False,
+                default_ocr_detail="high",
+                supports_structured_outputs=True,
+                supports_function_calling=True,
+                supports_sampler_controls=not is_r1,  # R1 models don't support sampler controls
+                max_context_tokens=128000,
+            )
+        
+        # OpenRouter GPT-5 models (reasoning, no sampler controls)
+        if "gpt-5" in m:
+            return Capabilities(
+                model=model_name,
+                family="openrouter-gpt5",
+                provider="openrouter",
+                supports_responses_api=False,
+                supports_chat_completions=True,
+                api_preference="langchain",
+                is_reasoning_model=True,
+                supports_reasoning_effort=True,
+                supports_developer_messages=True,
+                supports_image_input=True,
+                supports_image_detail=True,
+                default_ocr_detail="high",
+                supports_structured_outputs=True,
+                supports_function_calling=True,
+                supports_sampler_controls=False,
+                max_context_tokens=256000,
+            )
+        
+        # OpenRouter o-series models (reasoning, no sampler controls)
+        if any(x in m for x in ("/o1", "/o3", "/o4", "openai/o1", "openai/o3", "openai/o4")):
+            return Capabilities(
+                model=model_name,
+                family="openrouter-o-series",
+                provider="openrouter",
+                supports_responses_api=False,
+                supports_chat_completions=True,
+                api_preference="langchain",
+                is_reasoning_model=True,
+                supports_reasoning_effort=True,
+                supports_developer_messages=True,
+                supports_image_input="mini" not in m,  # o*-mini don't support vision
+                supports_image_detail=True,
+                default_ocr_detail="high",
+                supports_structured_outputs=True,
+                supports_function_calling=True,
+                supports_sampler_controls=False,
+                max_context_tokens=200000,
+            )
+        
+        # OpenRouter Anthropic models (reasoning via extended thinking)
+        if "claude" in underlying or "anthropic/" in m:
             return Capabilities(
                 model=model_name,
                 family="openrouter-claude",
@@ -807,20 +872,21 @@ def detect_capabilities(model_name: str) -> Capabilities:
                 supports_responses_api=False,
                 supports_chat_completions=True,
                 api_preference="langchain",
-                is_reasoning_model=False,
-                supports_reasoning_effort=False,
+                is_reasoning_model=True,  # Claude supports extended thinking
+                supports_reasoning_effort=True,  # Mapped to budget_tokens via OpenRouter
                 supports_developer_messages=True,
                 supports_image_input=True,
                 supports_image_detail=False,
                 default_ocr_detail="high",
                 supports_structured_outputs=True,
                 supports_function_calling=True,
-                supports_sampler_controls=True,
+                supports_sampler_controls=True,  # Claude supports temperature
                 max_context_tokens=200000,
             )
         
-        # OpenRouter Google models
-        if "gemini" in underlying:
+        # OpenRouter Google Gemini models (reasoning for 2.5+/3.0)
+        if "gemini" in underlying or "google/" in m:
+            is_thinking_model = any(x in m for x in ("gemini-2.5", "gemini-3", "gemini-2-5", "gemini-3-"))
             return Capabilities(
                 model=model_name,
                 family="openrouter-gemini",
@@ -828,8 +894,8 @@ def detect_capabilities(model_name: str) -> Capabilities:
                 supports_responses_api=False,
                 supports_chat_completions=True,
                 api_preference="langchain",
-                is_reasoning_model=False,
-                supports_reasoning_effort=False,
+                is_reasoning_model=is_thinking_model,
+                supports_reasoning_effort=True,  # Gemini supports thinking_level via OpenRouter
                 supports_developer_messages=True,
                 supports_image_input=True,
                 supports_image_detail=False,
@@ -840,8 +906,9 @@ def detect_capabilities(model_name: str) -> Capabilities:
                 max_context_tokens=1000000,
             )
         
-        # OpenRouter Llama models
-        if "llama" in underlying:
+        # OpenRouter Llama models (no reasoning support)
+        if "llama" in underlying or "meta/" in m:
+            supports_vision = "vision" in m or "llama-3.2" in m
             return Capabilities(
                 model=model_name,
                 family="openrouter-llama",
@@ -852,7 +919,7 @@ def detect_capabilities(model_name: str) -> Capabilities:
                 is_reasoning_model=False,
                 supports_reasoning_effort=False,
                 supports_developer_messages=True,
-                supports_image_input=False,
+                supports_image_input=supports_vision,
                 supports_image_detail=False,
                 default_ocr_detail="high",
                 supports_structured_outputs=True,
@@ -861,8 +928,9 @@ def detect_capabilities(model_name: str) -> Capabilities:
                 max_context_tokens=128000,
             )
         
-        # OpenRouter Mistral models
-        if "mistral" in underlying:
+        # OpenRouter Mistral models (no reasoning support)
+        if "mistral" in underlying or "mixtral" in m:
+            supports_vision = "pixtral" in m
             return Capabilities(
                 model=model_name,
                 family="openrouter-mistral",
@@ -873,13 +941,13 @@ def detect_capabilities(model_name: str) -> Capabilities:
                 is_reasoning_model=False,
                 supports_reasoning_effort=False,
                 supports_developer_messages=True,
-                supports_image_input=False,
+                supports_image_input=supports_vision,
                 supports_image_detail=False,
                 default_ocr_detail="high",
                 supports_structured_outputs=True,
                 supports_function_calling=True,
                 supports_sampler_controls=True,
-                max_context_tokens=32000,
+                max_context_tokens=128000,
             )
         
         # Generic OpenRouter fallback
@@ -893,7 +961,7 @@ def detect_capabilities(model_name: str) -> Capabilities:
             is_reasoning_model=False,
             supports_reasoning_effort=False,
             supports_developer_messages=True,
-            supports_image_input=False,
+            supports_image_input=True,  # Optimistic default
             supports_image_detail=False,
             default_ocr_detail="high",
             supports_structured_outputs=True,

@@ -142,8 +142,46 @@ class ConfigLoader:
                         f"Resolved {schema}.{path_key} to: {schema_config[path_key]}")
 
     def _validate_model_config(self, config: Dict[str, Any]) -> None:
-        """Validate the model configuration for required keys."""
+        """Validate the model configuration for required keys and image support."""
         self._validate_config(config, self.REQUIRED_MODEL_CONFIG, 'model_config.yaml')
+        
+        # Validate image input support if expects_image_inputs is set
+        tm = config.get("transcription_model", {})
+        expects_images = tm.get("expects_image_inputs", False)
+        
+        if expects_images:
+            model_name = tm.get("name", "")
+            self._ensure_image_support(model_name, expects_images)
+
+    def _ensure_image_support(self, model_name: str, expects_images: bool) -> None:
+        """
+        Validate that the model supports image inputs if expects_image_inputs is True.
+        
+        :param model_name: The model identifier.
+        :param expects_images: Whether image inputs are expected.
+        :raises ValueError: If model doesn't support images but expects_image_inputs is True.
+        """
+        if not expects_images:
+            return
+        
+        try:
+            from modules.llm.model_capabilities import detect_capabilities
+            caps = detect_capabilities(model_name)
+            
+            if not caps.supports_image_input:
+                error_msg = (
+                    f"Model '{model_name}' does not support image inputs, "
+                    f"but expects_image_inputs is set to True in model_config.yaml. "
+                    f"Either change the model or set expects_image_inputs: false."
+                )
+                logger.error(error_msg)
+                raise ValueError(error_msg)
+                
+            logger.debug(f"Model '{model_name}' supports image inputs (validated)")
+            
+        except ImportError:
+            # If model_capabilities is not available, skip validation
+            logger.warning("Could not validate image support - model_capabilities not available")
 
     def _validate_concurrency_config(self, config: Dict[str, Any]) -> None:
         """Validate the concurrency configuration for required keys."""

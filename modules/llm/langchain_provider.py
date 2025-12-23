@@ -39,6 +39,114 @@ def _load_concurrency_config() -> Dict[str, Any]:
         return {}
 
 
+def _compute_openrouter_reasoning_max_tokens(max_tokens: int, effort: str) -> int:
+    """
+    Compute reasoning token budget for OpenRouter models based on effort level.
+    
+    For Anthropic and Gemini thinking models via OpenRouter, we map effort levels
+    to a reasoning.max_tokens budget. This mirrors ChronoTranscriber's approach.
+    
+    Args:
+        max_tokens: The max_output_tokens from config
+        effort: Reasoning effort level (low, medium, high)
+        
+    Returns:
+        Token budget for reasoning, or 0 to skip
+    """
+    effort_lower = effort.lower().strip()
+    
+    # Effort to budget ratio mapping
+    # low: minimal reasoning overhead
+    # medium: balanced
+    # high: maximum reasoning depth
+    ratios = {
+        "low": 0.1,      # 10% of output budget for reasoning
+        "medium": 0.25,  # 25% of output budget for reasoning  
+        "high": 0.5,     # 50% of output budget for reasoning
+        "none": 0.0,     # Disable reasoning
+    }
+    
+    ratio = ratios.get(effort_lower, 0.25)  # Default to medium
+    if ratio <= 0:
+        return 0
+    
+    # Compute budget with reasonable bounds
+    budget = int(max_tokens * ratio)
+    # Minimum 1024 tokens for meaningful reasoning, max 32768
+    return max(1024, min(budget, 32768))
+
+
+def _build_openrouter_reasoning_payload(
+    model_name: str,
+    reasoning_config: Dict[str, Any],
+    max_tokens: int,
+) -> Optional[Dict[str, Any]]:
+    """
+    Build OpenRouter-compatible reasoning payload based on model type.
+    
+    OpenRouter accepts a top-level `reasoning` object and routes/translates
+    it when supported by the selected model/provider.
+    
+    Args:
+        model_name: The model identifier
+        reasoning_config: Reasoning config from model_config.yaml
+        max_tokens: Max output tokens for budget computation
+        
+    Returns:
+        Reasoning payload dict, or None if not applicable
+    """
+    if not reasoning_config:
+        return None
+    
+    m = model_name.lower().strip()
+    reasoning_payload: Dict[str, Any] = {}
+    
+    effort = reasoning_config.get("effort")
+    if effort:
+        reasoning_payload["effort"] = str(effort)
+    
+    # Handle explicit max_tokens override
+    max_reasoning_tokens = reasoning_config.get("max_tokens")
+    if max_reasoning_tokens is not None:
+        try:
+            reasoning_payload["max_tokens"] = int(max_reasoning_tokens)
+        except (ValueError, TypeError):
+            pass
+    
+    # Handle exclude flag
+    exclude = reasoning_config.get("exclude")
+    if exclude is not None:
+        reasoning_payload["exclude"] = bool(exclude)
+    
+    # Handle enabled flag
+    enabled = reasoning_config.get("enabled")
+    if enabled is not None:
+        reasoning_payload["enabled"] = bool(enabled)
+    
+    if not reasoning_payload:
+        return None
+    
+    # Provider-specific translations
+    
+    # For Anthropic and Gemini thinking models, map effort -> max_tokens budget
+    if ("anthropic/" in m or "claude" in m or "gemini" in m) and "max_tokens" not in reasoning_payload:
+        eff = reasoning_payload.get("effort", "medium")
+        budget = _compute_openrouter_reasoning_max_tokens(max_tokens=max_tokens, effort=str(eff))
+        if budget > 0:
+            # Remove effort and use max_tokens instead for these providers
+            reasoning_payload.pop("effort", None)
+            reasoning_payload["max_tokens"] = budget
+    
+    # For DeepSeek models, map effort to enabled flag
+    if "deepseek/" in m or "deepseek" in m:
+        eff = str(reasoning_payload.get("effort", "medium")).lower().strip()
+        reasoning_payload.pop("effort", None)
+        if "enabled" not in reasoning_payload:
+            reasoning_payload["enabled"] = eff != "none"
+    
+    return reasoning_payload if reasoning_payload else None
+
+
 @dataclass
 class ProviderConfig:
     """Configuration for an LLM provider."""
@@ -66,8 +174,18 @@ class ProviderConfig:
         tm = model_config.get("transcription_model", {})
         model_name = tm.get("name", "")
         
-        # Detect provider from model name if not overridden
-        provider = provider_override or cls._detect_provider(model_name)
+        # Check for explicit provider field in config, then override, then auto-detect
+        config_provider = tm.get("provider")
+        if provider_override:
+            provider = provider_override
+        elif config_provider:
+            # Normalize provider name
+            provider = config_provider.lower().strip()
+            if provider not in ("openai", "anthropic", "google", "openrouter"):
+                logger.warning(f"Unknown provider '{config_provider}', auto-detecting from model name")
+                provider = cls._detect_provider(model_name)
+        else:
+            provider = cls._detect_provider(model_name)
         
         # Get API key based on provider
         api_key = cls._get_api_key(provider)
@@ -89,6 +207,25 @@ class ProviderConfig:
         timeouts_cfg = extraction_cfg.get("timeouts", {}) or {}
         timeout = float(timeouts_cfg.get("total", 600.0))
         
+        # Build extra_params including reasoning config
+        extra_params = {
+            "presence_penalty": float(tm.get("presence_penalty", 0.0)),
+            "frequency_penalty": float(tm.get("frequency_penalty", 0.0)),
+        }
+        
+        # Add reasoning config if present
+        reasoning_cfg = tm.get("reasoning")
+        if reasoning_cfg:
+            extra_params["reasoning_config"] = reasoning_cfg
+            # Extract effort for direct use
+            effort = reasoning_cfg.get("effort", "medium")
+            extra_params["reasoning_effort"] = effort
+        
+        # Add text verbosity config if present (GPT-5 family)
+        text_cfg = tm.get("text")
+        if text_cfg:
+            extra_params["text_config"] = text_cfg
+        
         return cls(
             provider=provider,
             model=model_name,
@@ -99,10 +236,7 @@ class ProviderConfig:
             top_p=float(tm.get("top_p", 1.0)),
             timeout=timeout,
             max_retries=max_retries,
-            extra_params={
-                "presence_penalty": float(tm.get("presence_penalty", 0.0)),
-                "frequency_penalty": float(tm.get("frequency_penalty", 0.0)),
-            },
+            extra_params=extra_params,
         )
     
     @staticmethod
@@ -282,14 +416,39 @@ class LangChainLLM:
             if model_name.startswith("openrouter/"):
                 model_name = model_name[len("openrouter/"):]
             
-            return ChatOpenAI(
-                model=model_name,
-                api_key=self.config.api_key,
-                base_url=self.config.base_url,
-                timeout=self.config.timeout,
-                max_retries=self.config.max_retries,
+            params = {
+                "model": model_name,
+                "api_key": self.config.api_key,
+                "base_url": self.config.base_url,
+                "timeout": self.config.timeout,
+                "max_retries": self.config.max_retries,
                 **common_params,
-            )
+            }
+            
+            # Add disabled_params for capability guarding
+            if disabled_params:
+                params["disabled_params"] = disabled_params
+            
+            # Build OpenRouter reasoning payload if supported
+            if caps.supports_reasoning_effort:
+                reasoning_config = self.config.extra_params.get("reasoning_config", {})
+                reasoning_payload = _build_openrouter_reasoning_payload(
+                    model_name=model_name,
+                    reasoning_config=reasoning_config,
+                    max_tokens=self.config.max_tokens,
+                )
+                if reasoning_payload:
+                    # OpenRouter expects reasoning in extra_body
+                    params["model_kwargs"] = {"extra_body": {"reasoning": reasoning_payload}}
+                    logger.info(f"Using OpenRouter reasoning={reasoning_payload} for model {model_name}")
+            
+            # OpenRouter-specific headers
+            params["default_headers"] = {
+                "HTTP-Referer": "https://github.com/ChronoMiner",
+                "X-Title": "ChronoMiner",
+            }
+            
+            return ChatOpenAI(**params)
         
         else:
             raise ValueError(f"Unsupported provider: {provider}")

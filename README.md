@@ -158,21 +158,36 @@ ChronoMiner supports a wide range of LLM models through LangChain. The provider 
 
 ### OpenRouter Models
 
-OpenRouter provides access to models from multiple providers through a unified API. Use the format `openrouter/{provider}/{model}`:
+OpenRouter provides access to models from multiple providers through a unified API. Use the format `{provider}/{model}` (the `openrouter/` prefix is optional):
 
-- `openrouter/anthropic/claude-opus-4-5`
-- `openrouter/google/gemini-2.5-pro`
-- `openrouter/meta/llama-3.1-405b`
-- `openrouter/mistral/mixtral-8x22b`
+- `anthropic/claude-sonnet-4-5` or `anthropic/claude-opus-4-5`
+- `google/gemini-2.5-pro` or `google/gemini-2.5-flash`
+- `deepseek/deepseek-r1` or `deepseek/deepseek-chat`
+- `meta/llama-3.3-70b` or `meta/llama-3.1-405b`
+- `mistral/mistral-large` or `mistral/mixtral-8x22b`
+
+OpenRouter Reasoning Support: When using reasoning-capable models through OpenRouter, ChronoMiner automatically translates the `reasoning.effort` configuration to the appropriate provider-specific format. This includes extended thinking for Claude models, thinking configuration for Gemini 2.5+ models, and reasoning enablement for DeepSeek R1 models.
 
 ### Model Capabilities
 
 ChronoMiner automatically detects model capabilities and adjusts API parameters accordingly:
 
-- Reasoning Models (GPT-5, o-series, Gemini thinking): Temperature and top_p are disabled
-- Standard Models (GPT-4.1, GPT-4o, Claude, Gemini non-thinking): Full sampler control
+- Reasoning Models (GPT-5, o-series, Gemini 2.5+, Claude 4.x, DeepSeek R1): Temperature and top_p are disabled; reasoning effort is configurable
+- Standard Models (GPT-4.1, GPT-4o, Gemini 2.0, Llama, Mistral): Full sampler control
 - Structured Outputs: Supported by all models via LangChain (with provider-specific limitations)
 - Batch Processing: OpenAI only (50% cost savings)
+- Cross-Provider Reasoning: The `reasoning.effort` parameter is automatically translated for each provider
+
+#### Reasoning Capability Matrix
+
+| Provider | Models | Reasoning Support | Translation |
+|----------|--------|:-----------------:|-------------|
+| OpenAI | GPT-5, o-series | Yes | Direct `reasoning_effort` |
+| Anthropic (OpenRouter) | Claude 4.x | Yes | Extended thinking `budget_tokens` |
+| Google (OpenRouter) | Gemini 2.5+, 3.x | Yes | Thinking level configuration |
+| DeepSeek (OpenRouter) | DeepSeek R1 | Yes | Reasoning `enabled` flag |
+| Meta (OpenRouter) | Llama 3.x | No | N/A |
+| Mistral (OpenRouter) | Mistral, Mixtral | No | N/A |
 
 ### Structured Output Limitations by Provider
 
@@ -359,6 +374,10 @@ Controls which model to use and its behavioral parameters. ChronoMiner supports 
 
 ```yaml
 transcription_model:
+  # Provider selection (optional): openai, anthropic, google, openrouter
+  # If omitted, the provider is auto-detected from the model name.
+  # provider: openai
+
   # OpenAI models
   name: gpt-5.1              # Options: gpt-5.1, gpt-5.1-instant, gpt-5, gpt-5-mini, gpt-5-nano
   # name: gpt-4.1            # Options: gpt-4.1, gpt-4.1-mini, gpt-4.1-nano, gpt-4o, gpt-4o-mini
@@ -374,12 +393,20 @@ transcription_model:
   # name: gemini-2.5-pro              # Thinking model
   # name: gemini-2.5-flash            # Fast, cost-effective
   
-  # OpenRouter (access any model)
-  # name: openrouter/anthropic/claude-opus-4-5
+  # OpenRouter (access any model via unified API)
+  # name: anthropic/claude-sonnet-4-5
+  # name: google/gemini-2.5-flash
+  # name: deepseek/deepseek-r1
   
   max_output_tokens: 128000
   
-  # Reasoning models only (GPT-5, o-series, Gemini thinking models)
+  # Reasoning controls (cross-provider support)
+  # Works with: OpenAI GPT-5/o-series, Anthropic Claude, Google Gemini 2.5+, DeepSeek R1
+  # Each provider receives the appropriate translation:
+  #   - OpenAI: reasoning_effort parameter
+  #   - Anthropic: extended thinking with budget_tokens
+  #   - Google: thinking_level configuration
+  #   - DeepSeek: reasoning enabled flag
   reasoning:
     effort: medium  # Options: low, medium, high, none (GPT-5.1 only)
   
@@ -397,9 +424,10 @@ transcription_model:
 
 Key Parameters:
 
+- `provider`: Explicit provider selection (optional; auto-detected from model name if omitted)
 - `name`: Model identifier (provider is auto-detected from the name)
 - `max_output_tokens`: Maximum tokens the model can generate per request
-- `reasoning.effort`: Controls reasoning depth for reasoning models (GPT-5, o-series, Gemini thinking)
+- `reasoning.effort`: Controls reasoning depth across all reasoning-capable providers (see Cross-Provider Reasoning below)
 - `text.verbosity`: Controls response verbosity for GPT-5 models
 - `temperature`: Controls randomness (0.0-2.0) - automatically disabled for reasoning models
 - `top_p`: Nucleus sampling probability (0.0-1.0) - automatically disabled for reasoning models
@@ -407,6 +435,8 @@ Key Parameters:
 - `presence_penalty`: Penalizes repeated topics (-2.0 to 2.0)
 
 Capability Guarding: ChronoMiner automatically detects model capabilities and filters unsupported parameters. For example, reasoning models (o3, o4-mini, GPT-5) do not support temperature or top_p, so these parameters are automatically excluded from API requests.
+
+Cross-Provider Reasoning: The `reasoning.effort` parameter works across all providers with automatic translation. For OpenAI models, it maps directly to `reasoning_effort`. For Anthropic Claude models accessed via OpenRouter, it translates to extended thinking budget tokens. For Google Gemini thinking models, it configures the thinking level. For DeepSeek R1 models, it enables or disables reasoning based on effort level.
 
 ### 3. Chunking Configuration (`chunking_config.yaml`)
 
