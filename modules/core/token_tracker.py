@@ -313,6 +313,116 @@ class DailyTokenTracker:
         }
 
 
+def check_token_limit_enabled() -> bool:
+    """
+    Check if daily token limit is enabled in configuration.
+    
+    This is the canonical implementation - do not duplicate in main scripts.
+    
+    Returns:
+        True if token limiting is enabled, False otherwise.
+    """
+    tracker = get_token_tracker()
+    return tracker.enabled
+
+
+def check_and_wait_for_token_limit(ui=None, logger=None) -> bool:
+    """
+    Check if daily token limit is reached and wait until next day if needed.
+    
+    This is the canonical implementation - do not duplicate in main scripts.
+    
+    Args:
+        ui: Optional UserInterface instance for user feedback.
+        logger: Optional logger instance. If None, uses module logger.
+    
+    Returns:
+        True if processing can continue, False if user cancelled wait.
+    """
+    import time
+    
+    if logger is None:
+        _logger = globals().get('logger')
+    else:
+        _logger = logger
+    
+    token_tracker = get_token_tracker()
+    
+    if not token_tracker.enabled or not token_tracker.is_limit_reached():
+        return True
+    
+    # Token limit reached - need to wait until next day
+    stats = token_tracker.get_stats()
+    reset_time = token_tracker.get_reset_time()
+    seconds_until_reset = token_tracker.get_seconds_until_reset()
+    
+    if _logger:
+        _logger.warning(
+            f"Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+        )
+        _logger.info(
+            f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} "
+            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m) "
+            "for token limit reset..."
+        )
+    
+    if ui:
+        ui.print_warning(
+            f"\n⚠ Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+        )
+        ui.print_info(
+            f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
+            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m remaining)"
+        )
+        ui.print_info("Press Ctrl+C to cancel and exit.")
+    else:
+        print(
+            f"[WARNING] Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+        )
+        print(
+            f"[INFO] Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
+            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m remaining)"
+        )
+        print("[INFO] Press Ctrl+C to cancel and exit.")
+    
+    try:
+        # Sleep in smaller intervals to allow for interruption
+        sleep_interval = 60  # Check every minute
+        elapsed = 0
+        
+        while elapsed < seconds_until_reset:
+            interval = min(sleep_interval, max(0, seconds_until_reset - elapsed))
+            time.sleep(interval)
+            elapsed += interval
+            
+            # Re-check if it's a new day
+            if not token_tracker.is_limit_reached():
+                if _logger:
+                    _logger.info("Token limit has been reset. Resuming processing.")
+                if ui:
+                    ui.print_success("Token limit has been reset. Resuming processing.")
+                else:
+                    print("[SUCCESS] Token limit has been reset. Resuming processing.")
+                return True
+        
+        if _logger:
+            _logger.info("Token limit has been reset. Resuming processing.")
+        if ui:
+            ui.print_success("\nToken limit has been reset. Resuming processing.")
+        else:
+            print("[SUCCESS] Token limit has been reset. Resuming processing.")
+        return True
+        
+    except KeyboardInterrupt:
+        if _logger:
+            _logger.info("Wait cancelled by user (KeyboardInterrupt).")
+        if ui:
+            ui.print_warning("\nWait cancelled by user.")
+        else:
+            print("\n[INFO] Wait cancelled by user.")
+        return False
+
+
 def get_token_tracker(daily_limit: Optional[int] = None, enabled: Optional[bool] = None) -> DailyTokenTracker:
     """
     Get the singleton token tracker instance.
@@ -332,9 +442,8 @@ def get_token_tracker(daily_limit: Optional[int] = None, enabled: Optional[bool]
             if _tracker_instance is None:
                 # Load configuration if not provided
                 if daily_limit is None or enabled is None:
-                    from modules.config.loader import ConfigLoader
-                    config_loader = ConfigLoader()
-                    config_loader.load_configs()
+                    from modules.config.loader import get_config_loader
+                    config_loader = get_config_loader()
                     concurrency_config = config_loader.get_concurrency_config()
                     
                     token_limit_config = concurrency_config.get("daily_token_limit", {})

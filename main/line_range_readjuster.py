@@ -15,7 +15,6 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
-import time
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
@@ -23,7 +22,11 @@ from modules.core.logger import setup_logger
 from modules.core.schema_manager import SchemaManager
 from modules.core.context_manager import ContextManager
 from modules.core.prompt_context import load_basic_context
-from modules.core.token_tracker import get_token_tracker
+from modules.core.token_tracker import (
+    get_token_tracker,
+    check_token_limit_enabled,
+    check_and_wait_for_token_limit,
+)
 from modules.ui.core import UserInterface
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 from modules.core.workflow_utils import (
@@ -34,7 +37,6 @@ from modules.core.workflow_utils import (
     validate_schema_paths,
 )
 from modules.cli.mode_detector import should_use_interactive_mode
-from modules.config.loader import ConfigLoader
 
 logger = setup_logger(__name__)
 
@@ -83,98 +85,6 @@ def parse_arguments() -> argparse.Namespace:
         help="When using additional context, prefer boundary-type-specific defaults from additional_context/.",
     )
     return parser.parse_args()
-
-
-def _check_token_limit_enabled() -> bool:
-    """Check if daily token limit is enabled in configuration."""
-    config_loader = ConfigLoader()
-    config_loader.load_configs()
-    concurrency_config = config_loader.get_concurrency_config()
-    token_limit_config = concurrency_config.get("daily_token_limit", {})
-    return token_limit_config.get("enabled", False)
-
-
-def _check_and_wait_for_token_limit(ui: Optional[UserInterface] = None) -> bool:
-    """
-    Check if daily token limit is reached and wait until next day if needed.
-    
-    Args:
-        ui: Optional UserInterface instance for user feedback.
-    
-    Returns:
-        True if processing can continue, False if user cancelled wait.
-    """
-    token_tracker = get_token_tracker()
-    
-    if not token_tracker.enabled or not token_tracker.is_limit_reached():
-        return True
-    
-    # Token limit reached - need to wait until next day
-    stats = token_tracker.get_stats()
-    reset_time = token_tracker.get_reset_time()
-    seconds_until_reset = token_tracker.get_seconds_until_reset()
-    
-    logger.warning(
-        f"Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
-    )
-    logger.info(
-        f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} "
-        f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m) "
-        "for token limit reset..."
-    )
-    
-    if ui:
-        ui.print_warning(
-            f"\n⚠ Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
-        )
-        ui.print_info(
-            f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
-            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m remaining)"
-        )
-        ui.print_info("Press Ctrl+C to cancel and exit.")
-    else:
-        print(
-            f"[WARNING] Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
-        )
-        print(
-            f"[INFO] Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
-            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m remaining)"
-        )
-        print("[INFO] Press Ctrl+C to cancel and exit.")
-    
-    try:
-        # Sleep in smaller intervals to allow for interruption
-        sleep_interval = 60  # Check every minute
-        elapsed = 0
-        
-        while elapsed < seconds_until_reset:
-            interval = min(sleep_interval, max(0, seconds_until_reset - elapsed))
-            time.sleep(interval)
-            elapsed += interval
-            
-            # Re-check if it's a new day
-            if not token_tracker.is_limit_reached():
-                logger.info("Token limit has been reset. Resuming processing.")
-                if ui:
-                    ui.print_success("Token limit has been reset. Resuming processing.")
-                else:
-                    print("[SUCCESS] Token limit has been reset. Resuming processing.")
-                return True
-        
-        logger.info("Token limit has been reset. Resuming processing.")
-        if ui:
-            ui.print_success("\nToken limit has been reset. Resuming processing.")
-        else:
-            print("[SUCCESS] Token limit has been reset. Resuming processing.")
-        return True
-        
-    except KeyboardInterrupt:
-        logger.info("Wait cancelled by user (KeyboardInterrupt).")
-        if ui:
-            ui.print_warning("\nWait cancelled by user.")
-        else:
-            print("\n[INFO] Wait cancelled by user.")
-        return False
 
 
 def _resolve_line_ranges_file(text_file: Path) -> Optional[Path]:
@@ -243,12 +153,12 @@ async def _adjust_files(
     successes: List[Tuple[Path, Path]] = []
     skipped: List[Path] = []
     failures: List[Tuple[Path, Exception]] = []
-    token_limit_enabled = _check_token_limit_enabled()
+    token_limit_enabled = check_token_limit_enabled()
 
     for text_file in text_files:
         # Check token limit before processing each file
         if token_limit_enabled:
-            if not _check_and_wait_for_token_limit(ui):
+            if not check_and_wait_for_token_limit(ui):
                 logger.info(f"Processing stopped by user. Adjusted {len(successes)} file(s).")
                 notifier(f"Processing stopped. Adjusted {len(successes)}/{len(text_files)} file(s).", "warning")
                 break
@@ -456,7 +366,7 @@ async def _run_interactive_mode(
     ui.print_section_header("Adjusting Line Ranges")
     
     # Display initial token usage statistics if enabled
-    if _check_token_limit_enabled():
+    if check_token_limit_enabled():
         token_tracker = get_token_tracker()
         stats = token_tracker.get_stats()
         logger.info(
@@ -514,7 +424,7 @@ async def _run_interactive_mode(
             ui.console_print(f"  • {failed_file.name}: {error}")
     
     # Final token usage statistics
-    if _check_token_limit_enabled():
+    if check_token_limit_enabled():
         token_tracker = get_token_tracker()
         stats = token_tracker.get_stats()
         logger.info(
@@ -615,7 +525,7 @@ async def _run_cli_mode(
     print(f"Additional context: {context_source}")
     
     # Display initial token usage statistics if enabled
-    if _check_token_limit_enabled():
+    if check_token_limit_enabled():
         token_tracker = get_token_tracker()
         stats = token_tracker.get_stats()
         logger.info(
@@ -662,7 +572,7 @@ async def _run_cli_mode(
             print(f"  - {failed_file}: {error}")
     
     # Final token usage statistics
-    if _check_token_limit_enabled():
+    if check_token_limit_enabled():
         token_tracker = get_token_tracker()
         stats = token_tracker.get_stats()
         logger.info(

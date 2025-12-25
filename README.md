@@ -67,7 +67,7 @@ The mode is determined automatically: if command-line arguments are provided, CL
   - Automatic with manual adjustments: Automatic chunking with opportunity to refine boundaries interactively
   - Pre-defined line ranges: Uses pre-generated line ranges from existing files
   - Adjust and use line ranges: Refines existing line ranges using AI-detected semantic boundaries
-  - Per-file selection: Choose chunking method individually for each file during processing
+  - Per-file selection: Choose chunking method individually for each file during processing (Interactive mode only)
 - Encoding Detection: Automatically detects file encoding (UTF-8, ISO-8859-1, Windows-1252, etc.)
 - Text Normalization: Strips extraneous whitespace and normalizes text
 - Windows Long Path Support: Automatically handles paths exceeding 260 characters on Windows using extended-length path syntax, ensuring reliable file operations regardless of path length or directory depth
@@ -242,12 +242,15 @@ Gemini has stricter schema complexity limits that may reject deeply nested schem
 #### Provider Compatibility Matrix
 
 | Schema | OpenAI | Anthropic | Google Gemini |
-|--------|--------|-----------|---------------|
-| BibliographicEntries | ✓ | ✓ | ✗ (too nested) |
-| StructuredSummaries | ✓ | ✓ | ✓ |
-| HistoricalAddressBookEntries | ✓ | ✓ | Untested |
-| Simple custom schemas | ✓ | ✓ | ✓ |
-| Deeply nested schemas (>5 levels) | ✓ | ✓ | ✗ |
+|--------|--------|-----------|--------------|
+| BibliographicEntries | Supported | Supported | Not supported (too nested) |
+| StructuredSummaries | Supported | Supported | Supported |
+| HistoricalAddressBookEntries | Supported | Supported | Untested |
+| Simple custom schemas | Supported | Supported | Supported |
+| Deeply nested schemas (>5 levels) | Supported | Supported | Not supported |
+
+ Notes:
+ - Anthropic structured outputs are provided via the LangChain Anthropic adapter. Some library versions may reject JSON Schema constructs such as type unions written as `type: ["string", "null"]`. If you see errors similar to `AssertionError: Expected code to be unreachable`, switch to a simpler schema, remove type unions, or use an OpenAI model for that extraction run.
 
 ## System Requirements
 
@@ -438,20 +441,22 @@ Capability Guarding: ChronoMiner automatically detects model capabilities and fi
 
 Cross-Provider Reasoning: The `reasoning.effort` parameter works across all providers with automatic translation. For OpenAI models, it maps directly to `reasoning_effort`. For Anthropic Claude models accessed via OpenRouter, it translates to extended thinking budget tokens. For Google Gemini thinking models, it configures the thinking level. For DeepSeek R1 models, it enables or disables reasoning based on effort level.
 
-### 3. Chunking Configuration (`chunking_config.yaml`)
+### 3. Chunking Configuration (`chunking_and_context.yaml`)
 
-Controls text chunking behavior.
+Controls text chunking behavior and default context behavior.
 
 ```yaml
 chunking:
   default_tokens_per_chunk: 7500
-  model_name: gpt-4o  # For token counting
+
+context:
+  use_additional_context: true
 ```
 
 Key Parameters:
 
-- `default_tokens_per_chunk`: Target number of tokens per chunk
-- `model_name`: Model name for accurate token counting
+- `chunking.default_tokens_per_chunk`: Target number of tokens per chunk
+- `context.use_additional_context`: Default behavior for additional context (Interactive mode can override this)
 
 ### 4. Concurrency Configuration (`concurrency_config.yaml`)
 
@@ -459,41 +464,48 @@ Controls parallel processing, retry behavior, and daily token budgeting.
 
 ```yaml
 concurrency:
-  transcription:
-    concurrency_limit: 100
-    delay_between_tasks: 0.0
-    service_tier: flex  # Options: auto, default, flex, priority
+  extraction:
+    concurrency_limit: 20
+    delay_between_tasks: 0.1
+    service_tier: flex
     retry:
-      attempts: 5
-      wait_min_seconds: 4
-      wait_max_seconds: 60
-      jitter_max_seconds: 1
+      attempts: 150
+      wait_min_seconds: 15
+      wait_max_seconds: 120
+      jitter_max_seconds: 5
 
 daily_token_limit:
-  enabled: true        # Toggle daily token enforcement
-  daily_tokens: 9000000  # Maximum tokens allowed per calendar day
+  enabled: false
+  daily_tokens: 9000000
 ```
 
 Key Parameters:
 
-- `concurrency_limit`: Maximum number of concurrent tasks
-- `delay_between_tasks`: Delay in seconds between starting tasks
-- `service_tier`: OpenAI service tier for rate limiting and processing speed
+- `concurrency.extraction.concurrency_limit`: Maximum number of concurrent extraction tasks
+- `concurrency.extraction.delay_between_tasks`: Delay in seconds between starting tasks
+- `concurrency.extraction.service_tier`: OpenAI service tier for rate limiting and processing speed
 - Retry settings: Exponential backoff configuration for transient API failures
 - `daily_token_limit.enabled`: Enable/disable daily enforcement
 - `daily_token_limit.daily_tokens`: Daily token budget; counter resets automatically at local midnight and persists across runs
 
-### 5. Chunking & Context Configuration (`chunking_and_context.yaml`)
+### 5. Line Range Adjustment Configuration (`chunking_and_context.yaml`)
 
-Controls matching, retry, and deletion behavior for the line range readjuster.
+Controls matching and retry behavior for the line range readjuster.
 
 ```yaml
+matching:
+  normalize_whitespace: true
+  case_sensitive: false
+  normalize_diacritics: true
+  allow_substring_match: true
+
 retry:
   certainty_threshold: 70
-  max_low_certainty_retries: 3
-  max_context_expansion_attempts: 3
+  max_low_certainty_retries: 12
+  max_context_expansion_attempts: 6
   delete_ranges_with_no_content: true
-  scan_range_multiplier: 3
+  scan_range_multiplier: 2
+  max_gap_between_ranges: 2
 ```
 
 Key parameters:
@@ -503,6 +515,7 @@ Key parameters:
 - `max_context_expansion_attempts`: Maximum window expansions when the model requests more context.
 - `delete_ranges_with_no_content`: Enables verification scans that delete empty ranges on high-certainty no-content responses.
 - `scan_range_multiplier`: Size multiplier for the upward/downward verification scan.
+- `max_gap_between_ranges`: Maximum gap allowed between ranges before considering them separate.
 
 ### Context Files
 
@@ -612,7 +625,7 @@ Available Arguments:
 
 - `--schema`: Schema name (required)
 - `--input`: Input file or directory path (required)
-- `--chunking`: Chunking method (auto, auto-adjust, line_ranges, adjust-line-ranges, per-file)
+- `--chunking`: Chunking method (auto, auto-adjust, line_ranges, adjust-line-ranges)
 - `--batch`: Use batch processing mode (default: synchronous)
 - `--context`: Use additional context
 - `--context-source`: Context source (default or file-specific)
@@ -653,9 +666,12 @@ python main/line_range_readjuster.py --path data/ --schema CulinaryWorksEntries 
 
 Options:
 
-- `--dry-run`: Preview changes without modifying files
-- `--context-window N`: Number of lines around boundaries to examine (default: 300)
-- `--boundary-type`: Type of boundary to detect (section, paragraph, entry)
+- `--path`: File or directory to process (required in CLI mode)
+- `--schema`: Schema name to use as boundary type (required when using `--path`)
+- `--context-window`: Number of surrounding lines to send to the model when searching for boundaries
+- `--prompt-path`: Override the prompt template used when calling the model
+- `--use-additional-context`: Include additional context (default or file-specific)
+- `--use-default-context`: When using additional context, prefer boundary-type-specific defaults from additional_context/
 
 Readjustment now follows a certainty-driven workflow:
 
@@ -1133,11 +1149,11 @@ ChronoMiner bundles a lightweight analytics utility that inspects preserved temp
 
 ### Execution Modes
 
-- **Interactive UI:** `python -m main.cost_analysis`
+- **Interactive UI:** `python main/cost_analysis.py`
   - Mirrors the standard UI look and feel.
   - Automatically locates `.jsonl` files based on schema path configuration.
   - Displays aggregated token totals, per-file summaries, and optional CSV export prompts.
-- **CLI Mode:** `python -m main.cost_analysis --save-csv --output path/to/report.csv`
+- **CLI Mode:** `python main/cost_analysis.py --save-csv --output path/to/report.csv`
   - Suitable for automation or scheduled reporting.
   - Flags:
     - `--save-csv`: Persist results to CSV (defaults to the folder that contains the first `.jsonl`).
@@ -1198,7 +1214,7 @@ ChronoMiner follows a modular architecture that separates concerns and promotes 
 ```
 ChronoMiner/
 ├── config/                    # Configuration files
-│   ├── chunking_config.yaml
+│   ├── chunking_and_context.yaml
 │   ├── concurrency_config.yaml
 │   ├── model_config.yaml
 │   └── paths_config.yaml
@@ -1210,10 +1226,9 @@ ChronoMiner/
 │   ├── process_text_files.py
 │   └── repair_extractions.py
 ├── modules/                   # Core application modules
-│   ├── config/               # Configuration loading
-│   ├── core/                 # Core utilities and workflow
-│   ├── infra/                # Infrastructure (logging, concurrency)
-│   ├── io/                   # File I/O and path utilities
+│   ├── cli/                  # CLI framework and argument parsing
+│   ├── config/               # Configuration loading and validation
+│   ├── core/                 # Core utilities, token tracking, workflow helpers
 │   ├── llm/                  # LLM interaction and batch processing
 │   ├── operations/           # High-level operations (extraction, line ranges, repair)
 │   └── ui/                   # User interface and prompts
@@ -1229,12 +1244,11 @@ ChronoMiner/
 
 ### Module Overview
 
-- `modules/config/`: Configuration loading and validation
-- `modules/core/`: Core utilities including text processing, JSON manipulation, data processing, context management, logging, and workflow helpers
-- `modules/infra/`: Infrastructure layer providing logging setup, concurrency control, and async task management
-- `modules/io/`: File I/O operations including path validation, directory scanning, file reading/writing, and output management
+- `modules/config/`: Configuration loading and validation with cached access via `get_config_loader()` for consistent, efficient config retrieval across the codebase
+- `modules/core/`: Core utilities including text processing, JSON manipulation, context management, workflow helpers, and centralized token tracking with daily limit enforcement
+- `modules/cli/`: Command-line interface utilities including argument parsing, mode detection, and the `DualModeScript` framework for consistent interactive/CLI mode handling
 - `modules/llm/`: LLM interaction layer including LangChain multi-provider support, model capability detection, batch processing (OpenAI only), prompt management, and structured output parsing
-- `modules/operations/`: High-level operation orchestration (extraction, line ranges, repair workflows)
+- `modules/operations/`: High-level operation orchestration (extraction, line ranges, cost analysis, repair workflows)
 - `modules/ui/`: User interface components including interactive prompts, selection menus, and status displays
 
 ### Operations Layer
@@ -1615,10 +1629,11 @@ If you'd like to contribute code:
 
 ### Development Guidelines
 
-- Modularity: Keep functions focused and modules organized
+- Modularity: Keep functions focused and modules organized; use centralized utilities from `modules/core/`
+- Configuration: Use `get_config_loader()` for cached config access; avoid direct `ConfigLoader()` instantiation
 - Error Handling: Use try-except blocks with informative error messages
-- Logging: Use the logger for debugging information
-- Configuration: Use YAML configuration files rather than hardcoding values
+- Logging: Use `setup_logger()` from `modules/core/logger.py` for consistent logging
+- Code Style: Follow PEP8 conventions; use 4-space indentation (no tabs)
 - User Experience: Provide clear prompts and feedback in CLI interactions
 - Documentation: Update docstrings and README for any interface changes
 

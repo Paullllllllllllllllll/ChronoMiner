@@ -3,7 +3,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
-from modules.config.loader import ConfigLoader
+from modules.config.loader import ConfigLoader, get_config_loader
 from modules.core.context_manager import ContextManager
 from modules.core.logger import setup_logger
 from modules.core.schema_manager import SchemaManager
@@ -23,8 +23,7 @@ def load_core_resources() -> Tuple[
     Dict[str, Any],
 ]:
     """Load configuration resources shared across CLI entry points."""
-    config_loader = ConfigLoader()
-    config_loader.load_configs()
+    config_loader = get_config_loader()
 
     paths_config = config_loader.get_paths_config()
     model_config = config_loader.get_model_config()

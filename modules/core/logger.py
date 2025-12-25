@@ -3,7 +3,7 @@
 import logging
 from pathlib import Path
 
-from modules.config.loader import ConfigLoader
+from modules.config.loader import get_config_loader
 from modules.core.path_utils import ensure_path_safe
 
 
@@ -12,8 +12,7 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 
 def _resolve_logs_dir() -> Path:
     try:
-        loader = ConfigLoader()
-        loader.load_configs()
+        loader = get_config_loader()
         paths_config = loader.get_paths_config() or {}
         general = paths_config.get("general", {}) or {}
         raw_logs_dir = general.get("logs_dir")

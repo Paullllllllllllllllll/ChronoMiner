@@ -63,7 +63,7 @@ class ChunkingService:
         :param original_start_line: Starting line number
         :return: Tuple of (chunks, line_ranges)
         """
-        if strategy == "line_ranges.txt":
+        if strategy in {"line_ranges.txt", "line_ranges"}:
             return self._chunk_from_file(lines, line_ranges_file)
         elif strategy == "auto":
             return self._chunk_automatic(lines, original_start_line)

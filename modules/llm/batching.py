@@ -22,7 +22,7 @@ from pathlib import Path
 from typing import List, Dict, Any
 
 from openai import OpenAI
-from modules.config.loader import ConfigLoader
+from modules.config.loader import get_config_loader
 from modules.core.path_utils import ensure_path_safe
 
 logger = logging.getLogger(__name__)
@@ -50,8 +50,7 @@ def write_batch_file(request_lines: List[str], output_path: Path) -> Path:
 
 def _get_extraction_config() -> Dict[str, Any]:
     try:
-        loader = ConfigLoader()
-        loader.load_configs()
+        loader = get_config_loader()
         concurrency_cfg = loader.get_concurrency_config() or {}
         return (concurrency_cfg.get("concurrency", {}) or {}).get("extraction", {}) or {}
     except Exception:

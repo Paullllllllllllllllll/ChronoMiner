@@ -18,7 +18,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple
 import datetime
 
 from openai import OpenAI
-from modules.config.loader import ConfigLoader
+from modules.config.loader import ConfigLoader, get_config_loader
 from modules.core.logger import setup_logger
 from modules.operations.extraction.schema_handlers import get_schema_handler
 from modules.ui.core import UserInterface
@@ -258,8 +258,7 @@ def is_batch_finished(batch_id: str, client: OpenAI) -> bool:
 
 def load_config() -> Tuple[
     List[Tuple[str, Path, Dict[str, Any]]], Dict[str, Any]]:
-    config_loader = ConfigLoader()
-    config_loader.load_configs()
+    config_loader = get_config_loader()
     paths_config: Dict[str, Any] = config_loader.get_paths_config()
     general: Dict[str, Any] = paths_config["general"]
     input_paths_is_output_path: bool = general["input_paths_is_output_path"]
@@ -425,8 +424,7 @@ def process_all_batches(
     # Determine output directory
     try:
         # Get paths_config to pass to _get_output_directory
-        config_loader = ConfigLoader()
-        config_loader.load_configs()
+        config_loader = get_config_loader()
         paths_config = config_loader.get_paths_config()
         output_dir = _get_output_directory(schema_config, paths_config)
         output_dir.mkdir(parents=True, exist_ok=True)
