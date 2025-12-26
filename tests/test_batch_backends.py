@@ -165,7 +165,7 @@ class TestOpenAIBackend:
     def setup_method(self):
         clear_backend_cache()
     
-    @patch('modules.llm.batch.backends.openai_backend.OpenAI')
+    @patch('openai.OpenAI')
     def test_submit_batch(self, mock_openai_class):
         """Test batch submission."""
         # Setup mock
@@ -208,7 +208,7 @@ class TestOpenAIBackend:
             assert handle.metadata["input_file_id"] == "file-123"
             assert handle.metadata["request_count"] == 2
     
-    @patch('modules.llm.batch.backends.openai_backend.OpenAI')
+    @patch('openai.OpenAI')
     def test_get_status(self, mock_openai_class):
         """Test getting batch status."""
         mock_client = MagicMock()
@@ -241,11 +241,11 @@ class TestAnthropicBackend:
     def setup_method(self):
         clear_backend_cache()
     
-    @patch('modules.llm.batch.backends.anthropic_backend.anthropic')
-    def test_get_status_in_progress(self, mock_anthropic_module):
+    @patch('anthropic.Anthropic')
+    def test_get_status_in_progress(self, mock_anthropic_class):
         """Test getting in-progress batch status."""
         mock_client = MagicMock()
-        mock_anthropic_module.Anthropic.return_value = mock_client
+        mock_anthropic_class.return_value = mock_client
         
         mock_batch = MagicMock()
         mock_batch.processing_status = "in_progress"
@@ -275,11 +275,14 @@ class TestGoogleBackend:
     def setup_method(self):
         clear_backend_cache()
     
-    @patch('modules.llm.batch.backends.google_backend.genai', create=True)
-    def test_get_status_completed(self, mock_genai_module):
+    def test_get_status_completed(self):
         """Test getting completed batch status."""
+        import sys
+        
+        # Create mock genai module
+        mock_genai = MagicMock()
         mock_client = MagicMock()
-        mock_genai_module.Client.return_value = mock_client
+        mock_genai.Client.return_value = mock_client
         
         mock_batch_job = MagicMock()
         mock_batch_job.state = MagicMock()
@@ -288,9 +291,12 @@ class TestGoogleBackend:
         mock_batch_job.dest.file_name = "output-file"
         mock_client.batches.get.return_value = mock_batch_job
         
+        # Mock the google.genai import path
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+        
         with patch.dict('os.environ', {'GOOGLE_API_KEY': 'test-key'}):
-            # Patch the import inside the backend
-            with patch('modules.llm.batch.backends.google_backend.genai', mock_genai_module):
+            with patch.dict(sys.modules, {'google': mock_google, 'google.genai': mock_genai}):
                 backend = get_batch_backend("google")
                 handle = BatchHandle(
                     provider="google", 

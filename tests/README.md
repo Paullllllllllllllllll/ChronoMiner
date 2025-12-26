@@ -58,6 +58,7 @@ Install test dependencies:
 
 ### Integration Tests (`@pytest.mark.integration`)
 - `test_file_processor_offline.py` - End-to-end file processing without LLM calls
+- `test_cli_integration.py` - CLI argument parsing for all main scripts
 
 ### Contract Tests
 - `test_batch_backends.py` - Multi-provider batch backend interfaces (OpenAI, Anthropic, Google)
@@ -75,16 +76,6 @@ Tests do not rely on local configuration files. All configs are generated in `tm
 
 ### Fast Execution
 Unit tests complete in ~2 seconds. Integration tests use dummy processing strategies to avoid LLM latency.
-
-## Known Issues
-
-Four tests in `test_batch_backends.py` require fixes to mock patch targets (these are pre-existing tests, not new ones):
-- `TestOpenAIBackend.test_submit_batch`
-- `TestOpenAIBackend.test_get_status`
-- `TestAnthropicBackend.test_get_status_in_progress`
-- `TestGoogleBackend.test_get_status_completed`
-
-These need patches at the call site rather than module-level imports.
 
 ## CI Integration
 
