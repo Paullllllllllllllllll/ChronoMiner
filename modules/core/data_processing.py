@@ -41,7 +41,8 @@ class CSVConverter(BaseConverter):
             "culinaryplacesentries": self._convert_culinary_places_to_df,
             "culinaryworksentries": self._convert_culinary_works_to_df,
             "culinaryentitiesentries": self._convert_culinary_entities_to_df,
-            "historicalrecipesentries": self._convert_historical_recipes_to_df
+            "historicalrecipesentries": self._convert_historical_recipes_to_df,
+            "michelinguides": self._convert_michelin_guides_to_df
         }
         converter = self.get_converter(converters)
         if converter:
@@ -156,45 +157,6 @@ class CSVConverter(BaseConverter):
 
     def _convert_culinary_entities_to_df(self, entries: List[Any]) -> pd.DataFrame:
         """Flatten unified culinary entities entries (schema v3.0) into tabular rows."""
-
-        def join_list(values: Any, separator: str = ", ") -> str:
-            if isinstance(values, list):
-                items = [str(v) for v in values if v not in (None, "")]
-                return separator.join(items)
-            return ""
-
-        def format_name_variants(variants: Any) -> str:
-            if not isinstance(variants, list):
-                return ""
-            formatted = []
-            for variant in variants:
-                if isinstance(variant, dict):
-                    original = variant.get("original") or ""
-                    modern = variant.get("modern_english")
-                    if modern and modern != original:
-                        formatted.append(f"{original} ({modern})")
-                    else:
-                        formatted.append(original)
-            return "; ".join([f for f in formatted if f])
-
-        def format_associations(assocs: Any) -> str:
-            if not isinstance(assocs, list):
-                return ""
-            formatted = []
-            for assoc in assocs:
-                if not isinstance(assoc, dict):
-                    continue
-                target_type = assoc.get("target_type")
-                label = assoc.get("target_label_modern_english") or assoc.get("target_label_original")
-                relationship = assoc.get("relationship")
-                parts = [part for part in [target_type, label] if part]
-                base = " - ".join(parts) if parts else ""
-                if relationship:
-                    base = f"{base} ({relationship})" if base else relationship
-                if base:
-                    formatted.append(base)
-            return "; ".join(formatted)
-
         rows: List[Dict[str, Any]] = []
         profile_keys = {
             "Person": "person_entry",
@@ -226,9 +188,9 @@ class CSVConverter(BaseConverter):
                 "timeframe_start_year": timeframe.get("start_year"),
                 "timeframe_end_year": timeframe.get("end_year"),
                 "timeframe_notation": timeframe.get("notation"),
-                "topical_focus": join_list(topical_focus),
-                "language_contexts": join_list(language_contexts),
-                "associations": format_associations(associations),
+                "topical_focus": self.join_list(topical_focus),
+                "language_contexts": self.join_list(language_contexts),
+                "associations": self.format_associations(associations),
                 "notes": profile.get("notes"),
                 # Person-specific defaults
                 "person_gender": None,
@@ -256,8 +218,8 @@ class CSVConverter(BaseConverter):
             if entry_type == "Person":
                 row.update({
                     "person_gender": profile.get("gender"),
-                    "person_roles": join_list(profile.get("roles")),
-                    "person_name_variants": format_name_variants(profile.get("name_variants")),
+                    "person_roles": self.join_list(profile.get("roles")),
+                    "person_name_variants": self.format_name_variants(profile.get("name_variants")),
                     "person_biographical_notes": profile.get("biographical_notes")
                 })
 
@@ -265,9 +227,9 @@ class CSVConverter(BaseConverter):
                 row.update({
                     "place_type": profile.get("place_type"),
                     "place_country_modern": profile.get("country_modern"),
-                    "place_roles_in_culinary_ecosystem": join_list(profile.get("roles_in_culinary_ecosystem")),
-                    "place_associated_products": join_list(profile.get("associated_products")),
-                    "place_notable_establishments": join_list(profile.get("notable_establishments")),
+                    "place_roles_in_culinary_ecosystem": self.join_list(profile.get("roles_in_culinary_ecosystem")),
+                    "place_associated_products": self.join_list(profile.get("associated_products")),
+                    "place_notable_establishments": self.join_list(profile.get("notable_establishments")),
                     "place_notes": profile.get("place_notes")
                 })
 
@@ -277,7 +239,7 @@ class CSVConverter(BaseConverter):
                     "work_short_title": profile.get("short_title"),
                     "work_description": profile.get("description"),
                     "work_genre": profile.get("genre"),
-                    "work_edition_years": join_list(profile.get("edition_years")),
+                    "work_edition_years": self.join_list(profile.get("edition_years")),
                     "work_material_format": material_features.get("format"),
                     "work_material_has_illustrations": material_features.get("has_illustrations"),
                     "work_material_page_count": material_features.get("page_count"),
@@ -701,6 +663,168 @@ class CSVConverter(BaseConverter):
                 "contains_other_sweeteners": categories.get("contains_other_sweeteners", False) if isinstance(categories, dict) else False,
                 "contains_foreign_spices": categories.get("contains_foreign_spices", False) if isinstance(categories, dict) else False,
                 "contains_luxury_ingredients": categories.get("contains_luxury_ingredients", False) if isinstance(categories, dict) else False
+            }
+            rows.append(row)
+        
+        df = pd.DataFrame(rows)
+        return df
+
+    def _convert_michelin_guides_to_df(self, entries: List[Any]) -> pd.DataFrame:
+        """
+        Converts Michelin Guide entries to DataFrame according to schema v1.1.
+        Handles deeply nested structures for location, address, awards, cuisine, pricing, amenities, etc.
+        """
+        if entries is None:
+            entries = []
+        entries = [entry for entry in entries if entry is not None]
+        rows = []
+        
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            
+            # Basic info
+            establishment_name = entry.get("establishment_name")
+            raw_entry_text = entry.get("raw_entry_text")
+            
+            # Location
+            location = entry.get("location", {}) or {}
+            city = location.get("city_or_town")
+            neighbourhood = location.get("neighbourhood_or_area")
+            
+            # Address
+            address = entry.get("address", {}) or {}
+            street = address.get("street")
+            house_number = address.get("house_number")
+            postal_code = address.get("postal_code")
+            
+            # Contact
+            contact = entry.get("contact", {}) or {}
+            telephone = contact.get("telephone")
+            fax = contact.get("fax")
+            website = contact.get("website")
+            email = contact.get("email")
+            
+            # Map reference
+            map_ref = entry.get("map_reference", {}) or {}
+            plan_grid = map_ref.get("plan_grid")
+            
+            # Awards
+            awards = entry.get("awards", {}) or {}
+            stars = awards.get("stars")
+            bib_gourmand = awards.get("bib_gourmand")
+            michelin_plate = awards.get("michelin_plate")
+            green_star = awards.get("green_star")
+            new_in_guide = awards.get("new_in_guide")
+            pleasant_marker = awards.get("pleasant_marker")
+            comfort_covers = awards.get("comfort_covers")
+            
+            # Cuisine
+            cuisine = entry.get("cuisine", {}) or {}
+            styles = cuisine.get("styles", [])
+            styles_str = ", ".join(styles) if isinstance(styles, list) and styles else ""
+            specialties = cuisine.get("specialties", [])
+            specialties_str = ", ".join(specialties) if isinstance(specialties, list) and specialties else ""
+            chef = cuisine.get("chef")
+            keywords = cuisine.get("keywords", [])
+            keywords_str = ", ".join(keywords) if isinstance(keywords, list) and keywords else ""
+            
+            # Opening
+            opening = entry.get("opening", {}) or {}
+            lunch_hours = opening.get("lunch_hours")
+            dinner_hours = opening.get("dinner_hours")
+            days_closed = opening.get("days_closed", [])
+            days_closed_str = ", ".join(days_closed) if isinstance(days_closed, list) and days_closed else ""
+            annual_closure = opening.get("annual_closure")
+            open_for_breakfast = opening.get("open_for_breakfast")
+            
+            # Pricing
+            pricing = entry.get("pricing", {}) or {}
+            currency = pricing.get("currency")
+            menu_price_min = pricing.get("menu_price_min")
+            menu_price_max = pricing.get("menu_price_max")
+            a_la_carte_min = pricing.get("a_la_carte_price_min")
+            a_la_carte_max = pricing.get("a_la_carte_price_max")
+            lunch_menu_price = pricing.get("lunch_menu_price")
+            price_note = pricing.get("price_note")
+            set_menus = pricing.get("set_menus", [])
+            set_menus_str = "; ".join([
+                f"{m.get('label', '')}: {m.get('price_min', '')}-{m.get('price_max', '')}"
+                for m in set_menus if isinstance(m, dict)
+            ]) if isinstance(set_menus, list) and set_menus else ""
+            
+            # Amenities
+            amenities = entry.get("amenities", {}) or {}
+            
+            # Rooms
+            rooms = entry.get("rooms", {}) or {}
+            room_count = rooms.get("room_count")
+            room_price_min = rooms.get("room_price_min")
+            room_price_max = rooms.get("room_price_max")
+            room_currency = rooms.get("room_currency")
+            breakfast_available = rooms.get("breakfast_available")
+            
+            # Payments
+            payments = entry.get("payments", {}) or {}
+            
+            row = {
+                "establishment_name": establishment_name,
+                "city_or_town": city,
+                "neighbourhood_or_area": neighbourhood,
+                "street": street,
+                "house_number": house_number,
+                "postal_code": postal_code,
+                "telephone": telephone,
+                "fax": fax,
+                "website": website,
+                "email": email,
+                "plan_grid": plan_grid,
+                "stars": stars,
+                "bib_gourmand": bib_gourmand,
+                "michelin_plate": michelin_plate,
+                "green_star": green_star,
+                "new_in_guide": new_in_guide,
+                "pleasant_marker": pleasant_marker,
+                "comfort_covers": comfort_covers,
+                "cuisine_styles": styles_str,
+                "specialties": specialties_str,
+                "chef": chef,
+                "cuisine_keywords": keywords_str,
+                "lunch_hours": lunch_hours,
+                "dinner_hours": dinner_hours,
+                "days_closed": days_closed_str,
+                "annual_closure": annual_closure,
+                "open_for_breakfast": open_for_breakfast,
+                "currency": currency,
+                "menu_price_min": menu_price_min,
+                "menu_price_max": menu_price_max,
+                "a_la_carte_price_min": a_la_carte_min,
+                "a_la_carte_price_max": a_la_carte_max,
+                "lunch_menu_price": lunch_menu_price,
+                "set_menus": set_menus_str,
+                "price_note": price_note,
+                "wheelchair_access": amenities.get("wheelchair_access"),
+                "air_conditioning": amenities.get("air_conditioning"),
+                "terrace": amenities.get("terrace"),
+                "garden_or_park": amenities.get("garden_or_park"),
+                "outside_dining": amenities.get("outside_dining"),
+                "great_view": amenities.get("great_view"),
+                "peaceful": amenities.get("peaceful"),
+                "notable_wine_list": amenities.get("notable_wine_list"),
+                "private_dining_room": amenities.get("private_dining_room"),
+                "parking": amenities.get("parking"),
+                "valet_parking": amenities.get("valet_parking"),
+                "has_rooms": amenities.get("has_rooms"),
+                "room_count": room_count,
+                "room_price_min": room_price_min,
+                "room_price_max": room_price_max,
+                "room_currency": room_currency,
+                "breakfast_available": breakfast_available,
+                "credit_cards_accepted": payments.get("credit_cards_accepted"),
+                "accept_visa": payments.get("accept_visa"),
+                "accept_mastercard": payments.get("accept_mastercard"),
+                "accept_amex": payments.get("accept_amex"),
+                "raw_entry_text": raw_entry_text
             }
             rows.append(row)
         

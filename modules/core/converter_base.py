@@ -78,6 +78,53 @@ class BaseConverter(ABC):
             return separator.join(items)
         return ""
     
+    @staticmethod
+    def format_name_variants(variants: Any) -> str:
+        """
+        Format name variants for display.
+        
+        :param variants: List of variant dictionaries with 'original' and 'modern_english' keys
+        :return: Formatted string with variants
+        """
+        if not isinstance(variants, list):
+            return ""
+        formatted = []
+        for variant in variants:
+            if isinstance(variant, dict):
+                original = variant.get("original") or ""
+                modern = variant.get("modern_english")
+                if modern and modern != original:
+                    formatted.append(f"{original} ({modern})")
+                else:
+                    formatted.append(original)
+        return "; ".join([f for f in formatted if f])
+    
+    @staticmethod
+    def format_associations(assocs: Any, as_list: bool = False) -> Any:
+        """
+        Format associations for display.
+        
+        :param assocs: List of association dictionaries
+        :param as_list: If True, return list of strings; if False, return joined string
+        :return: Formatted associations as string or list
+        """
+        if not isinstance(assocs, list):
+            return [] if as_list else ""
+        formatted: List[str] = []
+        for assoc in assocs:
+            if not isinstance(assoc, dict):
+                continue
+            target_type = assoc.get("target_type")
+            label = assoc.get("target_label_modern_english") or assoc.get("target_label_original")
+            relationship = assoc.get("relationship")
+            parts = [part for part in [target_type, label] if part]
+            base = " - ".join(parts) if parts else ""
+            if relationship:
+                base = f"{base} ({relationship})" if base else relationship
+            if base:
+                formatted.append(base)
+        return formatted if as_list else "; ".join(formatted)
+    
     def get_converter(
         self,
         converters: Dict[str, Callable]

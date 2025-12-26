@@ -20,10 +20,6 @@ class DocumentConverter(BaseConverter):
     Inherits from BaseConverter for shared entry extraction and utility methods.
     """
     
-    def _safe_str(self, value: Any) -> str:
-        """Alias for base class safe_str method for backward compatibility."""
-        return self.safe_str(value)
-
     def convert(self, json_file: Path, output_file: Path) -> None:
         """
         Convert JSON to output format based on file extension.
@@ -54,7 +50,8 @@ class DocumentConverter(BaseConverter):
             "culinaryplacesentries": self._convert_culinary_places_to_docx,
             "culinaryworksentries": self._convert_culinary_works_to_docx,
             "culinaryentitiesentries": self._convert_culinary_entities_to_docx,
-            "historicalrecipesentries": self._convert_historical_recipes_to_docx
+            "historicalrecipesentries": self._convert_historical_recipes_to_docx,
+            "michelinguides": self._convert_michelin_guides_to_docx
         }
         converter = self.get_converter(converters)
         if converter:
@@ -88,7 +85,8 @@ class DocumentConverter(BaseConverter):
             "culinaryplacesentries": self._convert_culinary_places_to_txt,
             "culinaryworksentries": self._convert_culinary_works_to_txt,
             "culinaryentitiesentries": self._convert_culinary_entities_to_txt,
-            "historicalrecipesentries": self._convert_historical_recipes_to_txt
+            "historicalrecipesentries": self._convert_historical_recipes_to_txt,
+            "michelinguides": self._convert_michelin_guides_to_txt
         }
 
         try:
@@ -96,7 +94,7 @@ class DocumentConverter(BaseConverter):
             if converter:
                 lines = converter(entries)
             else:
-                lines = [self._safe_str(entry) for entry in entries]
+                lines = [self.safe_str(entry) for entry in entries]
 
             lines = [line for line in lines if line is not None]
 
@@ -251,30 +249,6 @@ class DocumentConverter(BaseConverter):
             "Work": "work_entry"
         }
 
-        def join_list(values: Any, separator: str = ", ") -> str:
-            if isinstance(values, list):
-                items = [str(v) for v in values if v not in (None, "")]
-                return separator.join(items)
-            return ""
-
-        def format_associations(assocs: Any) -> List[str]:
-            if not isinstance(assocs, list):
-                return []
-            formatted: List[str] = []
-            for assoc in assocs:
-                if not isinstance(assoc, dict):
-                    continue
-                target_type = assoc.get("target_type")
-                label = assoc.get("target_label_modern_english") or assoc.get("target_label_original")
-                relationship = assoc.get("relationship")
-                parts = [part for part in [target_type, label] if part]
-                base = " - ".join(parts) if parts else ""
-                if relationship:
-                    base = f"{base} ({relationship})" if base else relationship
-                if base:
-                    formatted.append(base)
-            return formatted
-
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
@@ -289,9 +263,9 @@ class DocumentConverter(BaseConverter):
             document.add_heading(f"{title} ({entry_type})", level=1)
 
             timeframe = profile.get("timeframe", {}) or {}
-            topical_focus = join_list(profile.get("topical_focus"))
-            languages = join_list(profile.get("language_contexts"))
-            associations = format_associations(profile.get("associations"))
+            topical_focus = self.join_list(profile.get("topical_focus"))
+            languages = self.join_list(profile.get("language_contexts"))
+            associations = self.format_associations(profile.get("associations"), as_list=True)
 
             def add_paragraph(label: str, value: Any) -> None:
                 if value not in (None, ""):
@@ -308,34 +282,23 @@ class DocumentConverter(BaseConverter):
 
             if entry_type == "Person":
                 add_paragraph("Gender", profile.get("gender"))
-                add_paragraph("Roles", join_list(profile.get("roles")))
-                variants = profile.get("name_variants")
-                if isinstance(variants, list) and variants:
-                    formatted = []
-                    for variant in variants:
-                        if isinstance(variant, dict):
-                            original = variant.get("original") or ""
-                            modern = variant.get("modern_english")
-                            if modern and modern != original:
-                                formatted.append(f"{original} ({modern})")
-                            else:
-                                formatted.append(original)
-                    add_paragraph("Name Variants", "; ".join([f for f in formatted if f]))
+                add_paragraph("Roles", self.join_list(profile.get("roles")))
+                add_paragraph("Name Variants", self.format_name_variants(profile.get("name_variants")))
                 add_paragraph("Biographical Notes", profile.get("biographical_notes"))
 
             elif entry_type == "Place":
                 add_paragraph("Place Type", profile.get("place_type"))
                 add_paragraph("Country (Modern)", profile.get("country_modern"))
-                add_paragraph("Culinary Roles", join_list(profile.get("roles_in_culinary_ecosystem")))
-                add_paragraph("Associated Products", join_list(profile.get("associated_products")))
-                add_paragraph("Notable Establishments", join_list(profile.get("notable_establishments")))
+                add_paragraph("Culinary Roles", self.join_list(profile.get("roles_in_culinary_ecosystem")))
+                add_paragraph("Associated Products", self.join_list(profile.get("associated_products")))
+                add_paragraph("Notable Establishments", self.join_list(profile.get("notable_establishments")))
                 add_paragraph("Place Notes", profile.get("place_notes"))
 
             elif entry_type == "Work":
                 add_paragraph("Short Title", profile.get("short_title"))
                 add_paragraph("Description", profile.get("description"))
                 add_paragraph("Genre", profile.get("genre"))
-                add_paragraph("Edition Years", join_list(profile.get("edition_years")))
+                add_paragraph("Edition Years", self.join_list(profile.get("edition_years")))
                 material = profile.get("material_features", {}) or {}
                 add_paragraph("Format", material.get("format"))
                 add_paragraph("Has Illustrations", material.get("has_illustrations"))
@@ -356,44 +319,6 @@ class DocumentConverter(BaseConverter):
             "Work": "work_entry"
         }
 
-        def join_list(values: Any, separator: str = ", ") -> str:
-            if isinstance(values, list):
-                items = [str(v) for v in values if v not in (None, "")]
-                return separator.join(items)
-            return ""
-
-        def format_name_variants(variants: Any) -> str:
-            if not isinstance(variants, list):
-                return ""
-            formatted = []
-            for variant in variants:
-                if isinstance(variant, dict):
-                    original = variant.get("original") or ""
-                    modern = variant.get("modern_english")
-                    if modern and modern != original:
-                        formatted.append(f"{original} ({modern})")
-                    else:
-                        formatted.append(original)
-            return "; ".join([f for f in formatted if f])
-
-        def format_associations(assocs: Any) -> str:
-            if not isinstance(assocs, list):
-                return ""
-            formatted = []
-            for assoc in assocs:
-                if not isinstance(assoc, dict):
-                    continue
-                target_type = assoc.get("target_type")
-                label = assoc.get("target_label_modern_english") or assoc.get("target_label_original")
-                relationship = assoc.get("relationship")
-                parts = [part for part in [target_type, label] if part]
-                base = " - ".join(parts) if parts else ""
-                if relationship:
-                    base = f"{base} ({relationship})" if base else relationship
-                if base:
-                    formatted.append(base)
-            return "; ".join(formatted)
-
         lines: List[str] = []
         for entry in entries:
             if not isinstance(entry, dict):
@@ -410,39 +335,39 @@ class DocumentConverter(BaseConverter):
             lines.append(f"Name: {header}")
 
             timeframe = profile.get("timeframe", {}) or {}
-            lines.append(f"  Summary: {self._safe_str(profile.get('entity_summary'))}")
-            lines.append(f"  Timeframe: {self._safe_str(timeframe.get('notation'))}")
-            lines.append(f"  Timeframe Start: {self._safe_str(timeframe.get('start_year'))}")
-            lines.append(f"  Timeframe End: {self._safe_str(timeframe.get('end_year'))}")
-            lines.append(f"  Topical Focus: {join_list(profile.get('topical_focus'))}")
-            lines.append(f"  Languages: {join_list(profile.get('language_contexts'))}")
-            lines.append(f"  Associations: {format_associations(profile.get('associations'))}")
-            lines.append(f"  Notes: {self._safe_str(profile.get('notes'))}")
+            lines.append(f"  Summary: {self.safe_str(profile.get('entity_summary'))}")
+            lines.append(f"  Timeframe: {self.safe_str(timeframe.get('notation'))}")
+            lines.append(f"  Timeframe Start: {self.safe_str(timeframe.get('start_year'))}")
+            lines.append(f"  Timeframe End: {self.safe_str(timeframe.get('end_year'))}")
+            lines.append(f"  Topical Focus: {self.join_list(profile.get('topical_focus'))}")
+            lines.append(f"  Languages: {self.join_list(profile.get('language_contexts'))}")
+            lines.append(f"  Associations: {self.format_associations(profile.get('associations'))}")
+            lines.append(f"  Notes: {self.safe_str(profile.get('notes'))}")
 
             if entry_type == "Person":
-                lines.append(f"  Gender: {self._safe_str(profile.get('gender'))}")
-                lines.append(f"  Roles: {join_list(profile.get('roles'))}")
-                lines.append(f"  Name Variants: {format_name_variants(profile.get('name_variants'))}")
-                lines.append(f"  Biographical Notes: {self._safe_str(profile.get('biographical_notes'))}")
+                lines.append(f"  Gender: {self.safe_str(profile.get('gender'))}")
+                lines.append(f"  Roles: {self.join_list(profile.get('roles'))}")
+                lines.append(f"  Name Variants: {self.format_name_variants(profile.get('name_variants'))}")
+                lines.append(f"  Biographical Notes: {self.safe_str(profile.get('biographical_notes'))}")
 
             elif entry_type == "Place":
-                lines.append(f"  Place Type: {self._safe_str(profile.get('place_type'))}")
-                lines.append(f"  Country (Modern): {self._safe_str(profile.get('country_modern'))}")
-                lines.append(f"  Culinary Roles: {join_list(profile.get('roles_in_culinary_ecosystem'))}")
-                lines.append(f"  Associated Products: {join_list(profile.get('associated_products'))}")
-                lines.append(f"  Notable Establishments: {join_list(profile.get('notable_establishments'))}")
-                lines.append(f"  Place Notes: {self._safe_str(profile.get('place_notes'))}")
+                lines.append(f"  Place Type: {self.safe_str(profile.get('place_type'))}")
+                lines.append(f"  Country (Modern): {self.safe_str(profile.get('country_modern'))}")
+                lines.append(f"  Culinary Roles: {self.join_list(profile.get('roles_in_culinary_ecosystem'))}")
+                lines.append(f"  Associated Products: {self.join_list(profile.get('associated_products'))}")
+                lines.append(f"  Notable Establishments: {self.join_list(profile.get('notable_establishments'))}")
+                lines.append(f"  Place Notes: {self.safe_str(profile.get('place_notes'))}")
 
             elif entry_type == "Work":
-                lines.append(f"  Short Title: {self._safe_str(profile.get('short_title'))}")
-                lines.append(f"  Description: {self._safe_str(profile.get('description'))}")
-                lines.append(f"  Genre: {self._safe_str(profile.get('genre'))}")
-                lines.append(f"  Edition Years: {join_list(profile.get('edition_years'))}")
+                lines.append(f"  Short Title: {self.safe_str(profile.get('short_title'))}")
+                lines.append(f"  Description: {self.safe_str(profile.get('description'))}")
+                lines.append(f"  Genre: {self.safe_str(profile.get('genre'))}")
+                lines.append(f"  Edition Years: {self.join_list(profile.get('edition_years'))}")
                 material = profile.get("material_features", {}) or {}
-                lines.append(f"  Format: {self._safe_str(material.get('format'))}")
-                lines.append(f"  Has Illustrations: {self._safe_str(material.get('has_illustrations'))}")
-                lines.append(f"  Page Count: {self._safe_str(material.get('page_count'))}")
-                lines.append(f"  Material Notes: {self._safe_str(material.get('notes'))}")
+                lines.append(f"  Format: {self.safe_str(material.get('format'))}")
+                lines.append(f"  Has Illustrations: {self.safe_str(material.get('has_illustrations'))}")
+                lines.append(f"  Page Count: {self.safe_str(material.get('page_count'))}")
+                lines.append(f"  Material Notes: {self.safe_str(material.get('notes'))}")
 
             lines.append("")
 
@@ -574,11 +499,11 @@ class DocumentConverter(BaseConverter):
                 continue  # Skip None entries
 
             lines.append(
-                f"Full Title: {self._safe_str(entry.get('full_title', 'Unknown Title'))}")
+                f"Full Title: {self.safe_str(entry.get('full_title', 'Unknown Title'))}")
             lines.append(
-                f"Short Title: {self._safe_str(entry.get('short_title', ''))}")
+                f"Short Title: {self.safe_str(entry.get('short_title', ''))}")
             lines.append(
-                f"Bibliography Number: {self._safe_str(entry.get('bibliography_number', ''))}")
+                f"Bibliography Number: {self.safe_str(entry.get('bibliography_number', ''))}")
 
             authors = entry.get("authors", [])
             if authors is None:
@@ -603,10 +528,10 @@ class DocumentConverter(BaseConverter):
                               focus is not None]
             lines.append(f"Culinary Focus: {', '.join(culinary_focus)}")
 
-            lines.append(f"Format: {self._safe_str(entry.get('format', ''))}")
-            lines.append(f"Pages: {self._safe_str(entry.get('pages', ''))}")
+            lines.append(f"Format: {self.safe_str(entry.get('format', ''))}")
+            lines.append(f"Pages: {self.safe_str(entry.get('pages', ''))}")
             lines.append(
-                f"Total Editions: {self._safe_str(entry.get('total_editions', ''))}")
+                f"Total Editions: {self.safe_str(entry.get('total_editions', ''))}")
 
             lines.append("Edition Information:")
             editions = entry.get("edition_info", [])
@@ -619,23 +544,23 @@ class DocumentConverter(BaseConverter):
 
                 # Safely get location info with null checks
                 location = edition.get("location", {}) or {}
-                city = self._safe_str(location.get("city", "Unknown"))
-                country = self._safe_str(location.get("country", "Unknown"))
+                city = self.safe_str(location.get("city", "Unknown"))
+                country = self.safe_str(location.get("country", "Unknown"))
 
                 # Safely get roles with null checks
                 ed_roles = edition.get("roles", []) or []
                 ed_roles = [role for role in ed_roles if role is not None]
 
                 edition_text = (
-                    f"Year: {self._safe_str(edition.get('year', 'Unknown'))}, "
-                    f"Edition: {self._safe_str(edition.get('edition_number', 'Unknown'))}, "
+                    f"Year: {self.safe_str(edition.get('year', 'Unknown'))}, "
+                    f"Edition: {self.safe_str(edition.get('edition_number', 'Unknown'))}, "
                     f"Location: {city}, {country}, "
                     f"Roles: {', '.join(ed_roles)}, "
-                    f"Note: {self._safe_str(edition.get('short_note', ''))}, "
-                    f"Category: {self._safe_str(edition.get('edition_category', ''))}, "
-                    f"Language: {self._safe_str(edition.get('language', ''))}, "
-                    f"Orig Lang: {self._safe_str(edition.get('original_language', ''))}, "
-                    f"Translated From: {self._safe_str(edition.get('translated_from', ''))}"
+                    f"Note: {self.safe_str(edition.get('short_note', ''))}, "
+                    f"Category: {self.safe_str(edition.get('edition_category', ''))}, "
+                    f"Language: {self.safe_str(edition.get('language', ''))}, "
+                    f"Orig Lang: {self.safe_str(edition.get('original_language', ''))}, "
+                    f"Translated From: {self.safe_str(edition.get('translated_from', ''))}"
                 )
                 lines.append(f" - {edition_text}")
 
@@ -1207,4 +1132,235 @@ class DocumentConverter(BaseConverter):
                 lines.append(recipe_text_modern)
             
             lines.append("\n" + "=" * 40 + "\n")
+        return lines
+
+    # --- Michelin Guide Converters ---
+
+    def _convert_michelin_guides_to_docx(self, entries: List[Any], document: Document) -> None:
+        """Convert Michelin Guide entries to DOCX format."""
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            
+            # Header with establishment name and stars
+            name = entry.get("establishment_name", "Unknown Establishment")
+            awards = entry.get("awards", {}) or {}
+            stars = awards.get("stars", 0) or 0
+            star_display = "⭐" * stars if stars else ""
+            
+            document.add_heading(f"{name} {star_display}", level=1)
+            
+            # Location and Address
+            location = entry.get("location", {}) or {}
+            address = entry.get("address", {}) or {}
+            city = location.get("city_or_town", "")
+            neighbourhood = location.get("neighbourhood_or_area", "")
+            street = address.get("street", "")
+            house_number = address.get("house_number", "")
+            postal_code = address.get("postal_code", "")
+            
+            location_parts = [p for p in [neighbourhood, city] if p]
+            if location_parts:
+                document.add_paragraph(f"Location: {', '.join(location_parts)}")
+            
+            address_parts = [p for p in [street, house_number, postal_code] if p]
+            if address_parts:
+                document.add_paragraph(f"Address: {' '.join(address_parts)}")
+            
+            # Awards section
+            award_items = []
+            if awards.get("bib_gourmand"):
+                award_items.append("Bib Gourmand")
+            if awards.get("green_star"):
+                award_items.append("Green Star")
+            if awards.get("michelin_plate"):
+                award_items.append("Michelin Plate")
+            if awards.get("new_in_guide"):
+                award_items.append("New in Guide")
+            if award_items:
+                document.add_paragraph(f"Awards: {', '.join(award_items)}")
+            
+            # Cuisine
+            cuisine = entry.get("cuisine", {}) or {}
+            styles = cuisine.get("styles", [])
+            if styles and isinstance(styles, list):
+                document.add_paragraph(f"Cuisine: {', '.join(styles)}")
+            chef = cuisine.get("chef")
+            if chef:
+                document.add_paragraph(f"Chef: {chef}")
+            specialties = cuisine.get("specialties", [])
+            if specialties and isinstance(specialties, list):
+                document.add_paragraph(f"Specialties: {', '.join(specialties)}")
+            
+            # Pricing
+            pricing = entry.get("pricing", {}) or {}
+            currency = pricing.get("currency", "")
+            menu_min = pricing.get("menu_price_min")
+            menu_max = pricing.get("menu_price_max")
+            if menu_min or menu_max:
+                price_str = f"{currency} {menu_min or '?'} - {menu_max or '?'}"
+                document.add_paragraph(f"Menu Price: {price_str}")
+            
+            alc_min = pricing.get("a_la_carte_price_min")
+            alc_max = pricing.get("a_la_carte_price_max")
+            if alc_min or alc_max:
+                price_str = f"{currency} {alc_min or '?'} - {alc_max or '?'}"
+                document.add_paragraph(f"À la carte: {price_str}")
+            
+            # Contact
+            contact = entry.get("contact", {}) or {}
+            tel = contact.get("telephone")
+            if tel:
+                document.add_paragraph(f"Telephone: {tel}")
+            website = contact.get("website")
+            if website:
+                document.add_paragraph(f"Website: {website}")
+            
+            # Opening hours
+            opening = entry.get("opening", {}) or {}
+            lunch = opening.get("lunch_hours")
+            dinner = opening.get("dinner_hours")
+            if lunch:
+                document.add_paragraph(f"Lunch: {lunch}")
+            if dinner:
+                document.add_paragraph(f"Dinner: {dinner}")
+            days_closed = opening.get("days_closed", [])
+            if days_closed and isinstance(days_closed, list):
+                document.add_paragraph(f"Closed: {', '.join(days_closed)}")
+            
+            # Amenities
+            amenities = entry.get("amenities", {}) or {}
+            amenity_list = []
+            if amenities.get("terrace"):
+                amenity_list.append("Terrace")
+            if amenities.get("garden_or_park"):
+                amenity_list.append("Garden")
+            if amenities.get("great_view"):
+                amenity_list.append("Great View")
+            if amenities.get("parking"):
+                amenity_list.append("Parking")
+            if amenities.get("wheelchair_access"):
+                amenity_list.append("Wheelchair Access")
+            if amenities.get("notable_wine_list"):
+                amenity_list.append("Notable Wine List")
+            if amenity_list:
+                document.add_paragraph(f"Amenities: {', '.join(amenity_list)}")
+            
+            document.add_page_break()
+
+    def _convert_michelin_guides_to_txt(self, entries: List[Any]) -> List[str]:
+        """Convert Michelin Guide entries to TXT format."""
+        lines: List[str] = []
+        
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            
+            # Header
+            name = entry.get("establishment_name", "Unknown Establishment")
+            awards = entry.get("awards", {}) or {}
+            stars = awards.get("stars", 0) or 0
+            star_display = "*" * stars if stars else "No stars"
+            
+            lines.append(f"{'=' * 60}")
+            lines.append(f"{name}")
+            lines.append(f"Stars: {star_display}")
+            lines.append(f"{'=' * 60}")
+            
+            # Location and Address
+            location = entry.get("location", {}) or {}
+            address = entry.get("address", {}) or {}
+            city = location.get("city_or_town", "")
+            neighbourhood = location.get("neighbourhood_or_area", "")
+            
+            if city or neighbourhood:
+                loc_str = ", ".join([p for p in [neighbourhood, city] if p])
+                lines.append(f"Location: {loc_str}")
+            
+            street = address.get("street", "")
+            house_number = address.get("house_number", "")
+            postal_code = address.get("postal_code", "")
+            if street or house_number or postal_code:
+                addr_str = " ".join([p for p in [street, house_number, postal_code] if p])
+                lines.append(f"Address: {addr_str}")
+            
+            # Awards
+            award_items = []
+            if awards.get("bib_gourmand"):
+                award_items.append("Bib Gourmand")
+            if awards.get("green_star"):
+                award_items.append("Green Star")
+            if awards.get("michelin_plate"):
+                award_items.append("Michelin Plate")
+            if awards.get("new_in_guide"):
+                award_items.append("New")
+            if award_items:
+                lines.append(f"Awards: {', '.join(award_items)}")
+            
+            # Cuisine
+            cuisine = entry.get("cuisine", {}) or {}
+            styles = cuisine.get("styles", [])
+            if styles and isinstance(styles, list):
+                lines.append(f"Cuisine: {', '.join(styles)}")
+            chef = cuisine.get("chef")
+            if chef:
+                lines.append(f"Chef: {chef}")
+            specialties = cuisine.get("specialties", [])
+            if specialties and isinstance(specialties, list):
+                lines.append(f"Specialties: {', '.join(specialties)}")
+            
+            # Pricing
+            pricing = entry.get("pricing", {}) or {}
+            currency = pricing.get("currency", "")
+            menu_min = pricing.get("menu_price_min")
+            menu_max = pricing.get("menu_price_max")
+            if menu_min or menu_max:
+                lines.append(f"Menu: {currency} {menu_min or '?'} - {menu_max or '?'}")
+            
+            alc_min = pricing.get("a_la_carte_price_min")
+            alc_max = pricing.get("a_la_carte_price_max")
+            if alc_min or alc_max:
+                lines.append(f"À la carte: {currency} {alc_min or '?'} - {alc_max or '?'}")
+            
+            # Contact
+            contact = entry.get("contact", {}) or {}
+            tel = contact.get("telephone")
+            if tel:
+                lines.append(f"Tel: {tel}")
+            website = contact.get("website")
+            if website:
+                lines.append(f"Web: {website}")
+            
+            # Opening
+            opening = entry.get("opening", {}) or {}
+            lunch = opening.get("lunch_hours")
+            dinner = opening.get("dinner_hours")
+            if lunch:
+                lines.append(f"Lunch: {lunch}")
+            if dinner:
+                lines.append(f"Dinner: {dinner}")
+            days_closed = opening.get("days_closed", [])
+            if days_closed and isinstance(days_closed, list):
+                lines.append(f"Closed: {', '.join(days_closed)}")
+            
+            # Amenities
+            amenities = entry.get("amenities", {}) or {}
+            amenity_list = []
+            if amenities.get("terrace"):
+                amenity_list.append("Terrace")
+            if amenities.get("garden_or_park"):
+                amenity_list.append("Garden")
+            if amenities.get("great_view"):
+                amenity_list.append("View")
+            if amenities.get("parking"):
+                amenity_list.append("Parking")
+            if amenities.get("wheelchair_access"):
+                amenity_list.append("Wheelchair")
+            if amenities.get("notable_wine_list"):
+                amenity_list.append("Wine List")
+            if amenity_list:
+                lines.append(f"Amenities: {', '.join(amenity_list)}")
+            
+            lines.append("")
+        
         return lines
