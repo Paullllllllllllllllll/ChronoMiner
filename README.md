@@ -47,7 +47,7 @@ The mode is determined automatically: if command-line arguments are provided, CL
 - Dual Execution Modes: Run interactively with guided prompts or use command-line arguments for automation and scripting
 - Flexible Text Chunking: Token-based chunking with automatic, manual, or pre-defined line range strategies
 - Schema-Based Extraction: JSON schema-driven data extraction with customizable templates
-- Dual Processing Modes: Choose between synchronous (real-time) or batch processing (50% cost savings)
+- Dual Processing Modes: Choose between synchronous (real-time) or batch processing with multi-provider support (OpenAI, Anthropic, Google)
 - Context-Aware Processing: Integrate domain-specific or file-specific context for improved accuracy
 - Multi-Format Output: Generate JSON, CSV, DOCX, and TXT outputs simultaneously
 - Fine-Tuning Dataset Prep: Prepare OpenAI SFT datasets via a txt-based per-chunk correction workflow (`fine_tuning/`)
@@ -97,7 +97,7 @@ The provider is automatically detected from the model name. Capability guarding 
 - Schema Handler Registry: Uses handler registry to prepare API requests with appropriate JSON schema and extraction instructions
 - Processing Modes:
   - Synchronous: Real-time processing with immediate results via LangChain (all providers)
-  - Batch: 50% cost savings, results within 24 hours (OpenAI only)
+  - Batch: Asynchronous processing with cost savings and deferred results (OpenAI, Anthropic, Google)
 - Retry Logic: LangChain handles retries with exponential backoff automatically; configurable via max_retries
 
 ### Output Generation
@@ -109,7 +109,8 @@ The provider is automatically detected from the model name. Capability guarding 
 
 ### Batch Processing
 
-- Scalable Submission: Submit large document sets as OpenAI Batch jobs
+- Multi-Provider Support: Submit batch jobs to OpenAI, Anthropic, or Google with unified interface
+- Provider-Agnostic Management: Check status, download results, and cancel jobs across all providers
 - Smart Chunking: Automatic request splitting with proper chunk size limits
 - Metadata Tracking: Each request includes custom_id and metadata for reliable reconstruction
 - Debug Artifacts: Submission metadata saved for batch tracking and repair operations
@@ -175,7 +176,7 @@ ChronoMiner automatically detects model capabilities and adjusts API parameters 
 - Reasoning Models (GPT-5, o-series, Gemini 2.5+, Claude 4.x, DeepSeek R1): Temperature and top_p are disabled; reasoning effort is configurable
 - Standard Models (GPT-4.1, GPT-4o, Gemini 2.0, Llama, Mistral): Full sampler control
 - Structured Outputs: Supported by all models via LangChain (with provider-specific limitations)
-- Batch Processing: OpenAI only (50% cost savings)
+- Batch Processing: OpenAI (50% cost savings), Anthropic, and Google (provider-specific pricing)
 - Cross-Provider Reasoning: The `reasoning.effort` parameter is automatically translated for each provider
 
 #### Reasoning Capability Matrix
@@ -1050,42 +1051,63 @@ Verify the output and refine as needed.
 
 ## Batch Processing
 
-Batch processing offers significant cost savings (50% reduction) for large-scale extraction tasks.
+ChronoMiner supports asynchronous batch processing across OpenAI, Anthropic, and Google providers. Batch processing enables cost-effective large-scale extraction with deferred results, ideal for non-urgent tasks and high-volume workflows.
+
+### Supported Providers
+
+| Provider | Cost Savings | Typical Completion Time | Notes |
+|----------|--------------|------------------------|-------|
+| OpenAI | 50% reduction | Within 24 hours | Most mature batch API |
+| Anthropic | Varies by tier | Hours to days | Message Batches API |
+| Google | Varies by tier | Varies | Gemini Batch API |
 
 ### When to Use Batch Processing
 
 Ideal for:
-- Processing multiple large files
-- Non-urgent extraction tasks
-- Research projects with time flexibility
-- Cost-sensitive workflows
+- Processing multiple large files or entire document collections
+- Non-urgent extraction tasks with flexible deadlines
+- Research projects where cost optimization is prioritized
+- Workflows where 24+ hour latency is acceptable
 
 Not ideal for:
-- Time-critical extractions
-- Small single-file processing
-- Interactive testing and development
+- Time-critical or interactive extractions
+- Small single-file processing (overhead not justified)
+- Development and testing (use synchronous mode)
+- When immediate results are required
 
 ### Batch Workflow
 
 #### Submit Batch Job
 
+**Interactive Mode:**
 ```bash
 python main/process_text_files.py
 # Select "Batch" when prompted for processing mode
 ```
 
-The script creates a batch request file and submits it to OpenAI's Batch API.
+**CLI Mode:**
+```bash
+python main/process_text_files.py --schema BibliographicEntries --input path/to/files --batch
+```
+
+The script automatically:
+1. Detects the provider from your configured model in `model_config.yaml`
+2. Builds provider-specific batch request format
+3. Submits the batch job via the appropriate API
+4. Saves batch tracking metadata in temporary JSONL files
 
 #### Monitor Batch Status
 
-Check status periodically:
+Check status across all providers:
 
 ```bash
 python main/check_batches.py
 ```
 
-Batch Statuses:
-- `validating`: OpenAI is validating the batch request
+The tool scans temporary files, detects provider for each batch, and displays unified status information:
+
+**Common Batch Statuses:**
+- `validating`: Provider is validating the batch request
 - `in_progress`: Batch is being processed
 - `finalizing`: Processing complete, preparing results
 - `completed`: Results available for download
@@ -1093,25 +1115,49 @@ Batch Statuses:
 - `expired`: Batch expired before completion
 - `cancelled`: Batch was cancelled
 
+**Provider-Specific Statuses:**
+- OpenAI: `validating`, `in_progress`, `finalizing`, `completed`, `failed`, `expired`, `cancelled`
+- Anthropic: `processing`, `ended`
+- Google: `STATE_PENDING`, `STATE_RUNNING`, `STATE_SUCCEEDED`, `STATE_FAILED`
+
 #### Retrieve Results
 
-Once status shows `completed`, run:
+Once status shows `completed` (or provider equivalent), run:
 
 ```bash
 python main/check_batches.py
 ```
 
-The script automatically downloads batch results, processes all responses, generates final outputs, and cleans up temporary files.
+The script automatically:
+1. Detects completed batches for all providers
+2. Downloads batch results using provider-specific APIs
+3. Processes all responses and aggregates data
+4. Generates final outputs (JSON, CSV, DOCX, TXT)
+5. Cleans up temporary files
 
 ### Batch Management Tools
 
 #### Cancel Batches
 
-Cancel all non-terminal (in_progress, validating) batches:
+Cancel all non-terminal batches across all providers:
 
 ```bash
 python main/cancel_batches.py
 ```
+
+The tool:
+- Scans temporary JSONL files for batch tracking records
+- Identifies non-terminal batches (in_progress, validating, processing)
+- Cancels batches using provider-appropriate API calls
+- Supports OpenAI, Anthropic, and Google batch cancellation
+
+**Interactive Mode:** Prompts for confirmation before cancelling each batch
+
+**CLI Mode with Force Flag:**
+```bash
+python main/cancel_batches.py --force
+```
+Cancels all batches without confirmation prompts.
 
 #### Repair Failed Batches
 
@@ -1122,20 +1168,59 @@ python main/repair_extractions.py
 ```
 
 Interactive repair process:
-1. Scans for incomplete batch jobs
+1. Scans for incomplete batch jobs across all providers
 2. Attempts to recover batch IDs from temporary files
-3. Retrieves available responses
+3. Retrieves available responses from provider APIs
 4. Regenerates outputs with recovered data
 5. Reports success/failure for each repair attempt
 
+### Multi-Provider Batch Architecture
+
+ChronoMiner uses a unified `BatchBackend` interface to abstract provider differences:
+
+- **Base Interface** (`modules/llm/batch/backends/base.py`): Defines common operations (submit, get_status, download_results, cancel)
+- **Provider Backends**: OpenAI, Anthropic, and Google implementations handle provider-specific API formats
+- **Factory Pattern** (`modules/llm/batch/backends/factory.py`): Dynamically instantiates correct backend based on detected provider
+- **Batch Management Scripts**: `check_batches.py` and `cancel_batches.py` use provider-agnostic interface
+
+This architecture ensures:
+- Consistent user experience across providers
+- Easy addition of new batch providers
+- Automatic provider detection from model configuration
+- Unified error handling and status reporting
+
 ### Batch Processing Best Practices
 
-1. Test with synchronous mode first to validate your schema and settings
-2. Use descriptive filenames to track batch jobs easily
-3. Monitor batch status regularly during the 24-hour window
-4. Keep temporary files (`retain_temporary_jsonl: true`) for debugging
-5. Implement file-specific context for better extraction quality
-6. Use pre-defined line ranges for consistent chunking across batches
+1. **Test First**: Validate schema and settings with synchronous mode before submitting large batches
+2. **Provider Selection**: Choose provider based on cost, speed, and schema compatibility requirements
+3. **Schema Compatibility**: Complex schemas (e.g., `BibliographicEntries`) work best with OpenAI or Anthropic; use simpler schemas for Google
+4. **Monitor Regularly**: Check batch status periodically within completion window
+5. **Preserve Metadata**: Keep temporary files (`retain_temporary_jsonl: true`) for debugging and repair
+6. **Context Quality**: Implement file-specific context for improved extraction accuracy
+7. **Consistent Chunking**: Use pre-defined line ranges for reproducible chunking across batches
+8. **Rate Limits**: Be aware of provider-specific rate limits (especially Anthropic's 10k output tokens/min)
+9. **Backup Tracking**: Batch tracking metadata is saved in temp JSONL files; back up if needed
+
+### Provider-Specific Considerations
+
+**OpenAI:**
+- Most mature batch API with comprehensive status tracking
+- 50% cost reduction for batch processing
+- Results typically available within 24 hours
+- Supports full schema complexity
+
+**Anthropic:**
+- Message Batches API for Claude models
+- Schema complexity limits (max 8 `anyOf` branches in tool schemas)
+- ChronoMiner automatically falls back to plain invocation for complex schemas
+- Rate limits: 10,000 output tokens per minute
+- Concurrent request limits may require sequential processing
+
+**Google:**
+- Gemini Batch API for cost-effective processing
+- Schema nesting depth limits (reject very deep schemas like `BibliographicEntries`)
+- Best suited for flatter schemas (e.g., `StructuredSummaries`)
+- Variable completion times depending on quota and load
 
 ## Token Cost Analysis
 
@@ -1247,7 +1332,7 @@ ChronoMiner/
 - `modules/config/`: Configuration loading and validation with cached access via `get_config_loader()` for consistent, efficient config retrieval across the codebase
 - `modules/core/`: Core utilities including text processing, JSON manipulation, context management, workflow helpers, and centralized token tracking with daily limit enforcement
 - `modules/cli/`: Command-line interface utilities including argument parsing, mode detection, and the `DualModeScript` framework for consistent interactive/CLI mode handling
-- `modules/llm/`: LLM interaction layer including LangChain multi-provider support, model capability detection, batch processing (OpenAI only), prompt management, and structured output parsing
+- `modules/llm/`: LLM interaction layer including LangChain multi-provider support, model capability detection, multi-provider batch processing (OpenAI, Anthropic, Google), prompt management, and structured output parsing
 - `modules/operations/`: High-level operation orchestration (extraction, line ranges, cost analysis, repair workflows)
 - `modules/ui/`: User interface components including interactive prompts, selection menus, and status displays
 
