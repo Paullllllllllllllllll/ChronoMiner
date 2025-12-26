@@ -2,8 +2,13 @@
 Script to retrieve and process batch results.
 
 This script scans all schema-specific repositories for temporary batch results, aggregates tracking
-and response records, retrieves missing responses via OpenAI's API, and writes a final JSON output.
+and response records, retrieves missing responses via provider-specific APIs, and writes a final JSON output.
 If enabled in paths_config.yaml, additional .csv, .txt, or .docx outputs are generated.
+
+Supports multiple providers:
+- OpenAI: Uses OpenAI Batch API
+- Anthropic: Uses Anthropic Message Batches API  
+- Google: Uses Google Gemini Batch API
 
 Supports two execution modes:
 1. Interactive Mode: User-friendly prompts and UI feedback
@@ -17,15 +22,21 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 import datetime
 
-from openai import OpenAI
 from modules.config.loader import ConfigLoader, get_config_loader
 from modules.core.logger import setup_logger
 from modules.operations.extraction.schema_handlers import get_schema_handler
 from modules.ui.core import UserInterface
-from modules.llm.openai_sdk_utils import list_all_batches, sdk_to_dict, coerce_file_id
 from modules.core.batch_utils import diagnose_batch_failure, extract_custom_id_mapping
 from modules.cli.args_parser import create_check_batches_parser, resolve_path
 from modules.cli.execution_framework import DualModeScript
+from modules.llm.batch import (
+    BatchHandle,
+    BatchStatus,
+    BatchStatusInfo,
+    BatchResultItem,
+    get_batch_backend,
+    supports_batch,
+)
 
 logger = setup_logger(__name__)
 
@@ -241,15 +252,17 @@ def _recover_missing_batch_ids(
     return recovered
 
 
-def is_batch_finished(batch_id: str, client: OpenAI) -> bool:
+def is_batch_finished(batch_id: str, provider: str = "openai") -> bool:
+    """Check if a batch is finished using the appropriate provider backend."""
     try:
-        batch_info: Any = client.batches.retrieve(batch_id)
-        status: str = batch_info.status.lower()
-        if status in {"completed", "expired", "cancelled", "failed"}:
+        backend = get_batch_backend(provider)
+        handle = BatchHandle(provider=provider, batch_id=batch_id)
+        status_info = backend.get_status(handle)
+        if status_info.status in {BatchStatus.COMPLETED, BatchStatus.EXPIRED, BatchStatus.CANCELLED, BatchStatus.FAILED}:
             return True
         else:
             logger.info(
-                f"Batch {batch_id} status is '{status}', not finished yet.")
+                f"Batch {batch_id} status is '{status_info.status.value}', not finished yet.")
             return False
     except Exception as e:
         logger.error(f"Error retrieving batch {batch_id}: {e}")
@@ -303,68 +316,52 @@ def process_batch_output_file(file_path: Path) -> Dict[str, List[Any]]:
 
 def retrieve_responses_from_batch(
     tracking_record: Dict[str, Any],
-    client: OpenAI,
     temp_dir: Path,
-    batch_cache: Dict[str, Dict[str, Any]],
+    status_cache: Dict[str, BatchStatusInfo],
 ) -> List[Dict[str, Any]]:
+    """Retrieve responses from a batch using the appropriate provider backend."""
     responses: List[Dict[str, Any]] = []
     batch_id: Any = tracking_record.get("batch_id")
+    provider: str = tracking_record.get("provider", "openai")  # Default to openai for backward compatibility
+    
     if not batch_id:
         logger.error("No batch_id found in tracking record.")
         return responses
 
     batch_id = str(batch_id)
-    batch: Optional[Dict[str, Any]] = batch_cache.get(batch_id)
-    if not batch:
-        try:
-            batch_obj = client.batches.retrieve(batch_id)
-            batch = sdk_to_dict(batch_obj)
-            batch_cache[batch_id] = batch
-        except Exception as exc:
-            logger.error(f"Error retrieving batch {batch_id}: {exc}")
-            return responses
-
-    output_file_id = _resolve_file_id_by_keys(batch, OUTPUT_FILE_KEYS)
-    if not output_file_id:
-        error_file_id = _resolve_file_id_by_keys(batch, ERROR_FILE_KEYS)
-        if error_file_id:
-            _download_error_file(client, error_file_id, temp_dir, batch_id)
-        logger.error(f"No output file id found for batch {batch_id}.")
-        return responses
-
+    
     try:
-        file_stream = client.files.content(output_file_id)
-        blob = file_stream.read()
-        text = (
-            blob.decode("utf-8")
-            if isinstance(blob, (bytes, bytearray))
-            else str(blob)
-        )
-    except Exception as exc:
-        logger.error(f"Error downloading batch output for {batch_id}: {exc}")
-        return responses
-
-    for line in text.splitlines():
-        payload = line.strip()
-        if not payload:
-            continue
-        try:
-            out_record: Dict[str, Any] = json.loads(payload)
-        except json.JSONDecodeError:
-            logger.error(
-                "Error parsing a line from batch output %s for batch %s", output_file_id, batch_id
-            )
-            continue
-
-        if "response" in out_record:
-            responses.append(
-                _normalize_response_entry(
-                    {
-                        "response": out_record.get("response"),
-                        "custom_id": out_record.get("custom_id"),
-                    }
+        backend = get_batch_backend(provider)
+        handle = BatchHandle(provider=provider, batch_id=batch_id, metadata=tracking_record.get("metadata", {}))
+        
+        # Download results using the provider-agnostic backend
+        for result_item in backend.download_results(handle):
+            if result_item.success:
+                # Build response entry compatible with existing format
+                response_entry = {
+                    "custom_id": result_item.custom_id,
+                    "response": result_item.content,
+                    "raw_response": result_item.raw_response,
+                }
+                # Include parsed output if available
+                if result_item.parsed_output:
+                    response_entry["parsed_output"] = result_item.parsed_output
+                responses.append(_normalize_response_entry(response_entry))
+            else:
+                logger.warning(
+                    f"Request {result_item.custom_id} in batch {batch_id} failed: {result_item.error}"
                 )
-            )
+                # Include failed responses with error info
+                responses.append({
+                    "custom_id": result_item.custom_id,
+                    "response": None,
+                    "error": result_item.error,
+                    "error_code": result_item.error_code,
+                })
+                
+    except Exception as exc:
+        logger.error(f"Error downloading batch results for {batch_id} ({provider}): {exc}")
+        return responses
 
     if not responses:
         logger.warning(f"No responses retrieved for batch {batch_id}.")
@@ -407,11 +404,11 @@ def _safe_subsection(ui: Optional[UserInterface], title: str):
 def process_all_batches(
         root_folder: Path,
         processing_settings: Dict[str, Any],
-        client: OpenAI,
         schema_name: str,
         schema_config: Dict[str, Any],
         ui: Optional[UserInterface]
 ) -> None:
+    """Process all batch results using provider-agnostic backends."""
     temp_files: List[Path] = list(root_folder.rglob("*_temp*.jsonl"))
     if not temp_files:
         _safe_print(ui, f"No temporary batch files found in {root_folder}", "info")
@@ -433,14 +430,8 @@ def process_all_batches(
         _safe_print(ui, f"Failed to determine output directory: {exc}", "error")
         return
 
-    try:
-        batch_listing = list_all_batches(client)
-        batch_dict: Dict[str, Dict[str, Any]] = {
-            b.get("id"): b for b in batch_listing if isinstance(b, dict) and b.get("id")
-        }
-    except Exception as exc:
-        logger.warning("Unable to list all batches (falling back to on-demand retrieval): %s", exc)
-        batch_dict = {}
+    # Status cache for batch status info (provider-agnostic)
+    status_cache: Dict[str, BatchStatusInfo] = {}
 
     # Process each group of temp files (handling merged outputs for split files)
     for base_identifier, temp_file_group in file_groups.items():
@@ -506,51 +497,53 @@ def process_all_batches(
                 logger.warning("No batch IDs recovered for %s", base_identifier)
                 continue
 
-            # Check batch status and retrieve completed results
+            # Check batch status and retrieve completed results using provider-agnostic backends
             all_finished: bool = True
             completed_batches = []
             failed_batches = []
             missing_batches: List[str] = []
-            local_batch_cache: Dict[str, Dict[str, Any]] = batch_dict.copy()
 
             for track in tracking:
                 batch_id: Any = track.get("batch_id")
+                provider: str = track.get("provider", "openai")  # Default to openai for backward compatibility
+                
                 if not batch_id:
                     logger.error(f"Missing batch_id in tracking record for {base_identifier}")
                     continue
                 batch_id = str(batch_id)
-                batch: Optional[Dict[str, Any]] = local_batch_cache.get(batch_id)
-                if not batch:
-                    try:
-                        batch_obj: Any = client.batches.retrieve(batch_id)
-                        batch = sdk_to_dict(batch_obj)
-                        local_batch_cache[batch_id] = batch
-                    except Exception as exc:
-                        logger.error(f"Error retrieving batch {batch_id}: {exc}")
-                        _safe_print(ui, f"Batch {batch_id} not found (may have expired or been deleted)", "error")
-                        failed_batches.append((track, f"not found: {exc}"))
-                        missing_batches.append(batch_id)
-                        all_finished = False
-                        continue
+                
+                # Use provider-agnostic backend to check status
+                try:
+                    backend = get_batch_backend(provider)
+                    handle = BatchHandle(provider=provider, batch_id=batch_id, metadata=track.get("metadata", {}))
+                    status_info = backend.get_status(handle)
+                    status_cache[batch_id] = status_info
+                except Exception as exc:
+                    logger.error(f"Error retrieving batch {batch_id} ({provider}): {exc}")
+                    _safe_print(ui, f"Batch {batch_id} not found (may have expired or been deleted)", "error")
+                    failed_batches.append((track, f"not found: {exc}"))
+                    missing_batches.append(batch_id)
+                    all_finished = False
+                    continue
 
-                status: str = str(batch.get("status", "")).lower()
-                if status == "completed":
+                status = status_info.status
+                if status == BatchStatus.COMPLETED:
                     completed_batches.append(track)
-                    _safe_print(ui, f"Batch {batch_id}: completed ✓", "success")
-                    logger.info(f"Batch {batch_id} completed.")
-                elif status in {"expired", "failed", "cancelled"}:
-                    if status == "failed":
-                        diagnosis: str = diagnose_batch_failure(batch_id, client)
+                    _safe_print(ui, f"Batch {batch_id} ({provider}): completed ✓", "success")
+                    logger.info(f"Batch {batch_id} ({provider}) completed.")
+                elif status in {BatchStatus.EXPIRED, BatchStatus.FAILED, BatchStatus.CANCELLED}:
+                    if status == BatchStatus.FAILED:
+                        diagnosis: str = status_info.error_message or backend.diagnose_failure(handle)
                         _safe_print(ui, f"Batch {batch_id} failed: {diagnosis}", "warning")
                         logger.warning(f"Batch {batch_id} failed: {diagnosis}")
                     else:
-                        _safe_print(ui, f"Batch {batch_id}: {status}", "warning")
-                        logger.warning(f"Batch {batch_id} is {status}.")
-                    failed_batches.append((track, status))
+                        _safe_print(ui, f"Batch {batch_id}: {status.value}", "warning")
+                        logger.warning(f"Batch {batch_id} is {status.value}.")
+                    failed_batches.append((track, status.value))
                     all_finished = False
                 else:
-                    _safe_print(ui, f"Batch {batch_id}: {status} (still processing...)", "info")
-                    logger.info(f"Batch {batch_id} is {status}; not finished.")
+                    _safe_print(ui, f"Batch {batch_id}: {status.value} (still processing...)", "info")
+                    logger.info(f"Batch {batch_id} is {status.value}; not finished.")
                     all_finished = False
 
             # Display progress
@@ -568,10 +561,10 @@ def process_all_batches(
                 logger.info(f"Skipping finalization for {base_identifier} (incomplete batches).")
                 continue
 
-            # Retrieve responses from completed batches
+            # Retrieve responses from completed batches using provider-agnostic backends
             for track in completed_batches:
                 batch_responses: List[Any] = retrieve_responses_from_batch(
-                    track, client, temp_file_group[0].parent, local_batch_cache
+                    track, temp_file_group[0].parent, status_cache
                 )
                 responses.extend(batch_responses)
 
@@ -662,14 +655,19 @@ def process_all_batches(
 
 
 class CheckBatchesScript(DualModeScript):
-    """Script to check and retrieve batch processing results."""
+    """Script to check and retrieve batch processing results.
+    
+    Supports multiple providers:
+    - OpenAI: Uses OpenAI Batch API
+    - Anthropic: Uses Anthropic Message Batches API
+    - Google: Uses Google Gemini Batch API
+    
+    Provider detection is automatic based on tracking records in temp files.
+    """
     
     def __init__(self):
         super().__init__("check_batches")
-        api_key = os.getenv("OPENAI_API_KEY", "").strip()
-        if not api_key:
-            raise ValueError("OPENAI_API_KEY environment variable is not set or is empty")
-        self.client: OpenAI = OpenAI(api_key=api_key)
+        # No longer require OPENAI_API_KEY at init - provider backends handle their own keys
         self.repo_info_list: List[Tuple[str, Path, Dict[str, Any]]] = []
         self.processing_settings: Dict[str, Any] = {}
     
@@ -702,7 +700,6 @@ class CheckBatchesScript(DualModeScript):
             process_all_batches(
                 root_folder=repo_dir,
                 processing_settings=self.processing_settings,
-                client=self.client,
                 schema_name=schema_name,
                 schema_config=schema_config,
                 ui=self.ui,
@@ -767,7 +764,6 @@ class CheckBatchesScript(DualModeScript):
             process_all_batches(
                 root_folder=repo_dir,
                 processing_settings=self.processing_settings,
-                client=self.client,
                 schema_name=schema_name,
                 schema_config=schema_config,
                 ui=None,

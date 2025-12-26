@@ -31,6 +31,44 @@ logger = setup_logger(__name__)
 ProviderType = Literal["openai", "anthropic", "google", "openrouter"]
 
 
+def _normalize_schema_for_anthropic(schema: Any) -> Any:
+    if isinstance(schema, list):
+        return [_normalize_schema_for_anthropic(item) for item in schema]
+
+    if not isinstance(schema, dict):
+        return schema
+
+    type_val = schema.get("type")
+    if isinstance(type_val, list):
+        types = [t for t in type_val if t != "null"]
+        has_null = any(t == "null" for t in type_val)
+        any_of: List[Dict[str, Any]] = []
+
+        for t in types:
+            variant: Dict[str, Any] = {}
+            for key, value in schema.items():
+                if key == "type":
+                    continue
+                variant[key] = _normalize_schema_for_anthropic(value)
+            variant["type"] = t
+            any_of.append(variant)
+
+        if has_null:
+            any_of.append({"type": "null"})
+
+        normalized: Dict[str, Any] = {}
+        for meta_key in ("title", "description", "default", "examples"):
+            if meta_key in schema:
+                normalized[meta_key] = _normalize_schema_for_anthropic(schema[meta_key])
+        normalized["anyOf"] = any_of
+        return normalized
+
+    normalized = {}
+    for key, value in schema.items():
+        normalized[key] = _normalize_schema_for_anthropic(value)
+    return normalized
+
+
 def _load_concurrency_config() -> Dict[str, Any]:
     """Load concurrency config for retry and rate limiting settings."""
     try:
@@ -388,13 +426,20 @@ class LangChainLLM:
         
         elif provider == "anthropic":
             from langchain_anthropic import ChatAnthropic
-            
+
+            anthropic_params = dict(common_params)
+            if "temperature" in anthropic_params and "top_p" in anthropic_params:
+                if anthropic_params.get("temperature") is not None:
+                    anthropic_params.pop("top_p", None)
+                else:
+                    anthropic_params.pop("temperature", None)
+
             return ChatAnthropic(
                 model=self.config.model,
                 api_key=self.config.api_key,
                 timeout=self.config.timeout,
                 max_retries=self.config.max_retries,
-                **common_params,
+                **anthropic_params,
             )
         
         elif provider == "google":
@@ -516,7 +561,28 @@ class LangChainLLM:
         try:
             # Use structured output if schema provided and supported
             if json_schema and self.supports_structured_outputs:
-                response = await self._invoke_with_schema(lc_messages, json_schema)
+                try:
+                    response = await self._invoke_with_schema(lc_messages, json_schema)
+                except Exception as e:
+                    provider = getattr(self.config, "provider", None)
+                    msg = str(e)
+                    anthropic_schema_limit = (
+                        provider == "anthropic"
+                        and (
+                            "Tool schema contains too many conditional branches" in msg
+                            or "reduce the use of anyOf constructs" in msg
+                            or "anyOf constructs (limit: 8)" in msg
+                        )
+                    )
+                    if anthropic_schema_limit:
+                        logger.warning(
+                            "Anthropic structured output schema too complex; falling back to plain invocation: %s",
+                            msg,
+                        )
+                        response_data["structured_output_fallback"] = True
+                        response = await chat_model.ainvoke(lc_messages)
+                    else:
+                        raise
             else:
                 response = await chat_model.ainvoke(lc_messages)
             
@@ -638,9 +704,15 @@ class LangChainLLM:
         """Invoke Anthropic with structured output via tool calling."""
         # Anthropic uses tool calling for structured output
         # Use include_raw=True to get AIMessage with usage_metadata
+        schema_def = _normalize_schema_for_anthropic(schema_def)
+        if isinstance(schema_def, dict):
+            schema_def.setdefault("title", schema_name or "Response")
+            schema_def.setdefault(
+                "description",
+                "Return a JSON object that conforms to this schema.",
+            )
         structured_model = self._chat_model.with_structured_output(
             schema_def,
-            method="json_mode",
             include_raw=True,
         )
         result = await structured_model.ainvoke(messages)

@@ -9,20 +9,31 @@ Supports multiple LLM providers via LangChain:
 - Anthropic (Claude)
 - Google (Gemini)
 - OpenRouter (multi-provider access)
+
+Batch processing supports OpenAI, Anthropic, and Google providers.
+OpenRouter does not support batch processing.
 """
 
 import asyncio
 import json
 import logging
 import os
-from abc import ABC, abstractmethod
+import time
+import random
 from pathlib import Path
+from abc import ABC, abstractmethod
 from typing import List, Dict, Any, Optional
 
 from modules.core.token_tracker import get_token_tracker
 from modules.llm.batching import build_batch_files, submit_batch
 from modules.llm.openai_utils import open_extractor, process_text_chunk
 from modules.llm.langchain_provider import ProviderConfig
+from modules.llm.batch import (
+    BatchRequest,
+    BatchHandle,
+    get_batch_backend,
+    supports_batch,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -99,6 +110,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         extraction_cfg = (
             (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
         )
+        retry_cfg = (extraction_cfg.get("retry", {}) or {})
         total_chunks = len(chunks)
         try:
             configured_limit = int(extraction_cfg.get("concurrency_limit", total_chunks or 1))
@@ -106,6 +118,18 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
             configured_limit = total_chunks or 1
         concurrency_limit = max(1, min(configured_limit, total_chunks or 1))
         delay_between_tasks = float(extraction_cfg.get("delay_between_tasks", 0.0) or 0.0)
+
+        try:
+            retry_attempts = int(retry_cfg.get("attempts", 1))
+        except Exception:
+            retry_attempts = 1
+        retry_attempts = max(1, retry_attempts)
+        wait_min_seconds = float(retry_cfg.get("wait_min_seconds", 1.0) or 1.0)
+        wait_max_seconds = float(retry_cfg.get("wait_max_seconds", 60.0) or 60.0)
+        jitter_max_seconds = float(retry_cfg.get("jitter_max_seconds", 0.0) or 0.0)
+
+        if provider == "anthropic":
+            concurrency_limit = 1
 
         # Token tracking
         token_tracker = get_token_tracker()
@@ -124,42 +148,59 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                         if delay_between_tasks > 0:
                             await asyncio.sleep(delay_between_tasks)
                         
-                        try:
-                            result = await process_text_chunk(
-                                text_chunk=chunk,
-                                extractor=extractor,
-                                system_message=dev_message,
-                                json_schema=schema
-                            )
-                            
-                            # Track tokens if enabled
-                            if token_tracker.enabled:
-                                usage = result.get("usage", {})
-                                input_tokens = usage.get("input_tokens", 0)
-                                output_tokens = usage.get("output_tokens", 0)
-                                token_tracker.add_tokens(input_tokens + output_tokens)
-                            
-                            # Write to temp file
-                            request_obj = handler.prepare_payload(
-                                chunk, dev_message, model_config, schema
-                            )
-                            request_obj["custom_id"] = f"{file_path.stem}-chunk-{idx}"
-                            
-                            response_obj = {
-                                "custom_id": request_obj["custom_id"],
-                                "response": {
-                                    "body": result
+                        for attempt in range(retry_attempts):
+                            try:
+                                result = await process_text_chunk(
+                                    text_chunk=chunk,
+                                    extractor=extractor,
+                                    system_message=dev_message,
+                                    json_schema=schema
+                                )
+
+                                # Track tokens if enabled
+                                if token_tracker.enabled:
+                                    usage = result.get("usage", {})
+                                    input_tokens = usage.get("input_tokens", 0)
+                                    output_tokens = usage.get("output_tokens", 0)
+                                    token_tracker.add_tokens(input_tokens + output_tokens)
+
+                                # Write to temp file
+                                request_obj = handler.prepare_payload(
+                                    chunk, dev_message, model_config, schema
+                                )
+                                request_obj["custom_id"] = f"{file_path.stem}-chunk-{idx}"
+
+                                response_obj = {
+                                    "custom_id": request_obj["custom_id"],
+                                    "response": {
+                                        "body": result
+                                    }
                                 }
-                            }
-                            tempf.write(json.dumps(response_obj) + "\n")
-                            tempf.flush()
-                            
-                            console_print(f"[INFO] Processed chunk {idx}/{total_chunks}")
-                            return result
-                        except Exception as e:
-                            logger.error(f"Error processing chunk {idx}: {e}", exc_info=e)
-                            console_print(f"[ERROR] Failed to process chunk {idx}: {e}")
-                            return {"error": str(e)}
+                                tempf.write(json.dumps(response_obj) + "\n")
+                                tempf.flush()
+
+                                console_print(f"[INFO] Processed chunk {idx}/{total_chunks}")
+                                return result
+                            except Exception as e:
+                                msg = str(e)
+                                is_429 = "429" in msg or "rate_limit" in msg.lower()
+                                if provider == "anthropic" and is_429 and attempt < (retry_attempts - 1):
+                                    base_wait = min(wait_max_seconds, wait_min_seconds * (2 ** attempt))
+                                    jitter = random.uniform(0.0, jitter_max_seconds) if jitter_max_seconds > 0 else 0.0
+                                    wait_s = min(wait_max_seconds, base_wait + jitter)
+                                    logger.warning(
+                                        "Rate-limited on chunk %s (attempt %s/%s). Waiting %.1fs and retrying.",
+                                        idx,
+                                        attempt + 1,
+                                        retry_attempts,
+                                        wait_s,
+                                    )
+                                    await asyncio.sleep(wait_s)
+                                    continue
+
+                                logger.error(f"Error processing chunk {idx}: {e}", exc_info=e)
+                                console_print(f"[ERROR] Failed to process chunk {idx}: {e}")
+                                return {"error": str(e)}
 
                 # Process all chunks concurrently
                 tasks = [
@@ -173,7 +214,14 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
 
 
 class BatchProcessingStrategy(ProcessingStrategy):
-    """Batch (deferred) processing strategy."""
+    """Batch (deferred) processing strategy.
+    
+    Supports multiple providers:
+    - OpenAI: Uses OpenAI Batch API with /v1/responses endpoint
+    - Anthropic: Uses Anthropic Message Batches API
+    - Google: Uses Google Gemini Batch API
+    - OpenRouter: Not supported (falls back to sync or raises error)
+    """
 
     async def process_chunks(
         self,
@@ -186,76 +234,106 @@ class BatchProcessingStrategy(ProcessingStrategy):
         temp_jsonl_path: Path,
         console_print,
     ) -> List[Dict[str, Any]]:
-        """Prepare and submit batch processing job."""
-        console_print(f"[INFO] Preparing batch processing for {len(chunks)} chunks...")
+        """Prepare and submit batch processing job using provider-agnostic backend."""
+        # Detect provider from model config
+        tm = model_config.get("transcription_model", {})
+        provider = tm.get("provider")
+        if not provider:
+            model_name = tm.get("name", "")
+            provider = ProviderConfig._detect_provider(model_name)
         
-        request_lines: List[str] = []
-        try:
-            for idx, chunk in enumerate(chunks, 1):
-                request_obj = handler.prepare_payload(
-                    chunk,
-                    dev_message,
-                    model_config,
-                    schema,
-                )
-                request_obj["custom_id"] = f"{file_path.stem}-chunk-{idx}"
-                request_lines.append(json.dumps(request_obj))
-
-            batch_files = build_batch_files(request_lines, temp_jsonl_path)
-            if not batch_files:
-                error_msg = f"No batch files were generated for {file_path.name}."
-                console_print(f"[ERROR] {error_msg}")
-                raise RuntimeError(error_msg)
-
-            logger.info(
-                "Created %s batch request(s) across %s file(s) for %s",
-                len(request_lines),
-                len(batch_files),
-                file_path.name
+        console_print(f"[INFO] Preparing batch processing for {len(chunks)} chunks (provider: {provider})...")
+        
+        # Check if provider supports batch processing
+        if not supports_batch(provider):
+            error_msg = (
+                f"Provider '{provider}' does not support batch processing. "
+                f"Use synchronous mode or switch to openai, anthropic, or google."
             )
-            console_print(
-                f"[INFO] Created {len(request_lines)} batch requests split into {len(batch_files)} file(s)."
-            )
-        except Exception as e:
-            logger.error(f"Error preparing batch requests for {file_path.name}: {e}")
-            console_print(f"[ERROR] Failed to prepare batch requests: {e}")
-            raise
-
-        submitted_batches: List[str] = []
-        for batch_file in batch_files:
-            try:
-                console_print(f"[INFO] Submitting batch file {batch_file.name}...")
-                batch_response = submit_batch(batch_file)
-                tracking_record = {
-                    "batch_tracking": {
-                        "batch_id": batch_response.id,
-                        "timestamp": batch_response.created_at,
-                        "batch_file": str(batch_file)
-                    }
+            console_print(f"[ERROR] {error_msg}")
+            raise ValueError(error_msg)
+        
+        # Build BatchRequest objects for the provider-agnostic backend
+        batch_requests: List[BatchRequest] = []
+        for idx, chunk in enumerate(chunks, 1):
+            custom_id = f"{file_path.stem}-chunk-{idx}"
+            batch_requests.append(BatchRequest(
+                custom_id=custom_id,
+                text=chunk,
+                order_index=idx,
+                metadata={
+                    "file_path": str(file_path),
+                    "chunk_index": idx,
+                    "total_chunks": len(chunks),
                 }
-                with batch_file.open("a", encoding="utf-8") as tempf:
-                    tempf.write(json.dumps(tracking_record) + "\n")
-                submitted_batches.append(batch_response.id)
-                console_print(
-                    f"[SUCCESS] Batch submitted successfully. Batch ID: {batch_response.id}"
-                )
-                logger.info(
-                    f"Batch submitted successfully. Tracking record appended to %s",
-                    batch_file
-                )
-            except Exception as e:
-                logger.error(f"Error during batch submission for file {batch_file}: {e}")
-                console_print(f"[ERROR] Failed to submit batch file {batch_file.name}: {e}")
-                raise
-
-        logger.info(
-            "Submitted %s batch file(s) for %s: %s",
-            len(submitted_batches),
-            file_path.name,
-            submitted_batches
-        )
+            ))
+        
+        # Get the appropriate batch backend
+        try:
+            backend = get_batch_backend(provider)
+        except ValueError as e:
+            console_print(f"[ERROR] {e}")
+            raise
+        
+        # Extract schema name from handler if available
+        schema_name = getattr(handler, "schema_name", None) or "ExtractionSchema"
+        
+        # Submit batch using the provider-agnostic backend
+        try:
+            console_print(f"[INFO] Submitting batch to {provider}...")
+            handle: BatchHandle = await asyncio.to_thread(
+                backend.submit_batch,
+                batch_requests,
+                model_config,
+                system_prompt=dev_message,
+                schema=schema,
+                schema_name=schema_name,
+            )
+            
+            # Write tracking record to temp JSONL file
+            tracking_record = {
+                "batch_tracking": {
+                    "batch_id": handle.batch_id,
+                    "provider": handle.provider,
+                    "timestamp": int(time.time()),
+                    "request_count": len(batch_requests),
+                    "metadata": handle.metadata,
+                }
+            }
+            
+            # Also write batch request metadata for result correlation
+            with temp_jsonl_path.open("w", encoding="utf-8") as tempf:
+                # Write request metadata lines first
+                for req in batch_requests:
+                    request_meta = {
+                        "batch_request": {
+                            "custom_id": req.custom_id,
+                            "order_index": req.order_index,
+                            "metadata": req.metadata,
+                        }
+                    }
+                    tempf.write(json.dumps(request_meta) + "\n")
+                # Write tracking record at the end
+                tempf.write(json.dumps(tracking_record) + "\n")
+            
+            console_print(
+                f"[SUCCESS] Batch submitted successfully. Batch ID: {handle.batch_id}"
+            )
+            logger.info(
+                "Batch submitted to %s. ID: %s, Requests: %d, File: %s",
+                provider,
+                handle.batch_id,
+                len(batch_requests),
+                temp_jsonl_path
+            )
+            
+        except Exception as e:
+            logger.error(f"Error during batch submission: {e}", exc_info=True)
+            console_print(f"[ERROR] Failed to submit batch: {e}")
+            raise
+        
         console_print(
-            f"[SUCCESS] Submitted {len(submitted_batches)} batch(es). "
+            f"[SUCCESS] Submitted batch to {provider}. "
             f"Use check_batches.py to monitor progress."
         )
         

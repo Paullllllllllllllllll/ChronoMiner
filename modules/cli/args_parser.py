@@ -359,7 +359,20 @@ def get_files_from_path(path: Path, pattern: str = "*.txt", exclude_patterns: Op
     if path.is_dir():
         files = []
         for file in path.rglob(pattern):
-            if file.is_file() and not any(file.match(excl) for excl in exclude_patterns):
+            if not file.is_file():
+                continue
+
+            try:
+                rel_parts = file.relative_to(path).parts
+            except Exception:
+                rel_parts = file.parts
+
+            if rel_parts:
+                top = str(rel_parts[0]).lower()
+                if top == "output" or top.endswith("_outputs"):
+                    continue
+
+            if not any(file.match(excl) for excl in exclude_patterns):
                 files.append(file)
         return files
     
