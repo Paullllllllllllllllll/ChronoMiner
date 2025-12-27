@@ -1,61 +1,51 @@
 # chunking_and_context.yaml
+# ==========================
+# Controls text chunking, context injection, and semantic boundary detection.
+# Used by: modules/core/chunking_service.py, modules/operations/line_ranges/readjuster.py
 
+# ── Chunking ───────────────────────────────────────────────────────────────────
+# Controls how source text is split into chunks for LLM processing.
 chunking:
-  default_tokens_per_chunk: 3000  # Chunk size (in tokens) for splitting the text into manageable pieces.
+  default_tokens_per_chunk: 3000   # Target chunk size in tokens (not characters)
+                                   # Larger = fewer API calls but may hit context limits
+                                   # Smaller = more granular but higher API costs
 
-context: # Define whether or not to pass additional context to the model
-  use_additional_context: true
+# ── Context ────────────────────────────────────────────────────────────────────
+# Controls additional context injection into prompts.
+# Used by: modules/core/prompt_context.py
+context:
+  use_additional_context: true     # When true, schema-specific context from additional_context/
+                                   # directory is prepended to prompts for better extraction quality
 
+# ── Matching ───────────────────────────────────────────────────────────────────
+# Text normalization settings for semantic boundary marker matching.
+# These control how the LLM's suggested boundary markers are matched against source text.
+# Used by: modules/operations/line_ranges/readjuster.py
 matching:
-  # Configuration for semantic boundary text matching in line range readjustment
-  
-  # normalize_whitespace: Collapse multiple whitespace characters into single spaces
-  normalize_whitespace: true
-  
-  # case_sensitive: If false, perform case-insensitive matching
-  case_sensitive: false
-  
-  # normalize_diacritics: Remove or normalize diacritical marks (accents, umlauts, etc.)
-  # Useful for historical texts with inconsistent diacritic usage
-  normalize_diacritics: true
-  
-  # strip_punctuation: Remove common punctuation marks before matching
-  # Set to false if punctuation is semantically important (e.g., "§ 1." vs "§ 2.")
-  strip_punctuation: false
-  
-  # allow_substring_match: If true, boundary text can match as a substring within a line
-  # If false, the entire line (after normalization) must match exactly
-  allow_substring_match: true
-  
-  # min_substring_length: Minimum character length for a valid boundary substring match
-  # Prevents false positives from very short strings
-  min_substring_length: 5
+  normalize_whitespace: true       # Collapse multiple whitespace chars into single spaces
+  case_sensitive: false            # When false, "CHAPTER" matches "chapter"
+  normalize_diacritics: true       # Remove accents/umlauts (é→e, ü→u)
+                                   # Useful for historical texts with inconsistent encoding
+  strip_punctuation: false         # Remove punctuation before matching
+                                   # Keep false if punctuation is semantic (e.g., "§ 1." vs "§ 2.")
+  allow_substring_match: true      # Allow marker to match within a line (not just whole line)
+  min_substring_length: 5          # Minimum chars for valid substring match
+                                   # Prevents false positives from very short markers
 
+# ── Retry ──────────────────────────────────────────────────────────────────────
+# Retry and validation settings for semantic boundary detection.
+# Controls how the system handles low-confidence or failed boundary detections.
+# Used by: modules/operations/line_ranges/readjuster.py
 retry:
-  # Configuration for retrying in semantic boundary detection
-  
-  # certainty_threshold: Minimum certainty score (0-100) required to accept a model response
-  # Responses below this threshold trigger retries with different context windows
-  certainty_threshold: 70
-  
-  # max_low_certainty_retries: Maximum retries when model returns certainty below threshold
-  max_low_certainty_retries: 12
-  
-  # max_marker_mismatch_retries: Attempts to request a different semantic substring when prior markers weren't found
-  max_marker_mismatch_retries: 12
-    
-  # max_context_expansion_attempts: Maximum number of times to expand context when model requests more context
-  # This handles the needs_more_context response from the model
-  max_context_expansion_attempts: 6
-  
-  # delete_ranges_with_no_content: If true, delete line ranges after confirming no semantic content exists
-  # If the broader scan also finds no content, the range is deleted
-  delete_ranges_with_no_content: true
-  
-  # scan_range_multiplier: Multiplier for broader scan when verifying no content
-  # The scan area will be (original_range_size * multiplier) lines in each direction
-  scan_range_multiplier: 2
-
-  # max_gap_between_ranges: Maximum number of unassigned lines allowed between adjusted ranges
-  # Set to 0 to keep ranges flush; increase if limited gaps are acceptable.
-  max_gap_between_ranges: 2
+  certainty_threshold: 70          # Minimum confidence (0-100) to accept LLM response
+                                   # Below this triggers retry with adjusted context
+  max_low_certainty_retries: 12    # Max retries when confidence is below threshold
+  max_marker_mismatch_retries: 12  # Max attempts to request alternative markers
+                                   # when suggested markers don't match source text
+  max_context_expansion_attempts: 6 # Max times to expand visible context window
+                                   # when LLM signals needs_more_context
+  delete_ranges_with_no_content: true  # Remove line ranges confirmed to have no semantic content
+  scan_range_multiplier: 2         # Multiplier for verification scan area
+                                   # Scans (range_size × multiplier) lines around boundary
+  max_gap_between_ranges: 2        # Maximum unassigned lines allowed between ranges
+                                   # Set to 0 for flush ranges; increase for looser alignment

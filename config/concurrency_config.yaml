@@ -1,25 +1,38 @@
 # concurrency_config.yaml
+# ========================
+# Controls concurrency, timeouts, and retry behavior for API calls.
+# Used by: modules/core/processing_strategy.py, modules/llm/langchain_provider.py
 
 concurrency:
+  # ── Text Processing ──────────────────────────────────────────────────────────
+  # Settings for line range generation and text preprocessing operations.
   text_processing:
-    concurrency_limit: 20 # Max number of concurrent requests
-    delay_between_tasks: 0.1 # Delay between single requests
-  extraction:
-    concurrency_limit: 20     # HTTP connector pool sizing hint
-    delay_between_tasks: 0.1   # Optional delay between sequential tasks
-    service_tier: flex      # One of: auto, default, flex, priority
-    timeouts:                  # Optional overrides per request stage (seconds)
-      total: 900               # Overall request timeout
-      connect: 120             # Connection acquisition timeout
-      sock_connect: 120        # TCP handshake timeout
-      sock_read: 600           # Server response timeout
-    retry:                     # Retry policy for transient failures
-      attempts: 150
-      wait_min_seconds: 15
-      wait_max_seconds: 120
-      jitter_max_seconds: 5
+    concurrency_limit: 20      # Maximum parallel API requests for text processing
+    delay_between_tasks: 0.1   # Seconds to wait between dispatching tasks (rate limiting)
 
-# Daily Token Limit
+  # ── Extraction ───────────────────────────────────────────────────────────────
+  # Settings for LLM extraction calls (synchronous and batch modes).
+  extraction:
+    concurrency_limit: 20      # Maximum parallel API requests for extraction
+                               # Note: Anthropic is automatically limited to 1 due to rate limits
+    delay_between_tasks: 0.1   # Seconds to wait between dispatching tasks (rate limiting)
+    service_tier: flex         # OpenAI service tier: auto | default | flex | priority
+                               # 'flex' offers lower cost with variable latency
+
+    # Timeout configuration (seconds)
+    timeouts:
+      total: 900               # Maximum time for entire request lifecycle
+
+    # Retry policy for transient failures (429 rate limits, network errors)
+    retry:
+      attempts: 150            # Maximum retry attempts before failing
+      wait_min_seconds: 15     # Initial backoff wait time
+      wait_max_seconds: 120    # Maximum backoff wait time (exponential backoff capped here)
+      jitter_max_seconds: 5    # Random jitter added to prevent thundering herd
+
+# ── Daily Token Limit ──────────────────────────────────────────────────────────
+# Optional safeguard to cap daily API token consumption.
+# Used by: modules/core/token_tracker.py
 daily_token_limit:
-  enabled: false  # Enable daily token limit enforcement
-  daily_tokens: 9000000  # Maximum tokens per day (9 million)
+  enabled: false               # Set true to enforce daily token budget
+  daily_tokens: 9000000        # Maximum tokens per day (input + output combined)
