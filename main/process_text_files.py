@@ -294,6 +294,8 @@ async def _run_interactive_mode(
                 state["global_chunking_method"],
                 state["use_batch"],
                 state["context_settings"],
+                model_config=model_config,
+                paths_config=paths_config,
             )
             
             if not proceed:

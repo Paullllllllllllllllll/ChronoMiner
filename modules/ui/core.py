@@ -541,25 +541,35 @@ class UserInterface:
         selected_schema_name: str,
         global_chunking_method: Optional[str],
         use_batch: bool,
-        context_settings: Dict[str, Any]
+        context_settings: Dict[str, Any],
+        model_config: Optional[Dict[str, Any]] = None,
+        paths_config: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
-        Display a summary of the selected processing options and ask for confirmation.
+        Display a detailed summary of the selected processing options and ask for confirmation.
 
         :param files: List of selected file paths
         :param selected_schema_name: Name of the selected schema
         :param global_chunking_method: Selected chunking method
         :param use_batch: Whether batch processing is enabled
         :param context_settings: Context settings dictionary
+        :param model_config: Model configuration dictionary
+        :param paths_config: Paths configuration dictionary
         :return: True if user confirms, False otherwise
         """
         self.print_section_header("Processing Summary")
+        self.console_print("  Review your selections before processing")
+        self.console_print(self.HORIZONTAL_LINE)
 
         file_type = "file" if len(files) == 1 else "files"
-        self.console_print(f"\n{self.BOLD}Ready to process {len(files)} {file_type} with the following settings:{self.RESET}\n")
+        self.console_print(f"\n  Ready to process {self.BOLD}{len(files)}{self.RESET} text {file_type}\n")
         
-        self.console_print(f"  📋 Schema: {self.BOLD}{selected_schema_name}{self.RESET}")
-
+        # === Processing Configuration ===
+        self.console_print(f"  {self.BOLD}Processing Configuration:{self.RESET}")
+        self.console_print(self.HORIZONTAL_LINE)
+        
+        self.console_print(f"    • Schema: {selected_schema_name}")
+        
         chunking_display = {
             "auto": "Automatic chunking",
             "auto-adjust": "Manual real-time adjustment",
@@ -567,30 +577,80 @@ class UserInterface:
             "adjust-line-ranges": "AI-assisted line range adjustment",
             "per-file": "Per-file chunking selection"
         }
-
-        self.console_print(
-            f"  ✂️  Chunking: {chunking_display.get(global_chunking_method, 'Per-file selection')}")
+        self.console_print(f"    • Chunking method: {chunking_display.get(global_chunking_method, 'Per-file selection')}")
 
         processing_mode = "Batch (asynchronous)" if use_batch else "Synchronous (real-time)"
-        self.console_print(f"  ⚙️  Processing: {processing_mode}")
+        self.console_print(f"    • Processing mode: {processing_mode}")
 
+        # Show model and provider details
+        if model_config:
+            tm = model_config.get("transcription_model", {})
+            provider = tm.get("provider", "auto-detect")
+            model_name = tm.get("name", "unknown")
+            self.console_print(f"    • Provider: {provider.upper() if provider != 'auto-detect' else 'Auto-detect'}")
+            self.console_print(f"    • Model: {model_name}")
+            
+            # Show key model parameters (dimmed)
+            temperature = tm.get("temperature", 0.0)
+            max_tokens = tm.get("max_output_tokens") or tm.get("max_tokens", 32000)
+            self.console_print(f"    {self.DIM}• Temperature: {temperature}{self.RESET}")
+            self.console_print(f"    {self.DIM}• Max output tokens: {max_tokens:,}{self.RESET}")
+            
+            # Show reasoning effort if configured
+            reasoning = tm.get("reasoning", {})
+            if reasoning.get("effort"):
+                self.console_print(f"    {self.DIM}• Reasoning effort: {reasoning['effort']}{self.RESET}")
+
+        # Show context settings
         if context_settings.get("use_additional_context", False):
             context_source = "Default schema-specific" if context_settings.get(
                 "use_default_context", False) else "File-specific"
-            self.console_print(f"  📝 Context: {context_source}")
+            self.console_print(f"    • Additional context: Yes ({context_source})")
         else:
-            self.console_print("  📝 Context: None")
+            self.console_print(f"    {self.DIM}• Additional context: No{self.RESET}")
+        
+        self.console_print(self.HORIZONTAL_LINE)
+        
+        # === Output Location ===
+        self.console_print(f"\n  {self.BOLD}Output Location:{self.RESET}")
+        self.console_print(self.HORIZONTAL_LINE)
+        
+        if paths_config:
+            use_input_as_output = paths_config.get('general', {}).get('input_paths_is_output_path', False)
+            if use_input_as_output:
+                self.console_print("    • Output: Same directory as input files")
+            else:
+                # Show configured output directory for this schema
+                schemas_paths = paths_config.get('schemas_paths', {})
+                schema_config = schemas_paths.get(selected_schema_name, {})
+                output_dir = schema_config.get('output', 'configured output directory')
+                self.console_print(f"    • Output directory: {output_dir}")
+                
+                # Show output formats if configured
+                output_formats = []
+                if schema_config.get('csv_output', False):
+                    output_formats.append('CSV')
+                if schema_config.get('docx_output', False):
+                    output_formats.append('DOCX')
+                if schema_config.get('txt_output', False):
+                    output_formats.append('TXT')
+                if output_formats:
+                    self.console_print(f"    • Output formats: {', '.join(output_formats)}")
+        else:
+            self.console_print("    • Output: Configured output directory")
+        
+        self.console_print(self.HORIZONTAL_LINE)
 
-        # Show files
-        self.console_print(f"\n{self.BOLD}Selected files:{self.RESET}")
+        # === Selected Files ===
+        self.console_print(f"\n  {self.BOLD}Selected Files (first 5 shown):{self.RESET}")
         for i, item in enumerate(files[:5], 1):
-            self.console_print(f"  {i}. {item.name}")
+            self.console_print(f"    {self.DIM}{i}. {item.name}{self.RESET}")
 
         if len(files) > 5:
-            self.console_print(f"  ... and {len(files) - 5} more")
+            self.console_print(f"    {self.DIM}... and {len(files) - 5} more{self.RESET}")
 
         self.console_print("")  # Empty line
-        return self.confirm("Proceed with processing?", default=False)
+        return self.confirm("Proceed with processing?", default=True)
 
     def ask_file_chunking_method(self, file_name: str) -> str:
         """
