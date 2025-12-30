@@ -1,9 +1,0 @@
-The input text consists of historical address book entries from Swiss cities dating from approximately 1800 to 1960. Entries typically contain personal names, street addresses, occupations, honorifics, and supplementary notes rendered in period spelling. The text will appear mostly in Swiss German, although many names will be of foreign origin (French, Italian, etc.). Natural semantic markers for this type of text are the beginnings of individual address book entries.
-
-Extraction task rules (use when extracting data)
-- Capture `last_name` and `first_name` exactly as written, preserving diacritics, and record honorifics in `honorific`; use null when the source omits a form of address.
-- Populate the `address` object with `street` and `street_number`, entering null where the source lists partial details but maintain the object structure.
-- Record `occupation`, `section`, and `additional_notes` verbatim when present; favor null over inferred wording when the entry is silent.
-
-Semantic Boundary task rules (use when identifying semantic boundaries)
-- Treat the start of a new individual entry as a boundary.

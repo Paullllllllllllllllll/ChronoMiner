@@ -1,9 +1,0 @@
-The input text consists of bibliographic records describing historical culinary and household literature (e.g., cookbooks, household manuals, foodstuff guides, food production regulations, etc.) date from approximately 1470 to 1950.
-
-Extraction task rules (use when extracting data)
-- Take the title and main author from the first edition for `full_title`, `short_title`, and `main_author`.
-- Put every edition, including the first, into `edition_info` as its own object.
-- When multiple editions describe the same work, keep them together under the same root entry.
-
-Semantic Boundary task rules (use when identifying semantic boundaries)
-- Treat the start of a **full bibliographic entry (with all its editions and volumes)** as one boundary.

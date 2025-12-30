@@ -955,10 +955,11 @@ async def adjust_line_ranges_for_paths(
     prompt_path: Optional[Path] = None,
     dry_run: bool = False,
     boundary_type: str,
-    basic_context: Optional[str] = None,
-    context_settings: Optional[Dict[str, Any]] = None,
-    context_manager: Optional[Any] = None,
 ) -> Dict[Path, List[Tuple[int, int]]]:
+    """Adjust line ranges for multiple files.
+    
+    Context is resolved automatically using hierarchical fallback.
+    """
     readjuster = LineRangeReadjuster(
         model_config,
         context_window=context_window,
@@ -971,9 +972,6 @@ async def adjust_line_ranges_for_paths(
             text_file=text_file,
             dry_run=dry_run,
             boundary_type=boundary_type,
-            basic_context=basic_context,
-            context_settings=context_settings,
-            context_manager=context_manager,
         )
         results[text_file] = ranges
     return results
@@ -987,10 +985,11 @@ def run_adjustment_sync(
     prompt_path: Optional[Path] = None,
     dry_run: bool = False,
     boundary_type: str,
-    basic_context: Optional[str] = None,
-    context_settings: Optional[Dict[str, Any]] = None,
-    context_manager: Optional[Any] = None,
 ) -> List[Tuple[int, int]]:
+    """Run line range adjustment synchronously.
+    
+    Context is resolved automatically using hierarchical fallback.
+    """
     async def _runner() -> List[Tuple[int, int]]:
         readjuster = LineRangeReadjuster(
             model_config,
@@ -1001,9 +1000,6 @@ def run_adjustment_sync(
             text_file=text_file,
             dry_run=dry_run,
             boundary_type=boundary_type,
-            basic_context=basic_context,
-            context_settings=context_settings,
-            context_manager=context_manager,
         )
 
     return asyncio.run(_runner())

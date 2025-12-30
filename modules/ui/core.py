@@ -301,53 +301,6 @@ class UserInterface:
             return None
         return mode == "batch"
 
-    def ask_additional_context_mode(self, allow_back: bool = False) -> Optional[Dict[str, Any]]:
-        """
-        Present options for additional context handling.
-
-        :param allow_back: Whether to allow going back to previous step
-        :return: Dictionary with context settings or None if back selected
-        """
-        while True:  # Allow retry within context configuration
-            self.print_section_header("Additional Context")
-
-            use_context_options = [
-                ("yes", "Yes - Provide additional context to improve extraction accuracy"),
-                ("no", "No - Process text without additional context")
-            ]
-
-            use_context = self.select_option(
-                "Would you like to provide additional context for extraction?",
-                use_context_options,
-                allow_back=allow_back,
-                allow_quit=True
-            )
-
-            if use_context is None:
-                return None
-
-            context_settings = {"use_additional_context": use_context == "yes"}
-
-            if context_settings["use_additional_context"]:
-                context_source_options = [
-                    ("default", "Default - Use schema-specific context files from additional_context/"),
-                    ("file", "File-specific - Use individual context files (e.g., filename_context.txt)")
-                ]
-
-                context_source = self.select_option(
-                    "Which source of context would you like to use?",
-                    context_source_options,
-                    allow_back=True,
-                    allow_quit=True
-                )
-
-                if context_source is None:
-                    # User went back - return to "Yes/No" context question
-                    continue
-
-                context_settings["use_default_context"] = context_source == "default"
-
-            return context_settings
 
     def select_input_source(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """
@@ -541,7 +494,6 @@ class UserInterface:
         selected_schema_name: str,
         global_chunking_method: Optional[str],
         use_batch: bool,
-        context_settings: Dict[str, Any],
         model_config: Optional[Dict[str, Any]] = None,
         paths_config: Optional[Dict[str, Any]] = None,
     ) -> bool:
@@ -552,7 +504,6 @@ class UserInterface:
         :param selected_schema_name: Name of the selected schema
         :param global_chunking_method: Selected chunking method
         :param use_batch: Whether batch processing is enabled
-        :param context_settings: Context settings dictionary
         :param model_config: Model configuration dictionary
         :param paths_config: Paths configuration dictionary
         :return: True if user confirms, False otherwise
@@ -601,13 +552,8 @@ class UserInterface:
             if reasoning.get("effort"):
                 self.console_print(f"    {self.DIM}• Reasoning effort: {reasoning['effort']}{self.RESET}")
 
-        # Show context settings
-        if context_settings.get("use_additional_context", False):
-            context_source = "Default schema-specific" if context_settings.get(
-                "use_default_context", False) else "File-specific"
-            self.console_print(f"    • Additional context: Yes ({context_source})")
-        else:
-            self.console_print(f"    {self.DIM}• Additional context: No{self.RESET}")
+        # Context is now resolved automatically
+        self.console_print(f"    {self.DIM}• Context: Automatic (hierarchical resolution){self.RESET}")
         
         self.console_print(self.HORIZONTAL_LINE)
         

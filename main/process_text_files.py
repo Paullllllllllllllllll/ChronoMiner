@@ -227,15 +227,6 @@ async def _run_interactive_mode(
                 current_step = "chunking"
                 continue
             state["use_batch"] = use_batch
-            current_step = "context"
-        
-        elif current_step == "context":
-            context_settings = ui.ask_additional_context_mode(allow_back=True)
-            if context_settings is None:
-                current_step = "batch"
-                continue
-            state["context_settings"] = context_settings
-            state["context_manager"] = prepare_context_manager(context_settings)
             current_step = "files"
         
         elif current_step == "files":
@@ -247,7 +238,7 @@ async def _run_interactive_mode(
             
             files = ui.select_input_source(raw_text_dir, allow_back=True)
             if files is None:
-                current_step = "context"
+                current_step = "batch"
                 continue
             state["files"] = files
             current_step = "confirm"
@@ -278,7 +269,6 @@ async def _run_interactive_mode(
                 state["selected_schema_name"],
                 state["global_chunking_method"],
                 state["use_batch"],
-                state["context_settings"],
                 model_config=model_config,
                 paths_config=paths_config,
             )
@@ -334,8 +324,6 @@ async def _run_interactive_mode(
                 inject_schema=inject_schema,
                 schema_paths=schemas_paths.get(state["selected_schema_name"], {}),
                 global_chunking_method=state["global_chunking_method"],
-                context_settings=state["context_settings"],
-                context_manager=state["context_manager"],
                 ui=ui,
             )
             processed_count += 1
@@ -362,8 +350,6 @@ async def _run_interactive_mode(
                     inject_schema=inject_schema,
                     schema_paths=schemas_paths.get(state["selected_schema_name"], {}),
                     global_chunking_method=state["global_chunking_method"],
-                    context_settings=state["context_settings"],
-                    context_manager=state["context_manager"],
                     ui=ui,
                 )
             )
@@ -475,13 +461,6 @@ async def _run_cli_mode(
     # Process CLI arguments
     global_chunking_method = args.chunking if args.chunking else "auto"
     use_batch = args.batch if hasattr(args, 'batch') else False
-    context_settings = {
-        "use_additional_context": args.context if hasattr(args, 'context') else False,
-        "use_default_context": args.context_source == "default" if hasattr(args, 'context_source') else True,
-    }
-    
-    # Initialize context manager
-    context_manager = prepare_context_manager(context_settings)
     
     # Resolve input path and get files
     input_path = resolve_path(args.input)
@@ -567,8 +546,6 @@ async def _run_cli_mode(
                 inject_schema=inject_schema,
                 schema_paths=schemas_paths.get(selected_schema_name, {}),
                 global_chunking_method=global_chunking_method,
-                context_settings=context_settings,
-                context_manager=context_manager,
                 ui=None,
             )
             processed_count += 1
@@ -595,8 +572,6 @@ async def _run_cli_mode(
                     inject_schema=inject_schema,
                     schema_paths=schemas_paths.get(selected_schema_name, {}),
                     global_chunking_method=global_chunking_method,
-                    context_settings=context_settings,
-                    context_manager=context_manager,
                     ui=None,
                 )
             )
