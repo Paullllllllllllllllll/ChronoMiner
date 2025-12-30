@@ -24,7 +24,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from modules.cli.args_parser import create_process_parser, get_files_from_path, resolve_path
-from modules.cli.mode_detector import should_use_interactive_mode
+from modules.cli.execution_framework import AsyncDualModeScript
 from modules.config.manager import ConfigManager, ConfigValidationError
 from modules.core.logger import setup_logger
 from modules.core.token_tracker import (
@@ -601,44 +601,41 @@ async def _run_cli_mode(
             )
 
 
-async def main() -> None:
-    """Main entry point."""
-    try:
-        # Load configuration first to determine mode
-        (
-            config_loader,
-            paths_config,
-            model_config,
-            chunking_and_context_config,
-            schemas_paths,
-        ) = load_core_resources()
-        
-        if should_use_interactive_mode(config_loader):
-            await _run_interactive_mode(
-                config_loader,
-                paths_config,
-                model_config,
-                chunking_and_context_config,
-                schemas_paths,
-            )
-        else:
-            await _run_cli_mode(
-                config_loader,
-                paths_config,
-                model_config,
-                chunking_and_context_config,
-                schemas_paths,
-            )
+class ProcessTextFilesScript(AsyncDualModeScript):
+    """Main script for processing text files with schema-based structured data extraction."""
     
-    except KeyboardInterrupt:
-        logger.info("Processing interrupted by user")
-        print("\n[INFO] Operation cancelled by user")
-        sys.exit(0)
-    except Exception as exc:
-        logger.exception("Unexpected error in main workflow", exc_info=exc)
-        print(f"[ERROR] Unexpected error: {exc}")
-        sys.exit(1)
+    def __init__(self):
+        super().__init__("process_text_files")
+    
+    def create_argument_parser(self):
+        """Create argument parser for CLI mode."""
+        return create_process_parser()
+    
+    async def run_interactive(self) -> None:
+        """Run text processing in interactive mode."""
+        await _run_interactive_mode(
+            self.config_loader,
+            self.paths_config,
+            self.model_config,
+            self.chunking_and_context_config,
+            self.schemas_paths,
+        )
+    
+    async def run_cli(self, args) -> None:
+        """Run text processing in CLI mode."""
+        await _run_cli_mode(
+            self.config_loader,
+            self.paths_config,
+            self.model_config,
+            self.chunking_and_context_config,
+            self.schemas_paths,
+        )
+
+
+def main() -> None:
+    """Main entry point."""
+    ProcessTextFilesScript().execute()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
