@@ -5,12 +5,34 @@ User Interface Module for ChronoMiner
 
 Provides a consistent, user-friendly interface for all interactive operations.
 Separates user-facing prompts from detailed logging.
+
+Refactored to use the modular prompts system for Windows compatibility
+and consistency with ChronoTranscriber.
 """
 
 import sys
 from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 import logging
+
+# Import from modular prompts system
+from modules.ui.prompts import (
+    PromptStyle,
+    ui_print,
+    ui_input,
+    print_header,
+    print_separator,
+    print_info as _print_info,
+    print_success as _print_success,
+    print_warning as _print_warning,
+    print_error as _print_error,
+    prompt_select,
+    prompt_yes_no,
+    prompt_text,
+    prompt_multiselect,
+    NavigationAction,
+    PromptResult,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -20,46 +42,43 @@ class UserInterface:
     Handles all user interaction for ChronoMiner with consistent formatting and navigation.
     
     Key Features:
-    - Clear visual separation with box-drawing characters
+    - ASCII-safe characters for Windows compatibility
+    - Delegates to modular prompts system
     - Consistent exit/back navigation options
     - Separation of user prompts from detailed logging
-    - Enhanced error handling and validation
     """
 
-    # Visual styling constants
-    HORIZONTAL_LINE = "─" * 80
-    DOUBLE_LINE = "═" * 80
-    SECTION_START = "┌" + "─" * 78 + "┐"
-    SECTION_END = "└" + "─" * 78 + "┘"
+    # ASCII-safe visual styling constants (Windows compatible)
+    HORIZONTAL_LINE = "-" * 80
+    DOUBLE_LINE = "=" * 80
     
-    # Color codes for terminals that support them (optional)
-    RESET = "\033[0m"
+    # Color codes - delegated to PromptStyle
+    RESET = PromptStyle.RESET
     BOLD = "\033[1m"
-    DIM = "\033[2m"
-    SUCCESS = "\033[92m"
-    WARNING = "\033[93m"
-    ERROR = "\033[91m"
-    INFO = "\033[94m"
-    PROMPT = "\033[96m"
+    DIM = PromptStyle.DIM
+    SUCCESS = PromptStyle.SUCCESS
+    WARNING = PromptStyle.WARNING
+    ERROR = PromptStyle.ERROR
+    INFO = PromptStyle.INFO
+    PROMPT = PromptStyle.PROMPT
 
-    def __init__(self, logger: Optional[logging.Logger] = None, use_colors: bool = False) -> None:
+    def __init__(self, logger: Optional[logging.Logger] = None, use_colors: bool = True) -> None:
         """
         Initialize the user interface.
 
         :param logger: Optional logger instance for detailed logging separate from user output
-        :param use_colors: Whether to use ANSI color codes (default False for compatibility)
+        :param use_colors: Whether to use ANSI color codes (default True with colorama)
         """
         self.logger = logger
         self.use_colors = use_colors
         if not use_colors:
-            # Disable colors for better compatibility
+            # Disable colors
             self.RESET = self.BOLD = self.DIM = ""
             self.SUCCESS = self.WARNING = self.ERROR = self.INFO = self.PROMPT = ""
 
     def log(self, message: str, level: str = "info") -> None:
         """
         Log a message to the logger without printing to console.
-        Use this for detailed technical information.
         
         :param message: Message to log
         :param level: Log level (debug, info, warning, error)
@@ -71,55 +90,50 @@ class UserInterface:
     def console_print(self, message: str, log_also: bool = False) -> None:
         """
         Print to console for user interaction.
-        Optionally also log the message.
         
         :param message: Message to display
         :param log_also: Whether to also write to log file
         """
-        print(message)
+        ui_print(message)
         if log_also and self.logger:
             self.logger.info(message)
 
     def print_success(self, message: str) -> None:
         """Print a success message with visual formatting."""
-        self.console_print(f"{self.SUCCESS}✓ {message}{self.RESET}")
+        _print_success(message)
         self.log(f"SUCCESS: {message}", "info")
 
     def print_error(self, message: str) -> None:
         """Print an error message with visual formatting."""
-        self.console_print(f"{self.ERROR}✗ {message}{self.RESET}")
+        _print_error(message)
         self.log(f"ERROR: {message}", "error")
 
     def print_warning(self, message: str) -> None:
         """Print a warning message with visual formatting."""
-        self.console_print(f"{self.WARNING}⚠ {message}{self.RESET}")
+        _print_warning(message)
         self.log(f"WARNING: {message}", "warning")
 
     def print_info(self, message: str) -> None:
         """Print an info message with visual formatting."""
-        self.console_print(f"{self.INFO}ℹ {message}{self.RESET}")
+        _print_info(message)
         self.log(f"INFO: {message}", "info")
 
     def print_section_header(self, title: str) -> None:
         """Print a prominent section header."""
-        self.console_print(f"\n{self.DOUBLE_LINE}")
-        self.console_print(f"{self.BOLD}  {title.upper()}{self.RESET}")
-        self.console_print(self.DOUBLE_LINE)
+        print_header(title, "")
 
     def print_subsection_header(self, title: str) -> None:
         """Print a subsection header."""
-        self.console_print(f"\n{self.HORIZONTAL_LINE}")
-        self.console_print(f"  {title}")
-        self.console_print(self.HORIZONTAL_LINE)
+        ui_print(f"\n{self.HORIZONTAL_LINE}", PromptStyle.DIM)
+        ui_print(f"  {title}", PromptStyle.HEADER)
+        ui_print(self.HORIZONTAL_LINE, PromptStyle.DIM)
 
     def display_banner(self) -> None:
         """Display a welcome banner with information about the application."""
-        self.console_print("\n" + self.DOUBLE_LINE)
-        self.console_print(f"{self.BOLD}  ChronoMiner - Structured Data Extraction Tool{self.RESET}")
-        self.console_print(self.DOUBLE_LINE)
-        self.console_print("  Extract structured data from historical documents using")
-        self.console_print("  advanced AI models and customizable schemas.")
-        self.console_print(self.DOUBLE_LINE + "\n")
+        print_header(
+            "ChronoMiner - Structured Data Extraction Tool",
+            "Extract structured data from historical documents using advanced AI models"
+        )
 
     def get_input(self, prompt: str, allow_back: bool = False, allow_quit: bool = True) -> Optional[str]:
         """
@@ -130,32 +144,19 @@ class UserInterface:
         :param allow_quit: Whether to allow 'q' to quit
         :return: User input or None if back/quit selected
         """
-        nav_options = []
-        if allow_back:
-            nav_options.append("'b' to go back")
-        if allow_quit:
-            nav_options.append("'q' to quit")
+        # Use the modular prompt_text function
+        result = prompt_text(
+            prompt,
+            allow_empty=True,
+            allow_back=allow_back
+        )
         
-        if nav_options:
-            nav_hint = f" ({', '.join(nav_options)})"
-        else:
-            nav_hint = ""
-        
-        self.console_print(f"\n{self.PROMPT}{prompt}{nav_hint}{self.RESET}")
-        try:
-            user_input = input("→ ").strip()
-        except (EOFError, KeyboardInterrupt):
-            self.print_info("Operation cancelled.")
+        if result.action == NavigationAction.BACK:
             return None
-        
-        if allow_quit and user_input.lower() in ['q', 'quit', 'exit']:
-            self.print_info("Exiting application.")
+        if result.action == NavigationAction.QUIT:
             sys.exit(0)
         
-        if allow_back and user_input.lower() in ['b', 'back']:
-            return None
-        
-        return user_input
+        return result.value
 
     def confirm(self, message: str, default: bool = False) -> bool:
         """
@@ -165,13 +166,10 @@ class UserInterface:
         :param default: Default value if user just presses Enter
         :return: True if confirmed, False otherwise
         """
-        hint = "[Y/n]" if default else "[y/N]"
-        response = self.get_input(f"{message} {hint}", allow_back=False, allow_quit=True)
-        
-        if response is None or response == "":
-            return default
-        
-        return response.lower() in ['y', 'yes', 'true', '1']
+        result = prompt_yes_no(message, default=default, allow_back=False)
+        if result.action == NavigationAction.CONTINUE:
+            return result.value
+        return default
 
     def select_option(
         self,
@@ -191,29 +189,15 @@ class UserInterface:
         :param show_numbers: Whether to show option numbers (True) or letters (False)
         :return: The selected option value or None if back selected
         """
-        self.console_print(f"\n{self.BOLD}{prompt}{self.RESET}")
-        self.console_print(self.HORIZONTAL_LINE)
-
-        for idx, (value, description) in enumerate(options, 1):
-            marker = f"{idx}." if show_numbers else f"{chr(96 + idx)})"
-            self.console_print(f"  {self.BOLD}{marker}{self.RESET} {description}")
-
-        self.console_print("")  # Empty line for spacing
-
-        while True:
-            choice = self.get_input("Enter your choice", allow_back=allow_back, allow_quit=allow_quit)
-
-            if choice is None:  # User pressed back
-                return None
-
-            if choice.isdigit():
-                choice_num = int(choice)
-                if 1 <= choice_num <= len(options):
-                    selected = options[choice_num - 1][0]
-                    self.log(f"User selected option {choice_num}: {selected}")
-                    return selected
-
-            self.print_error(f"Invalid selection '{choice}'. Please enter a number between 1 and {len(options)}.")
+        result = prompt_select(prompt, options, allow_back=allow_back)
+        
+        if result.action == NavigationAction.BACK:
+            return None
+        if result.action == NavigationAction.CONTINUE:
+            self.log(f"User selected: {result.value}")
+            return result.value
+        
+        return None
 
     def select_schema(self, schema_manager, allow_back: bool = False) -> Optional[Tuple[Dict[str, Any], str]]:
         """
@@ -334,8 +318,8 @@ class UserInterface:
             if mode == "single":
                 while True:  # Inner loop for single file selection
                     self.print_info("Enter the filename to process (with or without .txt extension)")
-                    self.console_print("  • Enter the base text filename")
-                    self.console_print("  • Or enter the line range filename ending in '_line_ranges.txt'")
+                    self.console_print("  - Enter the base text filename")
+                    self.console_print("  - Or enter the line range filename ending in '_line_ranges.txt'")
                     
                     file_input = self.get_input("Filename", allow_back=True, allow_quit=True)
                     if not file_input:
@@ -463,7 +447,7 @@ class UserInterface:
                         # Confirm selection
                         self.print_success(f"Selected {len(files)} file(s):")
                         for f in files:
-                            self.console_print(f"  • {f.name}")
+                            self.console_print(f"  - {f.name}")
                         
                         return files
                         
@@ -519,7 +503,7 @@ class UserInterface:
         self.console_print(f"  {self.BOLD}Processing Configuration:{self.RESET}")
         self.console_print(self.HORIZONTAL_LINE)
         
-        self.console_print(f"    • Schema: {selected_schema_name}")
+        self.console_print(f"    - Schema: {selected_schema_name}")
         
         chunking_display = {
             "auto": "Automatic chunking",
@@ -528,32 +512,32 @@ class UserInterface:
             "adjust-line-ranges": "AI-assisted line range adjustment",
             "per-file": "Per-file chunking selection"
         }
-        self.console_print(f"    • Chunking method: {chunking_display.get(global_chunking_method, 'Per-file selection')}")
+        self.console_print(f"    - Chunking method: {chunking_display.get(global_chunking_method, 'Per-file selection')}")
 
         processing_mode = "Batch (asynchronous)" if use_batch else "Synchronous (real-time)"
-        self.console_print(f"    • Processing mode: {processing_mode}")
+        self.console_print(f"    - Processing mode: {processing_mode}")
 
         # Show model and provider details
         if model_config:
             tm = model_config.get("transcription_model", {})
             provider = tm.get("provider", "auto-detect")
             model_name = tm.get("name", "unknown")
-            self.console_print(f"    • Provider: {provider.upper() if provider != 'auto-detect' else 'Auto-detect'}")
-            self.console_print(f"    • Model: {model_name}")
+            self.console_print(f"    - Provider: {provider.upper() if provider != 'auto-detect' else 'Auto-detect'}")
+            self.console_print(f"    - Model: {model_name}")
             
             # Show key model parameters (dimmed)
             temperature = tm.get("temperature", 0.0)
             max_tokens = tm.get("max_output_tokens") or tm.get("max_tokens", 32000)
-            self.console_print(f"    {self.DIM}• Temperature: {temperature}{self.RESET}")
-            self.console_print(f"    {self.DIM}• Max output tokens: {max_tokens:,}{self.RESET}")
+            self.console_print(f"    {self.DIM}- Temperature: {temperature}{self.RESET}")
+            self.console_print(f"    {self.DIM}- Max output tokens: {max_tokens:,}{self.RESET}")
             
             # Show reasoning effort if configured
             reasoning = tm.get("reasoning", {})
             if reasoning.get("effort"):
-                self.console_print(f"    {self.DIM}• Reasoning effort: {reasoning['effort']}{self.RESET}")
+                self.console_print(f"    {self.DIM}- Reasoning effort: {reasoning['effort']}{self.RESET}")
 
         # Context is now resolved automatically
-        self.console_print(f"    {self.DIM}• Context: Automatic (hierarchical resolution){self.RESET}")
+        self.console_print(f"    {self.DIM}- Context: Automatic (hierarchical resolution){self.RESET}")
         
         self.console_print(self.HORIZONTAL_LINE)
         
@@ -564,13 +548,13 @@ class UserInterface:
         if paths_config:
             use_input_as_output = paths_config.get('general', {}).get('input_paths_is_output_path', False)
             if use_input_as_output:
-                self.console_print("    • Output: Same directory as input files")
+                self.console_print("    - Output: Same directory as input files")
             else:
                 # Show configured output directory for this schema
                 schemas_paths = paths_config.get('schemas_paths', {})
                 schema_config = schemas_paths.get(selected_schema_name, {})
                 output_dir = schema_config.get('output', 'configured output directory')
-                self.console_print(f"    • Output directory: {output_dir}")
+                self.console_print(f"    - Output directory: {output_dir}")
                 
                 # Show output formats if configured
                 output_formats = []
@@ -581,9 +565,9 @@ class UserInterface:
                 if schema_config.get('txt_output', False):
                     output_formats.append('TXT')
                 if output_formats:
-                    self.console_print(f"    • Output formats: {', '.join(output_formats)}")
+                    self.console_print(f"    - Output formats: {', '.join(output_formats)}")
         else:
-            self.console_print("    • Output: Configured output directory")
+            self.console_print("    - Output: Configured output directory")
         
         self.console_print(self.HORIZONTAL_LINE)
 
@@ -653,25 +637,26 @@ class UserInterface:
         self.console_print(f"\n{self.BOLD}Total batches: {len(batches)}{self.RESET}\n")
 
         # Display counts by status
+        # ASCII-safe status icons for Windows compatibility
         status_icons = {
-            "completed": "✓",
-            "failed": "✗",
-            "cancelled": "⊗",
-            "expired": "⏱",
-            "validating": "◷",
-            "in_progress": "▶",
-            "finalizing": "◉"
+            "completed": "[OK]",
+            "failed": "[X]",
+            "cancelled": "[X]",
+            "expired": "[T]",
+            "validating": "[.]",
+            "in_progress": "[>]",
+            "finalizing": "[O]"
         }
         
         for status, count in sorted(status_counts.items()):
-            icon = status_icons.get(status, "•")
+            icon = status_icons.get(status, "-")
             self.console_print(f"  {icon} {status.capitalize()}: {count}")
 
         # Display in-progress batches if any
         if in_progress_batches:
             self.print_subsection_header("Batches In Progress")
             for batch_id, status, created_time in in_progress_batches:
-                self.console_print(f"  • {batch_id} | {status} | Created: {created_time}")
+                self.console_print(f"  - {batch_id} | {status} | Created: {created_time}")
 
     def display_batch_processing_progress(
         self,
@@ -692,7 +677,7 @@ class UserInterface:
             self.print_warning("Failed or terminal batches detected:")
             for track, status in failed_batches:
                 bid = track.get("batch_id", "unknown")
-                self.console_print(f"    • {bid} | Status: {status}")
+                self.console_print(f"    - {bid} | Status: {status}")
 
     def display_batch_operation_result(
         self,

@@ -18,9 +18,62 @@ from modules.core.text_utils import TextProcessor
 from modules.core.path_utils import ensure_path_safe
 from modules.llm.prompt_utils import render_prompt_with_schema
 from modules.operations.extraction.schema_handlers import get_schema_handler
-from modules.ui.messaging import MessagingAdapter, create_messaging_adapter
+from modules.ui import print_info, print_success, print_warning, print_error, ui_print
 
 logger = logging.getLogger(__name__)
+
+
+class _MessagingAdapter:
+    """Simple messaging adapter for file processor output."""
+    
+    def __init__(self, ui=None):
+        self.ui = ui
+    
+    def info(self, message: str, log: bool = True) -> None:
+        if self.ui:
+            self.ui.print_info(message)
+        else:
+            print_info(message)
+        if log:
+            logger.info(message)
+    
+    def success(self, message: str, log: bool = True) -> None:
+        if self.ui:
+            self.ui.print_success(message)
+        else:
+            print_success(message)
+        if log:
+            logger.info(f"SUCCESS: {message}")
+    
+    def warning(self, message: str, log: bool = True) -> None:
+        if self.ui:
+            self.ui.print_warning(message)
+        else:
+            print_warning(message)
+        if log:
+            logger.warning(message)
+    
+    def error(self, message: str, log: bool = True, exc_info=None) -> None:
+        if self.ui:
+            self.ui.print_error(message)
+        else:
+            print_error(message)
+        if log:
+            if exc_info:
+                logger.error(message, exc_info=exc_info)
+            else:
+                logger.error(message)
+    
+    def console_print(self, message: str) -> None:
+        if self.ui and hasattr(self.ui, 'console_print'):
+            self.ui.console_print(message)
+        else:
+            ui_print(message)
+
+
+def _create_messaging_adapter(ui=None) -> _MessagingAdapter:
+    """Factory function to create messaging adapter."""
+    return _MessagingAdapter(ui)
 
 
 class FileProcessorRefactored:
@@ -85,7 +138,7 @@ class FileProcessorRefactored:
         :param ui: UserInterface instance for user feedback
         """
         # Create messaging adapter
-        messenger = create_messaging_adapter(ui)
+        messenger = _create_messaging_adapter(ui)
         
         messenger.info(f"Processing file: {file_path.name}")
         logger.info(f"Starting processing for file: {file_path}")
@@ -238,7 +291,7 @@ class FileProcessorRefactored:
         self,
         file_path: Path,
         global_chunking_method: Optional[str],
-        messenger: MessagingAdapter,
+        messenger: _MessagingAdapter,
         ui
     ) -> str:
         """Determine which chunking method to use."""
@@ -283,7 +336,7 @@ class FileProcessorRefactored:
         output_json_path: Path,
         handler,
         schema_paths: Dict[str, Any],
-        messenger: MessagingAdapter,
+        messenger: _MessagingAdapter,
         *,
         partial: bool = False,
     ) -> None:
@@ -337,7 +390,7 @@ class FileProcessorRefactored:
         output_json_path: Path,
         handler,
         schema_paths: Dict[str, Any],
-        messenger: MessagingAdapter
+        messenger: _MessagingAdapter
     ) -> None:
         """Generate CSV, DOCX, and TXT outputs if configured."""
         if schema_paths.get("csv_output", False):
@@ -368,7 +421,7 @@ class FileProcessorRefactored:
         self,
         use_batch: bool,
         temp_jsonl_path: Path,
-        messenger: MessagingAdapter
+        messenger: _MessagingAdapter
     ) -> None:
         """Clean up temporary files if not needed."""
         if use_batch:

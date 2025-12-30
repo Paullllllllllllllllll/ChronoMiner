@@ -5,10 +5,15 @@ Provides user interface components for interactive mode.
 
 Includes modular prompt utilities synchronized with ChronoTranscriber
 for consistent UX across projects.
+
+Structure:
+- core.py: UserInterface class (backward-compatible wrapper)
+- prompts.py: Core prompt utilities with navigation support
+- workflows.py: WorkflowUI class for multi-step workflows
+- cost_display.py: Cost analysis display utilities
 """
 
 from modules.ui.core import UserInterface
-from modules.ui.messaging import MessagingAdapter, create_messaging_adapter
 from modules.ui.prompts import (
     NavigationAction,
     PromptResult,
@@ -31,11 +36,8 @@ from modules.ui.prompts import (
 from modules.ui.workflows import WorkflowUI
 
 __all__ = [
-    # Core UI class
+    # Core UI class (backward-compatible)
     "UserInterface",
-    # Messaging
-    "MessagingAdapter",
-    "create_messaging_adapter",
     # Navigation
     "NavigationAction",
     "PromptResult",
