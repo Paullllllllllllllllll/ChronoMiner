@@ -1,0 +1,79 @@
+The input text consists of historical recipes from cookbooks, manuscripts, and culinary literature dating from approximately 1400 to 1950.
+Recipes typically contain ingredient lists, cooking instructions, yields, timing notes, and occasional commentary on techniques or presentation. The text may appear in various European languages with archaic spelling and historical culinary terminology.
+
+Extraction task rules (use when extracting data)
+- Capture `recipe_text_original` verbatim and provide a full `recipe_text_modern_english` translation; retain `title_original` and `title_modern_english`, using null when no title exists.
+- Assign `recipe_type` from the schema enumeration and record every ingredient in `ingredients`, including original and modern names, quantities, units, and preparation notes; use nulls where the source omits values but keep the object structure.
+- Populate `cooking_methods` and `utensils_equipment` arrays with original terminology and modern English equivalents; represent absent collections with empty arrays.
+- Set each boolean flag in `ingredient_categories` explicitly, basing true/false on textual evidence and defaulting to false rather than null when information is absent.
+- For `culinary_style`, rate modernity 1–7, select the closest style period, and populate innovation/archaism marker arrays based on textual signals.
+- For `intertextuality`, record verbatim any explicit source attributions, foreign style labels, or cross-references; assess temporal self-positioning.
+- For `social_context`, infer implied audience, assumed skill level (1–7), resource level (1–7), and explanatory density (1–7) from textual cues.
+- For `aspiration_practice`, rate display orientation and feasibility (1–7), identify occasion types, and note economy/luxury framing.
+- For `geographic_signals`, extract place references with their function, rate regional identity strength (1–7), and flag dialect usage.
+- For `tradition_rhetoric`, flag any explicit claims of tradition, authenticity, national identity, anti-foreign sentiment, or moral virtue.
+- For `economic_signals`, note cost/scarcity language, record substitutions with stated reasons, and flag leftover usage.
+- For `luxury_signals`, rate luxury intensity (1–7), select observed luxury types, and flag prominent global trade goods.
+- For `sensory_emphasis`, rate attention to taste, appearance, texture, and aroma (1–7 each).
+- For `health_medical_framing`, flag health purpose, humoral reasoning, digestibility concerns, and record any specific conditions targeted.
+- For `textual_structure`, classify structure type, rate precision ethos (1–7), and note voice/address patterns.
+- For `labor_time_signals`, rate labor intensity (1–7), infer time horizon, and flag advance prep or continuous attention requirements.
+- For `religious_calendar_signals`, flag fasting/meat-day context, record named feasts, and assess confessional hints.
+- For `extraction_audit`, provide overall confidence (0–1), supporting quotes, and notes on ambiguities.
+- Provide short verbatim `evidence_quote` strings (≤150 chars, original language) for each analytical object where requested.
+
+Treat the start of a new recipe (e.g., title or text) as a boundary.
+
+When extracting data from historical recipes, please consider:
+
+1. Recipe structure variations:
+   - Medieval and early modern recipes often lack precise measurements
+   - Ingredient lists may be embedded in narrative instructions rather than separate
+   - Cooking times may be expressed as "until done" or "the time it takes to say a prayer"
+   - Equipment may be implied rather than explicitly stated
+   - Yields/servings often unspecified or expressed in vague terms
+
+2. Language and terminology:
+   - Archaic ingredient names (e.g., "manchet" for fine wheat bread, "verjuice" for sour grape juice)
+   - Historical measurement units (livres, onces, pintes, handfuls, pinches)
+   - Cooking method terms may differ from modern usage (e.g., "seethe" for boil)
+   - Preserve original spelling and diacritics exactly as they appear
+   - Many ingredients have regional or period-specific names
+
+3. Ingredient categories and social context:
+   - Meat, poultry, and fish indicate dietary patterns and religious observance
+   - Expensive spices (saffron, cinnamon, pepper) signal luxury or high-status cuisine
+   - Butter vs. olive oil vs. lard indicates regional culinary traditions
+   - Refined sugar availability marks historical period (post-colonial trade)
+   - Dairy and eggs important for dietary and religious classification (Lenten restrictions)
+   - Alcohol usage (wine, beer, spirits) varies by region and religious context
+
+4. Cooking methods and equipment:
+   - Open hearth cooking dominant until 18th-19th century
+   - Roasting, boiling, and baking most common until modern period
+   - Specialized equipment (spits, trivets, kettles) indicates kitchen sophistication
+   - Mortars and pestles ubiquitous for grinding and mixing
+   - Copper and clay vessels mentioned in older recipes
+
+5. Recipe types and classifications:
+   - Main dishes vs. side dishes vs. desserts (categories may be anachronistic)
+   - Fast day vs. feast day recipes crucial for medieval/early modern contexts
+   - Court cuisine vs. bourgeois vs. peasant cooking represents social stratification
+   - Medicinal recipes often mixed with culinary ones in early cookbooks
+   - Preserving and pickling recipes important for pre-refrigeration food storage
+
+6. Quantities and standardization:
+   - Historical measurements require conversion to modern units when possible
+   - "To taste" or unspecified quantities very common
+   - Recipe scaling often unclear - portions for households of varying sizes
+   - Ingredient ratios more important than absolute quantities in many recipes
+
+7. Translation considerations:
+   - Provide both original language and modern English translations
+   - Cooking method terms may lack direct modern equivalents
+   - Ingredient names may require cultural/botanical context for accurate translation
+   - Preserve ambiguity when historical text is unclear
+   - Note when ingredients are no longer commonly available
+
+This additional context should help you accurately extract historical recipes while preserving their original
+character and providing useful standardized information for analysis.

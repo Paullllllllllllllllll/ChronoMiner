@@ -1,0 +1,91 @@
+The input text consists of excerpts from secondary literature (e.g., culinary history works, food magazines, gastronomic studies) discussing historical culinary works, publications, and written sources.
+
+Extraction task rules (use when extracting data)
+- Populate `titles.original`, `titles.modern_english`, and `titles.short` from the text, translating only when customary; supply `short_notes` or set to null when absent.
+- Select `genre` from the controlled list and enumerate all topical values in `culinary_focus`; maintain the array even when empty and assign `historical_importance` when described.
+- Capture `timeframe` with `start_year`, `end_year`, and `notation`, preserve `geography` using `city_*` and `country_*` fields, and list all `edition_years`, using nulls where specifics are missing.
+- Fill `languages` and `contributors`, preserving original spellings in *_original fields and supplying modern equivalents or nulls for *_modern_english while keeping arrays even when empty.
+- Record every associated entity in `associations` with `entity_type`, `entity_label_original`, and `relationship`, leaving the array empty rather than omitting it.
+
+Treat the start of a discussion about a new culinary work or publication as a boundary.
+
+When extracting data from secondary culinary literature about historical culinary works and publications,
+please consider:
+
+1. Types of culinary works discussed:
+   - Cookbooks and recipe collections (manuscript and printed, professional and domestic)
+   - Household management manuals (combining cookery with domestic advice)
+   - Culinary treatises and gastronomic essays
+   - Restaurant menus and menu collections
+   - Trade manuals and professional guides (confectionery, brewing, butchery)
+   - Periodical literature (culinary magazines, newspaper columns, recipe cards)
+   - Dietary and health advice literature (nutrition guides, reformist tracts)
+   - Agricultural and food production manuals
+
+2. Bibliographic information patterns:
+   - Titles may be lengthy with extensive subtitles describing contents
+   - Author attribution varies: named authors, anonymous, pseudonymous, institutional
+   - Publication details: publishers, printers, places, dates (original and editions)
+   - Edition history: first editions, reprints, revised editions, translations
+   - Format and material characteristics: size, binding, illustrations, price
+   - Series or collection affiliations
+
+3. Content and organization:
+   - Recipe structures and formats (ingredients lists, procedures, serving information)
+   - Organization principles (by course, ingredient, occasion, season, technique)
+   - Additional content: introductions, household advice, nutritional information, menus
+   - Illustrations: engravings, photographs, diagrams, decorative elements
+   - Indexing and finding aids (tables of contents, alphabetical indexes, cross-references)
+   - Language and style (technical, conversational, didactic, literary)
+
+4. Authorship and attribution:
+   - Professional credentials and expertise of authors
+   - Gendered patterns in authorship (male professional chefs, female domestic writers)
+   - Collaborative or compiled works (multiple contributors, editorial compilations)
+   - Plagiarism and recipe borrowing common in historical cookbooks
+   - Translation and adaptation across languages and cultures
+   - Attribution disputes and scholarly debates about authorship
+
+5. Historical context and significance:
+   - Social and cultural contexts of production and reception
+   - Intended audiences (elite vs. popular, professional vs. domestic, regional vs. national)
+   - Relationship to culinary traditions and innovations
+   - Impact on culinary practices and food culture
+   - Reception history: reviews, sales, influence on later works
+   - Role in transmitting or transforming culinary knowledge
+
+6. Culinary content and practices:
+   - Ingredients mentioned and their historical availability
+   - Cooking techniques and equipment described
+   - Regional or ethnic culinary traditions represented
+   - Innovations or novel elements introduced
+   - Relationship to contemporary food systems and economies
+   - Dietary philosophies or nutritional theories embedded
+
+7. Secondary literature approaches:
+   - Book history examines material aspects, production, and circulation
+   - Culinary history analyzes recipes and techniques in historical context
+   - Literary studies explore narrative structures and rhetorical strategies
+   - Gender studies examine authorship, audiences, and domestic ideologies
+   - Social history contextualizes works within class and cultural structures
+   - Bibliography provides systematic documentation of editions and variants
+
+8. Research and documentation practices:
+   - Citations of specific recipes or passages with page numbers
+   - Comparisons across editions or with other contemporary works
+   - Analysis of paratexts (prefaces, dedications, advertisements, illustrations)
+   - Discussion of manuscript sources and textual transmission
+   - Digitization and accessibility of historical works increasingly relevant
+   - Archive locations and holding institutions often specified
+
+9. Interpretive considerations:
+   - Prescriptive vs. descriptive: cookbooks show ideals not always actual practice
+   - Elite bias: many historical cookbooks represent elite or aspirational cooking
+   - Omissions and silences: everyday, ethnic, or lower-class foodways underrepresented
+   - Gendered assumptions embedded in organization and framing
+   - Regional variations and vernacular traditions may be standardized or ignored
+   - Commercial motivations shape content (ingredient promotion, equipment sales)
+
+This additional context should help you accurately extract information about culinary works from secondary
+literature, recognizing both their documentary value as historical sources and the scholarly interpretations
+that shape current understanding of their significance.

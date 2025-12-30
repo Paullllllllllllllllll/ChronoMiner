@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
-from typing import Any, Dict, Optional
-
-from modules.core.prompt_context import apply_context_placeholders
+from typing import Any, Dict, Optional, Union
 
 
 def render_prompt_with_schema(
@@ -12,21 +11,46 @@ def render_prompt_with_schema(
     schema_obj: Dict[str, Any],
     schema_name: str | None = None,
     inject_schema: bool = True,
-    additional_context: Optional[str] = None,
-    basic_context: Optional[str] = None,
+    context: Optional[str] = None,
 ) -> str:
-    """Inject schema metadata and optional schema name into a system prompt."""
-
+    """Inject schema metadata and unified context into a system prompt.
+    
+    Parameters
+    ----------
+    prompt_text : str
+        The prompt template text
+    schema_obj : Dict[str, Any]
+        The JSON schema to inject
+    schema_name : str | None
+        Optional schema name for {{SCHEMA_NAME}} placeholder
+    inject_schema : bool
+        Whether to inject the schema
+    context : Optional[str]
+        Unified context to inject (replaces both basic and additional context)
+    
+    Returns
+    -------
+    str
+        The rendered prompt with schema and context injected
+    """
     schema_name_token = "{{SCHEMA_NAME}}"
     if schema_name_token in prompt_text:
         prompt_text = prompt_text.replace(schema_name_token, schema_name or "")
 
-    prompt_text = apply_context_placeholders(
-        prompt_text,
-        basic_context=basic_context,
-        additional_context=additional_context,
-    )
+    # Handle unified context placeholder
+    context_placeholder = "{{CONTEXT}}"
+    if context_placeholder in prompt_text:
+        if context and context.strip():
+            # Replace with actual context
+            prompt_text = prompt_text.replace(context_placeholder, context.strip())
+        else:
+            # Remove entire context section to save tokens
+            # Pattern: "Context:\n{{CONTEXT}}\n"
+            prompt_text = re.sub(r"Context:\s*\n\s*\{\{CONTEXT\}\}\s*\n?", "", prompt_text)
+            # Fallback: just remove the placeholder
+            prompt_text = prompt_text.replace(context_placeholder, "")
 
+    # Handle schema injection
     schema_placeholder = "{{TRANSCRIPTION_SCHEMA}}"
     if not inject_schema or not schema_obj:
         if schema_placeholder in prompt_text:

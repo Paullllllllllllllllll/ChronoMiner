@@ -20,8 +20,6 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 from modules.core.logger import setup_logger
 from modules.core.schema_manager import SchemaManager
-from modules.core.context_manager import ContextManager
-from modules.core.prompt_context import load_basic_context
 from modules.core.token_tracker import (
     get_token_tracker,
     check_token_limit_enabled,
@@ -33,7 +31,6 @@ from modules.core.workflow_utils import (
     collect_text_files,
     load_core_resources,
     load_schema_manager,
-    prepare_context_manager,
     validate_schema_paths,
 )
 from modules.cli.mode_detector import should_use_interactive_mode
@@ -73,16 +70,6 @@ def parse_arguments() -> argparse.Namespace:
         "--prompt-path",
         type=Path,
         help="Override the prompt template used when calling the model.",
-    )
-    parser.add_argument(
-        "--use-additional-context",
-        action="store_true",
-        help="Include additional context (default or file-specific).",
-    )
-    parser.add_argument(
-        "--use-default-context",
-        action="store_true",
-        help="When using additional context, prefer boundary-type-specific defaults from additional_context/.",
     )
     return parser.parse_args()
 
@@ -134,9 +121,6 @@ async def _adjust_files(
     context_window: int,
     prompt_path: Optional[Path],
     boundary_type: str,
-    basic_context: Optional[str],
-    context_settings: Optional[Dict[str, any]],
-    context_manager: Optional[ContextManager],
     matching_config: Optional[Dict[str, any]],
     retry_config: Optional[Dict[str, any]],
     notifier,
@@ -178,9 +162,6 @@ async def _adjust_files(
                 line_ranges_file=line_ranges_file,
                 dry_run=False,
                 boundary_type=boundary_type,
-                basic_context=basic_context,
-                context_settings=context_settings,
-                context_manager=context_manager,
             )
             notifier(f"Successfully adjusted line ranges for {text_file.name}", "success")
             logger.info(f"Line ranges for {text_file.name} adjusted using {line_ranges_file.name}")
@@ -297,10 +278,6 @@ async def _run_interactive_mode(
                 logger.error(f"Exiting: No path configuration for schema '{selected_schema_name}'")
                 sys.exit(1)
             
-            # Load schema-specific basic context
-            state["basic_context"] = load_basic_context(schema_name=selected_schema_name)
-            logger.info(f"Loaded basic context for schema '{selected_schema_name}'")
-            
             # Determine base directory (validated above, so schema_name is in schemas_paths)
             state["base_dir"] = Path(schemas_paths[selected_schema_name].get("input", ""))
             
@@ -318,12 +295,7 @@ async def _run_interactive_mode(
             current_step = "context"
         
         elif current_step == "context":
-            context_settings = ui.ask_additional_context_mode(allow_back=True)
-            if context_settings is None:
-                current_step = "files"
-                continue
-            state["context_settings"] = context_settings
-            state["context_manager"] = prepare_context_manager(context_settings)
+            # Context is now automatically resolved - skip directly to context_window
             current_step = "context_window"
         
         elif current_step == "context_window":
@@ -350,11 +322,7 @@ async def _run_interactive_mode(
             if state["prompt_path"]:
                 ui.console_print(f"  Prompt override: {state['prompt_path']}")
             
-            if state["context_settings"].get("use_additional_context", False):
-                context_source = "Default boundary-type-specific" if state["context_settings"].get("use_default_context", False) else "File-specific"
-            else:
-                context_source = "None"
-            ui.console_print(f"  Additional context: {context_source}")
+            ui.console_print(f"  Context: Automatically resolved (hierarchical)")
             
             if not ui.confirm("\nProceed with line range adjustment?", default=True):
                 ui.print_info("Operation cancelled by user.")
@@ -397,9 +365,6 @@ async def _run_interactive_mode(
         context_window=state["context_window"],
         prompt_path=state["prompt_path"],
         boundary_type=state["boundary_type"],
-        basic_context=state["basic_context"],
-        context_settings=state["context_settings"],
-        context_manager=state["context_manager"],
         matching_config=matching_config,
         retry_config=retry_config,
         notifier=ui_notifier,
@@ -486,18 +451,6 @@ async def _run_cli_mode(
     
     print(f"[INFO] Using boundary type: {boundary_type}")
     
-    # Load schema-specific basic context
-    basic_context = load_basic_context(schema_name=boundary_type)
-    logger.info(f"Loaded basic context for schema '{boundary_type}'")
-    
-    # Setup context
-    use_additional = bool(args.use_additional_context or args.use_default_context)
-    context_settings = {
-        "use_additional_context": use_additional,
-        "use_default_context": bool(args.use_default_context),
-    }
-    context_manager = prepare_context_manager(context_settings)
-    
     # Get configurations
     context_window = max(1, args.context_window or default_context_window)
     prompt_override = args.prompt_path or chunking_config.get("line_range_prompt_path")
@@ -517,12 +470,7 @@ async def _run_cli_mode(
     print(f"Boundary type: {boundary_type}")
     if prompt_path:
         print(f"Prompt override: {prompt_path}")
-    
-    if context_settings.get("use_additional_context", False):
-        context_source = "Default boundary-type-specific" if context_settings.get("use_default_context", False) else "File-specific"
-    else:
-        context_source = "None"
-    print(f"Additional context: {context_source}")
+    print(f"Context: Automatically resolved (hierarchical)")
     
     # Display initial token usage statistics if enabled
     if check_token_limit_enabled():
@@ -545,9 +493,6 @@ async def _run_cli_mode(
         context_window=context_window,
         prompt_path=prompt_path,
         boundary_type=boundary_type,
-        basic_context=basic_context,
-        context_settings=context_settings,
-        context_manager=context_manager,
         matching_config=matching_config,
         retry_config=retry_config,
         notifier=cli_notifier,

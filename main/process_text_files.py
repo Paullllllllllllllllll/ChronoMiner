@@ -27,7 +27,6 @@ from modules.cli.args_parser import create_process_parser, get_files_from_path, 
 from modules.cli.mode_detector import should_use_interactive_mode
 from modules.config.manager import ConfigManager, ConfigValidationError
 from modules.core.logger import setup_logger
-from modules.core.prompt_context import load_basic_context
 from modules.core.token_tracker import (
     get_token_tracker,
     check_token_limit_enabled,
@@ -36,7 +35,6 @@ from modules.core.token_tracker import (
 from modules.core.workflow_utils import (
     load_core_resources,
     load_schema_manager,
-    prepare_context_manager,
     validate_schema_paths,
 )
 from modules.llm.prompt_utils import load_prompt_template
@@ -58,9 +56,6 @@ async def _adjust_line_ranges_workflow(
     chunking_config: Dict,
     matching_config: Dict,
     retry_config: Dict,
-    basic_context: Optional[str],
-    context_settings: Dict,
-    context_manager,
     ui: Optional[UserInterface],
 ) -> None:
     """
@@ -73,9 +68,6 @@ async def _adjust_line_ranges_workflow(
         chunking_config: Chunking configuration
         matching_config: Matching configuration
         retry_config: Retry configuration
-        basic_context: Basic context string
-        context_settings: Context settings dictionary
-        context_manager: Context manager instance
         ui: Optional UserInterface instance
     """
     context_window = chunking_config.get("chunking", {}).get("line_range_context_window", 6)
@@ -131,9 +123,6 @@ async def _adjust_line_ranges_workflow(
                 text_file=text_file,
                 line_ranges_file=line_ranges_file,
                 boundary_type=selected_schema_name,
-                basic_context=basic_context,
-                context_settings=context_settings,
-                context_manager=context_manager,
             )
             
             if ui:
@@ -266,7 +255,6 @@ async def _run_interactive_mode(
         elif current_step == "confirm":
             # Handle line range adjustment workflow if selected
             if state["global_chunking_method"] == "adjust-line-ranges":
-                basic_context = load_basic_context(schema_name=state["selected_schema_name"])
                 matching_config = (chunking_and_context_config or {}).get("matching", {})
                 retry_config = (chunking_and_context_config or {}).get("retry", {})
                 
@@ -277,9 +265,6 @@ async def _run_interactive_mode(
                     chunking_config=chunking_and_context_config or {},
                     matching_config=matching_config,
                     retry_config=retry_config,
-                    basic_context=basic_context,
-                    context_settings=state["context_settings"],
-                    context_manager=state["context_manager"],
                     ui=ui,
                 )
                 
@@ -533,7 +518,6 @@ async def _run_cli_mode(
     
     # Handle line range adjustment if requested
     if global_chunking_method == "adjust-line-ranges":
-        basic_context = load_basic_context(schema_name=selected_schema_name)
         matching_config = (chunking_and_context_config or {}).get("matching", {})
         retry_config = (chunking_and_context_config or {}).get("retry", {})
         
@@ -548,9 +532,6 @@ async def _run_cli_mode(
             chunking_config=chunking_and_context_config or {},
             matching_config=matching_config,
             retry_config=retry_config,
-            basic_context=basic_context,
-            context_settings=context_settings,
-            context_manager=context_manager,
             ui=None,
         )
         

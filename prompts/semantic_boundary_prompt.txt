@@ -1,7 +1,7 @@
 You are a text segmentation expert. Your task is to identify a precise semantic boundary marker within the provided text and extract it according to the JSON schema below.
 
 TASK DEFINITION
-The basic context defines the type of semantic boundary to identify. If additional context is provided, use it to inform your identification. You must:
+The context below defines the type of semantic boundary to identify. You must:
 1. Identify the earliest point that begins a complete semantic unit of the requested type
 2. Reason hard to extract a 5-15 character verbatim substring from the text that marks this boundary
 3. Ensure the substring is distinctive and therefore suitable for reliable matching in the source text
@@ -16,11 +16,8 @@ OUTPUT REQUIREMENTS
 - Return only valid JSON matching the schema below—no commentary, code fences, or additional fields
 - Use only verbatim text from the input—do not modify or invent content
 
-Basic context:
-{{BASIC_CONTEXT}}
+Context:
+{{CONTEXT}}
 
 The JSON schema:
 {{TRANSCRIPTION_SCHEMA}}
-
-Additional context:
-{{ADDITIONAL_CONTEXT}}

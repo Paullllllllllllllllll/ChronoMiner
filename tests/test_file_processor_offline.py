@@ -77,8 +77,6 @@ def test_file_processor_writes_output_json_offline(tmp_path: Path, config_loader
             inject_schema=True,
             schema_paths=schema_paths,
             global_chunking_method="auto",
-            context_settings={"use_additional_context": False},
-            context_manager=None,
             ui=None,
         )
 

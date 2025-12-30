@@ -8,17 +8,14 @@ TASK DEFINITION
 DATA EXTRACTION RULES
 - If the input text contains no content of the requested type, set contains_no_content_of_requested_type to true and return an empty entries array
 - Populate field values only when the text supports them, or they are easily deducible (e.g. city -> country); otherwise use `null` (or any explicit placeholder described in the schema)
-- If additional context is provided, use it for improving data extraction
+- If context is provided below, use it for improving data extraction
 
 OUTPUT REQUIREMENTS
 - Return only valid JSON matching the schema below—no commentary, code fences, or additional fields
 - Use only information present in the input text—do not invent or infer unsupported data
 
-Basic context:
-{{BASIC_CONTEXT}}
+Context:
+{{CONTEXT}}
 
 The JSON schema:
 {{TRANSCRIPTION_SCHEMA}}
-
-Additional context:
-{{ADDITIONAL_CONTEXT}}

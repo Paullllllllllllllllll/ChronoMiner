@@ -20,11 +20,11 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
-from modules.core.prompt_context import apply_context_placeholders, resolve_additional_context
+from modules.core.context_resolver import resolve_context_for_readjustment
 from modules.core.text_utils import TextProcessor, load_line_ranges
 from modules.llm.openai_utils import open_extractor, process_text_chunk
 from modules.llm.langchain_provider import ProviderConfig, ProviderType
-from modules.llm.prompt_utils import load_prompt_template
+from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
 from modules.core.path_utils import ensure_path_safe
 
 logger = logging.getLogger(__name__)
@@ -136,9 +136,6 @@ class LineRangeReadjuster:
         line_ranges_file: Optional[Path] = None,
         dry_run: bool = False,
         boundary_type: Optional[str] = None,
-        basic_context: Optional[str] = None,
-        context_settings: Optional[Dict[str, Any]] = None,
-        context_manager: Optional[Any] = None,
     ) -> List[Tuple[int, int]]:
         """Ensure the provided line ranges align with semantic boundaries."""
         text_file = text_file.resolve()
@@ -168,12 +165,16 @@ class LineRangeReadjuster:
         if not api_key:
             raise RuntimeError(f"API key not found for provider {provider}. Set the appropriate environment variable.")
 
-        additional_context = resolve_additional_context(
-            boundary_type,
-            context_settings=context_settings,
-            context_manager=context_manager,
+        # Resolve unified context using hierarchical resolution
+        context, context_path = resolve_context_for_readjustment(
+            boundary_type=boundary_type,
             text_file=text_file,
         )
+        
+        if context_path:
+            logger.info(f"Using line ranges context from: {context_path}")
+        else:
+            logger.info(f"No line ranges context found for boundary type '{boundary_type}'")
 
         adjusted_ranges: List[Tuple[int, int]] = []
         ranges_to_delete: List[int] = []  # Track indices of ranges with no content
@@ -190,8 +191,7 @@ class LineRangeReadjuster:
                     original_range=original_range,
                     range_index=index,
                     boundary_type=boundary_type,
-                    basic_context=basic_context,
-                    additional_context=additional_context,
+                    context=context,
                 )
                 
                 if should_delete:
@@ -242,8 +242,7 @@ class LineRangeReadjuster:
         original_range: Tuple[int, int],
         range_index: int,
         boundary_type: str,
-        basic_context: Optional[str],
-        additional_context: Optional[str],
+        context: Optional[str],
     ) -> Tuple[BoundaryDecision, Tuple[int, int], bool]:
         """
         Process a single range to find semantic boundaries.
@@ -284,8 +283,7 @@ class LineRangeReadjuster:
                     context_window=window,
                     window_index=window_idx,
                     boundary_type=boundary_type,
-                    basic_context=basic_context,
-                    additional_context=additional_context,
+                    context=context,
                     failed_markers=failed_marker_history,
                 )
                 decision = BoundaryDecision.from_payload(payload)
@@ -358,8 +356,7 @@ class LineRangeReadjuster:
                             original_range=original_range,
                             range_index=range_index,
                             boundary_type=boundary_type,
-                            basic_context=basic_context,
-                            additional_context=additional_context,
+                            context=context,
                         )
                         if should_delete:
                             return decision, original_range, True
@@ -447,8 +444,7 @@ class LineRangeReadjuster:
         original_range: Tuple[int, int],
         range_index: int,
         boundary_type: str,
-        basic_context: Optional[str],
-        additional_context: Optional[str],
+        context: Optional[str],
     ) -> bool:
         """
         Verify that no semantic content of the required type exists in a broader scan.
@@ -493,8 +489,7 @@ class LineRangeReadjuster:
                 context_window=(scan_up_start, scan_up_end),
                 window_index=-1,  # Special index for verification scan
                 boundary_type=boundary_type,
-                basic_context=basic_context,
-                additional_context=additional_context,
+                context=context,
             )
             decision_up = BoundaryDecision.from_payload(payload_up)
             
@@ -515,8 +510,7 @@ class LineRangeReadjuster:
                 context_window=(scan_down_start, scan_down_end),
                 window_index=-2,  # Special index for verification scan
                 boundary_type=boundary_type,
-                basic_context=basic_context,
-                additional_context=additional_context,
+                context=context,
             )
             decision_down = BoundaryDecision.from_payload(payload_down)
             
@@ -544,8 +538,7 @@ class LineRangeReadjuster:
         context_window: Tuple[int, int],
         window_index: int,
         boundary_type: str,
-        basic_context: Optional[str],
-        additional_context: Optional[str],
+        context: Optional[str],
         failed_markers: Optional[Sequence[str]] = None,
     ) -> Dict[str, Any]:
         start, end = original_range
@@ -557,15 +550,13 @@ class LineRangeReadjuster:
             f"{context_block}\n"
         )
 
-        system_prompt = apply_context_placeholders(
+        # Render system prompt with unified context and schema
+        system_prompt = render_prompt_with_schema(
             self.prompt_template,
-            basic_context=basic_context,
-            additional_context=additional_context,
+            SEMANTIC_BOUNDARY_SCHEMA["schema"],
+            inject_schema=True,
+            context=context,
         )
-
-        # Inject the semantic boundary schema into the prompt
-        schema_json = json.dumps(SEMANTIC_BOUNDARY_SCHEMA["schema"], indent=2, ensure_ascii=False)
-        system_prompt = system_prompt.replace("{{TRANSCRIPTION_SCHEMA}}", schema_json)
 
         if failed_markers:
             sanitized_failures = [marker.strip() for marker in failed_markers if marker and marker.strip()]

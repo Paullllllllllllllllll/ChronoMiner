@@ -74,11 +74,15 @@ The mode is determined automatically: if command-line arguments are provided, CL
 
 ### Context Integration
 
-- Basic Context (Always Included): Fundamental information about the input source, automatically loaded for every API request
-- Additional Context (User-Selected): Detailed, domain-specific guidance loaded when user selects to use additional context
-  - Default context: Uses schema-specific file from `additional_context/{SchemaName}.txt`
-  - File-specific context: Uses `{filename}_context.txt` files located next to the input files
-- Context Hierarchy: All applicable context levels are combined and injected into the system prompt
+ChronoMiner uses a unified, hierarchical context resolution system that automatically selects the most specific context available for each task. Context is resolved separately for extraction tasks and line-range-readjustment tasks.
+
+- Automatic Resolution: Context is resolved automatically without user configuration, using hierarchical fallback
+- File-Specific Context: Place `{filename}_extraction.txt` or `{filename}_line_ranges.txt` next to input files for file-specific guidance
+- Folder-Specific Context: Place `{foldername}_extraction.txt` or `{foldername}_line_ranges.txt` in the parent directory for folder-wide context
+- Schema-Specific Context: Default context files in `context/extraction/{SchemaName}.txt` and `context/line_ranges/{SchemaName}.txt`
+- Global Fallback: Optional `context/extraction/general.txt` or `context/line_ranges/general.txt` for cross-schema defaults
+
+The system automatically selects the most specific context available, falling back through the hierarchy until context is found or none exists.
 
 ### Multi-Provider LLM Support
 
@@ -449,15 +453,11 @@ Controls text chunking behavior and default context behavior.
 ```yaml
 chunking:
   default_tokens_per_chunk: 7500
-
-context:
-  use_additional_context: true
 ```
 
 Key Parameters:
 
 - `chunking.default_tokens_per_chunk`: Target number of tokens per chunk
-- `context.use_additional_context`: Default behavior for additional context (Interactive mode can override this)
 
 ### 4. Concurrency Configuration (`concurrency_config.yaml`)
 
@@ -520,66 +520,83 @@ Key parameters:
 
 ### Context Files
 
-#### Basic Context (Required)
+ChronoMiner uses a unified context directory structure with separate subdirectories for extraction and line-range-readjustment tasks. Context files are automatically resolved using hierarchical fallback.
 
-Basic context files are located in `basic_context/` and are automatically loaded and included in every API request. Each schema requires a corresponding basic context file named `{SchemaName}Entries.txt`.
-
-If you need to draft a new basic context file with the help of an LLM, reuse the prompt template in `gimmicks/basic_context_prompt.txt`. Provide that prompt together with the relevant schema definition so the model can generate compliant guidance.
-
-Basic context provides fundamental information about the input source:
-
-- Brief description of the input text type and characteristics
-- Language and formatting expectations
-- Historical time period or geographic scope
-- Natural semantic markers for text chunking
-
-Example: `basic_context/BibliographicEntries.txt`
+#### Directory Structure
 
 ```
-The input text consists of a snippet of bibliographic records describing historical culinary and household
-literature (e.g., cookbooks, household manuals, foodstuff guides, food production regulations, etc.) dating
-from approximately 1470 to 1950. The text may appear in different languages and use historical spelling
-and diacritics. When extracting edition information, ensure that later or revised editions of the same work are
-grouped together under the entry for the first (original) edition in the `edition_info` array. Natural semantic
-markers for this type of text are the beginnings of full bibliographic entries.
+context/
+  extraction/           # Context for data extraction tasks
+    BibliographicEntries.txt
+    HistoricalRecipesEntries.txt
+    general.txt         # Optional global fallback
+  line_ranges/          # Context for semantic boundary detection
+    BibliographicEntries.txt
+    HistoricalRecipesEntries.txt
+    general.txt         # Optional global fallback
 ```
 
-#### Additional Context (Optional)
+#### Extraction Context
 
-Additional context files are located in `additional_context/` and are only included when the user selects to use additional context. These files provide detailed, domain-specific guidance for extraction.
+Extraction context files in `context/extraction/` provide domain-specific guidance for structured data extraction. Each schema can have a corresponding context file named `{SchemaName}.txt`.
 
-To script new additional context documents with an LLM, start from the example prompt in `gimmicks/additional_context_prompt.txt` and share it alongside the matching schema.
-
-Example: `additional_context/BibliographicEntries.txt`
+Example: `context/extraction/BibliographicEntries.txt`
 
 ```
-ADDITIONAL CONTEXT FOR BIBLIOGRAPHIC ENTRIES
+The input text consists of bibliographic records describing historical culinary and household
+literature (e.g., cookbooks, household manuals, foodstuff guides, food production regulations, etc.)
+dated from approximately 1470 to 1950.
 
-When extracting data from historical culinary and household literature bibliographies, please consider:
+EXTRACTION RULES:
+- Take the title and main author from the first edition for `full_title`, `short_title`, and `main_author`.
+- Put every edition, including the first, into `edition_info` as its own object.
+- When multiple editions describe the same work, keep them together under the same root entry.
 
-1. Bibliographic conventions and evolution:
-   - Pre-1800 bibliographies often follow Short Title Catalogue conventions
-   - Modern bibliographic standards (e.g., Chicago, MLA) emerged in late 19th/early 20th century
-   - Title pages may contain extensive subtitles describing contents and intended audience
-
-2. Edition tracking and identification:
-   - First editions are bibliographically distinct from reprints and revised editions
-   - Edition statements may appear in various forms: "tweede druk," "2nd edition," "revised and enlarged"
+BIBLIOGRAPHIC CONVENTIONS:
+- Pre-1800 bibliographies often follow Short Title Catalogue conventions
+- Historical spelling varies significantly (e.g., Dutch "kookboek" vs. "cock-boeck")
+- Diacritics and special characters must be preserved for accurate identification
 ```
 
-#### File-Specific Context (Optional)
+#### Line Ranges Context
 
-For input files requiring specific instructions, users can create `{filename}_context.txt` files in the same directory as the input file.
+Line ranges context files in `context/line_ranges/` provide guidance for semantic boundary detection during the line-range-readjustment workflow.
 
-Example: `zurich_addressbook_1850_context.txt`
+Example: `context/line_ranges/BibliographicEntries.txt`
+
+```
+The input text consists of bibliographic records describing historical culinary and household literature.
+
+SEMANTIC BOUNDARY IDENTIFICATION:
+Treat the start of a **full bibliographic entry (with all its editions and volumes)** as one boundary.
+Each boundary marks the beginning of a complete bibliographic record.
+```
+
+#### File-Specific and Folder-Specific Context
+
+For granular control, place context files alongside input files or in parent directories:
+
+- File-specific: `{filename}_extraction.txt` or `{filename}_line_ranges.txt` next to the input file
+- Folder-specific: `{foldername}_extraction.txt` or `{foldername}_line_ranges.txt` in the parent directory
+
+Example: `zurich_addressbook_1850_extraction.txt`
 
 ```
 This address book contains entries from 1850-1870 in Zurich, Switzerland.
 - Occupations are listed in Swiss German
-- Addresses use old street names that no longer exist (refer to historical city maps)
+- Addresses use old street names that no longer exist
 - Some entries span multiple lines due to long professional titles
 - Family businesses often list multiple family members at the same address
 ```
+
+#### Context Resolution Order
+
+The system resolves context in this order, using the first match found:
+
+1. File-specific: `{filename}_extraction.txt` (or `_line_ranges.txt`)
+2. Folder-specific: `{foldername}_extraction.txt` (or `_line_ranges.txt`) in parent directory
+3. Schema-specific: `context/extraction/{SchemaName}.txt` (or `context/line_ranges/`)
+4. Global fallback: `context/extraction/general.txt` (or `context/line_ranges/general.txt`)
 
 ## Usage
 
@@ -600,12 +617,13 @@ The interactive interface guides you through:
 1. Select a Schema
 2. Choose Chunking Strategy
 3. Select Processing Mode (Synchronous or Batch)
-4. Configure Additional Context (Optional)
-5. Select Input Files
+4. Select Input Files
    - Process a single file
    - Process selected files from a folder (choose specific files via comma-separated indices or ranges)
    - Process all files in a folder
-6. Review and Confirm
+5. Review and Confirm
+
+Context is resolved automatically based on the hierarchical system. Place context files as described in Context Files for automatic inclusion.
 
 #### CLI Mode
 
@@ -628,10 +646,10 @@ Available Arguments:
 - `--input`: Input file or directory path (required)
 - `--chunking`: Chunking method (auto, auto-adjust, line_ranges, adjust-line-ranges)
 - `--batch`: Use batch processing mode (default: synchronous)
-- `--context`: Use additional context
-- `--context-source`: Context source (default or file-specific)
 - `--verbose`: Enable verbose output
 - `--quiet`: Minimize output
+
+Note: Context is resolved automatically using the hierarchical system described in Context Files. No command-line configuration is required.
 
 #### Daily Token Tracking During Processing
 
@@ -671,8 +689,6 @@ Options:
 - `--schema`: Schema name to use as boundary type (required when using `--path`)
 - `--context-window`: Number of surrounding lines to send to the model when searching for boundaries
 - `--prompt-path`: Override the prompt template used when calling the model
-- `--use-additional-context`: Include additional context (default or file-specific)
-- `--use-default-context`: When using additional context, prefer boundary-type-specific defaults from additional_context/
 
 Readjustment now follows a certainty-driven workflow:
 
@@ -830,22 +846,20 @@ Chunking Strategies:
 
 ### Phase 2: Context Integration
 
-#### Basic Context (Always Included)
-Basic context files provide fundamental information about the input source and are automatically loaded for every API request.
+#### Unified Context System
+ChronoMiner uses a unified context system that automatically resolves the most specific context available. Context is loaded from the `context/` directory with separate subdirectories for extraction and line-range-readjustment tasks.
 
-#### Additional Context (User-Selected)
-Additional context files provide detailed, domain-specific guidance and are only included when the user selects to use additional context.
+#### Context Resolution
+The system searches for context in this order:
+1. File-specific: `{filename}_extraction.txt` next to the input file
+2. Folder-specific: `{foldername}_extraction.txt` in the parent directory
+3. Schema-specific: `context/extraction/{SchemaName}.txt`
+4. Global fallback: `context/extraction/general.txt`
 
-The user can choose between:
-- Default context: Uses schema-specific file from `additional_context/{SchemaName}.txt`
-- File-specific context: Uses `{filename}_context.txt` files located next to the input files
+#### Context Integration
+Resolved context is injected into the system prompt via the `{{CONTEXT}}` placeholder. If no context is found, the placeholder section is removed to save tokens.
 
-#### Context Hierarchy and Integration
-All applicable context levels are combined and injected into the system prompt via placeholders:
-
-1. Basic context always inserted via `{{BASIC_CONTEXT}}` placeholder
-2. Additional or file-specific context inserted via `{{ADDITIONAL_CONTEXT}}` placeholder (if selected)
-3. User message remains clean: `"Input text:\n{chunk_text}"`
+User message remains clean: `"Input text:\n{chunk_text}"`
 
 ### Phase 3: API Request Construction
 
@@ -934,40 +948,41 @@ Schema Design Best Practices:
 - **Use strong typing**: Choose accurate data types and formats.
 - **Keep validation strict**: Set `strict: true` for robust validation.
 
-### Create Basic Context File (Required)
+### Create Context Files
 
-Create a basic context file in `basic_context/` named `MyCustomSchemaEntries.txt`. This file is mandatory and will be automatically loaded for every API request.
+Create context files in the unified `context/` directory structure:
 
-Example: `basic_context/MyCustomSchemaEntries.txt`
+#### Extraction Context (Required)
+
+Create `context/extraction/MyCustomSchemaEntries.txt` for extraction guidance:
 
 ```
 The input text consists of excerpts from historical legal documents dating from approximately 1700 to 1900.
 The text may appear in different languages including English, Latin, and French, with period-specific legal
-terminology and archaic spelling. Documents typically contain party names, case descriptions, judgments, and
-dates. Natural semantic markers for this type of text are the beginnings of individual case entries or legal
-proceedings.
+terminology and archaic spelling.
+
+EXTRACTION RULES:
+- Party names should be extracted exactly as written, preserving historical spelling
+- Case dates should be normalized to ISO format when possible
+- Legal terminology should be preserved in original language with translations in notes
+
+DOCUMENT CONVENTIONS:
+- Latin phrases were standard in legal documents through the 19th century
+- Terms like "whereas," "heretofore," and "aforesaid" indicate legal language
+- Party designations (plaintiff, defendant) may use archaic terms
+- Dates may use regnal years (e.g., "3rd year of George III")
 ```
 
-### Create Additional Context File (Optional but Recommended)
+#### Line Ranges Context (Optional)
 
-Create a detailed additional context file in `additional_context/` named `MyCustomSchemaEntries.txt`.
-
-Example: `additional_context/MyCustomSchemaEntries.txt`
+Create `context/line_ranges/MyCustomSchemaEntries.txt` for semantic boundary detection:
 
 ```
-ADDITIONAL CONTEXT FOR MY CUSTOM SCHEMA ENTRIES
+The input text consists of excerpts from historical legal documents.
 
-When extracting data from historical legal documents, please consider:
-
-1. Legal terminology considerations:
-   - Latin phrases were standard in legal documents through the 19th century
-   - Terms like "whereas," "heretofore," and "aforesaid" indicate legal language
-   - Party designations (plaintiff, defendant) may use archaic terms
-
-2. Date formats and calendars:
-   - Dates may use regnal years (e.g., "3rd year of George III")
-   - Old Style vs. New Style calendar differences (pre-1752 in British territories)
-   - Format: "day Month year" common in legal documents
+SEMANTIC BOUNDARY IDENTIFICATION:
+Natural semantic markers for this type of text are the beginnings of individual case entries or legal
+proceedings. Each boundary marks the start of a new case or legal matter.
 ```
 
 ### Register Schema in Handler Registry
@@ -1318,8 +1333,9 @@ ChronoMiner/
 │   ├── operations/           # High-level operations (extraction, line ranges, repair)
 │   └── ui/                   # User interface and prompts
 ├── schemas/                   # JSON schemas for structured outputs
-├── basic_context/             # Basic context files (required, auto-loaded)
-├── additional_context/        # Additional context files (optional, user-selected)
+├── context/                   # Unified context directory
+│   ├── extraction/            # Context for data extraction tasks
+│   └── line_ranges/           # Context for semantic boundary detection
 ├── developer_messages/        # Developer message templates
 ├── prompts/                   # System prompt templates
 ├── LICENSE
@@ -1670,8 +1686,8 @@ Scenario: Extract structured data from historical court records.
 Steps:
 
 1. Create schema (`schemas/LegalRecords.json`)
-2. Add basic context (`basic_context/LegalRecordsEntries.txt`)
-3. Add additional context (`additional_context/LegalRecordsEntries.txt`)
+2. Add extraction context (`context/extraction/LegalRecordsEntries.txt`)
+3. Add line ranges context (`context/line_ranges/LegalRecordsEntries.txt`) if using line range adjustment
 4. Register schema in handler registry
 5. Configure paths in `paths_config.yaml`
 6. Run extraction

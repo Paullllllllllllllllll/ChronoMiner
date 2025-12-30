@@ -124,12 +124,3 @@ def _reset_token_tracker(tmp_path: Path):
     token_tracker._TOKEN_TRACKER_FILE = tmp_path / "token_state.json"
     yield
     token_tracker._tracker_instance = None
-
-
-@pytest.fixture(autouse=True)
-def _clear_basic_context_cache():
-    from modules.core.prompt_context import load_basic_context
-
-    load_basic_context.cache_clear()
-    yield
-    load_basic_context.cache_clear()

@@ -13,7 +13,7 @@ from typing import List, Dict, Any, Optional
 
 from modules.core.chunking_service import ChunkingService
 from modules.core.processing_strategy import create_processing_strategy
-from modules.core.prompt_context import load_basic_context, resolve_additional_context
+from modules.core.context_resolver import resolve_context_for_extraction
 from modules.core.text_utils import TextProcessor
 from modules.core.path_utils import ensure_path_safe
 from modules.llm.prompt_utils import render_prompt_with_schema
@@ -69,8 +69,6 @@ class FileProcessorRefactored:
         inject_schema: bool,
         schema_paths: Dict[str, Any],
         global_chunking_method: Optional[str] = None,
-        context_settings: Optional[Dict[str, Any]] = None,
-        context_manager: Optional[Any] = None,
         ui=None
     ) -> None:
         """
@@ -84,8 +82,6 @@ class FileProcessorRefactored:
         :param inject_schema: Whether to inject the JSON schema into the system prompt
         :param schema_paths: Schema-specific paths
         :param global_chunking_method: Global chunking method if specified
-        :param context_settings: Additional context settings
-        :param context_manager: Context manager instance
         :param ui: UserInterface instance for user feedback
         """
         # Create messaging adapter
@@ -136,21 +132,17 @@ class FileProcessorRefactored:
             messenger.error(f"Failed to chunk text from {file_path.name}: {e}", exc_info=e)
             return
 
-        # Resolve additional context
-        context_settings = context_settings or {}
-        additional_context = resolve_additional_context(
-            schema_name,
-            context_settings=context_settings,
-            context_manager=context_manager,
+        # Resolve unified context using hierarchical resolution
+        context, context_path = resolve_context_for_extraction(
+            schema_name=schema_name,
             text_file=file_path,
         )
-
-        if context_settings.get("use_additional_context", False):
-            self._log_context_usage(messenger, context_settings, additional_context, schema_name, file_path)
-
-        # Load schema-specific basic context
-        basic_context = load_basic_context(schema_name=schema_name)
-        logger.info(f"Loaded basic context for schema '{schema_name}' ({len(basic_context)} chars)")
+        
+        if context_path:
+            logger.info(f"Using extraction context from: {context_path}")
+            messenger.info(f"Using context from: {context_path.name}")
+        else:
+            logger.info(f"No context found for schema '{schema_name}'")
 
         # Render system prompt
         schema_definition = selected_schema.get("schema", {})
@@ -159,8 +151,7 @@ class FileProcessorRefactored:
             schema_definition,
             schema_name=schema_name,
             inject_schema=inject_schema,
-            additional_context=additional_context,
-            basic_context=basic_context,
+            context=context,
         )
 
         # Get schema handler
@@ -264,25 +255,6 @@ class FileProcessorRefactored:
             else:
                 return self._default_ask_file_chunking_method(file_path.name)
 
-    def _log_context_usage(
-        self,
-        messenger: MessagingAdapter,
-        context_settings: Dict[str, Any],
-        additional_context: Optional[str],
-        schema_name: str,
-        file_path: Path
-    ) -> None:
-        """Log context usage information."""
-        if context_settings.get("use_default_context", False):
-            if additional_context:
-                messenger.info(f"Using default additional context for schema: {schema_name}")
-            else:
-                messenger.info(f"No default additional context found for schema: {schema_name}")
-        else:
-            if additional_context:
-                messenger.info(f"Using file-specific context for: {file_path.name}")
-            else:
-                logger.info(f"No file-specific context found for: {file_path.name}")
 
     def _setup_output_paths(
         self,

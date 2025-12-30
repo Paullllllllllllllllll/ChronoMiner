@@ -4,7 +4,6 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from modules.config.loader import ConfigLoader, get_config_loader
-from modules.core.context_manager import ContextManager
 from modules.core.logger import setup_logger
 from modules.core.schema_manager import SchemaManager
 
@@ -12,7 +11,7 @@ logger = setup_logger(__name__)
 
 _TEXT_EXTENSIONS = {".txt"}
 _LINE_RANGE_SUFFIXES = {"_line_ranges.txt", "_line_range.txt"}
-_CONTEXT_SUFFIX = "_context.txt"
+_CONTEXT_SUFFIXES = {"_extraction.txt", "_line_ranges.txt", "_context.txt"}
 
 
 def load_core_resources() -> Tuple[
@@ -50,17 +49,6 @@ def load_schema_manager(*, ensure_available: bool = True) -> SchemaManager:
     return schema_manager
 
 
-def prepare_context_manager(context_settings: Dict[str, Any]) -> Optional[ContextManager]:
-    """Provision a ``ContextManager`` when default additional context is requested."""
-    use_additional = context_settings.get("use_additional_context", False)
-    use_default = context_settings.get("use_default_context", False)
-
-    if use_additional and use_default:
-        context_manager = ContextManager()
-        context_manager.load_additional_context()
-        return context_manager
-
-    return None
 
 
 def filter_text_files(paths: Iterable[Path]) -> List[Path]:
@@ -72,7 +60,7 @@ def filter_text_files(paths: Iterable[Path]) -> List[Path]:
         if candidate.suffix.lower() not in _TEXT_EXTENSIONS:
             continue
         name = candidate.name
-        if name.endswith(_CONTEXT_SUFFIX):
+        if any(name.endswith(suffix) for suffix in _CONTEXT_SUFFIXES):
             continue
         if any(name.endswith(suffix) for suffix in _LINE_RANGE_SUFFIXES):
             continue
