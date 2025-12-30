@@ -321,21 +321,68 @@ def resolve_path(path_str: str, base_dir: Optional[Path] = None) -> Path:
     return path.resolve()
 
 
-def validate_input_path(path: Path, must_exist: bool = True) -> bool:
+def validate_input_path(path: Path, must_exist: bool = True) -> None:
     """
     Validate that an input path exists and is accessible.
     
     :param path: Path to validate
     :param must_exist: Whether the path must already exist
-    :return: True if valid, False otherwise
+    :raises ValueError: If path is invalid
     """
     if must_exist and not path.exists():
-        return False
+        raise ValueError(f"Input path does not exist: {path}")
     
-    if path.exists() and not (path.is_file() or path.is_dir()):
-        return False
+    if must_exist and not (path.is_file() or path.is_dir()):
+        raise ValueError(f"Input path is neither a file nor directory: {path}")
+
+
+def validate_output_path(path: Path, create_parents: bool = True) -> None:
+    """
+    Validate and prepare an output path.
     
-    return True
+    :param path: Path to validate
+    :param create_parents: Whether to create parent directories
+    :raises ValueError: If path is invalid
+    """
+    if path.exists() and not path.is_dir():
+        raise ValueError(f"Output path exists but is not a directory: {path}")
+    
+    if create_parents:
+        path.mkdir(parents=True, exist_ok=True)
+
+
+def parse_indices(indices_str: str) -> List[int]:
+    """
+    Parse a comma-separated string of indices or ranges.
+    
+    :param indices_str: String like "0,5,12" or "1-5,10"
+    :return: Sorted list of integer indices
+    :raises ValueError: If string format is invalid
+    """
+    result = set()
+    
+    for part in indices_str.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        
+        if "-" in part:
+            # Range: "1-5"
+            try:
+                start, end = part.split("-", 1)
+                start_idx = int(start.strip())
+                end_idx = int(end.strip())
+                result.update(range(start_idx, end_idx + 1))
+            except ValueError:
+                raise ValueError(f"Invalid range format: {part}")
+        else:
+            # Single index: "5"
+            try:
+                result.add(int(part))
+            except ValueError:
+                raise ValueError(f"Invalid index: {part}")
+    
+    return sorted(result)
 
 
 def get_files_from_path(path: Path, pattern: str = "*.txt", exclude_patterns: Optional[List[str]] = None) -> List[Path]:
