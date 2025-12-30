@@ -1,28 +1,57 @@
-# paths_config.yaml
-# ==================
-# File system paths and output format configuration.
-# Used by: modules/config/loader.py, modules/operations/extraction/file_processor.py
+# =============================================================================
+# Paths Configuration
+# =============================================================================
+# General settings, file paths, and schema-specific configurations.
 #
-# Note: All paths should be absolute. Use forward slashes (/) even on Windows.
-# For relative paths, set allow_relative_paths: true and define base_directory.
+# Used by:
+#   - modules/core/mode_selector.py (interactive_mode)
+#   - modules/operations/extraction/file_processor.py (output paths, temp file retention)
+#   - modules/ui/core.py (schema path resolution)
+#   - modules/core/logger.py (logs_dir)
+# =============================================================================
 
-# ── General Settings ───────────────────────────────────────────────────────────
 general:
-  interactive_mode: true           # true = UI prompts for schema/path selection
-                                   # false = CLI mode with command-line arguments
+  # -------------------------------------------------------------------------
+  # Script Execution Mode
+  # -------------------------------------------------------------------------
+  # When true: scripts run interactively with user prompts and navigation.
+  # When false: scripts run as CLI tools accepting command-line arguments.
+  interactive_mode: true
 
-  retain_temporary_jsonl: true     # Keep intermediate JSONL files after processing
-                                   # Useful for debugging or batch job recovery
+  # -------------------------------------------------------------------------
+  # Temporary File Retention
+  # -------------------------------------------------------------------------
+  # Retain .jsonl tracking files after processing (useful for debugging).
+  # Note: Batch processing always retains JSONL for result retrieval.
+  retain_temporary_jsonl: true
 
-  input_paths_is_output_path: false  # true = write outputs alongside input files
-                                     # false = use schema-specific output paths below
+  # -------------------------------------------------------------------------
+  # Output Path Behavior
+  # -------------------------------------------------------------------------
+  # When true: output files are written next to input files.
+  # When false: output goes to the configured schema-specific directories below.
+  input_paths_is_output_path: false
 
-  logs_dir: ""                     # Custom log directory (empty = use default)
-                                   # Used by: modules/core/logger.py
+  # -------------------------------------------------------------------------
+  # Logging
+  # -------------------------------------------------------------------------
+  # Path to log file or directory. Can be absolute or relative to project root.
+  # If path ends with .log, it's treated as the log file path.
+  # Otherwise, it's treated as a directory and application.log is created inside.
+  logs_dir: ''
 
-# ── Schema Paths ───────────────────────────────────────────────────────────────
+# =============================================================================
+# Schema Paths
+# =============================================================================
 # Per-schema input/output directories and export format toggles.
-# Used by: modules/ui/core.py, main/check_batches.py, main/repair_extractions.py
+#
+# Used by:
+#   - modules/ui/core.py (path resolution)
+#   - modules/operations/extraction/file_processor.py (output generation)
+#   - main/check_batches.py (batch result processing)
+#   - main/repair_extractions.py (extraction repair)
+# =============================================================================
+
 schemas_paths:
   BibliographicEntries:
     input: ""

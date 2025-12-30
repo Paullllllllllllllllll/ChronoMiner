@@ -1,46 +1,104 @@
-# model_config.yaml
-# ==================
-# LLM model configuration for structured extraction.
-# Used by: modules/llm/langchain_provider.py, modules/llm/openai_utils.py
+# =============================================================================
+# Model Configuration
+# =============================================================================
+# Configuration for the LLM used by the extraction pipeline.
 #
-# ── Supported Providers ────────────────────────────────────────────────────────
-#   openai:     GPT-4o, GPT-4.1, o1, o3, GPT-5      (env: OPENAI_API_KEY)
-#   anthropic:  Claude 3.5 Sonnet, Claude 3 Opus    (env: ANTHROPIC_API_KEY)
-#   google:     Gemini 2.0 Flash, Gemini 1.5 Pro    (env: GOOGLE_API_KEY)
-#   openrouter: Unified access to 200+ models       (env: OPENROUTER_API_KEY)
+# Used by:
+#   - modules/llm/langchain_provider.py (LangChain-based multi-provider extraction)
+#   - modules/llm/providers/*.py (provider-specific implementations)
+#   - modules/llm/batch/backends/*.py (batch processing backends)
+#   - modules/config/config_loader.py (model validation at startup)
 #
-# ── Model Name Examples ────────────────────────────────────────────────────────
-#   OpenAI:      gpt-4o, gpt-4.1-mini, o1, o3, gpt-5-mini
-#   Anthropic:   claude-3-5-sonnet-20241022, claude-3-opus-20240229
-#   Google:      gemini-2.0-flash, gemini-1.5-pro
-#   OpenRouter:  anthropic/claude-sonnet-4-5, google/gemini-2.5-flash, deepseek/deepseek-r1
+# API Keys (environment variables):
+#   - OpenAI: OPENAI_API_KEY
+#   - Anthropic: ANTHROPIC_API_KEY
+#   - Google: GOOGLE_API_KEY
+#   - OpenRouter: OPENROUTER_API_KEY
+# =============================================================================
 
 transcription_model:
-  # provider: openai           # Optional override; auto-detected from model name if omitted
+  # -------------------------------------------------------------------------
+  # Provider Selection
+  # -------------------------------------------------------------------------
+  # Supported: openai, anthropic, google, openrouter
+  # If omitted, auto-detected from model name (see modules/llm/providers/factory.py).
+  # provider: openai
 
-  name: "gpt-5-mini"           # Model identifier; provider auto-detected from prefix
-                               # Examples: "gpt-4o" → OpenAI, "claude-*" → Anthropic
+  # -------------------------------------------------------------------------
+  # Model Identifier
+  # -------------------------------------------------------------------------
+  # For OpenRouter: use "provider/model" format (e.g., "anthropic/claude-sonnet-4-5")
+  # For other providers: use the provider-native model ID
+  #
+  # Examples by provider:
+  #
+  # OpenAI:
+  #   - GPT-5.1: gpt-5.1, gpt-5.1-mini, gpt-5.1-nano (newest, adaptive thinking)
+  #   - GPT-5: gpt-5, gpt-5-mini, gpt-5-nano
+  #   - o-series: o4-mini, o3, o3-pro, o3-mini, o1, o1-pro, o1-mini
+  #   - GPT-4.1: gpt-4.1, gpt-4.1-mini, gpt-4.1-nano (1M context)
+  #   - GPT-4o: gpt-4o, gpt-4o-mini
+  #
+  # Anthropic:
+  #   - Claude 4.5: claude-sonnet-4-5-20250929, claude-opus-4-5-XXXXXXXX
+  #   - Claude 4.1: claude-opus-4-1-20250805
+  #   - Claude 4: claude-sonnet-4-20250514
+  #   - Claude 3.5: claude-3-5-sonnet-20241022, claude-3-5-haiku-20241022
+  #
+  # Google:
+  #   - Gemini 3: gemini-3-pro, gemini-3-flash-preview
+  #   - Gemini 2.5: gemini-2.5-pro, gemini-2.5-flash
+  #   - Gemini 2.0: gemini-2.0-flash, gemini-2.0-flash-exp
+  #   - Gemini 1.5: gemini-1.5-pro, gemini-1.5-flash
+  #
+  # OpenRouter (100+ models via unified API):
+  #   - openai/gpt-5.1, anthropic/claude-sonnet-4-5, google/gemini-3-pro
+  #   - deepseek/deepseek-r1, meta/llama-3.2-90b, mistral/pixtral-large
+  name: gpt-5-mini
 
-  max_output_tokens: 32000     # Maximum tokens the model can generate per response
+  # -------------------------------------------------------------------------
+  # Output Token Limit
+  # -------------------------------------------------------------------------
+  # Maximum tokens the model can generate per response.
+  # For reasoning models (GPT-5, o-series), LangChain maps this to the
+  # appropriate parameter name (max_completion_tokens).
+  max_output_tokens: 128000
 
-  # ── Reasoning Controls ───────────────────────────────────────────────────────
-  # For reasoning-capable models (GPT-5, o-series, Claude 4.x, Gemini 2.5+)
-  # Effort levels control depth vs speed tradeoff:
-  #   low:    Minimal reasoning, fastest responses
-  #   medium: Balanced depth (recommended for most tasks)
-  #   high:   Maximum depth, slower but more thorough
+  # -------------------------------------------------------------------------
+  # Reasoning Controls
+  # -------------------------------------------------------------------------
+  # Applies to reasoning-capable models across all providers:
+  #   - OpenAI GPT-5/o-series: Uses reasoning_effort parameter
+  #   - Anthropic Claude 4.5/4.1: Uses extended thinking (budget_tokens)
+  #   - Google Gemini 2.5/3: Uses thinking_level (low/high)
+  #   - OpenRouter: Passes reasoning_effort to underlying models
+  #
+  # Values for effort: low | medium | high
+  #   - low: Minimal reasoning overhead, faster responses
+  #   - medium: Balanced reasoning depth (recommended)
+  #   - high: Maximum reasoning depth, slower but more thorough
   reasoning:
-    effort: low
+    effort: medium
 
-  # ── Text Output Controls ─────────────────────────────────────────────────────
-  # GPT-5 family specific setting for response verbosity
+  # Text output controls (OpenAI GPT-5 only).
+  # Verbosity: low | medium | high
   text:
-    verbosity: high            # low | medium | high
+    verbosity: high
 
-  # ── Sampler Controls ─────────────────────────────────────────────────────────
-  # Classic sampling parameters for non-reasoning models (GPT-4o, Claude, Gemini)
-  # Automatically ignored for reasoning models by the provider adapter
-  temperature: 0.0             # 0.0 = deterministic; higher = more creative
-  top_p: 1.0                   # Nucleus sampling threshold
-  frequency_penalty: 0.0       # Penalize repeated tokens
-  presence_penalty: 0.0        # Penalize tokens already in context
+  # -------------------------------------------------------------------------
+  # Sampler Controls
+  # -------------------------------------------------------------------------
+  # Supported on most non-reasoning chat models. For reasoning models
+  # (GPT-5, o-series), these are automatically filtered by the provider.
+  # Note: Anthropic extended thinking requires temperature: 1
+  temperature: 0.0
+  top_p: 1.0
+  frequency_penalty: 0.0
+  presence_penalty: 0.0
+
+  # -------------------------------------------------------------------------
+  # Service Tier (OpenAI only)
+  # -------------------------------------------------------------------------
+  # Configured in config/concurrency_config.yaml under:
+  #   concurrency.extraction.service_tier: auto|default|priority|flex
+  # Note: 'flex' is synchronous-only; batch processing may require 'auto'.

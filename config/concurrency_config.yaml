@@ -1,38 +1,82 @@
-# concurrency_config.yaml
-# ========================
-# Controls concurrency, timeouts, and retry behavior for API calls.
-# Used by: modules/core/processing_strategy.py, modules/llm/langchain_provider.py
+# =============================================================================
+# Concurrency Configuration
+# =============================================================================
+# Controls parallel processing, API retry behavior, and token usage limits.
+#
+# Used by:
+#   - modules/core/processing_strategy.py (concurrency_limit, delay_between_tasks)
+#   - modules/llm/langchain_provider.py (retry configuration)
+#   - modules/llm/batch/backends/*.py (batch processing backends)
+#   - modules/core/token_tracker.py (daily_token_limit)
+# =============================================================================
 
 concurrency:
-  # ── Text Processing ──────────────────────────────────────────────────────────
+  # -------------------------------------------------------------------------
+  # Text Processing
+  # -------------------------------------------------------------------------
   # Settings for line range generation and text preprocessing operations.
   text_processing:
-    concurrency_limit: 20      # Maximum parallel API requests for text processing
-    delay_between_tasks: 0.1   # Seconds to wait between dispatching tasks (rate limiting)
+    # Maximum concurrent API calls for text processing tasks.
+    concurrency_limit: 1500
 
-  # ── Extraction ───────────────────────────────────────────────────────────────
+    # Delay (seconds) between starting each task.
+    delay_between_tasks: 0.05
+
+  # -------------------------------------------------------------------------
+  # Extraction
+  # -------------------------------------------------------------------------
   # Settings for LLM extraction calls (synchronous and batch modes).
   extraction:
-    concurrency_limit: 20      # Maximum parallel API requests for extraction
-                               # Note: Anthropic is automatically limited to 1 due to rate limits
-    delay_between_tasks: 0.1   # Seconds to wait between dispatching tasks (rate limiting)
-    service_tier: flex         # OpenAI service tier: auto | default | flex | priority
-                               # 'flex' offers lower cost with variable latency
+    # Maximum concurrent LLM API calls during synchronous extraction.
+    # Higher values = faster processing but more API load.
+    # Recommended: 20-50 for most use cases; up to 1500 for high-throughput scenarios.
+    # Note: Anthropic is automatically limited to 1 due to rate limits.
+    concurrency_limit: 1500
 
-    # Timeout configuration (seconds)
+    # Delay (seconds) between starting each extraction task.
+    # Helps avoid rate limiting; set to 0 for maximum throughput.
+    delay_between_tasks: 0.05
+
+    # OpenAI service tier for synchronous mode.
+    # Values: 'auto', 'default', 'flex', 'priority'
+    # Note: 'flex' is synchronous-only; batch processing may require 'auto'.
+    service_tier: flex
+
+    # Timeout configuration (seconds).
     timeouts:
-      total: 900               # Maximum time for entire request lifecycle
+      # Maximum time for entire request lifecycle.
+      total: 900
 
-    # Retry policy for transient failures (429 rate limits, network errors)
+    # Retry configuration for transient API errors (429, 5xx, timeouts).
+    # LangChain handles exponential backoff internally.
     retry:
-      attempts: 150            # Maximum retry attempts before failing
-      wait_min_seconds: 15     # Initial backoff wait time
-      wait_max_seconds: 120    # Maximum backoff wait time (exponential backoff capped here)
-      jitter_max_seconds: 5    # Random jitter added to prevent thundering herd
+      # Maximum retry attempts before failing.
+      attempts: 150
 
-# ── Daily Token Limit ──────────────────────────────────────────────────────────
-# Optional safeguard to cap daily API token consumption.
-# Used by: modules/core/token_tracker.py
+      # Initial backoff wait time (seconds).
+      wait_min_seconds: 15
+
+      # Maximum backoff wait time (exponential backoff capped here).
+      wait_max_seconds: 120
+
+      # Random jitter added to prevent thundering herd.
+      jitter_max_seconds: 5
+
+# =============================================================================
+# Daily Token Limit
+# =============================================================================
+# Tracks cumulative token usage across all LLM API calls and enforces a daily
+# cap. When the limit is reached, processing pauses until midnight reset.
+#
+# Used by:
+#   - modules/core/token_tracker.py (limit enforcement and usage tracking)
+#   - modules/operations/extraction/run.py (check before each file)
+# =============================================================================
+
 daily_token_limit:
-  enabled: false               # Set true to enforce daily token budget
-  daily_tokens: 9000000        # Maximum tokens per day (input + output combined)
+  # Master toggle. When false, no token tracking or limits are enforced.
+  enabled: false
+
+  # Maximum tokens allowed per day (input + output combined).
+  # Processing pauses when this limit is reached; resumes at midnight.
+  daily_tokens: 9000000

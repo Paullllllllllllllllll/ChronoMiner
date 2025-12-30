@@ -26,7 +26,7 @@ matching:
   strip_punctuation: false         # Remove punctuation before matching
                                    # Keep false if punctuation is semantic (e.g., "§ 1." vs "§ 2.")
   allow_substring_match: true      # Allow marker to match within a line (not just whole line)
-  min_substring_length: 5          # Minimum chars for valid substring match
+  min_substring_length: 3          # Minimum chars for valid substring match
                                    # Prevents false positives from very short markers
 
 # ── Retry ──────────────────────────────────────────────────────────────────────
@@ -36,8 +36,8 @@ matching:
 retry:
   certainty_threshold: 70          # Minimum confidence (0-100) to accept LLM response
                                    # Below this triggers retry with adjusted context
-  max_low_certainty_retries: 12    # Max retries when confidence is below threshold
-  max_marker_mismatch_retries: 12  # Max attempts to request alternative markers
+  max_low_certainty_retries: 15    # Max retries when confidence is below threshold
+  max_marker_mismatch_retries: 15  # Max attempts to request alternative markers
                                    # when suggested markers don't match source text
   max_context_expansion_attempts: 6 # Max times to expand visible context window
                                    # when LLM signals needs_more_context
