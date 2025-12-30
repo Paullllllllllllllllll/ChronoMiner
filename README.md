@@ -940,6 +940,7 @@ ChronoMiner/
 │   └── line_ranges/          # Context for semantic boundary detection
 ├── developer_messages/        # Developer message templates
 ├── prompts/                   # System prompt templates
+├── gimmicks/                  # LLM prompts for generating context files
 ├── LICENSE
 ├── README.md
 └── requirements.txt
@@ -1039,9 +1040,16 @@ For most historical documents, low or medium is sufficient.
 A: 
 1. Create JSON schema in `schemas/`
 2. Add extraction context in `context/extraction/{SchemaName}.txt`
-3. Register in `modules/operations/extraction/schema_handlers.py`
-4. Configure paths in `paths_config.yaml`
-5. Test with sample files
+3. Add line ranges context in `context/line_ranges/{SchemaName}.txt`
+4. Register in `modules/operations/extraction/schema_handlers.py`
+5. Configure paths in `paths_config.yaml`
+6. Test with sample files
+
+To generate context files, use the LLM prompts in `gimmicks/`:
+- `extraction_context_prompt.txt`: Generate extraction context from sample text
+- `line_ranges_context_prompt.txt`: Generate semantic boundary detection context
+
+Feed sample text to an LLM with these prompts to auto-generate context files.
 
 ### Processing Questions
 

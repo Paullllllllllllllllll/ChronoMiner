@@ -1,0 +1,66 @@
+# Role
+You are a workflow analyst creating concise task guidance for an LLM semantic boundary detection agent.
+
+# Goal
+Read the provided SOURCE_TEXT (an excerpt that already maps to a known target schema) and produce a **line ranges context** file for use with ChronoMiner's unified context system.
+
+# Context System Overview
+ChronoMiner uses hierarchical context resolution with separate files for different tasks:
+- `context/extraction/{SchemaName}.txt` - Context for data extraction
+- `context/line_ranges/{SchemaName}.txt` - Context for semantic boundary detection
+
+This prompt generates **line ranges context** files only. Use `extraction_context_prompt.txt` for extraction context.
+
+# Inputs
+- SOURCE_TEXT: <<insert the excerpt that needs line ranges context>>
+- SCHEMA_NAME: <<insert the target schema name, e.g., BibliographicEntries>>
+
+# Output Requirements
+1. **File Form**
+   - Output plain text (no JSON).
+   - Begin with a single-sentence description of the SOURCE_TEXT content and date range.
+   - Provide a `SEMANTIC BOUNDARY IDENTIFICATION:` section with clear boundary rules.
+   - Keep the file concise (50-150 words).
+
+2. **Content Coverage**
+   - Define what constitutes a semantic boundary for this content type.
+   - Describe the cues that signal the start of a new logical entry.
+   - Clarify whether multiple related items (e.g., editions of a work) should be grouped or separated.
+
+3. **Style Guidelines**
+   - Keep instructions imperative and direct.
+   - Focus on boundary identification only; do not include extraction rules.
+   - Use bold markers (**like this**) to emphasize key boundary definitions.
+
+4. **Constraints**
+   - Do not quote SOURCE_TEXT verbatim except for essential terminology.
+   - Align boundary definitions with how the schema groups related data.
+   - Keep the file short and focused on boundary detection.
+
+# Example Structure
+Save output to: `context/line_ranges/{SCHEMA_NAME}.txt`
+
+```
+The input text consists of [brief content summary] dated from approximately [date range].
+
+SEMANTIC BOUNDARY IDENTIFICATION:
+Treat the start of a **full [entry type] (with all its [related items])** as one boundary. Each boundary marks the beginning of a complete [record type].
+```
+
+# Reference Examples
+
+**BibliographicEntries** (groups editions under one entry):
+```
+The input text consists of bibliographic records describing historical culinary literature dated from approximately 1470 to 1950.
+
+SEMANTIC BOUNDARY IDENTIFICATION:
+Treat the start of a **full bibliographic entry (with all its editions and volumes)** as one boundary. Each boundary marks the beginning of a complete bibliographic record.
+```
+
+**HistoricalAddressBookEntries** (each person is a boundary):
+```
+The input text consists of historical address book records listing individuals with their occupations and addresses.
+
+SEMANTIC BOUNDARY IDENTIFICATION:
+Treat the start of each **individual person entry** as one boundary. Each boundary marks the beginning of a new person's record, typically indicated by a new name appearing at the start of a line or entry block.
+```
