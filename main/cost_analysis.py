@@ -45,7 +45,6 @@ def _run_interactive_mode(
 ) -> None:
     """Run cost analysis in interactive mode."""
     ui = UserInterface(logger, use_colors=True)
-    ui.display_banner()
     
     ui.print_info("Loading configuration...")
     logger.info("Starting cost analysis (Interactive Mode)")

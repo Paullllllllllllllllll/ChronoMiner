@@ -710,8 +710,6 @@ class CheckBatchesScript(DualModeScript):
     
     def run_cli(self, args: Namespace) -> None:
         """Run batch checking in CLI mode."""
-        from argparse import Namespace
-        
         self.logger.info("Starting batch results retrieval (CLI Mode)")
         
         self._load_batch_config()

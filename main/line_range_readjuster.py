@@ -253,7 +253,6 @@ async def _run_interactive_mode(
 ) -> None:
     """Run line range readjustment in interactive mode with back navigation support."""
     ui = UserInterface(logger, use_colors=True)
-    ui.display_banner()
     ui.print_section_header("Line Range Adjustment")
     
     # State machine for navigation

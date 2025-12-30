@@ -142,7 +142,6 @@ async def _run_interactive_mode(
 ) -> None:
     """Run text processing in interactive mode with back navigation support."""
     ui = UserInterface(logger, use_colors=True)
-    ui.display_banner()
     
     # Load configuration
     ui.print_info("Loading configuration...")

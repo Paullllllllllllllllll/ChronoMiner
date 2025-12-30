@@ -28,7 +28,7 @@ class ConfigLoader:
     REQUIRED_PATHS_KEYS = ['general', 'schemas_paths']
     REQUIRED_MODEL_CONFIG = ['transcription_model']
     REQUIRED_CONCURRENCY = ['concurrency']
-    REQUIRED_CHUNKING_AND_CONTEXT_KEYS = ['chunking', 'context']
+    REQUIRED_CHUNKING_AND_CONTEXT_KEYS = ['chunking']
 
     def __init__(self, config_dir: Optional[Path] = None) -> None:
         self.config_dir = config_dir or Path(__file__).resolve().parents[2] / 'config'

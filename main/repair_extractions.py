@@ -151,7 +151,7 @@ def _repair_temp_file(
         return
 
     for track in completed_batches:
-        batch_responses = retrieve_responses_from_batch(track, client, temp_file.parent, local_batch_cache)
+        batch_responses = retrieve_responses_from_batch(track, temp_file.parent, local_batch_cache)
         responses.extend(batch_responses)
 
     if not responses:
@@ -216,7 +216,7 @@ class RepairExtractionsScript(DualModeScript):
             raise ValueError("OPENAI_API_KEY environment variable is not set or is empty")
         self.client: OpenAI = OpenAI(api_key=api_key)
         self.repo_info_list: List[Tuple[str, Path, Dict[str, Any]]] = []
-        self.processing_settings: Dict[str, Any] = []
+        self.processing_settings: Dict[str, Any] = {}
     
     def create_argument_parser(self) -> ArgumentParser:
         """Create argument parser for CLI mode."""
