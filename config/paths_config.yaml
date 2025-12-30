@@ -25,14 +25,14 @@ general:
 # Used by: modules/ui/core.py, main/check_batches.py, main/repair_extractions.py
 schemas_paths:
   BibliographicEntries:
-    input: "C:/Users/pagoetz/Desktop/working_dir/test_folders/test_folder_chrono_miner"
-    output: "C:/Users/pagoetz/Desktop/working_dir/test_folders/test_folder_chrono_miner_outputs/BibliographicEntries"
+    input: ""
+    output: ""
     csv_output: True
     docx_output: True
     txt_output: True
   StructuredSummaries:
-    input: "C:/Users/pagoetz/Desktop/working_dir/test_folders/test_folder_chrono_miner"
-    output: "C:/Users/pagoetz/Desktop/working_dir/test_folders/test_folder_chrono_miner_outputs/StructuredSummaries"
+    input: ""
+    output: ""
     csv_output: True
     docx_output: True
     txt_output: True
@@ -69,27 +69,24 @@ schemas_paths:
   HistoricalRecipesEntries:
     input: ""
     output: ""
-    csv_output: false
-    docx_output: false
-    txt_output: false
-
+    csv_output: True
+    docx_output: True
+    txt_output: True
   HistoricalRecipesEntriesLight:
     input: ""
     output: ""
-    csv_output: false
-    docx_output: false
-    txt_output: false
-
+    csv_output: True
+    docx_output: True
+    txt_output: True
   HistoricalRecipesEntriesMinimal:
     input: ""
     output: ""
-    csv_output: false
-    docx_output: false
-    txt_output: false
-
+    csv_output: True
+    docx_output: True
+    txt_output: True
   HistoricalRecipesSemanticAdditions:
     input: ""
     output: ""
-    csv_output: false
-    docx_output: false
-    txt_output: false
+    csv_output: True
+    docx_output: True
+    txt_output: True
