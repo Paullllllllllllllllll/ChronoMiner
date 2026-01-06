@@ -128,6 +128,23 @@ def extract_entries_from_json(json_file: Path) -> List[Any]:
                     
                     if "entries" in chunk_data:
                         entries.extend(chunk_data["entries"])
+                    elif "output_text" in chunk_data:
+                        # Handle output_text as JSON string (from process_text_files.py)
+                        output_text = chunk_data["output_text"]
+                        try:
+                            parsed = json.loads(output_text) if isinstance(output_text, str) else output_text
+                            if isinstance(parsed, dict):
+                                if parsed.get("contains_no_content_of_requested_type", False):
+                                    logger.debug("Chunk output_text indicated no content of requested type")
+                                    continue
+                                if "entries" in parsed:
+                                    valid_entries = [
+                                        entry for entry in parsed.get("entries", [])
+                                        if entry is not None
+                                    ]
+                                    entries.extend(valid_entries)
+                        except json.JSONDecodeError:
+                            logger.warning(f"Failed to parse output_text as JSON: {str(output_text)[:100]}...")
                 elif isinstance(chunk_data, list):
                     entries.extend(chunk_data)
 
