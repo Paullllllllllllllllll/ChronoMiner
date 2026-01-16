@@ -1212,6 +1212,32 @@ Provide:
 
 ## Development
 
+### Test Setup
+
+Install runtime dependencies:
+
+```bash
+pip install -r requirements.txt
+```
+
+Install development and test dependencies:
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+Run tests:
+
+```bash
+python -m pytest -v
+```
+
+Run tests with coverage:
+
+```bash
+python -m pytest --cov=. --cov-report=term-missing --cov-report=html
+```
+
 ### Recent Updates
 
 For complete release history, see GitHub releases.
