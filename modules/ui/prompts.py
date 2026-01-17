@@ -351,6 +351,29 @@ def prompt_text(
         return PromptResult(NavigationAction.CONTINUE, value)
 
 
+def _match_items_by_name(
+    search_term: str,
+    items: List[Tuple[str, str]],
+) -> set:
+    """Match items by partial name search.
+    
+    Args:
+        search_term: Search string to match against item descriptions
+        items: List of (identifier, description) tuples
+        
+    Returns:
+        Set of matching indices (0-based)
+    """
+    matched_indices = set()
+    search_lower = search_term.lower()
+    
+    for idx, (identifier, description) in enumerate(items):
+        if search_lower in description.lower():
+            matched_indices.add(idx)
+    
+    return matched_indices
+
+
 def prompt_multiselect(
     question: str,
     items: List[Tuple[str, str]],
@@ -358,6 +381,8 @@ def prompt_multiselect(
     allow_back: bool = False
 ) -> PromptResult:
     """Prompt user to select multiple items.
+    
+    Supports numeric selection (1,3,5), ranges (1-5), 'all', and filename search.
     
     Args:
         question: The question to ask
@@ -373,13 +398,14 @@ def prompt_multiselect(
     
     for idx, (identifier, description) in enumerate(items, 1):
         # Truncate long descriptions
-        if len(description) > 70:
-            description = description[:67] + "..."
+        if len(description) > 75:
+            description = description[:72] + "..."
         ui_print(f"  {idx}. {description}")
     
     ui_print(f"\n  Selection options:", PromptStyle.INFO)
     ui_print("    - Enter numbers separated by commas (e.g., '1,3,5')", PromptStyle.DIM)
     ui_print("    - Enter a range with a dash (e.g., '1-5')", PromptStyle.DIM)
+    ui_print("    - Enter a filename or part of it to search", PromptStyle.DIM)
     if allow_all:
         ui_print("    - Enter 'all' to select everything", PromptStyle.DIM)
     
@@ -388,7 +414,12 @@ def prompt_multiselect(
         print_navigation_help(allow_back)
     
     while True:
-        choice = ui_input("\nYour selection: ").lower()
+        choice = ui_input("\nYour selection: ").strip()
+        choice_lower = choice.lower()
+        
+        if not choice:
+            print_warning("No selection made. Please make a choice.")
+            continue
         
         # Check for navigation
         nav_action = handle_navigation_input(choice, allow_back)
@@ -398,37 +429,70 @@ def prompt_multiselect(
             return PromptResult(NavigationAction.BACK)
         
         # Check for 'all'
-        if allow_all and choice == "all":
+        if allow_all and choice_lower == "all":
             selected = [identifier for identifier, _ in items]
+            print_success(f"Selected all {len(items)} items.")
             return PromptResult(NavigationAction.CONTINUE, selected)
         
-        # Parse selection
-        try:
-            indices = set()
-            parts = choice.split(",")
-            for part in parts:
-                part = part.strip()
-                if "-" in part:
-                    # Range
-                    start, end = part.split("-", 1)
-                    start_idx = int(start.strip())
-                    end_idx = int(end.strip())
-                    indices.update(range(start_idx, end_idx + 1))
-                else:
-                    # Single number
-                    indices.add(int(part))
-            
-            # Validate indices
-            valid_indices = [i for i in indices if 1 <= i <= len(items)]
-            if not valid_indices:
-                print_error("No valid selections made.")
+        # Determine if input is numeric selection or filename search
+        normalized_input = choice.replace(" ", "").replace(";", ",")
+        is_numeric_selection = all(
+            c.isdigit() or c in ",-" for c in normalized_input
+        ) and any(c.isdigit() for c in normalized_input)
+        
+        selected_indices: set = set()
+        
+        if not is_numeric_selection:
+            # Try filename matching
+            matched = _match_items_by_name(choice, items)
+            if matched:
+                selected_indices.update(matched)
+            else:
+                print_error(
+                    f"No items found matching '{choice}'. Use numbers, ranges (e.g., 1-3), 'all', or a filename."
+                )
                 continue
-            
-            selected = [items[i - 1][0] for i in sorted(valid_indices)]
-            return PromptResult(NavigationAction.CONTINUE, selected)
-            
-        except (ValueError, IndexError):
-            print_error("Invalid format. Please try again.")
+        else:
+            # Numeric selection
+            try:
+                parts = normalized_input.split(",")
+                for part in parts:
+                    if not part:
+                        continue
+                    if "-" in part:
+                        # Range
+                        start, end = part.split("-", 1)
+                        start_idx = int(start.strip())
+                        end_idx = int(end.strip())
+                        if not (1 <= start_idx <= end_idx <= len(items)):
+                            print_error(f"Range {part} is invalid. Must be between 1 and {len(items)}.")
+                            selected_indices.clear()
+                            break
+                        selected_indices.update(range(start_idx - 1, end_idx))
+                    else:
+                        # Single number
+                        idx = int(part)
+                        if not (1 <= idx <= len(items)):
+                            print_error(f"Selection {part} is out of range. Must be between 1 and {len(items)}.")
+                            selected_indices.clear()
+                            break
+                        selected_indices.add(idx - 1)
+            except ValueError as e:
+                print_error(f"Invalid input: '{choice}'. Use numbers, ranges (e.g., 1-3), 'all', or a filename.")
+                continue
+        
+        if not selected_indices:
+            continue
+        
+        selected = [items[i][0] for i in sorted(selected_indices)]
+        
+        # Confirm selection
+        if len(selected) == 1:
+            print_success(f"Selected: {items[list(selected_indices)[0]][1]}")
+        else:
+            print_success(f"Selected {len(selected)} item(s).")
+        
+        return PromptResult(NavigationAction.CONTINUE, selected)
 
 
 def confirm_action(message: str, default: bool = False) -> bool:

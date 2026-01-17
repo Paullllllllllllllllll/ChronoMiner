@@ -480,6 +480,7 @@ class UserInterface:
         use_batch: bool,
         model_config: Optional[Dict[str, Any]] = None,
         paths_config: Optional[Dict[str, Any]] = None,
+        concurrency_config: Optional[Dict[str, Any]] = None,
     ) -> bool:
         """
         Display a detailed summary of the selected processing options and ask for confirmation.
@@ -490,6 +491,7 @@ class UserInterface:
         :param use_batch: Whether batch processing is enabled
         :param model_config: Model configuration dictionary
         :param paths_config: Paths configuration dictionary
+        :param concurrency_config: Concurrency configuration dictionary
         :return: True if user confirms, False otherwise
         """
         self.print_section_header("Processing Summary")
@@ -517,7 +519,15 @@ class UserInterface:
         processing_mode = "Batch (asynchronous)" if use_batch else "Synchronous (real-time)"
         self.console_print(f"    - Processing mode: {processing_mode}")
 
-        # Show model and provider details
+        # Context is now resolved automatically
+        self.console_print(f"    {self.DIM}- Context: Automatic (hierarchical resolution){self.RESET}")
+        
+        self.console_print(self.HORIZONTAL_LINE)
+        
+        # === Model Configuration ===
+        self.console_print(f"\n  {self.BOLD}Model Configuration:{self.RESET}")
+        self.console_print(self.HORIZONTAL_LINE)
+        
         if model_config:
             tm = model_config.get("transcription_model", {})
             provider = tm.get("provider", "auto-detect")
@@ -526,20 +536,43 @@ class UserInterface:
             self.console_print(f"    - Model: {model_name}")
             
             # Show key model parameters (dimmed)
-            temperature = tm.get("temperature", 0.0)
+            temperature = tm.get("temperature")
             max_tokens = tm.get("max_output_tokens") or tm.get("max_tokens", 32000)
-            self.console_print(f"    {self.DIM}- Temperature: {temperature}{self.RESET}")
+            if temperature is not None:
+                self.console_print(f"    {self.DIM}- Temperature: {temperature}{self.RESET}")
             self.console_print(f"    {self.DIM}- Max output tokens: {max_tokens:,}{self.RESET}")
             
             # Show reasoning effort if configured
             reasoning = tm.get("reasoning", {})
             if reasoning.get("effort"):
                 self.console_print(f"    {self.DIM}- Reasoning effort: {reasoning['effort']}{self.RESET}")
-
-        # Context is now resolved automatically
-        self.console_print(f"    {self.DIM}- Context: Automatic (hierarchical resolution){self.RESET}")
+            
+            # Show text verbosity if present (GPT-5 specific)
+            text_config = tm.get("text", {})
+            if text_config.get("verbosity"):
+                self.console_print(f"    {self.DIM}- Text verbosity: {text_config['verbosity']}{self.RESET}")
         
         self.console_print(self.HORIZONTAL_LINE)
+        
+        # === Concurrency Configuration ===
+        if concurrency_config:
+            self.console_print(f"\n  {self.BOLD}Concurrency Configuration:{self.RESET}")
+            self.console_print(self.HORIZONTAL_LINE)
+            
+            # API request concurrency
+            api_requests = concurrency_config.get("api_requests", {})
+            trans_api = api_requests.get("transcription", {})
+            trans_concurrency = trans_api.get("concurrency_limit", 5)
+            trans_service_tier = trans_api.get("service_tier", "default")
+            self.console_print(f"    - API requests: {trans_concurrency} concurrent")
+            self.console_print(f"    {self.DIM}- Service tier: {trans_service_tier}{self.RESET}")
+            
+            # Retry configuration
+            retry_config = concurrency_config.get("retry", {})
+            max_attempts = retry_config.get("max_attempts", 5)
+            self.console_print(f"    {self.DIM}- Max retry attempts: {max_attempts}{self.RESET}")
+            
+            self.console_print(self.HORIZONTAL_LINE)
         
         # === Output Location ===
         self.console_print(f"\n  {self.BOLD}Output Location:{self.RESET}")
@@ -581,6 +614,96 @@ class UserInterface:
 
         self.console_print("")  # Empty line
         return self.confirm("Proceed with processing?", default=True)
+    
+    def display_completion_summary(
+        self,
+        processed_count: int,
+        failed_count: int,
+        use_batch: bool,
+        duration_seconds: float = 0.0,
+        paths_config: Optional[Dict[str, Any]] = None,
+        selected_schema_name: Optional[str] = None,
+    ) -> None:
+        """
+        Display a detailed completion summary after processing.
+
+        :param processed_count: Number of successfully processed files
+        :param failed_count: Number of failed files
+        :param use_batch: Whether batch processing was used
+        :param duration_seconds: Total processing duration in seconds
+        :param paths_config: Paths configuration dictionary
+        :param selected_schema_name: Name of the schema used
+        """
+        self.print_section_header("Processing Complete")
+        
+        total_count = processed_count + failed_count
+        
+        # === Results Section ===
+        self.console_print(f"  {self.BOLD}Results:{self.RESET}")
+        self.console_print(self.HORIZONTAL_LINE)
+        
+        if use_batch:
+            self.print_success("Batch processing jobs have been submitted!")
+            self.console_print(f"    - Jobs submitted: {total_count}")
+        else:
+            if failed_count == 0 and processed_count > 0:
+                self.print_success(f"All {processed_count} file(s) processed successfully!")
+            elif processed_count > 0:
+                self.console_print(f"    - Processed: {processed_count}/{total_count} file(s)")
+                if failed_count > 0:
+                    self.print_warning(f"    - Failed: {failed_count} file(s)")
+            else:
+                self.print_warning("    - No files were processed.")
+        
+        # Duration
+        if duration_seconds > 0:
+            if duration_seconds >= 3600:
+                hours = duration_seconds / 3600
+                self.console_print(f"    - Duration: {hours:.1f} hours")
+            elif duration_seconds >= 60:
+                minutes = duration_seconds / 60
+                self.console_print(f"    - Duration: {minutes:.1f} minutes")
+            else:
+                self.console_print(f"    - Duration: {duration_seconds:.1f} seconds")
+        
+        self.console_print(self.HORIZONTAL_LINE)
+        
+        # === Output Location ===
+        self.console_print(f"\n  {self.BOLD}Output:{self.RESET}")
+        self.console_print(self.HORIZONTAL_LINE)
+        
+        if paths_config:
+            use_input_as_output = paths_config.get('general', {}).get('input_paths_is_output_path', False)
+            if use_input_as_output:
+                self.console_print("    - Location: Same directory as input files")
+            elif selected_schema_name:
+                schemas_paths = paths_config.get('schemas_paths', {})
+                schema_config = schemas_paths.get(selected_schema_name, {})
+                output_dir = schema_config.get('output', 'configured output directory')
+                self.console_print(f"    - Location: {output_dir}")
+                
+                # Show output formats
+                output_formats = []
+                if schema_config.get('csv_output', False):
+                    output_formats.append('CSV')
+                if schema_config.get('docx_output', False):
+                    output_formats.append('DOCX')
+                if schema_config.get('txt_output', False):
+                    output_formats.append('TXT')
+                if output_formats:
+                    self.console_print(f"    - Formats: {', '.join(output_formats)}")
+        
+        self.console_print(self.HORIZONTAL_LINE)
+        
+        # === Next Steps (for batch mode) ===
+        if use_batch:
+            self.console_print(f"\n  {self.BOLD}Next steps:{self.RESET}")
+            self.console_print(self.HORIZONTAL_LINE)
+            self.console_print(f"    {self.DIM}- Check batch status: python main/check_batches.py{self.RESET}")
+            self.console_print(f"    {self.DIM}- Cancel pending batches: python main/cancel_batches.py{self.RESET}")
+            self.console_print(self.HORIZONTAL_LINE)
+        
+        self.console_print(f"\n  {self.BOLD}Thank you for using ChronoMiner!{self.RESET}\n")
 
     def ask_file_chunking_method(self, file_name: str) -> str:
         """

@@ -270,6 +270,7 @@ async def _run_interactive_mode(
                 state["use_batch"],
                 model_config=model_config,
                 paths_config=paths_config,
+                concurrency_config=concurrency_config,
             )
             
             if not proceed:
@@ -293,6 +294,12 @@ async def _run_interactive_mode(
             f"Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
+    
+    # Track processing time
+    import time
+    start_time = time.time()
+    processed_count = 0
+    failed_count = 0
     
     # Process files
     ui.print_section_header("Starting Processing")
@@ -354,16 +361,21 @@ async def _run_interactive_mode(
             )
         await asyncio.gather(*tasks)
     
-    # Final summary
-    ui.print_section_header("Processing Complete")
+    # Calculate duration and set counts for non-sequential processing
+    duration_seconds = time.time() - start_time
+    if not (token_limit_enabled and not state["use_batch"]):
+        # For concurrent/batch mode, assume all processed successfully
+        processed_count = len(state["files"])
     
-    if state["use_batch"]:
-        ui.print_success("Batch processing jobs have been submitted")
-        ui.print_info("To check batch status, run: python main/check_batches.py")
-        logger.info("Batch jobs submitted successfully.")
-    else:
-        ui.print_success("All selected files have been processed")
-        logger.info("Processing completed successfully.")
+    # Display completion summary
+    ui.display_completion_summary(
+        processed_count=processed_count,
+        failed_count=failed_count,
+        use_batch=state["use_batch"],
+        duration_seconds=duration_seconds,
+        paths_config=paths_config,
+        selected_schema_name=state["selected_schema_name"],
+    )
     
     # Final token usage statistics
     if check_token_limit_enabled():
@@ -374,11 +386,9 @@ async def _run_interactive_mode(
             f"({stats['usage_percentage']:.1f}%)"
         )
         ui.print_info(
-            f"\nFinal daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"Final daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
-    
-    ui.console_print(f"\n{ui.BOLD}Thank you for using ChronoMiner!{ui.RESET}\n")
 
 
 async def _run_cli_mode(
