@@ -2,6 +2,7 @@
 
 """Text processing utilities for chunking and encoding detection."""
 
+import functools
 import logging
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -13,6 +14,11 @@ import tiktoken
 from modules.core.path_utils import ensure_path_safe
 
 logger = logging.getLogger(__name__)
+
+
+@functools.lru_cache(maxsize=1)
+def _get_cl100k_encoding():
+    return tiktoken.get_encoding('cl100k_base')
 
 
 class TextProcessor:
@@ -54,7 +60,9 @@ class TextProcessor:
         :param model_name: Model name (currently unused, reserved for future model-specific tokenization).
         :return: Estimated token count.
         """
-        encoding = tiktoken.get_encoding('cl100k_base')
+        if not text:
+            return 0
+        encoding = _get_cl100k_encoding()
         return len(encoding.encode(text))
 
 
@@ -93,10 +101,15 @@ class TokenBasedChunking(ChunkingStrategy):
         current_tokens = 0
         start_line = 1
         end_line = 1
+        tokens_per_chunk = self.tokens_per_chunk
+        encode = _get_cl100k_encoding().encode
 
         for idx, line in enumerate(lines, 1):
-            line_tokens = self.text_processor.estimate_tokens(line, self.model_name)
-            if current_tokens + line_tokens > self.tokens_per_chunk and current_tokens > 0:
+            if not line:
+                line_tokens = 0
+            else:
+                line_tokens = len(encode(line))
+            if current_tokens + line_tokens > tokens_per_chunk and current_tokens > 0:
                 ranges.append((start_line, end_line))
                 start_line = idx
                 current_tokens = line_tokens
