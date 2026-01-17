@@ -172,10 +172,20 @@ class DocumentConverter(BaseConverter):
             full_title = entry.get("full_title", "Unknown")
             short_title = entry.get("short_title", "")
             culinary_focus = entry.get("culinary_focus", [])
-            book_format = entry.get("format", "")
-            pages = entry.get("pages", "")
             edition_info = entry.get("edition_info", [])
             total_editions = entry.get("total_editions", "")
+
+            first_edition = None
+            if isinstance(edition_info, list) and edition_info:
+                first_edition = edition_info[0] if isinstance(edition_info[0], dict) else None
+
+            book_format = entry.get("format")
+            if not book_format and isinstance(first_edition, dict):
+                book_format = first_edition.get("format")
+
+            pages = entry.get("pages")
+            if pages in (None, "") and isinstance(first_edition, dict):
+                pages = first_edition.get("pages")
 
             # Add entry header and basic information
             document.add_heading(full_title, level=1)
@@ -200,22 +210,55 @@ class DocumentConverter(BaseConverter):
             document.add_heading("Edition Information", level=2)
             if edition_info and isinstance(edition_info, list):
                 for edition in edition_info:
+                    if not isinstance(edition, dict):
+                        continue
+
                     # Extract edition data
                     edition_number = edition.get("edition_number", "Unknown")
                     year = edition.get("year", "Unknown")
 
                     # Extract location data
-                    location = edition.get("location", {})
-                    country = location.get("country",
-                                           "Unknown") if location else "Unknown"
-                    city = location.get("city",
-                                        "Unknown") if location else "Unknown"
+                    city = "Unknown"
+                    country = "Unknown"
+                    publication_locations = edition.get("publication_locations")
+                    if isinstance(publication_locations, list) and publication_locations:
+                        first_loc = publication_locations[0] if isinstance(publication_locations[0], dict) else {}
+                        if isinstance(first_loc, dict):
+                            city = (
+                                first_loc.get("modern_place")
+                                or first_loc.get("original_place")
+                                or "Unknown"
+                            )
+                            country = (
+                                first_loc.get("modern_region")
+                                or first_loc.get("original_region")
+                                or "Unknown"
+                            )
+                    else:
+                        # Backward compatibility
+                        location = edition.get("location", {})
+                        if isinstance(location, dict):
+                            country = location.get("country") or "Unknown"
+                            city = location.get("city") or "Unknown"
 
                     # Get contributors
                     contributors = edition.get("contributors", [])
-                    contributors_str = ", ".join(
-                        contributors) if contributors and isinstance(
-                        contributors, list) else "Unknown"
+                    contributors_str = "Unknown"
+                    if isinstance(contributors, list) and contributors:
+                        formatted_contributors = []
+                        for c in contributors:
+                            if isinstance(c, dict):
+                                name = c.get("name")
+                                role = c.get("role")
+                                if name and role:
+                                    formatted_contributors.append(f"{name} ({role})")
+                                elif name:
+                                    formatted_contributors.append(str(name))
+                            elif c is not None:
+                                formatted_contributors.append(str(c))
+                        formatted_contributors = [x for x in formatted_contributors if x]
+                        if formatted_contributors:
+                            contributors_str = ", ".join(formatted_contributors)
 
                     # Get other edition details
                     language = edition.get("language", "")

@@ -23,6 +23,11 @@ import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
 from modules.cli.args_parser import create_process_parser, get_files_from_path, resolve_path
 from modules.cli.execution_framework import AsyncDualModeScript
 from modules.config.manager import ConfigManager, ConfigValidationError
@@ -470,6 +475,8 @@ async def _run_cli_mode(
     # Process CLI arguments
     global_chunking_method = args.chunking if args.chunking else "auto"
     use_batch = args.batch if hasattr(args, 'batch') else False
+    use_context = bool(getattr(args, "context", False))
+    context_source = getattr(args, "context_source", "default")
     
     # Resolve input path and get files
     input_path = resolve_path(args.input)
@@ -534,6 +541,11 @@ async def _run_cli_mode(
     inject_schema = model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
     token_limit_enabled = check_token_limit_enabled()
     
+    # Allow overriding output directory per invocation (useful for smoke tests)
+    effective_schema_paths = dict(schemas_paths.get(selected_schema_name, {}) or {})
+    if getattr(args, "output", None):
+        effective_schema_paths["output"] = str(resolve_path(args.output))
+
     if token_limit_enabled and not use_batch:
         # Sequential processing with token limit checks
         processed_count = 0
@@ -553,8 +565,10 @@ async def _run_cli_mode(
                 prompt_template=prompt_template,
                 schema_name=selected_schema_name,
                 inject_schema=inject_schema,
-                schema_paths=schemas_paths.get(selected_schema_name, {}),
+                schema_paths=effective_schema_paths,
                 global_chunking_method=global_chunking_method,
+                use_context=use_context,
+                context_source=context_source,
                 ui=None,
             )
             processed_count += 1
@@ -579,8 +593,10 @@ async def _run_cli_mode(
                     prompt_template=prompt_template,
                     schema_name=selected_schema_name,
                     inject_schema=inject_schema,
-                    schema_paths=schemas_paths.get(selected_schema_name, {}),
+                    schema_paths=effective_schema_paths,
                     global_chunking_method=global_chunking_method,
+                    use_context=use_context,
+                    context_source=context_source,
                     ui=None,
                 )
             )

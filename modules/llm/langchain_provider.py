@@ -586,11 +586,27 @@ class LangChainLLM:
             else:
                 response = await chat_model.ainvoke(lc_messages)
             
-            # Extract content
-            output_text = response.content if hasattr(response, 'content') else str(response)
+            raw_response = response
+            parsed_response = None
+            parsing_error = None
+            if isinstance(response, dict) and "raw" in response:
+                raw_response = response.get("raw") or response
+                parsed_response = response.get("parsed")
+                parsing_error = response.get("parsing_error")
+
+            if parsing_error is not None:
+                response_data["parsing_error"] = str(parsing_error)
+
+            if parsed_response is not None and parsing_error is None:
+                if isinstance(parsed_response, str):
+                    output_text = parsed_response
+                else:
+                    output_text = json.dumps(parsed_response, ensure_ascii=False)
+            else:
+                output_text = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
             
             # Track token usage - usage_metadata can be dict or object
-            usage_metadata = getattr(response, 'usage_metadata', None)
+            usage_metadata = getattr(raw_response, 'usage_metadata', None)
             if usage_metadata:
                 # Handle both dict and object access patterns
                 if isinstance(usage_metadata, dict):
@@ -716,9 +732,6 @@ class LangChainLLM:
             include_raw=True,
         )
         result = await structured_model.ainvoke(messages)
-        # include_raw returns {"raw": AIMessage, "parsed": dict, "parsing_error": ...}
-        if isinstance(result, dict) and "raw" in result:
-            return result["raw"]
         return result
     
     async def _invoke_google_structured(
@@ -734,9 +747,6 @@ class LangChainLLM:
             include_raw=True,
         )
         result = await structured_model.ainvoke(messages)
-        # include_raw returns {"raw": AIMessage, "parsed": dict, "parsing_error": ...}
-        if isinstance(result, dict) and "raw" in result:
-            return result["raw"]
         return result
     
     def invoke_with_structured_output(

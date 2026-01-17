@@ -122,6 +122,8 @@ class FileProcessorRefactored:
         inject_schema: bool,
         schema_paths: Dict[str, Any],
         global_chunking_method: Optional[str] = None,
+        use_context: bool = True,
+        context_source: str = "default",
         ui=None
     ) -> None:
         """
@@ -185,17 +187,26 @@ class FileProcessorRefactored:
             messenger.error(f"Failed to chunk text from {file_path.name}: {e}", exc_info=e)
             return
 
-        # Resolve unified context using hierarchical resolution
-        context, context_path = resolve_context_for_extraction(
-            schema_name=schema_name,
-            text_file=file_path,
-        )
-        
-        if context_path:
-            logger.info(f"Using extraction context from: {context_path}")
-            messenger.info(f"Using context from: {context_path.name}")
+        context = None
+        context_path = None
+        if use_context:
+            global_context_dir = None
+            if str(context_source).lower().strip() == "file":
+                global_context_dir = Path(__file__).resolve().parents[3] / "__no_context_dir__"
+
+            context, context_path = resolve_context_for_extraction(
+                schema_name=schema_name,
+                text_file=file_path,
+                global_context_dir=global_context_dir,
+            )
+
+            if context_path:
+                logger.info(f"Using extraction context from: {context_path}")
+                messenger.info(f"Using context from: {context_path.name}")
+            else:
+                logger.info(f"No context found for schema '{schema_name}'")
         else:
-            logger.info(f"No context found for schema '{schema_name}'")
+            logger.info("Context disabled for this run")
 
         # Render system prompt
         schema_definition = selected_schema.get("schema", {})
