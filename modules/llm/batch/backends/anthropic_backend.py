@@ -30,10 +30,10 @@ MAX_BATCH_BYTES = 256 * 1024 * 1024  # 256 MB
 class AnthropicBatchBackend(BatchBackend):
     """Anthropic Message Batches API backend."""
 
-    def __init__(self):
-        self._client = None
+    def __init__(self) -> None:
+        self._client: Any = None
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         """Lazy initialization of Anthropic client."""
         if self._client is None:
             import anthropic

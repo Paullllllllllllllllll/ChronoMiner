@@ -74,9 +74,12 @@ class LLMExtractor:
         
         # Get API key from parameter or environment
         if api_key:
-            self.api_key = api_key
+            self.api_key: str = api_key
         else:
-            self.api_key = ProviderConfig._get_api_key(self.provider)
+            resolved_key = ProviderConfig._get_api_key(self.provider)
+            if not resolved_key:
+                raise ValueError(f"API key not found for provider {self.provider}")
+            self.api_key = resolved_key
         
         if not self.api_key:
             raise ValueError(f"API key not found for provider {self.provider}")
@@ -143,6 +146,7 @@ class LLMExtractor:
         """Get the underlying LangChain LLM instance."""
         if self._llm is None:
             self._initialize_llm()
+        assert self._llm is not None, "LLM initialization failed"
         return self._llm
     
     async def close(self) -> None:

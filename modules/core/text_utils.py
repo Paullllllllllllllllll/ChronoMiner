@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @functools.lru_cache(maxsize=1)
-def _get_cl100k_encoding():
+def _get_cl100k_encoding() -> tiktoken.Encoding:
     return tiktoken.get_encoding('cl100k_base')
 
 
@@ -39,7 +39,7 @@ class TextProcessor:
         result = chardet.detect(raw_data)
         encoding = result['encoding']
         logger.info(f"Detected file encoding: {encoding}")
-        return encoding
+        return encoding or 'utf-8'
 
     @staticmethod
     def normalize_text(text: str) -> str:

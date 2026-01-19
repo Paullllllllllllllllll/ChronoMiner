@@ -58,6 +58,7 @@ def get_batch_backend(provider: Optional[str] = None) -> BatchBackend:
         return _backends[provider]
 
     # Create new backend
+    backend: BatchBackend
     if provider == "openai":
         from modules.llm.batch.backends.openai_backend import OpenAIBatchBackend
         backend = OpenAIBatchBackend()

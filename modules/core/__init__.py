@@ -5,6 +5,7 @@ Provides core utilities for text processing, data conversion, and chunking.
 """
 
 from importlib import import_module
+from typing import Any, List
 
 __all__ = [
     "BaseConverter",
@@ -31,7 +32,7 @@ _LAZY_EXPORTS = {
 }
 
 
-def __getattr__(name: str):
+def __getattr__(name: str) -> Any:
     target = _LAZY_EXPORTS.get(name)
     if target is None:
         raise AttributeError(name)
@@ -42,5 +43,5 @@ def __getattr__(name: str):
     return value
 
 
-def __dir__():
+def __dir__() -> List[str]:
     return sorted(list(globals().keys()) + list(_LAZY_EXPORTS.keys()))

@@ -420,7 +420,8 @@ def create_simple_dual_mode_executor(
                 'chunking': self.chunking_and_context_config,
                 'schemas': self.schemas_paths,
             }
-            interactive_runner(self.ui, config)
+            if self.ui is not None:
+                interactive_runner(self.ui, config)
         
         def run_cli(self, args: Namespace) -> None:
             config = {
@@ -431,7 +432,7 @@ def create_simple_dual_mode_executor(
             }
             cli_runner(args, config)
     
-    def main():
+    def main() -> None:
         script = SimpleDualModeScript(script_name)
         script.execute()
     

@@ -33,7 +33,7 @@ import json
 import threading
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Optional
+from typing import Any, Optional
 
 from modules.core.logger import setup_logger
 
@@ -326,7 +326,7 @@ def check_token_limit_enabled() -> bool:
     return tracker.enabled
 
 
-def check_and_wait_for_token_limit(ui=None, logger=None) -> bool:
+def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> bool:
     """
     Check if daily token limit is reached and wait until next day if needed.
     

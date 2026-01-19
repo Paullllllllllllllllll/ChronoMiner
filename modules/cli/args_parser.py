@@ -359,7 +359,7 @@ def parse_indices(indices_str: str) -> List[int]:
     :return: Sorted list of integer indices
     :raises ValueError: If string format is invalid
     """
-    result = set()
+    result: set[int] = set()
     
     for part in indices_str.split(","):
         part = part.strip()

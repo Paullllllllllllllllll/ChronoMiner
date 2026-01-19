@@ -57,7 +57,7 @@ class BaseSchemaHandler:
 schema_handlers_registry = {}
 
 
-def register_schema_handler(schema_name: str, handler_class) -> None:
+def register_schema_handler(schema_name: str, handler_class: type) -> None:
     """Register a schema handler class for a given schema name."""
     schema_handlers_registry[schema_name] = handler_class(schema_name)
 
