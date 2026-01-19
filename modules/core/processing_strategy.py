@@ -22,7 +22,7 @@ import time
 import random
 from pathlib import Path
 from abc import ABC, abstractmethod
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List, Optional
 
 from modules.core.token_tracker import get_token_tracker
 from modules.llm.batching import build_batch_files, submit_batch
@@ -45,13 +45,13 @@ class ProcessingStrategy(ABC):
     async def process_chunks(
         self,
         chunks: List[str],
-        handler,
+        handler: Any,
         dev_message: str,
         model_config: Dict[str, Any],
         schema: Dict[str, Any],
         file_path: Path,
         temp_jsonl_path: Path,
-        console_print,
+        console_print: Any,
     ) -> List[Dict[str, Any]]:
         """
         Process text chunks using the strategy.
@@ -83,13 +83,13 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
     async def process_chunks(
         self,
         chunks: List[str],
-        handler,
+        handler: Any,
         dev_message: str,
         model_config: Dict[str, Any],
         schema: Dict[str, Any],
         file_path: Path,
         temp_jsonl_path: Path,
-        console_print,
+        console_print: Any,
     ) -> List[Dict[str, Any]]:
         """Process chunks synchronously with concurrent API calls."""
         # Detect provider from model name
@@ -142,7 +142,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
             with temp_jsonl_path.open("w", encoding="utf-8") as tempf:
                 semaphore = asyncio.Semaphore(concurrency_limit)
 
-                async def process_single_chunk(idx: int, chunk: str):
+                async def process_single_chunk(idx: int, chunk: str) -> Dict[str, Any]:
                     """Process a single chunk with semaphore control."""
                     async with semaphore:
                         if delay_between_tasks > 0:
@@ -201,6 +201,8 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 logger.error(f"Error processing chunk {idx}: {e}", exc_info=e)
                                 console_print(f"[ERROR] Failed to process chunk {idx}: {e}")
                                 return {"error": str(e)}
+                        # If all retries exhausted without returning, return error
+                        return {"error": f"Max retries ({retry_attempts}) exhausted for chunk {idx}"}
 
                 # Process all chunks concurrently
                 tasks = [
@@ -226,13 +228,13 @@ class BatchProcessingStrategy(ProcessingStrategy):
     async def process_chunks(
         self,
         chunks: List[str],
-        handler,
+        handler: Any,
         dev_message: str,
         model_config: Dict[str, Any],
         schema: Dict[str, Any],
         file_path: Path,
         temp_jsonl_path: Path,
-        console_print,
+        console_print: Any,
     ) -> List[Dict[str, Any]]:
         """Prepare and submit batch processing job using provider-agnostic backend."""
         # Detect provider from model config

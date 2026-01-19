@@ -197,8 +197,8 @@ def extract_token_usage_from_record(record: Dict[str, Any]) -> Optional[TokenUsa
         usage_data = response_data.get("usage", {})
         if isinstance(usage_data, dict):
             # Try both naming conventions (OpenAI API uses input_tokens/output_tokens)
-            usage.prompt_tokens = usage_data.get("input_tokens", usage_data.get("prompt_tokens", 0))
-            usage.completion_tokens = usage_data.get("output_tokens", usage_data.get("completion_tokens", 0))
+            usage.prompt_tokens = usage_data.get("input_tokens") or usage_data.get("prompt_tokens") or 0
+            usage.completion_tokens = usage_data.get("output_tokens") or usage_data.get("completion_tokens") or 0
             usage.total_tokens = usage_data.get("total_tokens", 0)
             
             # Calculate total if not provided
@@ -352,7 +352,7 @@ def find_jsonl_files(paths_config: Dict, schemas_paths: Dict) -> List[Path]:
     Returns:
         List of Path objects for .jsonl files
     """
-    jsonl_files = []
+    jsonl_files: list[Path] = []
     input_is_output = paths_config.get("general", {}).get("input_paths_is_output_path", True)
     
     # Scan schema-specific directories

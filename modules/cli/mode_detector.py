@@ -5,11 +5,11 @@ Utility to detect execution mode (interactive UI vs CLI) based on configuration 
 """
 
 import sys
-from typing import Tuple, Optional
+from typing import Any, Tuple, Optional
 from pathlib import Path
 
 
-def detect_execution_mode(config_loader) -> Tuple[bool, bool]:
+def detect_execution_mode(config_loader: Any) -> Tuple[bool, bool]:
     """
     Detect the execution mode based on configuration and command-line arguments.
     
@@ -35,7 +35,7 @@ def detect_execution_mode(config_loader) -> Tuple[bool, bool]:
     return is_interactive, has_cli_args
 
 
-def should_use_interactive_mode(config_loader) -> bool:
+def should_use_interactive_mode(config_loader: Any) -> bool:
     """
     Determine if interactive mode should be used.
     

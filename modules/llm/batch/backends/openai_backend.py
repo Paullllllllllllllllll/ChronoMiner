@@ -131,10 +131,10 @@ def _build_responses_body(
 class OpenAIBatchBackend(BatchBackend):
     """OpenAI Batch API backend using /v1/responses endpoint."""
 
-    def __init__(self):
-        self._client = None
+    def __init__(self) -> None:
+        self._client: Any = None
 
-    def _get_client(self):
+    def _get_client(self) -> Any:
         """Lazy initialization of OpenAI client."""
         if self._client is None:
             from openai import OpenAI

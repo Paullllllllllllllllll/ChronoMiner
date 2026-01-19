@@ -199,7 +199,7 @@ class UserInterface:
         
         return None
 
-    def select_schema(self, schema_manager, allow_back: bool = False) -> Optional[Tuple[Dict[str, Any], str]]:
+    def select_schema(self, schema_manager: Any, allow_back: bool = False) -> Optional[Tuple[Dict[str, Any], str]]:
         """
         Present available schemas and guide the user through selection.
 
@@ -417,7 +417,7 @@ class UserInterface:
                     
                     try:
                         # Parse comma-separated indices and ranges
-                        selected_indices = set()
+                        selected_indices: set[int] = set()
                         parts = selection.split(',')
                         
                         for part in parts:
@@ -514,7 +514,7 @@ class UserInterface:
             "adjust-line-ranges": "AI-assisted line range adjustment",
             "per-file": "Per-file chunking selection"
         }
-        self.console_print(f"    - Chunking method: {chunking_display.get(global_chunking_method, 'Per-file selection')}")
+        self.console_print(f"    - Chunking method: {chunking_display.get(global_chunking_method or '', 'Per-file selection')}")
 
         processing_mode = "Batch (asynchronous)" if use_batch else "Synchronous (real-time)"
         self.console_print(f"    - Processing mode: {processing_mode}")
@@ -736,7 +736,7 @@ class UserInterface:
         :param batches: List of batch objects from OpenAI API
         """
         # Count batches by status
-        status_counts = {}
+        status_counts: dict[str, int] = {}
         in_progress_batches = []
 
         for batch in batches:
@@ -807,7 +807,7 @@ class UserInterface:
         batch_id: str,
         operation: str,
         success: bool,
-        message: str = None
+        message: str | None = None
     ) -> None:
         """
         Display the result of a batch operation.

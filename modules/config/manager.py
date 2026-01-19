@@ -19,7 +19,7 @@ class ConfigManager:
     Provides unified error messaging and validation logic.
     """
 
-    def __init__(self, config_loader):
+    def __init__(self, config_loader: Any) -> None:
         """Initialize with a ConfigLoader instance"""
         self.config_loader = config_loader
         self._validation_errors: list[str] = []

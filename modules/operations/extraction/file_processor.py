@@ -26,7 +26,7 @@ logger = logging.getLogger(__name__)
 class _MessagingAdapter:
     """Simple messaging adapter for file processor output."""
     
-    def __init__(self, ui=None):
+    def __init__(self, ui: Any = None) -> None:
         self.ui = ui
     
     def info(self, message: str, log: bool = True) -> None:
@@ -53,7 +53,7 @@ class _MessagingAdapter:
         if log:
             logger.warning(message)
     
-    def error(self, message: str, log: bool = True, exc_info=None) -> None:
+    def error(self, message: str, log: bool = True, exc_info: Any = None) -> None:
         if self.ui:
             self.ui.print_error(message)
         else:
@@ -71,7 +71,7 @@ class _MessagingAdapter:
             ui_print(message)
 
 
-def _create_messaging_adapter(ui=None) -> _MessagingAdapter:
+def _create_messaging_adapter(ui: Any = None) -> _MessagingAdapter:
     """Factory function to create messaging adapter."""
     return _MessagingAdapter(ui)
 
@@ -124,7 +124,7 @@ class FileProcessorRefactored:
         global_chunking_method: Optional[str] = None,
         use_context: bool = True,
         context_source: str = "default",
-        ui=None
+        ui: Any = None
     ) -> None:
         """
         Process a single text file with refactored architecture.
@@ -303,7 +303,7 @@ class FileProcessorRefactored:
         file_path: Path,
         global_chunking_method: Optional[str],
         messenger: _MessagingAdapter,
-        ui
+        ui: Any
     ) -> str:
         """Determine which chunking method to use."""
         if global_chunking_method == "per-file":
@@ -345,7 +345,7 @@ class FileProcessorRefactored:
         self,
         temp_jsonl_path: Path,
         output_json_path: Path,
-        handler,
+        handler: Any,
         schema_paths: Dict[str, Any],
         messenger: _MessagingAdapter,
         *,
@@ -399,7 +399,7 @@ class FileProcessorRefactored:
     def _generate_additional_formats(
         self,
         output_json_path: Path,
-        handler,
+        handler: Any,
         schema_paths: Dict[str, Any],
         messenger: _MessagingAdapter
     ) -> None:

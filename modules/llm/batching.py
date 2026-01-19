@@ -19,7 +19,7 @@ available.
 import logging
 import os
 from pathlib import Path
-from typing import List, Dict, Any
+from typing import Any, Dict, List
 
 from openai import OpenAI
 from modules.config.loader import get_config_loader
@@ -113,12 +113,12 @@ def build_batch_files(request_lines: List[str], base_path: Path) -> List[Path]:
     return batch_paths
 
 
-def submit_batch(batch_file_path: Path) -> Dict[str, Any]:
+def submit_batch(batch_file_path: Path) -> Any:
     """
     Submit a batch job to the OpenAI API using the given batch file.
 
     :param batch_file_path: Path to the batch file (in binary mode).
-    :return: The response dictionary from the batch submission.
+    :return: The Batch object from the batch submission.
     """
     # Get API key and strip any whitespace to prevent header errors
     api_key = os.getenv("OPENAI_API_KEY", "").strip()

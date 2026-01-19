@@ -289,7 +289,7 @@ class ProviderConfig:
         # Default to "openai" for backward compatibility (canonical returns "unknown")
         if provider == "unknown":
             return "openai"
-        return provider  # type: ignore[return-value]
+        return provider  # type: ignore
     
     @staticmethod
     def _get_api_key(provider: ProviderType) -> Optional[str]:
@@ -337,14 +337,14 @@ class LangChainLLM:
         self._chat_model = self._create_chat_model()
         self._initialized = True
     
-    def _get_capabilities(self):
+    def _get_capabilities(self) -> Any:
         """Get model capabilities using our detection logic."""
         if self._capabilities is None:
             from modules.llm.model_capabilities import detect_capabilities
             self._capabilities = detect_capabilities(self.config.model)
         return self._capabilities
     
-    def _get_disabled_params(self) -> Dict[str, Any]:
+    def _get_disabled_params(self) -> dict[str, Any] | None:
         """
         Get parameters to disable based on model capabilities.
         
@@ -358,7 +358,7 @@ class LangChainLLM:
         - Disable response_format
         """
         caps = self._get_capabilities()
-        disabled = {}
+        disabled: dict[str, Any] = {}
         
         # Reasoning models don't support sampler controls
         if not caps.supports_sampler_controls:
@@ -375,7 +375,7 @@ class LangChainLLM:
         
         return disabled if disabled else None
     
-    def _create_chat_model(self):
+    def _create_chat_model(self) -> Any:
         """
         Create the appropriate LangChain chat model based on provider.
         
@@ -508,7 +508,7 @@ class LangChainLLM:
         capability system and use disabled_params if needed.
         """
         caps = self._get_capabilities()
-        return caps.supports_structured_outputs
+        return bool(caps.supports_structured_outputs)
     
     async def ainvoke_with_structured_output(
         self,
@@ -527,10 +527,10 @@ class LangChainLLM:
         """
         self._ensure_initialized()
         
-        from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
+        from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
         
         # Convert message dicts to LangChain message objects
-        lc_messages = []
+        lc_messages: list[BaseMessage] = []
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
@@ -558,6 +558,9 @@ class LangChainLLM:
         chat_model = self._chat_model
         response_data: Dict[str, Any] = {}
         
+        if chat_model is None:
+            raise RuntimeError("Chat model not initialized")
+        
         try:
             # Use structured output if schema provided and supported
             if json_schema and self.supports_structured_outputs:
@@ -565,19 +568,19 @@ class LangChainLLM:
                     response = await self._invoke_with_schema(lc_messages, json_schema)
                 except Exception as e:
                     provider = getattr(self.config, "provider", None)
-                    msg = str(e)
+                    err_msg = str(e)
                     anthropic_schema_limit = (
                         provider == "anthropic"
                         and (
-                            "Tool schema contains too many conditional branches" in msg
-                            or "reduce the use of anyOf constructs" in msg
-                            or "anyOf constructs (limit: 8)" in msg
+                            "Tool schema contains too many conditional branches" in err_msg
+                            or "reduce the use of anyOf constructs" in err_msg
+                            or "anyOf constructs (limit: 8)" in err_msg
                         )
                     )
                     if anthropic_schema_limit:
                         logger.warning(
                             "Anthropic structured output schema too complex; falling back to plain invocation: %s",
-                            msg,
+                            err_msg,
                         )
                         response_data["structured_output_fallback"] = True
                         response = await chat_model.ainvoke(lc_messages)
@@ -657,9 +660,9 @@ class LangChainLLM:
     
     async def _invoke_with_schema(
         self,
-        messages: List,
+        messages: List[Any],
         json_schema: Dict[str, Any],
-    ):
+    ) -> Any:
         """Invoke model with structured output schema."""
         provider = self.config.provider
         
@@ -684,14 +687,18 @@ class LangChainLLM:
             return await self._invoke_openai_structured(messages, json_schema)
         
         # Fallback: regular invoke
+        if self._chat_model is None:
+            raise RuntimeError("Chat model not initialized")
         return await self._chat_model.ainvoke(messages)
     
     async def _invoke_openai_structured(
         self,
-        messages: List,
+        messages: List[Any],
         json_schema: Dict[str, Any],
-    ):
+    ) -> Any:
         """Invoke OpenAI with native structured output."""
+        if self._chat_model is None:
+            raise RuntimeError("Chat model not initialized")
         # Build the response_format for OpenAI
         schema_def = json_schema.get("schema", json_schema)
         schema_name = json_schema.get("name", "Response")
@@ -713,11 +720,13 @@ class LangChainLLM:
     
     async def _invoke_anthropic_structured(
         self,
-        messages: List,
+        messages: List[Any],
         schema_def: Dict[str, Any],
         schema_name: str,
-    ):
+    ) -> Any:
         """Invoke Anthropic with structured output via tool calling."""
+        if self._chat_model is None:
+            raise RuntimeError("Chat model not initialized")
         # Anthropic uses tool calling for structured output
         # Use include_raw=True to get AIMessage with usage_metadata
         schema_def = _normalize_schema_for_anthropic(schema_def)
@@ -736,10 +745,12 @@ class LangChainLLM:
     
     async def _invoke_google_structured(
         self,
-        messages: List,
+        messages: List[Any],
         schema_def: Dict[str, Any],
-    ):
+    ) -> Any:
         """Invoke Google Gemini with structured output."""
+        if self._chat_model is None:
+            raise RuntimeError("Chat model not initialized")
         # Use include_raw=True to get AIMessage with usage_metadata
         structured_model = self._chat_model.with_structured_output(
             schema_def,
@@ -773,7 +784,7 @@ class LLMProvider:
         model_config: Optional[Dict[str, Any]] = None,
         provider: Optional[ProviderType] = None,
         model: Optional[str] = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> LangChainLLM:
         """
         Get or create an LLM instance.
@@ -841,9 +852,9 @@ def get_default_provider() -> ProviderType:
     return "openai"  # Default fallback
 
 
-def list_available_providers() -> List[ProviderType]:
+def list_available_providers() -> list[ProviderType]:
     """List providers with configured API keys."""
-    available = []
+    available: list[ProviderType] = []
     if os.getenv("OPENAI_API_KEY"):
         available.append("openai")
     if os.getenv("ANTHROPIC_API_KEY"):
