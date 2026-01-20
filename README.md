@@ -123,9 +123,9 @@ ChronoMiner supports multiple LLM providers through LangChain. Provider is autom
 | Model Family | Models | Type | Notes |
 |--------------|--------|------|-------|
 | GPT-5.1 | gpt-5.1, gpt-5.1-instant, gpt-5.1-thinking | Reasoning | Latest, adaptive thinking |
-| GPT-5 | gpt-5, gpt-5-mini, gpt-5-nano | Reasoning | 256K context |
-| GPT-4.1 | gpt-4.1, gpt-4.1-mini, gpt-4.1-nano | Standard | Workhorse model |
-| GPT-4o | gpt-4o, gpt-4o-mini | Standard | Multimodal |
+| GPT-5 | gpt-5, gpt-5-mini, gpt-5-nano | Reasoning | See OpenAI model docs for current context/output limits |
+| GPT-4.1 | gpt-4.1, gpt-4.1-mini, gpt-4.1-nano | Standard | 1M token context window |
+| GPT-4o | gpt-4o, gpt-4o-mini | Standard | 128k token context window (e.g., gpt-4o-2024-08-06) |
 | o4-mini | o4-mini | Reasoning | Tool use optimized |
 | o3 | o3, o3-mini, o3-pro | Reasoning | Deep reasoning |
 | o1 | o1, o1-mini | Reasoning | Legacy reasoning |
@@ -152,12 +152,12 @@ Environment variable: `ANTHROPIC_API_KEY`
 
 | Model Family | Models | Type | Notes |
 |--------------|--------|------|-------|
-| Gemini 3 Pro | gemini-3-pro-preview | Thinking | Most powerful |
-| Gemini 2.5 Pro | gemini-2.5-pro | Thinking | 1M context |
-| Gemini 2.5 Flash | gemini-2.5-flash | Thinking | Best price-performance |
-| Gemini 2.5 Flash-Lite | gemini-2.5-flash-lite | Standard | Ultra fast |
-| Gemini 2.0 Flash | gemini-2.0-flash | Standard | Previous gen |
-| Gemini 1.5 Pro | gemini-1.5-pro | Standard | 2M context |
+| Gemini 3 Pro | gemini-3-pro-preview | Thinking | Input 1,048,576; output 65,536 tokens |
+| Gemini 2.5 Pro | gemini-2.5-pro | Thinking | Input 1,048,576; output 65,536 tokens |
+| Gemini 2.5 Flash | gemini-2.5-flash | Thinking | Input 1,048,576; output 65,536 tokens |
+| Gemini 2.5 Flash-Lite | gemini-2.5-flash-lite | Standard | Input 1,048,576; output 65,536 tokens |
+| Gemini 2.0 Flash | gemini-2.0-flash | Standard | Input 1,048,576; output 8,192 tokens |
+| Gemini 1.5 Pro | gemini-1.5-pro | Standard | Legacy |
 | Gemini 1.5 Flash | gemini-1.5-flash | Standard | Legacy |
 
 Environment variable: `GOOGLE_API_KEY`
@@ -182,27 +182,27 @@ Automatic capability detection and parameter adjustment:
 
 - **Reasoning Models** (GPT-5, o-series, Gemini 2.5+, Claude 4.x, DeepSeek R1): Temperature/top_p disabled; reasoning effort configurable
 - **Standard Models** (GPT-4.1, GPT-4o, Gemini 2.0, Llama, Mistral): Full sampler control
-- **Structured Outputs**: Supported by all models via LangChain (provider-specific limitations)
+- **Structured Outputs**: Supported where the underlying model/provider supports schema-constrained output (capability-guarded)
 - **Batch Processing**: OpenAI (50% savings), Anthropic, Google (provider-specific pricing)
 - **Cross-Provider Reasoning**: `reasoning.effort` automatically translated per provider
 
 ### Structured Output Limitations by Provider
 
-**OpenAI**: Most robust with strict schema validation. Maximum 5 nesting levels, 100 total object properties, all fields required, `additionalProperties: false` on all objects. See [OpenAI Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs).
+**OpenAI**: Strict schema validation with documented JSON Schema constraints (e.g., up to 10 nesting levels and 5,000 total object properties across the schema; all fields required; `additionalProperties: false` on objects). See [OpenAI Structured Outputs](https://platform.openai.com/docs/guides/structured-outputs).
 
-**Anthropic**: Flexible schema handling via tool/function calling. Generally more permissive with complex schemas. Some library versions may reject type unions like `type: ["string", "null"]`. See [Claude Structured Outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs).
+**Anthropic**: Structured Outputs support (JSON outputs and/or strict tool use) with provider-defined JSON Schema subset and validation behavior. See [Claude Structured Outputs](https://platform.claude.com/docs/en/build-with-claude/structured-outputs).
 
-**Google Gemini**: Stricter schema complexity limits. May reject deeply nested schemas. Known issue: `BibliographicEntries` exceeds nesting depth limit. Use simpler, flatter schemas. See [Gemini Structured Outputs](https://ai.google.dev/gemini-api/docs/structured-output).
+**Google Gemini**: JSON Schema subset support; the API may reject very large or deeply nested schemas. If you encounter errors, simplify schemas (shorter property names, reduced nesting, fewer constraints). See [Gemini Structured Outputs](https://ai.google.dev/gemini-api/docs/structured-output).
 
 **Provider Compatibility Matrix**:
 
 | Schema | OpenAI | Anthropic | Google Gemini |
 |--------|--------|-----------|--------------|
-| BibliographicEntries | Supported | Supported | Not supported (too nested) |
+| BibliographicEntries | Supported | Supported | May be rejected (too nested) |
 | StructuredSummaries | Supported | Supported | Supported |
 | HistoricalAddressBookEntries | Supported | Supported | Untested |
 | Simple custom schemas | Supported | Supported | Supported |
-| Deeply nested schemas (>5 levels) | Supported | Supported | Not supported |
+| Deeply nested schemas (>10 levels) | Not supported | May be rejected | May be rejected |
 
 ## System Requirements
 
