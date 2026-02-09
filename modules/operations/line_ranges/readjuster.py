@@ -21,6 +21,7 @@ from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from modules.core.context_resolver import resolve_context_for_readjustment
+from modules.core.resume import write_adjustment_marker
 from modules.core.text_utils import TextProcessor, load_line_ranges
 from modules.llm.openai_utils import open_extractor, process_text_chunk
 from modules.llm.langchain_provider import ProviderConfig, ProviderType
@@ -231,6 +232,12 @@ class LineRangeReadjuster:
 
         if not dry_run:
             self._write_line_ranges(line_ranges_file, adjusted_ranges)
+            write_adjustment_marker(
+                line_ranges_file,
+                boundary_type=boundary_type,
+                context_window=self.context_window,
+                model_name=self.model_name,
+            )
 
         return adjusted_ranges
 

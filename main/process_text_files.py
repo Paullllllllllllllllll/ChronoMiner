@@ -231,6 +231,14 @@ async def _run_interactive_mode(
                 current_step = "chunking"
                 continue
             state["use_batch"] = use_batch
+            current_step = "resume"
+        
+        elif current_step == "resume":
+            use_resume = ui.confirm(
+                "Resume mode? (skip fully processed files, resume partial ones)",
+                default=True,
+            )
+            state["resume"] = use_resume
             current_step = "files"
         
         elif current_step == "files":
@@ -336,6 +344,7 @@ async def _run_interactive_mode(
                 schema_paths=schemas_paths.get(state["selected_schema_name"], {}),
                 global_chunking_method=state["global_chunking_method"],
                 ui=ui,
+                resume=state.get("resume", False),
             )
             processed_count += 1
             
@@ -362,6 +371,7 @@ async def _run_interactive_mode(
                     schema_paths=schemas_paths.get(state["selected_schema_name"], {}),
                     global_chunking_method=state["global_chunking_method"],
                     ui=ui,
+                    resume=state.get("resume", False),
                 )
             )
         await asyncio.gather(*tasks)
@@ -477,6 +487,7 @@ async def _run_cli_mode(
     use_batch = args.batch if hasattr(args, 'batch') else False
     use_context = bool(getattr(args, "context", False))
     context_source = getattr(args, "context_source", "default")
+    use_resume = getattr(args, "resume", False) and not getattr(args, "force", False)
     
     # Resolve input path and get files
     input_path = resolve_path(args.input)
@@ -570,6 +581,7 @@ async def _run_cli_mode(
                 use_context=use_context,
                 context_source=context_source,
                 ui=None,
+                resume=use_resume,
             )
             processed_count += 1
             
@@ -598,6 +610,7 @@ async def _run_cli_mode(
                     use_context=use_context,
                     context_source=context_source,
                     ui=None,
+                    resume=use_resume,
                 )
             )
         await asyncio.gather(*tasks)

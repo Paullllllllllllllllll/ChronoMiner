@@ -19,6 +19,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
 from modules.core.logger import setup_logger
+from modules.core.resume import is_adjustment_current
 from modules.core.schema_manager import SchemaManager
 from modules.core.token_tracker import (
     get_token_tracker,
@@ -125,6 +126,7 @@ async def _adjust_files(
     retry_config: Optional[Dict[str, any]],
     notifier,
     ui: Optional[UserInterface] = None,
+    resume: bool = False,
 ) -> Tuple[List[Tuple[Path, Path]], List[Path], List[Tuple[Path, Exception]]]:
     readjuster = LineRangeReadjuster(
         model_config,
@@ -150,6 +152,19 @@ async def _adjust_files(
         line_ranges_file = _resolve_line_ranges_file(text_file)
         if not line_ranges_file:
             notifier(f"Skipping {text_file.name}: no associated line range file found.", "warning")
+            skipped.append(text_file)
+            continue
+
+        # Resume: skip files already adjusted with the same settings
+        model_name = model_config.get("transcription_model", {}).get("name", "")
+        if resume and is_adjustment_current(
+            line_ranges_file,
+            boundary_type=boundary_type,
+            context_window=context_window,
+            model_name=model_name,
+        ):
+            notifier(f"Skipping {text_file.name}: line ranges already adjusted with current settings.", "info")
+            logger.info(f"Resume: skipping {text_file.name} (adjustment marker matches current settings)")
             skipped.append(text_file)
             continue
 
@@ -291,6 +306,14 @@ async def _run_interactive_mode(
                 ui.print_warning("No files selected.")
                 return
             state["selected_files"] = selected_files
+            current_step = "resume"
+        
+        elif current_step == "resume":
+            use_resume = ui.confirm(
+                "Resume mode? (skip files already adjusted with current settings)",
+                default=True,
+            )
+            state["resume"] = use_resume
             current_step = "context"
         
         elif current_step == "context":
@@ -368,6 +391,7 @@ async def _run_interactive_mode(
         retry_config=retry_config,
         notifier=ui_notifier,
         ui=ui,
+        resume=state.get("resume", False),
     )
     
     # Display summary
@@ -485,6 +509,9 @@ async def _run_cli_mode(
             f"({stats['usage_percentage']:.1f}%)"
         )
     
+    # Determine resume mode
+    use_resume = getattr(args, "resume", False) and not getattr(args, "force", False)
+    
     # Perform adjustments
     successes, skipped, failures = await _adjust_files(
         text_files=selected_files,
@@ -496,6 +523,7 @@ async def _run_cli_mode(
         retry_config=retry_config,
         notifier=cli_notifier,
         ui=None,
+        resume=use_resume,
     )
     
     # Display summary

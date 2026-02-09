@@ -88,6 +88,16 @@ Examples:
         default="default",
         help="Context source: 'default' for schema-specific, 'file' for file-specific (default: default)"
     )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip fully processed files and resume partially processed ones"
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force reprocessing of all files, ignoring existing outputs"
+    )
     
     return parser
 
@@ -185,8 +195,8 @@ Examples:
   # Adjust with custom context window
   python main/line_range_readjuster.py --input data/ --schema BibliographicEntries --context-window 10
   
-  # Use additional context
-  python main/line_range_readjuster.py --input data/ --schema BibliographicEntries --use-context
+  # Resume: skip files whose line ranges were already adjusted
+  python main/line_range_readjuster.py --input data/ --schema BibliographicEntries --resume
         """
     )
     
@@ -226,6 +236,16 @@ Examples:
         "--verbose",
         action="store_true",
         help="Show detailed processing information"
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip files whose line ranges were already adjusted with the same settings"
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-adjustment of all files, ignoring existing adjustment markers"
     )
     
     return parser

@@ -86,7 +86,8 @@ class DocumentConverter(BaseConverter):
             "culinaryworksentries": self._convert_culinary_works_to_txt,
             "culinaryentitiesentries": self._convert_culinary_entities_to_txt,
             "historicalrecipesentries": self._convert_historical_recipes_to_txt,
-            "michelinguides": self._convert_michelin_guides_to_txt
+            "michelinguides": self._convert_michelin_guides_to_txt,
+            "cookbookmetadataentries": self._convert_cookbook_metadata_to_txt
         }
 
         try:
@@ -1406,4 +1407,21 @@ class DocumentConverter(BaseConverter):
             
             lines.append("")
         
+        return lines
+
+    def _convert_cookbook_metadata_to_txt(self, entries: List[Any]) -> List[str]:
+        """Convert cookbook metadata entries to the required plain text format."""
+        lines: List[str] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+            lines.append(f"title: {self.safe_str(entry.get('title', 'unknown'))}")
+            lines.append(f"author: {self.safe_str(entry.get('author', 'anonymous'))}")
+            lines.append(f"year: {self.safe_str(entry.get('year', 'unknown'))}")
+            lines.append(f"edition: {self.safe_str(entry.get('edition', 'unknown'))}")
+            lines.append(f"content: {self.safe_str(entry.get('content', ''))}")
+            lines.append(f"notes: {self.safe_str(entry.get('notes', ''))}")
+            lines.append(f"library: {self.safe_str(entry.get('library', 'unknown'))}")
+            lines.append(f"digitizer: {self.safe_str(entry.get('digitizer', 'unknown'))}")
+            lines.append(f"misc: {self.safe_str(entry.get('misc', ''))}")
         return lines

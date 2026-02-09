@@ -14,6 +14,13 @@ from typing import List, Dict, Any, Optional
 from modules.core.chunking_service import ChunkingService
 from modules.core.processing_strategy import create_processing_strategy
 from modules.core.context_resolver import resolve_context_for_extraction
+from modules.core.resume import (
+    FileStatus,
+    build_extraction_metadata,
+    detect_extraction_status,
+    get_output_json_path,
+    _METADATA_KEY,
+)
 from modules.core.text_utils import TextProcessor
 from modules.core.path_utils import ensure_path_safe
 from modules.llm.prompt_utils import render_prompt_with_schema
@@ -124,7 +131,8 @@ class FileProcessorRefactored:
         global_chunking_method: Optional[str] = None,
         use_context: bool = True,
         context_source: str = "default",
-        ui: Any = None
+        ui: Any = None,
+        resume: bool = False,
     ) -> None:
         """
         Process a single text file with refactored architecture.
@@ -138,6 +146,7 @@ class FileProcessorRefactored:
         :param schema_paths: Schema-specific paths
         :param global_chunking_method: Global chunking method if specified
         :param ui: UserInterface instance for user feedback
+        :param resume: If True, skip completed chunks and resume partial outputs
         """
         # Create messaging adapter
         messenger = _create_messaging_adapter(ui)
@@ -235,6 +244,20 @@ class FileProcessorRefactored:
             messenger.error(f"Failed to set up output paths: {e}", exc_info=e)
             return
 
+        # Resume: detect already-completed chunks
+        completed_chunk_indices: set[int] = set()
+        if resume and not use_batch:
+            status, completed_chunk_indices = detect_extraction_status(
+                output_json_path, expected_chunks=len(chunks)
+            )
+            if status == FileStatus.COMPLETE:
+                messenger.info(f"Skipping {file_path.name}: already fully processed ({len(completed_chunk_indices)} chunks)")
+                return
+            if status == FileStatus.PARTIAL:
+                messenger.info(
+                    f"Resuming {file_path.name}: {len(completed_chunk_indices)}/{len(chunks)} chunks already done"
+                )
+
         # Create processing strategy and execute
         strategy = create_processing_strategy(use_batch, self.concurrency_config)
 
@@ -251,6 +274,7 @@ class FileProcessorRefactored:
                 file_path=file_path,
                 temp_jsonl_path=temp_jsonl_path,
                 console_print=messenger.console_print,
+                completed_chunk_indices=completed_chunk_indices,
             )
         except asyncio.CancelledError:
             processing_cancelled = True
@@ -380,8 +404,22 @@ class FileProcessorRefactored:
             # Sort results by chunk_index, handling None values
             results.sort(key=lambda x: x.get("chunk_index") or 0)
             
+            # Build output structure with metadata
+            chunking_method = "unknown"
+            model_name = self.model_config.get("transcription_model", {}).get("name", "unknown")
+            schema_name_for_meta = getattr(handler, "schema_name", "unknown")
+            output_data = {
+                _METADATA_KEY: build_extraction_metadata(
+                    schema_name=schema_name_for_meta,
+                    model_name=model_name,
+                    chunking_method=chunking_method,
+                    total_chunks=len(results),
+                ),
+                "records": results,
+            }
+
             with output_json_path.open("w", encoding="utf-8") as outf:
-                json.dump(results, outf, indent=2)
+                json.dump(output_data, outf, indent=2)
 
             if partial:
                 messenger.warning(

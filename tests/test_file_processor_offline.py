@@ -19,6 +19,7 @@ class DummyStrategy:
         file_path,
         temp_jsonl_path,
         console_print,
+        completed_chunk_indices=None,
     ):
         with temp_jsonl_path.open("w", encoding="utf-8") as f:
             for idx, chunk in enumerate(chunks, 1):
@@ -87,6 +88,9 @@ def test_file_processor_writes_output_json_offline(tmp_path: Path, config_loader
     assert out_json.exists()
 
     data = json.loads(out_json.read_text(encoding="utf-8"))
-    assert isinstance(data, list)
-    assert data
-    assert data[0]["custom_id"].startswith(input_file.stem)
+    assert isinstance(data, dict)
+    assert "_chronominer_metadata" in data
+    records = data["records"]
+    assert isinstance(records, list)
+    assert records
+    assert records[0]["custom_id"].startswith(input_file.stem)

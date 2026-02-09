@@ -52,6 +52,7 @@ class ProcessingStrategy(ABC):
         file_path: Path,
         temp_jsonl_path: Path,
         console_print: Any,
+        completed_chunk_indices: Optional[set] = None,
     ) -> List[Dict[str, Any]]:
         """
         Process text chunks using the strategy.
@@ -64,6 +65,7 @@ class ProcessingStrategy(ABC):
         :param file_path: Source file path
         :param temp_jsonl_path: Temporary JSONL file path
         :param console_print: Console print function
+        :param completed_chunk_indices: 1-based indices of chunks already processed (for resume)
         :return: List of processing results
         """
         pass
@@ -90,6 +92,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         file_path: Path,
         temp_jsonl_path: Path,
         console_print: Any,
+        completed_chunk_indices: Optional[set] = None,
     ) -> List[Dict[str, Any]]:
         """Process chunks synchronously with concurrent API calls."""
         # Detect provider from model name
@@ -103,7 +106,17 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
             console_print(f"[ERROR] {error_msg}")
             raise ValueError(error_msg)
 
-        console_print(f"[INFO] Starting synchronous processing of {len(chunks)} chunks...")
+        skip_indices = completed_chunk_indices or set()
+        chunks_to_process = [
+            (idx, chunk) for idx, chunk in enumerate(chunks, 1)
+            if idx not in skip_indices
+        ]
+        if skip_indices:
+            console_print(
+                f"[INFO] Resuming: {len(chunks_to_process)} new chunks to process "
+                f"({len(skip_indices)} already done)"
+            )
+        console_print(f"[INFO] Starting synchronous processing of {len(chunks_to_process)} chunks...")
         results: List[Dict[str, Any]] = []
 
         # Extract concurrency settings
@@ -134,12 +147,13 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         # Token tracking
         token_tracker = get_token_tracker()
 
+        file_mode = "a" if skip_indices else "w"
         async with open_extractor(
             api_key=api_key,
             prompt_path=Path("prompts/structured_output_prompt.txt"),
             model=model_config["transcription_model"]["name"]
         ) as extractor:
-            with temp_jsonl_path.open("w", encoding="utf-8") as tempf:
+            with temp_jsonl_path.open(file_mode, encoding="utf-8") as tempf:
                 semaphore = asyncio.Semaphore(concurrency_limit)
 
                 async def process_single_chunk(idx: int, chunk: str) -> Dict[str, Any]:
@@ -204,14 +218,14 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                         # If all retries exhausted without returning, return error
                         return {"error": f"Max retries ({retry_attempts}) exhausted for chunk {idx}"}
 
-                # Process all chunks concurrently
+                # Process chunks (skipping already-completed ones)
                 tasks = [
                     process_single_chunk(idx, chunk)
-                    for idx, chunk in enumerate(chunks, 1)
+                    for idx, chunk in chunks_to_process
                 ]
                 results = await asyncio.gather(*tasks, return_exceptions=False)
 
-        console_print(f"[SUCCESS] Completed synchronous processing of {len(chunks)} chunks")
+        console_print(f"[SUCCESS] Completed synchronous processing of {len(chunks_to_process)} chunks")
         return results
 
 
@@ -235,6 +249,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
         file_path: Path,
         temp_jsonl_path: Path,
         console_print: Any,
+        completed_chunk_indices: Optional[set] = None,
     ) -> List[Dict[str, Any]]:
         """Prepare and submit batch processing job using provider-agnostic backend."""
         # Detect provider from model config
