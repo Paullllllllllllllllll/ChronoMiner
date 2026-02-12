@@ -1,14 +1,32 @@
-Example files:
+# Example Files
 
-We provide a number of example input (and output) files that demonstrate how to use the repository.
-These include an excerpt of a 1900 Bern adress book (https://www.e-rara.ch/bes_1/content/titleinfo/1704646),
-three Brazilian military occupation records from the state of Sao Paulo, kindly provided by Dr. Bruno Witzel Gabriel de Sousa for testing,
-and a digitized version of Arnold Oxford Whittakers "English Cookery Books to the Year 1850". We do not provide an example of an academic
-publication for reasons of copyright.
+This directory contains example input and output files that demonstrate how to
+use ChronoMiner for structured data extraction.
 
-Structed data can be extracted from these input files with the following JSON schema:
-1900 Bern adress book -> HistoricalAddressBookEntries
-Brazilian military occupation records -> BrazilianMilitaryRecords
-English Cookery Books to the Year 1850 -> BibliographicEntries
+## Input Files
 
-Example output files are also provided in this folder. We recommend that user experiment with these files before adding their own schemas.
+| Directory | Source | Description |
+|---|---|---|
+| `example_inputs/addressbooks/` | [1900 Bern Address Book](https://www.e-rara.ch/bes_1/content/titleinfo/1704646) | Excerpt of a Swiss address book from 1900 |
+| `example_inputs/occupationrecords/` | Brazilian military records (São Paulo) | Three occupation records, kindly provided by Dr. Bruno Witzel Gabriel de Sousa |
+| `example_inputs/bibliographic/` | Whitaker, *English Cookery Books to the Year 1850* (1913) | Digitised bibliographic catalogue |
+
+We do not provide an example of an academic publication for reasons of copyright.
+
+## Schema Mapping
+
+Each input set maps to a specific JSON extraction schema:
+
+| Input | Schema |
+|---|---|
+| 1900 Bern address book | `HistoricalAddressBookEntries` |
+| Brazilian military occupation records | `BrazilianMilitaryRecords` |
+| English Cookery Books to the Year 1850 | `BibliographicEntries` |
+
+## Output Files
+
+Pre-generated outputs are provided in `example_outputs/` in four formats per
+input file: JSON, CSV, DOCX, and TXT. These were produced with `gpt-5-mini`
+using default settings (`main/process_text_files.py`).
+
+We recommend experimenting with these files before adding custom schemas.

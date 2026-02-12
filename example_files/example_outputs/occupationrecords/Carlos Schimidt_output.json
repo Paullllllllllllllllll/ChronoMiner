@@ -1,10 +1,391 @@
-[
-  {
-    "custom_id": "Carlos Schimidt-chunk-1",
-    "response": "{\n  \"entries\": [\n    {\n      \"surname\": \"Schmidt\",\n      \"first_name\": \"Carlos\",\n      \"record_header\": \"Batalh\u00e3o Limeirense\",\n      \"location\": \"LIMEIRA \u2014 Estado de S\u00e3o Paulo\",\n      \"height\": 1.76,\n      \"skin_color\": \"branca\",\n      \"hair_color\": \"castanhos\",\n      \"hair_texture\": \"liso\",\n      \"beard\": \"feita\",\n      \"mustache\": \"n\u00e3o uso\",\n      \"assignatura\": null,\n      \"reservista\": \"n\u00e3o\",\n      \"eyes\": \"azues\",\n      \"mouth\": \"regular\",\n      \"face\": \"alongado\",\n      \"nose\": \"afilado\",\n      \"marks\": null,\n      \"officials\": [\n        {\n          \"position\": \"Presidente da Commiss\u00e3o\",\n          \"signature\": \"Assinatura\"\n        },\n        {\n          \"position\": \"Vice Presidente\",\n          \"signature\": \"Assinatura\"\n        },\n        {\n          \"position\": \"Secretario\",\n          \"signature\": \"Assinatura\"\n        },\n        {\n          \"position\": \"Prefeito\",\n          \"signature\": \"Assinatura\"\n        },\n        {\n          \"position\": \"Delegado de Policia\",\n          \"signature\": \"Assinatura\"\n        },\n        {\n          \"position\": \"Instructor\",\n          \"signature\": \"Assinatura\"\n        }\n      ],\n      \"father\": \"Adolpho Schmidte\",\n      \"mother\": \"Helena Schmidt\",\n      \"birth_date\": \"18-1-1890\",\n      \"birth_place\": \"Bremen - Alemanha\",\n      \"municipality\": null,\n      \"profession\": \"Official aposentado do Ex\u00e9rcito Alem\u00e3o, 1\u00ba Tenente Cavallaria\",\n      \"civil_status\": \"casado\",\n      \"vaccinated\": \"Yes\",\n      \"can_read\": \"Yes\",\n      \"can_write\": \"Yes\",\n      \"can_count\": \"Yes\",\n      \"swimming\": \"Yes\",\n      \"cyclist\": \"Yes\",\n      \"motorcyclist\": \"No\",\n      \"driver\": \"No\",\n      \"chauffeur\": \"No\",\n      \"telegraphist\": \"No\",\n      \"telephonist\": \"No\",\n      \"residence\": \"Largo Esta\u00e7\u00e3o, 7, Livraria\",\n      \"observations\": \"Alistado em 11/9/1932 para o Esquadr\u00e3o de Cavallaria.\"\n    }\n  ]\n}",
-    "chunk_range": [
-      1,
-      66
-    ]
-  }
-]
+{
+  "_chronominer_metadata": {
+    "schema_name": "BrazilianMilitaryRecords",
+    "model_name": "gpt-5-mini",
+    "chunking_method": "unknown",
+    "total_chunks": 1,
+    "timestamp": "2026-02-12T12:27:25.268061+00:00",
+    "version": 1
+  },
+  "records": [
+    {
+      "custom_id": "Carlos Schimidt-chunk-1",
+      "chunk_index": null,
+      "chunk_range": null,
+      "response": {
+        "output_text": "{\n  \"contains_no_content_of_requested_type\": false,\n  \"entries\": [\n    {\n      \"surname\": \"Schmidt\",\n      \"first_name\": \"Carlos\",\n      \"record_header\": \"Batalh\u00e3o Limeirense\",\n      \"location\": \"LIMEIRA \u2014 Estado de S\u00e3o Paulo\",\n      \"height\": 1.76,\n      \"skin_color\": \"branca\",\n      \"eyes\": \"azues\",\n      \"hair_color\": \"castanhos\",\n      \"hair_texture\": \"liso\",\n      \"face\": \"alongado\",\n      \"nose\": \"afilado\",\n      \"mouth\": \"regular\",\n      \"beard\": \"feita\",\n      \"mustache\": \"n\u00e3o uso\",\n      \"marks\": null,\n      \"birth_date\": \"18-1-1890\",\n      \"municipality\": null,\n      \"profession\": \"Official aposentado do Ex\u00e9rcito Alem\u00e3o, 1\u00ba Tenente Cavallaria\",\n      \"assignatura\": null,\n      \"reservista\": \"n\u00e3o\",\n      \"officials\": [\n        {\n          \"position\": \"Presidente da Commiss\u00e3o\",\n          \"signature\": \"Assinatura\"\n        },\n        {\n          \"position\": \"Vice Presidente\",\n          \"signature\": \"Assinatura\"\n        },\n        {\n          \"position\": \"Secretario\",\n          \"signature\": \"Assinatura\"\n        },\n        {\n          \"position\": \"Prefeito\",\n          \"signature\": \"Assinatura\"\n        },\n        {\n          \"position\": \"Delegado de Policia\",\n          \"signature\": \"Assinatura\"\n        },\n        {\n          \"position\": \"Instructor\",\n          \"signature\": \"Assinatura\"\n        }\n      ],\n      \"father\": \"Adolpho Schmidte\",\n      \"mother\": \"Helena Schmidt\",\n      \"birth_place\": \"Bremen - Alemanha\",\n      \"civil_status\": \"casado\",\n      \"vaccinated\": \"Yes\",\n      \"can_read\": \"Yes\",\n      \"can_write\": \"Yes\",\n      \"can_count\": \"Yes\",\n      \"swimming\": \"Yes\",\n      \"cyclist\": \"Yes\",\n      \"motorcyclist\": \"No\",\n      \"driver\": \"No\",\n      \"chauffeur\": \"No\",\n      \"telegraphist\": \"No\",\n      \"telephonist\": \"No\",\n      \"residence\": \"Largo Esta\u00e7\u00e3o, 7, Livraria\",\n      \"observations\": \"Alistado em 11/9/1932 para o Esquadr\u00e3o de Cavallaria.\"\n    }\n  ]\n}",
+        "response_data": {
+          "usage": {
+            "input_tokens": 3543,
+            "output_tokens": 2018,
+            "total_tokens": 5561
+          },
+          "model": "gpt-5-mini",
+          "provider": "openai"
+        },
+        "request_metadata": {
+          "messages": [
+            {
+              "role": "system",
+              "content": [
+                {
+                  "type": "input_text",
+                  "text": "You are a structured data extraction expert. Your task is to extract structured data from the provided input text according to the JSON schema below.\n\nTASK DEFINITION\n1. Analyze the JSON schema to understand what data to extract\n2. Analyze the input text to understand its content and structure\n3. Reason hard to extract **all data** from the input text and organize it into the entries array\n\nDATA EXTRACTION RULES\n- If the input text contains no content of the requested type, set contains_no_content_of_requested_type to true and return an empty entries array\n- Populate field values only when the text supports them, or they are easily deducible (e.g. city -> country); otherwise use `null` (or any explicit placeholder described in the schema)\n- If context is provided below, use it for improving data extraction\n\nOUTPUT REQUIREMENTS\n- Return only valid JSON matching the schema below\u2014no commentary, code fences, or additional fields\n- Use only information present in the input text\u2014do not invent or infer unsupported data\n\nThe JSON schema:\n{\"type\":\"object\",\"properties\":{\"contains_no_content_of_requested_type\":{\"type\":\"boolean\",\"description\":\"Set to true if the input text contains no military records. Otherwise, set to false.\"},\"entries\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"surname\":{\"type\":\"string\",\"description\":\"The surname of the individual. Example: 'Franco' or 'Schmidt'.\"},\"first_name\":{\"type\":\"string\",\"description\":\"The first name of the individual. Example: 'Antonio' or 'Carlos'.\"},\"record_header\":{\"type\":\"string\",\"description\":\"The header of the record. Example: 'Batalh\u00e3o Limeirense'.\"},\"location\":{\"type\":\"string\",\"description\":\"Location and state information. Example: 'LIMEIRA \u2013 Estado de S\u00e3o Paulo'.\"},\"height\":{\"type\":\"number\",\"description\":\"The recorded height in meters. Example: 1.65 or 1.55.\"},\"skin_color\":{\"type\":\"string\",\"description\":\"The skin color. Example: 'Branca'.\"},\"eyes\":{\"type\":[\"string\",\"null\"],\"description\":\"Description of the eyes. Example: 'castanhos' or 'azues'. Use null if not provided.\"},\"hair_color\":{\"type\":[\"string\",\"null\"],\"description\":\"The hair color. Example: 'castanhos' or 'louro'. Use null if not provided.\"},\"hair_texture\":{\"type\":[\"string\",\"null\"],\"description\":\"The hair texture or form. Example: 'lisos' or 'liso'. Use null if not provided.\"},\"face\":{\"type\":[\"string\",\"null\"],\"description\":\"The shape or appearance of the face. Example: 'oval' or 'alongado'. Use null if not provided.\"},\"nose\":{\"type\":[\"string\",\"null\"],\"description\":\"Description of the nose. Example: 'regular' or 'afilado'. Use null if not provided.\"},\"mouth\":{\"type\":[\"string\",\"null\"],\"description\":\"Description of the mouth. Example: 'pequena' or 'regular'. Use null if not provided.\"},\"beard\":{\"type\":[\"string\",\"null\"],\"description\":\"Description of the beard. Example: 'feita'. Use null if not provided.\"},\"mustache\":{\"type\":[\"string\",\"null\"],\"description\":\"Description of the mustache. Example: 'n\u00e3o usa'. Use null if not provided.\"},\"marks\":{\"type\":[\"string\",\"null\"],\"description\":\"Any distinctive marks. Example: 'cicatriz no pulso esquerdo'. Use null if not provided.\"},\"birth_date\":{\"type\":[\"string\",\"null\"],\"description\":\"Birth date of the individual. Example: '13 de Dezembro de 1891'. Use null if not provided.\"},\"municipality\":{\"type\":[\"string\",\"null\"],\"description\":\"The municipality of registration. Example: 'Limeira'. Use null if not provided.\"},\"profession\":{\"type\":[\"string\",\"null\"],\"description\":\"The profession or occupation. Example: 'Lavrador'. Use null if not provided.\"},\"assignatura\":{\"type\":[\"string\",\"null\"],\"description\":\"The assignatura or signature detail. Example: 'a rogo'. Use null if not provided.\"},\"reservista\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual is a reservist. Example: 'n\u00e3o'. Use null if not provided.\"},\"officials\":{\"type\":[\"array\",\"null\"],\"description\":\"An array of official positions and their signatures.\",\"items\":{\"type\":\"object\",\"properties\":{\"position\":{\"type\":\"string\",\"description\":\"The official position. Example: 'Presidente da Junta'.\"},\"signature\":{\"type\":[\"string\",\"null\"],\"description\":\"The recorded signature or name. Example: 'Octavio Bernardes'. Use null if not provided.\"}},\"required\":[\"position\",\"signature\"],\"additionalProperties\":false}},\"father\":{\"type\":[\"string\",\"null\"],\"description\":\"The name of the father. Example: 'Egydio Franco'. Use null if not provided.\"},\"mother\":{\"type\":[\"string\",\"null\"],\"description\":\"The name of the mother. Example: 'Da. J\u00falia Maria de Jesus'. Use null if not provided.\"},\"birth_place\":{\"type\":[\"string\",\"null\"],\"description\":\"The place of birth. Example: 'Limeira' or 'Bremen - Alemanha'. Use null if not provided.\"},\"civil_status\":{\"type\":[\"string\",\"null\"],\"description\":\"The civil status. Example: 'Solteiro', 'casado', or 'solteira'. Use null if not provided.\"},\"vaccinated\":{\"type\":[\"string\",\"null\"],\"description\":\"Vaccination status. Use 'Yes' or 'No', or null if not provided.\"},\"can_read\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual can read. Use 'Yes' or 'No', or null if not provided.\"},\"can_write\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual can write. Use 'Yes' or 'No', or null if not provided.\"},\"can_count\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual can count. Use 'Yes' or 'No', or null if not provided.\"},\"swimming\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual can swim. Use 'Yes' or 'No', or null if not provided.\"},\"cyclist\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual is a cyclist. Use 'Yes' or 'No', or null if not provided.\"},\"motorcyclist\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual is a motorcyclist. Use 'Yes' or 'No', or null if not provided.\"},\"driver\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual is a driver. Use 'Yes' or 'No', or null if not provided.\"},\"chauffeur\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual works as a chauffeur. Use 'Yes' or 'No', or null if not provided.\"},\"telegraphist\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual is a telegraphist. Use 'Yes' or 'No', or null if not provided.\"},\"telephonist\":{\"type\":[\"string\",\"null\"],\"description\":\"Indicates if the individual is a telephonist. Use 'Yes' or 'No', or null if not provided.\"},\"residence\":{\"type\":\"string\",\"description\":\"The residence or address. Example: 'Rua Senador Vergueiro', 'Largo Esta\u00e7\u00e3o, 7, Livraria', or 'R. 10 Marco 22'.\"},\"observations\":{\"type\":[\"string\",\"null\"],\"description\":\"Additional observations or notes. Example: '24 anos; Apresentou-se em 13-8-32 \u00e0s 22 horas.' Use null if not provided.\"}},\"required\":[\"surname\",\"first_name\",\"record_header\",\"location\",\"height\",\"skin_color\",\"eyes\",\"hair_color\",\"hair_texture\",\"face\",\"nose\",\"mouth\",\"beard\",\"mustache\",\"marks\",\"birth_date\",\"municipality\",\"profession\",\"assignatura\",\"reservista\",\"officials\",\"father\",\"mother\",\"birth_place\",\"civil_status\",\"vaccinated\",\"can_read\",\"can_write\",\"can_count\",\"swimming\",\"cyclist\",\"motorcyclist\",\"driver\",\"chauffeur\",\"telegraphist\",\"telephonist\",\"residence\",\"observations\"],\"additionalProperties\":false}}},\"required\":[\"contains_no_content_of_requested_type\",\"entries\"],\"additionalProperties\":false}"
+                }
+              ]
+            },
+            {
+              "role": "user",
+              "content": [
+                {
+                  "type": "input_text",
+                  "text": "# Batalh\u00e3o Limeirense**LIMEIRA \u2014 Estado de S\u00e3o Paulo**- **Altura:** 1.76- **C\u00f4r:** branca- **Cabellos:** castanhos- **Forma:** liso- **Barba:** feita- **Bigode:** n\u00e3o uso- **Nome:** Carlos Schmidt- **Assignatura:**- **Reservista:** n\u00e3o- **Olhos:** azues- **Bocca:** regular- **Rosto:** alongado- **Nariz:** afilado- **Signaes:****Presidente da Commiss\u00e3o:***Assinatura***Vice Presidente***Assinatura***Secretario***Assinatura***Prefeito***Assinatura***Delegado de Policia***Assinatura***Instructor***Assinatura*[Image: Photograph of Carlos Schmidt]Name: Carlos SchmidtFilho de: Adolpho Schmidte de: Helena SchmidtNascido em: 18-1-1890Natural de: Bremen - AlemanhaMunic\u00edpio de: n-Profiss\u00e3o: Official aposentado do Ex\u00e9rcito Alem\u00e3o, 1\u00ba Tenente CavallariaEstado civil: casadoVacinado: simL\u00ea: simEscreve: simConta: simSabe Nadar: simCyclista: simMotocyclista: n\u00e3oConductor: n\u00e3oChauffeur: n\u00e3oTelegraphista: n\u00e3oTelephonista: n\u00e3oResidencia: Largo Esta\u00e7\u00e3o, 7, LivrariaObserva\u00e7\u00f5es: Alistado em 11/9/1932 para o Esquadr\u00e3o de Cavallaria."
+                }
+              ]
+            }
+          ],
+          "json_schema": {
+            "name": "TranscriptionSchema",
+            "schema": {
+              "type": "object",
+              "properties": {
+                "contains_no_content_of_requested_type": {
+                  "type": "boolean",
+                  "description": "Set to true if the input text contains no military records. Otherwise, set to false."
+                },
+                "entries": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "surname": {
+                        "type": "string",
+                        "description": "The surname of the individual. Example: 'Franco' or 'Schmidt'."
+                      },
+                      "first_name": {
+                        "type": "string",
+                        "description": "The first name of the individual. Example: 'Antonio' or 'Carlos'."
+                      },
+                      "record_header": {
+                        "type": "string",
+                        "description": "The header of the record. Example: 'Batalh\u00e3o Limeirense'."
+                      },
+                      "location": {
+                        "type": "string",
+                        "description": "Location and state information. Example: 'LIMEIRA \u2013 Estado de S\u00e3o Paulo'."
+                      },
+                      "height": {
+                        "type": "number",
+                        "description": "The recorded height in meters. Example: 1.65 or 1.55."
+                      },
+                      "skin_color": {
+                        "type": "string",
+                        "description": "The skin color. Example: 'Branca'."
+                      },
+                      "eyes": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Description of the eyes. Example: 'castanhos' or 'azues'. Use null if not provided."
+                      },
+                      "hair_color": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The hair color. Example: 'castanhos' or 'louro'. Use null if not provided."
+                      },
+                      "hair_texture": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The hair texture or form. Example: 'lisos' or 'liso'. Use null if not provided."
+                      },
+                      "face": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The shape or appearance of the face. Example: 'oval' or 'alongado'. Use null if not provided."
+                      },
+                      "nose": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Description of the nose. Example: 'regular' or 'afilado'. Use null if not provided."
+                      },
+                      "mouth": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Description of the mouth. Example: 'pequena' or 'regular'. Use null if not provided."
+                      },
+                      "beard": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Description of the beard. Example: 'feita'. Use null if not provided."
+                      },
+                      "mustache": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Description of the mustache. Example: 'n\u00e3o usa'. Use null if not provided."
+                      },
+                      "marks": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Any distinctive marks. Example: 'cicatriz no pulso esquerdo'. Use null if not provided."
+                      },
+                      "birth_date": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Birth date of the individual. Example: '13 de Dezembro de 1891'. Use null if not provided."
+                      },
+                      "municipality": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The municipality of registration. Example: 'Limeira'. Use null if not provided."
+                      },
+                      "profession": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The profession or occupation. Example: 'Lavrador'. Use null if not provided."
+                      },
+                      "assignatura": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The assignatura or signature detail. Example: 'a rogo'. Use null if not provided."
+                      },
+                      "reservista": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual is a reservist. Example: 'n\u00e3o'. Use null if not provided."
+                      },
+                      "officials": {
+                        "type": [
+                          "array",
+                          "null"
+                        ],
+                        "description": "An array of official positions and their signatures.",
+                        "items": {
+                          "type": "object",
+                          "properties": {
+                            "position": {
+                              "type": "string",
+                              "description": "The official position. Example: 'Presidente da Junta'."
+                            },
+                            "signature": {
+                              "type": [
+                                "string",
+                                "null"
+                              ],
+                              "description": "The recorded signature or name. Example: 'Octavio Bernardes'. Use null if not provided."
+                            }
+                          },
+                          "required": [
+                            "position",
+                            "signature"
+                          ],
+                          "additionalProperties": false
+                        }
+                      },
+                      "father": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The name of the father. Example: 'Egydio Franco'. Use null if not provided."
+                      },
+                      "mother": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The name of the mother. Example: 'Da. J\u00falia Maria de Jesus'. Use null if not provided."
+                      },
+                      "birth_place": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The place of birth. Example: 'Limeira' or 'Bremen - Alemanha'. Use null if not provided."
+                      },
+                      "civil_status": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "The civil status. Example: 'Solteiro', 'casado', or 'solteira'. Use null if not provided."
+                      },
+                      "vaccinated": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Vaccination status. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "can_read": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual can read. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "can_write": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual can write. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "can_count": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual can count. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "swimming": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual can swim. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "cyclist": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual is a cyclist. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "motorcyclist": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual is a motorcyclist. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "driver": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual is a driver. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "chauffeur": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual works as a chauffeur. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "telegraphist": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual is a telegraphist. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "telephonist": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Indicates if the individual is a telephonist. Use 'Yes' or 'No', or null if not provided."
+                      },
+                      "residence": {
+                        "type": "string",
+                        "description": "The residence or address. Example: 'Rua Senador Vergueiro', 'Largo Esta\u00e7\u00e3o, 7, Livraria', or 'R. 10 Marco 22'."
+                      },
+                      "observations": {
+                        "type": [
+                          "string",
+                          "null"
+                        ],
+                        "description": "Additional observations or notes. Example: '24 anos; Apresentou-se em 13-8-32 \u00e0s 22 horas.' Use null if not provided."
+                      }
+                    },
+                    "required": [
+                      "surname",
+                      "first_name",
+                      "record_header",
+                      "location",
+                      "height",
+                      "skin_color",
+                      "eyes",
+                      "hair_color",
+                      "hair_texture",
+                      "face",
+                      "nose",
+                      "mouth",
+                      "beard",
+                      "mustache",
+                      "marks",
+                      "birth_date",
+                      "municipality",
+                      "profession",
+                      "assignatura",
+                      "reservista",
+                      "officials",
+                      "father",
+                      "mother",
+                      "birth_place",
+                      "civil_status",
+                      "vaccinated",
+                      "can_read",
+                      "can_write",
+                      "can_count",
+                      "swimming",
+                      "cyclist",
+                      "motorcyclist",
+                      "driver",
+                      "chauffeur",
+                      "telegraphist",
+                      "telephonist",
+                      "residence",
+                      "observations"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "contains_no_content_of_requested_type",
+                "entries"
+              ],
+              "additionalProperties": false
+            },
+            "strict": true
+          },
+          "provider": "openai",
+          "model": "gpt-5-mini"
+        },
+        "usage": {
+          "input_tokens": 3543,
+          "output_tokens": 2018,
+          "total_tokens": 5561
+        }
+      }
+    }
+  ]
+}
