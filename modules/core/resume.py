@@ -44,9 +44,10 @@ def build_extraction_metadata(
     chunking_method: str,
     total_chunks: int,
     timestamp: Optional[str] = None,
+    chunk_slice_info: Optional[Dict[str, Any]] = None,
 ) -> Dict[str, Any]:
     """Build a metadata dict to embed in extraction output JSON."""
-    return {
+    meta: Dict[str, Any] = {
         "schema_name": schema_name,
         "model_name": model_name,
         "chunking_method": chunking_method,
@@ -54,6 +55,9 @@ def build_extraction_metadata(
         "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
         "version": 1,
     }
+    if chunk_slice_info:
+        meta["chunk_slice"] = chunk_slice_info
+    return meta
 
 
 def read_extraction_metadata(output_json: Path) -> Optional[Dict[str, Any]]:

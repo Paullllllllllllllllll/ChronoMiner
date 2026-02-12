@@ -18,6 +18,7 @@ import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
 
+from modules.core.chunking_service import ChunkSlice
 from modules.core.logger import setup_logger
 from modules.core.resume import is_adjustment_current
 from modules.core.schema_manager import SchemaManager
@@ -71,6 +72,19 @@ def parse_arguments() -> argparse.Namespace:
         "--prompt-path",
         type=Path,
         help="Override the prompt template used when calling the model.",
+    )
+    chunk_slice_group = parser.add_mutually_exclusive_group()
+    chunk_slice_group.add_argument(
+        "--first-n-chunks",
+        type=int,
+        metavar="N",
+        help="Adjust only the first N line ranges of each file",
+    )
+    chunk_slice_group.add_argument(
+        "--last-n-chunks",
+        type=int,
+        metavar="N",
+        help="Adjust only the last N line ranges of each file",
     )
     return parser.parse_args()
 

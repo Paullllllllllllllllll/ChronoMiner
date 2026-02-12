@@ -11,7 +11,7 @@ import logging
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from modules.core.chunking_service import ChunkingService
+from modules.core.chunking_service import ChunkSlice, ChunkingService, apply_chunk_slice
 from modules.core.processing_strategy import create_processing_strategy
 from modules.core.context_resolver import resolve_context_for_extraction
 from modules.core.resume import (
@@ -133,6 +133,7 @@ class FileProcessorRefactored:
         context_source: str = "default",
         ui: Any = None,
         resume: bool = False,
+        chunk_slice: Optional[ChunkSlice] = None,
     ) -> None:
         """
         Process a single text file with refactored architecture.
@@ -195,6 +196,14 @@ class FileProcessorRefactored:
         except Exception as e:
             messenger.error(f"Failed to chunk text from {file_path.name}: {e}", exc_info=e)
             return
+
+        # Apply chunk slice (first/last N) if requested
+        if chunk_slice is not None and (chunk_slice.first_n is not None or chunk_slice.last_n is not None):
+            original_count = len(chunks)
+            chunks, ranges = apply_chunk_slice(chunks, ranges, chunk_slice)
+            messenger.info(
+                f"Chunk slice applied: processing {len(chunks)}/{original_count} chunks"
+            )
 
         context = None
         context_path = None
@@ -290,6 +299,14 @@ class FileProcessorRefactored:
             if not use_batch:
                 try:
                     if temp_jsonl_path.exists() and temp_jsonl_path.stat().st_size > 0:
+                        # Build chunk slice metadata if a slice was applied
+                        _cs_info: Optional[dict] = None
+                        if chunk_slice is not None and (chunk_slice.first_n is not None or chunk_slice.last_n is not None):
+                            _cs_info = {}
+                            if chunk_slice.first_n is not None:
+                                _cs_info["first_n"] = chunk_slice.first_n
+                            if chunk_slice.last_n is not None:
+                                _cs_info["last_n"] = chunk_slice.last_n
                         await asyncio.shield(
                             self._generate_output_files(
                                 temp_jsonl_path,
@@ -298,6 +315,7 @@ class FileProcessorRefactored:
                                 schema_paths,
                                 messenger,
                                 partial=processing_cancelled or processing_exception is not None,
+                                chunk_slice_info=_cs_info,
                             )
                         )
                         wrote_output = True
@@ -374,6 +392,7 @@ class FileProcessorRefactored:
         messenger: _MessagingAdapter,
         *,
         partial: bool = False,
+        chunk_slice_info: Optional[dict] = None,
     ) -> None:
         """Generate final output files from temporary JSONL."""
         try:
@@ -414,6 +433,7 @@ class FileProcessorRefactored:
                     model_name=model_name,
                     chunking_method=chunking_method,
                     total_chunks=len(results),
+                    chunk_slice_info=chunk_slice_info,
                 ),
                 "records": results,
             }

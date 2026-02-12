@@ -611,8 +611,12 @@ python main/process_text_files.py --help
 - `--input`: Input file or directory (required)
 - `--chunking`: Chunking method (auto, auto-adjust, line_ranges, adjust-line-ranges)
 - `--batch`: Use batch processing mode (default: synchronous)
+- `--first-n-chunks N`: Process only the first N chunks of each file
+- `--last-n-chunks N`: Process only the last N chunks of each file
 - `--verbose`: Enable verbose output
 - `--quiet`: Minimize output
+
+`--first-n-chunks` and `--last-n-chunks` are mutually exclusive. In interactive mode the same option is available as a guided prompt.
 
 ### Line Range Generation
 
@@ -622,6 +626,9 @@ python main/generate_line_ranges.py --input data/file.txt
 
 # Generate for directory
 python main/generate_line_ranges.py --input data/ --tokens 7500
+
+# Generate only the first 5 ranges
+python main/generate_line_ranges.py --input data/ --first-n-chunks 5
 ```
 
 Creates `{filename}_line_ranges.txt` files specifying exact line ranges.

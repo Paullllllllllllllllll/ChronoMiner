@@ -6,6 +6,7 @@ Consolidates chunking logic from text_utils and file_processor.
 """
 
 import logging
+from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Tuple, Optional, Dict, Any
 
@@ -17,6 +18,63 @@ from modules.core.text_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class ChunkSlice:
+    """Specifies which subset of chunks to process.
+
+    Exactly one of *first_n* or *last_n* may be set (they are mutually
+    exclusive).  When both are ``None`` the full chunk list is used.
+    """
+    first_n: Optional[int] = None
+    last_n: Optional[int] = None
+
+    def __post_init__(self) -> None:
+        if self.first_n is not None and self.last_n is not None:
+            raise ValueError("first_n and last_n are mutually exclusive")
+        if self.first_n is not None and self.first_n < 1:
+            raise ValueError("first_n must be >= 1")
+        if self.last_n is not None and self.last_n < 1:
+            raise ValueError("last_n must be >= 1")
+
+
+def apply_chunk_slice(
+    chunks: List[str],
+    ranges: List[Tuple[int, int]],
+    chunk_slice: Optional[ChunkSlice],
+) -> Tuple[List[str], List[Tuple[int, int]]]:
+    """Return the subset of *chunks* and *ranges* selected by *chunk_slice*.
+
+    If *chunk_slice* is ``None`` or requests more chunks than available the
+    full lists are returned (with a warning in the latter case).
+    """
+    if chunk_slice is None:
+        return chunks, ranges
+
+    total = len(chunks)
+
+    if chunk_slice.first_n is not None:
+        n = chunk_slice.first_n
+        if n >= total:
+            logger.warning(
+                "Requested first %d chunks but only %d available; processing all",
+                n, total,
+            )
+            return chunks, ranges
+        return chunks[:n], ranges[:n]
+
+    if chunk_slice.last_n is not None:
+        n = chunk_slice.last_n
+        if n >= total:
+            logger.warning(
+                "Requested last %d chunks but only %d available; processing all",
+                n, total,
+            )
+            return chunks, ranges
+        return chunks[-n:], ranges[-n:]
+
+    return chunks, ranges
 
 
 class ChunkingService:

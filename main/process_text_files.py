@@ -43,6 +43,7 @@ from modules.core.workflow_utils import (
     validate_schema_paths,
 )
 from modules.llm.prompt_utils import load_prompt_template
+from modules.core.chunking_service import ChunkSlice
 from modules.operations.extraction.file_processor import FileProcessorRefactored as FileProcessor
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 from modules.ui.core import UserInterface
@@ -239,6 +240,14 @@ async def _run_interactive_mode(
                 default=True,
             )
             state["resume"] = use_resume
+            current_step = "chunk_slice"
+        
+        elif current_step == "chunk_slice":
+            chunk_slice = ui.ask_chunk_slice(allow_back=True)
+            if chunk_slice is None:
+                current_step = "resume"
+                continue
+            state["chunk_slice"] = chunk_slice
             current_step = "files"
         
         elif current_step == "files":
@@ -284,6 +293,7 @@ async def _run_interactive_mode(
                 model_config=model_config,
                 paths_config=paths_config,
                 concurrency_config=concurrency_config,
+                chunk_slice=state.get("chunk_slice"),
             )
             
             if not proceed:
@@ -345,6 +355,7 @@ async def _run_interactive_mode(
                 global_chunking_method=state["global_chunking_method"],
                 ui=ui,
                 resume=state.get("resume", False),
+                chunk_slice=state.get("chunk_slice"),
             )
             processed_count += 1
             
@@ -372,6 +383,7 @@ async def _run_interactive_mode(
                     global_chunking_method=state["global_chunking_method"],
                     ui=ui,
                     resume=state.get("resume", False),
+                    chunk_slice=state.get("chunk_slice"),
                 )
             )
         await asyncio.gather(*tasks)
@@ -489,6 +501,15 @@ async def _run_cli_mode(
     context_source = getattr(args, "context_source", "default")
     use_resume = getattr(args, "resume", False) and not getattr(args, "force", False)
     
+    # Build chunk slice from CLI args
+    chunk_slice = None
+    first_n = getattr(args, "first_n_chunks", None)
+    last_n = getattr(args, "last_n_chunks", None)
+    if first_n is not None:
+        chunk_slice = ChunkSlice(first_n=first_n)
+    elif last_n is not None:
+        chunk_slice = ChunkSlice(last_n=last_n)
+    
     # Resolve input path and get files
     input_path = resolve_path(args.input)
     if not input_path.exists():
@@ -582,6 +603,7 @@ async def _run_cli_mode(
                 context_source=context_source,
                 ui=None,
                 resume=use_resume,
+                chunk_slice=chunk_slice,
             )
             processed_count += 1
             
@@ -611,6 +633,7 @@ async def _run_cli_mode(
                     context_source=context_source,
                     ui=None,
                     resume=use_resume,
+                    chunk_slice=chunk_slice,
                 )
             )
         await asyncio.gather(*tasks)

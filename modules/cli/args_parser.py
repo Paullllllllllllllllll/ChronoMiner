@@ -99,6 +99,20 @@ Examples:
         help="Force reprocessing of all files, ignoring existing outputs"
     )
     
+    chunk_slice_group = parser.add_mutually_exclusive_group()
+    chunk_slice_group.add_argument(
+        "--first-n-chunks",
+        type=int,
+        metavar="N",
+        help="Process only the first N chunks of each input file"
+    )
+    chunk_slice_group.add_argument(
+        "--last-n-chunks",
+        type=int,
+        metavar="N",
+        help="Process only the last N chunks of each input file"
+    )
+    
     return parser
 
 
@@ -154,6 +168,9 @@ Examples:
   
   # Use custom token limit
   python main/generate_line_ranges.py --input data/ --tokens 5000
+
+  # Generate ranges and keep only the first 5
+  python main/generate_line_ranges.py --input data/ --first-n-chunks 5
         """
     )
     
@@ -177,6 +194,20 @@ Examples:
         "--verbose",
         action="store_true",
         help="Show detailed processing information"
+    )
+    
+    chunk_slice_group = parser.add_mutually_exclusive_group()
+    chunk_slice_group.add_argument(
+        "--first-n-chunks",
+        type=int,
+        metavar="N",
+        help="Write only the first N generated line ranges"
+    )
+    chunk_slice_group.add_argument(
+        "--last-n-chunks",
+        type=int,
+        metavar="N",
+        help="Write only the last N generated line ranges"
     )
     
     return parser
@@ -246,6 +277,20 @@ Examples:
         "--force",
         action="store_true",
         help="Force re-adjustment of all files, ignoring existing adjustment markers"
+    )
+    
+    chunk_slice_group = parser.add_mutually_exclusive_group()
+    chunk_slice_group.add_argument(
+        "--first-n-chunks",
+        type=int,
+        metavar="N",
+        help="Adjust only the first N line ranges of each file"
+    )
+    chunk_slice_group.add_argument(
+        "--last-n-chunks",
+        type=int,
+        metavar="N",
+        help="Adjust only the last N line ranges of each file"
     )
     
     return parser

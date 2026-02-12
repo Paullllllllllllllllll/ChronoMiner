@@ -285,6 +285,58 @@ class UserInterface:
             return None
         return mode == "batch"
 
+    def ask_chunk_slice(self, allow_back: bool = False):
+        """
+        Prompt user to optionally limit processing to first/last N chunks.
+
+        :param allow_back: Whether to allow going back to previous step
+        :return: A ChunkSlice instance, or None on back navigation.
+                 Returns ChunkSlice() (both fields None) for 'all chunks'.
+        """
+        from modules.core.chunking_service import ChunkSlice
+
+        self.print_section_header("Chunk Range")
+
+        range_options = [
+            ("all", "Process all chunks (default)"),
+            ("first", "Process only the first N chunks"),
+            ("last", "Process only the last N chunks"),
+        ]
+
+        choice = self.select_option(
+            "Would you like to limit which chunks are processed?",
+            range_options,
+            allow_back=allow_back,
+            allow_quit=True,
+        )
+
+        if choice is None:
+            return None  # back navigation
+
+        if choice == "all":
+            return ChunkSlice()
+
+        label = "first" if choice == "first" else "last"
+        while True:
+            n_input = self.get_input(
+                f"How many {label} chunks should be processed?",
+                allow_back=True,
+                allow_quit=True,
+            )
+            if n_input is None:
+                # User went back — re-show the range options
+                return self.ask_chunk_slice(allow_back=allow_back)
+            try:
+                n = int(n_input)
+                if n < 1:
+                    self.print_error("Please enter a positive integer (>= 1).")
+                    continue
+                if choice == "first":
+                    return ChunkSlice(first_n=n)
+                else:
+                    return ChunkSlice(last_n=n)
+            except ValueError:
+                self.print_error("Invalid number. Please enter a positive integer.")
 
     def select_input_source(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """
@@ -481,6 +533,7 @@ class UserInterface:
         model_config: Optional[Dict[str, Any]] = None,
         paths_config: Optional[Dict[str, Any]] = None,
         concurrency_config: Optional[Dict[str, Any]] = None,
+        chunk_slice: Any = None,
     ) -> bool:
         """
         Display a detailed summary of the selected processing options and ask for confirmation.
@@ -518,6 +571,15 @@ class UserInterface:
 
         processing_mode = "Batch (asynchronous)" if use_batch else "Synchronous (real-time)"
         self.console_print(f"    - Processing mode: {processing_mode}")
+
+        # Chunk slice
+        if chunk_slice is not None:
+            first_n = getattr(chunk_slice, "first_n", None)
+            last_n = getattr(chunk_slice, "last_n", None)
+            if first_n is not None:
+                self.console_print(f"    - Chunk range: First {first_n} chunks only")
+            elif last_n is not None:
+                self.console_print(f"    - Chunk range: Last {last_n} chunks only")
 
         # Context is now resolved automatically
         self.console_print(f"    {self.DIM}- Context: Automatic (hierarchical resolution){self.RESET}")

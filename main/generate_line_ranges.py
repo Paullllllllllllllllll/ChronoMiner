@@ -18,6 +18,7 @@ from typing import List, Optional, Tuple
 
 from modules.cli.args_parser import create_generate_ranges_parser, get_files_from_path, resolve_path
 from modules.cli.execution_framework import DualModeScript
+from modules.core.chunking_service import ChunkSlice
 from modules.core.schema_manager import SchemaManager
 from modules.core.text_utils import TextProcessor, TokenBasedChunking
 from modules.core.workflow_utils import validate_schema_paths
@@ -219,13 +220,19 @@ class GenerateLineRangesScript(DualModeScript):
         self.ui.print_success(f"Found {len(files)} text files to process")
         return files
     
-    def _process_files(self, files: List[Path], verbose: bool = False) -> tuple[int, int]:
+    def _process_files(
+        self,
+        files: List[Path],
+        verbose: bool = False,
+        chunk_slice: Optional[ChunkSlice] = None,
+    ) -> tuple[int, int]:
         """
         Process files and generate line ranges.
         
         Args:
             files: List of files to process
             verbose: Whether to show verbose output
+            chunk_slice: Optional slice to limit written ranges
         
         Returns:
             Tuple of (success_count, fail_count)
@@ -245,6 +252,19 @@ class GenerateLineRangesScript(DualModeScript):
                     default_tokens_per_chunk=self.tokens_per_chunk,
                     model_name=self.model_name
                 )
+                
+                # Apply chunk slice if requested
+                if chunk_slice is not None and (chunk_slice.first_n is not None or chunk_slice.last_n is not None):
+                    original_count = len(line_ranges)
+                    if chunk_slice.first_n is not None:
+                        n = min(chunk_slice.first_n, len(line_ranges))
+                        line_ranges = line_ranges[:n]
+                    elif chunk_slice.last_n is not None:
+                        n = min(chunk_slice.last_n, len(line_ranges))
+                        line_ranges = line_ranges[-n:]
+                    self.print_or_log(
+                        f"Chunk slice applied: writing {len(line_ranges)}/{original_count} ranges"
+                    )
                 
                 line_ranges_file = write_line_ranges_file(file_path, line_ranges)
                 
@@ -275,7 +295,7 @@ class GenerateLineRangesScript(DualModeScript):
         self.model_name, self.tokens_per_chunk = self._get_model_config()
         
         # State machine for navigation
-        # States: schema -> files -> confirm
+        # States: schema -> files -> chunk_slice -> confirm
         current_step = "schema"
         state = {}
         
@@ -298,6 +318,14 @@ class GenerateLineRangesScript(DualModeScript):
                     current_step = "schema"
                     continue
                 state["files"] = files
+                current_step = "chunk_slice"
+            
+            elif current_step == "chunk_slice":
+                chunk_slice = self.ui.ask_chunk_slice(allow_back=True)
+                if chunk_slice is None:
+                    current_step = "files"
+                    continue
+                state["chunk_slice"] = chunk_slice
                 current_step = "confirm"
             
             elif current_step == "confirm":
@@ -309,7 +337,9 @@ class GenerateLineRangesScript(DualModeScript):
         
         # Process files
         self.ui.print_section_header("Generating Line Ranges")
-        success_count, fail_count = self._process_files(state["files"], verbose=False)
+        success_count, fail_count = self._process_files(
+            state["files"], verbose=False, chunk_slice=state.get("chunk_slice")
+        )
         
         # Final summary
         self.ui.print_section_header("Generation Complete")
@@ -348,8 +378,19 @@ class GenerateLineRangesScript(DualModeScript):
         if args.verbose:
             print(f"[INFO] Processing {len(files)} file(s) with {self.tokens_per_chunk} tokens per chunk")
         
+        # Build chunk slice from CLI args
+        chunk_slice = None
+        first_n = getattr(args, "first_n_chunks", None)
+        last_n = getattr(args, "last_n_chunks", None)
+        if first_n is not None:
+            chunk_slice = ChunkSlice(first_n=first_n)
+        elif last_n is not None:
+            chunk_slice = ChunkSlice(last_n=last_n)
+        
         # Process files
-        success_count, fail_count = self._process_files(files, verbose=args.verbose)
+        success_count, fail_count = self._process_files(
+            files, verbose=args.verbose, chunk_slice=chunk_slice
+        )
         
         # Final summary
         self.logger.info(f"Generation complete: {success_count} succeeded, {fail_count} failed")
