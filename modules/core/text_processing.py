@@ -8,9 +8,51 @@ from typing import Any, List
 
 from docx import Document
 
-from modules.core.converter_base import BaseConverter
+from modules.core.converter_base import BaseConverter, resolve_field
 
 logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Field-spec driven helpers for simple schemas.  Each "field spec" is a tuple
+# of (label, dict_key, default_value).  For nested dicts a dotted key like
+# "address.street" is supported (one level only).
+# ---------------------------------------------------------------------------
+
+def _fields_to_docx(
+    entries: List[Any],
+    document: "Document",
+    header_fn: Any,
+    fields: List[tuple],
+    *,
+    page_break: bool = True,
+) -> None:
+    """Render *entries* into *document* using a flat field list."""
+    for entry in entries:
+        document.add_heading(header_fn(entry), level=1)
+        for label, key, default in fields:
+            value = resolve_field(entry, key, default)
+            document.add_paragraph(f"{label}: {value}")
+        if page_break:
+            document.add_page_break()
+
+
+def _fields_to_txt(
+    entries: List[Any],
+    header_fn: Any,
+    fields: List[tuple],
+    *,
+    separator: str = "\n" + "=" * 40 + "\n",
+) -> List[str]:
+    """Render *entries* into lines using a flat field list."""
+    lines: List[str] = []
+    for entry in entries:
+        lines.append(header_fn(entry))
+        for label, key, default in fields:
+            value = resolve_field(entry, key, default)
+            lines.append(f"{label}: {value}")
+        lines.append(separator)
+    return lines
 
 
 class DocumentConverter(BaseConverter):
@@ -417,82 +459,83 @@ class DocumentConverter(BaseConverter):
 
         return lines
 
+    # --- Shared field specs for simple schemas ---
+
+    _ADDRESSBOOK_FIELDS: List[tuple] = [
+        ("Address", "address.street", "Unknown"),
+        ("Street Number", "address.street_number", "*0*"),
+        ("Honorific", "honorific", ""),
+        ("Additional Notes", "additional_notes", ""),
+    ]
+
+    @staticmethod
+    def _addressbook_header(entry: dict) -> str:
+        header = f"{entry.get('last_name', 'Unknown')}, {entry.get('first_name', 'Unknown')} - {entry.get('occupation', 'Unknown')}"
+        section = entry.get("section")
+        if section:
+            header += f" (Section: {section})"
+        return header
+
     def _convert_historicaladdressbookentries_to_docx(self, entries: List[Any],
                                                       document: Document) -> None:
-        for entry in entries:
-            last_name = entry.get("last_name", "Unknown")
-            first_name = entry.get("first_name", "Unknown")
-            occupation = entry.get("occupation", "Unknown")
-            section = entry.get("section")
-            honorific = entry.get("honorific")
-            additional_notes = entry.get("additional_notes")
+        _fields_to_docx(entries, document, self._addressbook_header, self._ADDRESSBOOK_FIELDS)
 
-            header = f"{last_name}, {first_name} - {occupation}"
-            if section:
-                header += f" (Section: {section})"
-            document.add_heading(header, level=1)
+    _BRAZILIAN_RECORDS_FIELDS: List[tuple] = [
+        ("Record Header", "record_header", ""),
+        ("Location", "location", ""),
+        ("Height", "height", ""),
+        ("Skin Color", "skin_color", ""),
+        ("Hair Color", "hair_color", ""),
+        ("Hair Texture", "hair_texture", ""),
+        ("Beard", "beard", ""),
+        ("Mustache", "mustache", ""),
+        ("Assignatura", "assignatura", ""),
+        ("Reservista", "reservista", ""),
+        ("Eyes", "eyes", ""),
+        ("Mouth", "mouth", ""),
+        ("Face", "face", ""),
+        ("Nose", "nose", ""),
+        ("Marks", "marks", ""),
+        ("Father", "father", ""),
+        ("Mother", "mother", ""),
+        ("Birth Date", "birth_date", ""),
+        ("Birth Place", "birth_place", ""),
+        ("Municipality", "municipality", ""),
+        ("Civil Status", "civil_status", ""),
+        ("Vaccinated", "vaccinated", ""),
+        ("Can Read", "can_read", ""),
+        ("Can Write", "can_write", ""),
+        ("Can Count", "can_count", ""),
+        ("Swimming", "swimming", ""),
+        ("Cyclist", "cyclist", ""),
+        ("Motorcyclist", "motorcyclist", ""),
+        ("Driver", "driver", ""),
+        ("Chauffeur", "chauffeur", ""),
+        ("Telegraphist", "telegraphist", ""),
+        ("Telephonist", "telephonist", ""),
+        ("Residence", "residence", ""),
+        ("Observations", "observations", ""),
+    ]
 
-            # Extract and add address information.
-            address = entry.get("address", {})
-            street = address.get("street", "Unknown")
-            street_number = address.get("street_number", "*0*")
-            document.add_paragraph(f"Address: {street} {street_number}")
+    @staticmethod
+    def _brazilian_header(entry: dict) -> str:
+        return f"{entry.get('surname', '')}, {entry.get('first_name', '')} - {entry.get('profession', '')}"
 
-            details = []
-            if honorific:
-                details.append(f"Honorific: {honorific}")
-            if additional_notes:
-                details.append(f"Additional Notes: {additional_notes}")
-            if details:
-                document.add_paragraph("; ".join(details))
-            document.add_page_break()
+    @staticmethod
+    def _format_officials(entry: dict) -> str:
+        officials = entry.get("officials", [])
+        if officials:
+            return "; ".join(
+                f"{o.get('position', '')}: {o.get('signature', '')}" for o in officials
+            )
+        return ""
 
     def _convert_brazilianoccupationrecords_to_docx(self, entries: List[Any], document: Document) -> None:
         for entry in entries:
-            header = f"{entry.get('surname', '')}, {entry.get('first_name', '')} - {entry.get('profession', '')}"
-            document.add_heading(header, level=1)
-            document.add_paragraph(f"Record Header: {entry.get('record_header', '')}")
-            document.add_paragraph(f"Location: {entry.get('location', '')}")
-            document.add_paragraph(f"Height: {entry.get('height', '')}")
-            document.add_paragraph(f"Skin Color: {entry.get('skin_color', '')}")
-            document.add_paragraph(f"Hair Color: {entry.get('hair_color', '')}")
-            document.add_paragraph(f"Hair Texture: {entry.get('hair_texture', '')}")
-            document.add_paragraph(f"Beard: {entry.get('beard', '')}")
-            document.add_paragraph(f"Mustache: {entry.get('mustache', '')}")
-            document.add_paragraph(f"Assignatura: {entry.get('assignatura', '')}")
-            document.add_paragraph(f"Reservista: {entry.get('reservista', '')}")
-            document.add_paragraph(f"Eyes: {entry.get('eyes', '')}")
-            document.add_paragraph(f"Mouth: {entry.get('mouth', '')}")
-            document.add_paragraph(f"Face: {entry.get('face', '')}")
-            document.add_paragraph(f"Nose: {entry.get('nose', '')}")
-            document.add_paragraph(f"Marks: {entry.get('marks', '')}")
-            officials = entry.get("officials", [])
-            if officials:
-                officials_str = "; ".join(
-                    [f"{o.get('position', '')}: {o.get('signature', '')}" for o in officials]
-                )
-            else:
-                officials_str = ""
-            document.add_paragraph(f"Officials: {officials_str}")
-            document.add_paragraph(f"Father: {entry.get('father', '')}")
-            document.add_paragraph(f"Mother: {entry.get('mother', '')}")
-            document.add_paragraph(f"Birth Date: {entry.get('birth_date', '')}")
-            document.add_paragraph(f"Birth Place: {entry.get('birth_place', '')}")
-            document.add_paragraph(f"Municipality: {entry.get('municipality', '')}")
-            document.add_paragraph(f"Civil Status: {entry.get('civil_status', '')}")
-            document.add_paragraph(f"Vaccinated: {entry.get('vaccinated', '')}")
-            document.add_paragraph(f"Can Read: {entry.get('can_read', '')}")
-            document.add_paragraph(f"Can Write: {entry.get('can_write', '')}")
-            document.add_paragraph(f"Can Count: {entry.get('can_count', '')}")
-            document.add_paragraph(f"Swimming: {entry.get('swimming', '')}")
-            document.add_paragraph(f"Cyclist: {entry.get('cyclist', '')}")
-            document.add_paragraph(f"Motorcyclist: {entry.get('motorcyclist', '')}")
-            document.add_paragraph(f"Driver: {entry.get('driver', '')}")
-            document.add_paragraph(f"Chauffeur: {entry.get('chauffeur', '')}")
-            document.add_paragraph(f"Telegraphist: {entry.get('telegraphist', '')}")
-            document.add_paragraph(f"Telephonist: {entry.get('telephonist', '')}")
-            document.add_paragraph(f"Residence: {entry.get('residence', '')}")
-            document.add_paragraph(f"Observations: {entry.get('observations', '')}")
+            document.add_heading(self._brazilian_header(entry), level=1)
+            for label, key, default in self._BRAZILIAN_RECORDS_FIELDS:
+                document.add_paragraph(f"{label}: {resolve_field(entry, key, default)}")
+            document.add_paragraph(f"Officials: {self._format_officials(entry)}")
             document.add_page_break()
 
     # --- Schema-Specific TXT Converters ---
@@ -615,80 +658,15 @@ class DocumentConverter(BaseConverter):
     def _convert_historicaladdressbookentries_to_txt(
         self, entries: List[Any]
     ) -> List[str]:
-        lines: List[str] = []
-        for entry in entries:
-            last_name = entry.get("last_name", "Unknown")
-            first_name = entry.get("first_name", "Unknown")
-            occupation = entry.get("occupation", "Unknown")
-            section = entry.get("section")
-            honorific = entry.get("honorific")
-            additional_notes = entry.get("additional_notes")
-
-            header = f"{last_name}, {first_name} - {occupation}"
-            if section:
-                header += f" (Section: {section})"
-            lines.append(header)
-
-            # Extract and append address information.
-            address = entry.get("address", {})
-            street = address.get("street", "Unknown")
-            street_number = address.get("street_number", "*0*")
-            lines.append(f"Address: {street} {street_number}")
-
-            if honorific:
-                lines.append(f"Honorific: {honorific}")
-            if additional_notes:
-                lines.append(f"Additional Notes: {additional_notes}")
-            lines.append("")
-        return lines
+        return _fields_to_txt(entries, self._addressbook_header, self._ADDRESSBOOK_FIELDS, separator="")
 
     def _convert_brazilianoccupationrecords_to_txt(self, entries: List[Any]) -> List[str]:
         lines: List[str] = []
         for entry in entries:
-            header = f"{entry.get('surname', '')}, {entry.get('first_name', '')} - {entry.get('profession', '')}"
-            lines.append(header)
-            lines.append(f"Record Header: {entry.get('record_header', '')}")
-            lines.append(f"Location: {entry.get('location', '')}")
-            lines.append(f"Height: {entry.get('height', '')}")
-            lines.append(f"Skin Color: {entry.get('skin_color', '')}")
-            lines.append(f"Hair Color: {entry.get('hair_color', '')}")
-            lines.append(f"Hair Texture: {entry.get('hair_texture', '')}")
-            lines.append(f"Beard: {entry.get('beard', '')}")
-            lines.append(f"Mustache: {entry.get('mustache', '')}")
-            lines.append(f"Assignatura: {entry.get('assignatura', '')}")
-            lines.append(f"Reservista: {entry.get('reservista', '')}")
-            lines.append(f"Eyes: {entry.get('eyes', '')}")
-            lines.append(f"Mouth: {entry.get('mouth', '')}")
-            lines.append(f"Face: {entry.get('face', '')}")
-            lines.append(f"Nose: {entry.get('nose', '')}")
-            lines.append(f"Marks: {entry.get('marks', '')}")
-            officials = entry.get("officials", [])
-            if officials:
-                officials_str = "; ".join(
-                    [f"{o.get('position', '')}: {o.get('signature', '')}" for o in officials]
-                )
-            else:
-                officials_str = ""
-            lines.append(f"Officials: {officials_str}")
-            lines.append(f"Father: {entry.get('father', '')}")
-            lines.append(f"Mother: {entry.get('mother', '')}")
-            lines.append(f"Birth Date: {entry.get('birth_date', '')}")
-            lines.append(f"Birth Place: {entry.get('birth_place', '')}")
-            lines.append(f"Municipality: {entry.get('municipality', '')}")
-            lines.append(f"Civil Status: {entry.get('civil_status', '')}")
-            lines.append(f"Vaccinated: {entry.get('vaccinated', '')}")
-            lines.append(f"Can Read: {entry.get('can_read', '')}")
-            lines.append(f"Can Write: {entry.get('can_write', '')}")
-            lines.append(f"Can Count: {entry.get('can_count', '')}")
-            lines.append(f"Swimming: {entry.get('swimming', '')}")
-            lines.append(f"Cyclist: {entry.get('cyclist', '')}")
-            lines.append(f"Motorcyclist: {entry.get('motorcyclist', '')}")
-            lines.append(f"Driver: {entry.get('driver', '')}")
-            lines.append(f"Chauffeur: {entry.get('chauffeur', '')}")
-            lines.append(f"Telegraphist: {entry.get('telegraphist', '')}")
-            lines.append(f"Telephonist: {entry.get('telephonist', '')}")
-            lines.append(f"Residence: {entry.get('residence', '')}")
-            lines.append(f"Observations: {entry.get('observations', '')}")
+            lines.append(self._brazilian_header(entry))
+            for label, key, default in self._BRAZILIAN_RECORDS_FIELDS:
+                lines.append(f"{label}: {resolve_field(entry, key, default)}")
+            lines.append(f"Officials: {self._format_officials(entry)}")
             lines.append("\n" + "=" * 40 + "\n")
         return lines
 

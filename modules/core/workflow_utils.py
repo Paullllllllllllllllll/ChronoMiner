@@ -92,42 +92,25 @@ def validate_schema_paths(
     Returns:
         True if paths are configured, False otherwise.
     """
+    def _report_error(msg: str) -> bool:
+        logger.error(msg)
+        if ui:
+            ui.print_error(msg)
+        else:
+            print(f"[ERROR] {msg}")
+        return False
+
     if schema_name not in schemas_paths:
-        error_msg = (
+        return _report_error(
             f"Schema '{schema_name}' has no path configuration in config/paths_config.yaml. "
             f"Please add an entry under 'schemas_paths' with 'input' and 'output' paths."
         )
-        logger.error(error_msg)
-        if ui:
-            ui.print_error(error_msg)
-        else:
-            print(f"[ERROR] {error_msg}")
-        return False
-    
+
     schema_config = schemas_paths[schema_name]
-    input_path = schema_config.get("input")
-    output_path = schema_config.get("output")
-    
-    if not input_path:
-        error_msg = (
-            f"Schema '{schema_name}' has no 'input' path configured in config/paths_config.yaml."
-        )
-        logger.error(error_msg)
-        if ui:
-            ui.print_error(error_msg)
-        else:
-            print(f"[ERROR] {error_msg}")
-        return False
-    
-    if not output_path:
-        error_msg = (
-            f"Schema '{schema_name}' has no 'output' path configured in config/paths_config.yaml."
-        )
-        logger.error(error_msg)
-        if ui:
-            ui.print_error(error_msg)
-        else:
-            print(f"[ERROR] {error_msg}")
-        return False
-    
+    for key in ("input", "output"):
+        if not schema_config.get(key):
+            return _report_error(
+                f"Schema '{schema_name}' has no '{key}' path configured in config/paths_config.yaml."
+            )
+
     return True

@@ -117,860 +117,257 @@ def detect_provider(model_name: str) -> ProviderType:
 _detect_provider = detect_provider
 
 
+# ---------------------------------------------------------------------------
+# Provider-level capability defaults.  Each model entry in the registry below
+# only needs to declare the fields that *differ* from its provider default.
+# ---------------------------------------------------------------------------
+
+_OPENAI_REASONING_BASE: dict = dict(
+    provider="openai",
+    supports_responses_api=True,
+    supports_chat_completions=True,
+    api_preference="responses",
+    is_reasoning_model=True,
+    supports_reasoning_effort=True,
+    supports_developer_messages=True,
+    supports_image_input=True,
+    supports_image_detail=True,
+    supports_structured_outputs=True,
+    supports_function_calling=True,
+    supports_sampler_controls=False,
+    max_context_tokens=200000,
+)
+
+_OPENAI_STANDARD_BASE: dict = dict(
+    provider="openai",
+    supports_responses_api=True,
+    supports_chat_completions=True,
+    api_preference="responses",
+    is_reasoning_model=False,
+    supports_reasoning_effort=False,
+    supports_developer_messages=True,
+    supports_image_input=True,
+    supports_image_detail=True,
+    supports_structured_outputs=True,
+    supports_function_calling=True,
+    supports_sampler_controls=True,
+)
+
+_ANTHROPIC_BASE: dict = dict(
+    provider="anthropic",
+    supports_responses_api=False,
+    supports_chat_completions=True,
+    api_preference="langchain",
+    is_reasoning_model=False,
+    supports_reasoning_effort=False,
+    supports_developer_messages=True,
+    supports_image_input=True,
+    supports_image_detail=False,
+    supports_structured_outputs=True,
+    supports_function_calling=True,
+    supports_sampler_controls=True,
+    max_context_tokens=200000,
+)
+
+_GOOGLE_BASE: dict = dict(
+    provider="google",
+    supports_responses_api=False,
+    supports_chat_completions=True,
+    api_preference="langchain",
+    is_reasoning_model=False,
+    supports_reasoning_effort=False,
+    supports_developer_messages=True,
+    supports_image_input=True,
+    supports_image_detail=False,
+    supports_structured_outputs=True,
+    supports_function_calling=True,
+    supports_sampler_controls=True,
+    max_context_tokens=1000000,
+)
+
+_OPENROUTER_BASE: dict = dict(
+    provider="openrouter",
+    supports_responses_api=False,
+    supports_chat_completions=True,
+    api_preference="langchain",
+    is_reasoning_model=False,
+    supports_reasoning_effort=False,
+    supports_developer_messages=True,
+    supports_image_input=True,
+    supports_image_detail=False,
+    supports_structured_outputs=True,
+    supports_function_calling=True,
+    supports_sampler_controls=True,
+    max_context_tokens=128000,
+)
+
+# ---------------------------------------------------------------------------
+# Static model registry.  Each entry is (prefixes, family, base, overrides).
+# Order matters: more specific prefixes MUST come before less specific ones.
+# ---------------------------------------------------------------------------
+
+_MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
+    # --- OpenAI GPT-5.1 family ---
+    (("gpt-5.1",), "gpt-5.1", _OPENAI_REASONING_BASE, dict(
+        supports_chat_completions=False, max_context_tokens=256000,
+    )),
+    # --- OpenAI GPT-5 family ---
+    (("gpt-5",), "gpt-5", _OPENAI_REASONING_BASE, dict(
+        supports_chat_completions=False, max_context_tokens=256000,
+    )),
+    # --- OpenAI o-series reasoning models ---
+    (("o4-mini", "o4"), "o4-mini", _OPENAI_REASONING_BASE, {}),
+    (("o3-pro",), "o3-pro", _OPENAI_REASONING_BASE, {}),
+    (("o3-mini",), "o3-mini", _OPENAI_REASONING_BASE, dict(
+        supports_image_input=False, supports_image_detail=False,
+    )),
+    # o3 (not o3-mini, not o3-pro) — uses a custom match function below
+    (("o1-mini",), "o1-mini", _OPENAI_REASONING_BASE, dict(
+        supports_responses_api=False, api_preference="chat_completions",
+        supports_reasoning_effort=False, supports_developer_messages=False,
+        supports_image_input=False, supports_image_detail=False,
+        supports_structured_outputs=False, supports_function_calling=False,
+    )),
+    # o1 (not o1-mini) — uses a custom match function below
+    # --- OpenAI GPT-4o / GPT-4.1 ---
+    (("gpt-4o",), "gpt-4o", _OPENAI_STANDARD_BASE, {}),
+    (("gpt-4.1",), "gpt-4.1", _OPENAI_STANDARD_BASE, dict(
+        api_preference="langchain",
+    )),
+    # --- Anthropic Claude models (most-specific first) ---
+    (("claude-opus-4-5", "claude-opus-4.5"), "claude-opus-4.5", _ANTHROPIC_BASE, {}),
+    (("claude-opus-4-1", "claude-opus-4.1"), "claude-opus-4.1", _ANTHROPIC_BASE, {}),
+    (("claude-opus-4",), "claude-opus-4", _ANTHROPIC_BASE, {}),
+    (("claude-sonnet-4-5", "claude-sonnet-4.5"), "claude-sonnet-4.5", _ANTHROPIC_BASE, {}),
+    (("claude-sonnet-4",), "claude-sonnet-4", _ANTHROPIC_BASE, {}),
+    (("claude-haiku-4-5", "claude-haiku-4.5"), "claude-haiku-4.5", _ANTHROPIC_BASE, {}),
+    (("claude-3-7-sonnet", "claude-3.7-sonnet"), "claude-3.7-sonnet", _ANTHROPIC_BASE, {}),
+    (("claude-3-5-sonnet", "claude-3.5-sonnet"), "claude-3.5-sonnet", _ANTHROPIC_BASE, {}),
+    (("claude-3-5-haiku", "claude-3.5-haiku"), "claude-3.5-haiku", _ANTHROPIC_BASE, {}),
+    (("claude-3-opus",), "claude-3-opus", _ANTHROPIC_BASE, {}),
+    (("claude-3-sonnet",), "claude-3-sonnet", _ANTHROPIC_BASE, {}),
+    (("claude-3-haiku",), "claude-3-haiku", _ANTHROPIC_BASE, {}),
+    (("claude",), "claude", _ANTHROPIC_BASE, {}),
+    # --- Google Gemini models (most-specific first) ---
+    (("gemini-3-pro", "gemini-3.0-pro"), "gemini-3-pro", _GOOGLE_BASE, dict(
+        is_reasoning_model=True, max_context_tokens=1048576,
+    )),
+    (("gemini-2.5-pro", "gemini-2-5-pro"), "gemini-2.5-pro", _GOOGLE_BASE, dict(
+        is_reasoning_model=True, max_context_tokens=1048576,
+    )),
+    (("gemini-2.5-flash-lite", "gemini-2-5-flash-lite"), "gemini-2.5-flash-lite", _GOOGLE_BASE, dict(
+        max_context_tokens=1048576,
+    )),
+    (("gemini-2.5-flash", "gemini-2-5-flash"), "gemini-2.5-flash", _GOOGLE_BASE, dict(
+        is_reasoning_model=True, max_context_tokens=1048576,
+    )),
+    (("gemini-2.0-flash", "gemini-2-flash", "gemini-2.0"), "gemini-2.0-flash", _GOOGLE_BASE, {}),
+    (("gemini-1.5-pro", "gemini-1-5-pro"), "gemini-1.5-pro", _GOOGLE_BASE, dict(
+        max_context_tokens=2000000,
+    )),
+    (("gemini-1.5-flash", "gemini-1-5-flash"), "gemini-1.5-flash", _GOOGLE_BASE, {}),
+    (("gemini",), "gemini", _GOOGLE_BASE, {}),
+]
+
+
+def _build_caps(model_name: str, family: str, base: dict, overrides: dict) -> Capabilities:
+    """Merge *base* defaults with *overrides* and return a Capabilities instance."""
+    merged = {**base, **overrides}
+    merged["model"] = model_name
+    merged["family"] = family
+    return Capabilities(**merged)
+
+
 def detect_capabilities(model_name: str) -> Capabilities:
     m = _norm(model_name)
 
-    # ========================================================================
-    # OpenAI GPT-5.1 family (November 2025) - reasoning with adaptive thinking
-    # Models: gpt-5.1, gpt-5.1-instant, gpt-5.1-thinking
-    # ========================================================================
-    if m.startswith("gpt-5.1"):
-        return Capabilities(
-            model=model_name,
-            family="gpt-5.1",
-            provider="openai",
-            supports_responses_api=True,
-            supports_chat_completions=False,
-            api_preference="responses",
-            is_reasoning_model=True,
-            supports_reasoning_effort=True,  # Supports "none", "low", "medium", "high"
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=True,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=False,  # No temperature/top_p
-            max_context_tokens=256000,
-        )
+    # --- Static registry lookup (covers OpenAI, Anthropic, Google) ----------
+    for prefixes, family, base, overrides in _MODEL_REGISTRY:
+        if any(m.startswith(p) for p in prefixes):
+            return _build_caps(model_name, family, base, overrides)
 
-    # ========================================================================
-    # OpenAI GPT-5 family (August 2025) - reasoning, multimodal
-    # Models: gpt-5, gpt-5-mini, gpt-5-nano
-    # ========================================================================
-    if m.startswith("gpt-5"):
-        return Capabilities(
-            model=model_name,
-            family="gpt-5",
-            provider="openai",
-            supports_responses_api=True,
-            supports_chat_completions=False,
-            api_preference="responses",
-            is_reasoning_model=True,
-            supports_reasoning_effort=True,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=True,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=False,
-            max_context_tokens=256000,
-        )
-
-    # ========================================================================
-    # OpenAI o-series reasoning models (2025)
-    # ========================================================================
-    
-    # o4-mini (2025) - latest reasoning model, optimized for tool use
-    if m.startswith("o4-mini") or m.startswith("o4"):
-        return Capabilities(
-            model=model_name,
-            family="o4-mini",
-            provider="openai",
-            supports_responses_api=True,
-            supports_chat_completions=True,
-            api_preference="responses",
-            is_reasoning_model=True,
-            supports_reasoning_effort=True,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=True,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=False,
-            max_context_tokens=200000,
-        )
-    
-    # o3-pro (reasoning, enhanced tool usage)
-    if m.startswith("o3-pro"):
-        return Capabilities(
-            model=model_name,
-            family="o3-pro",
-            provider="openai",
-            supports_responses_api=True,
-            supports_chat_completions=True,
-            api_preference="responses",
-            is_reasoning_model=True,
-            supports_reasoning_effort=True,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=True,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=False,
-            max_context_tokens=200000,
-        )
-    
-    # o3 (reasoning, vision, avoid sampler controls)
+    # --- o3 (not o3-mini, not o3-pro) — requires negative-prefix logic ------
     if m == "o3" or (m.startswith("o3-") and not m.startswith("o3-mini") and not m.startswith("o3-pro")):
-        return Capabilities(
-            model=model_name,
-            family="o3",
-            provider="openai",
-            supports_responses_api=True,
-            supports_chat_completions=True,
-            api_preference="responses",
-            is_reasoning_model=True,
-            supports_reasoning_effort=True,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=True,
-            default_ocr_detail="high",
+        return _build_caps(model_name, "o3", _OPENAI_REASONING_BASE, dict(
             supports_structured_outputs=False,
-            supports_function_calling=True,
-            supports_sampler_controls=False,
-            max_context_tokens=200000,
-        )
+        ))
 
-    # o3-mini (reasoning, no vision)
-    if m.startswith("o3-mini"):
-        return Capabilities(
-            model=model_name,
-            family="o3-mini",
-            provider="openai",
-            supports_responses_api=True,
-            supports_chat_completions=True,
-            api_preference="responses",
-            is_reasoning_model=True,
-            supports_reasoning_effort=True,
-            supports_developer_messages=True,
-            supports_image_input=False,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=False,
-            max_context_tokens=200000,
-        )
-
-    # o1 (full reasoning; no sampler controls; allow Responses)
+    # --- o1 (not o1-mini) — requires negative-prefix logic ------------------
     if m == "o1" or m.startswith("o1-20") or (m.startswith("o1") and not m.startswith("o1-mini")):
-        return Capabilities(
-            model=model_name,
-            family="o1",
-            supports_responses_api=True,
-            supports_chat_completions=True,
+        return _build_caps(model_name, "o1", _OPENAI_REASONING_BASE, dict(
             api_preference="either",
-            is_reasoning_model=True,
             supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=True,
-            default_ocr_detail="high",
             supports_structured_outputs=False,
-            supports_function_calling=True,
-            supports_sampler_controls=False,
-        )
+        ))
 
-    # o1-mini (small reasoning; prefer Chat Completions; no vision)
-    if m.startswith("o1-mini"):
-        return Capabilities(
-            model=model_name,
-            family="o1-mini",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="chat_completions",
-            is_reasoning_model=True,
-            supports_reasoning_effort=False,
-            supports_developer_messages=False,
-            supports_image_input=False,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=False,
-            supports_function_calling=False,
-            supports_sampler_controls=False,
-        )
-
-    # GPT-4o family (multimodal; structured outputs; sampler controls)
-    if m.startswith("gpt-4o"):
-        return Capabilities(
-            model=model_name,
-            family="gpt-4o",
-            supports_responses_api=True,
-            supports_chat_completions=True,
-            api_preference="responses",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=True,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-        )
-
-    # GPT-4.1 family (multimodal; structured outputs; sampler controls)
-    if m.startswith("gpt-4.1"):
-        return Capabilities(
-            model=model_name,
-            family="gpt-4.1",
-            provider="openai",
-            supports_responses_api=True,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=True,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-        )
-
-    # ========================================================================
-    # Anthropic Claude models (2025)
-    # Model naming: claude-{tier}-{version}-{date}
-    # Tiers: opus (largest), sonnet (balanced), haiku (fastest)
-    # ========================================================================
-    
-    # Claude Opus 4.5 (November 2025) - most intelligent model
-    # API ID: claude-opus-4-5-20251101
-    if m.startswith("claude-opus-4-5") or m.startswith("claude-opus-4.5"):
-        return Capabilities(
-            model=model_name,
-            family="claude-opus-4.5",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude Opus 4.1 (August 2025) - claude-opus-4-1-20250805
-    if m.startswith("claude-opus-4-1") or m.startswith("claude-opus-4.1"):
-        return Capabilities(
-            model=model_name,
-            family="claude-opus-4.1",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude Opus 4 (May 2025) - claude-opus-4-20250514
-    if m.startswith("claude-opus-4"):
-        return Capabilities(
-            model=model_name,
-            family="claude-opus-4",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude Sonnet 4.5 (October 2025) - most aligned frontier model
-    if m.startswith("claude-sonnet-4-5") or m.startswith("claude-sonnet-4.5"):
-        return Capabilities(
-            model=model_name,
-            family="claude-sonnet-4.5",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude Sonnet 4 (May 2025) - claude-sonnet-4-20250514
-    if m.startswith("claude-sonnet-4"):
-        return Capabilities(
-            model=model_name,
-            family="claude-sonnet-4",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude Haiku 4.5 (November 2025) - fast, cost-effective
-    if m.startswith("claude-haiku-4-5") or m.startswith("claude-haiku-4.5"):
-        return Capabilities(
-            model=model_name,
-            family="claude-haiku-4.5",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude 3.7 Sonnet (February 2025) - claude-3-7-sonnet-20250219
-    if m.startswith("claude-3-7-sonnet") or m.startswith("claude-3.7-sonnet"):
-        return Capabilities(
-            model=model_name,
-            family="claude-3.7-sonnet",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude 3.5 Sonnet (October 2024) - claude-3-5-sonnet-20241022
-    if m.startswith("claude-3-5-sonnet") or m.startswith("claude-3.5-sonnet"):
-        return Capabilities(
-            model=model_name,
-            family="claude-3.5-sonnet",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude 3.5 Haiku (October 2024) - claude-3-5-haiku-20241022
-    if m.startswith("claude-3-5-haiku") or m.startswith("claude-3.5-haiku"):
-        return Capabilities(
-            model=model_name,
-            family="claude-3.5-haiku",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude 3 Opus (legacy, deprecated June 2025)
-    if m.startswith("claude-3-opus"):
-        return Capabilities(
-            model=model_name,
-            family="claude-3-opus",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude 3 Sonnet (legacy, retired July 2025)
-    if m.startswith("claude-3-sonnet"):
-        return Capabilities(
-            model=model_name,
-            family="claude-3-sonnet",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Claude 3 Haiku (legacy)
-    if m.startswith("claude-3-haiku"):
-        return Capabilities(
-            model=model_name,
-            family="claude-3-haiku",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-    
-    # Generic Claude fallback (for any new Claude models)
-    if m.startswith("claude"):
-        return Capabilities(
-            model=model_name,
-            family="claude",
-            provider="anthropic",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=200000,
-        )
-
-    # ========================================================================
-    # Google Gemini models (2025)
-    # Model naming: gemini-{version}-{variant}
-    # Variants: pro (powerful), flash (fast), flash-lite (ultra fast)
-    # ========================================================================
-    
-    # Gemini 3 Pro (2025) - most powerful, multimodal understanding
-    # Models: gemini-3-pro-preview, gemini-3-pro-image-preview
-    if m.startswith("gemini-3-pro") or m.startswith("gemini-3.0-pro"):
-        return Capabilities(
-            model=model_name,
-            family="gemini-3-pro",
-            provider="google",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=True,  # Thinking/reasoning model
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=1048576,  # 1M tokens
-        )
-    
-    # Gemini 2.5 Pro (2025) - state-of-the-art thinking model
-    # Models: gemini-2.5-pro, gemini-2.5-pro-preview-tts
-    if m.startswith("gemini-2.5-pro") or m.startswith("gemini-2-5-pro"):
-        return Capabilities(
-            model=model_name,
-            family="gemini-2.5-pro",
-            provider="google",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=True,  # Thinking/reasoning model
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=1048576,  # 1M tokens
-        )
-    
-    # Gemini 2.5 Flash (2025) - best price-performance, thinking
-    # Models: gemini-2.5-flash, gemini-2.5-flash-preview-*, gemini-2.5-flash-image
-    if m.startswith("gemini-2.5-flash") or m.startswith("gemini-2-5-flash"):
-        return Capabilities(
-            model=model_name,
-            family="gemini-2.5-flash",
-            provider="google",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=True,  # Thinking/reasoning model
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=1048576,  # 1M tokens
-        )
-    
-    # Gemini 2.5 Flash-Lite (2025) - ultra fast, cost optimized
-    if m.startswith("gemini-2.5-flash-lite") or m.startswith("gemini-2-5-flash-lite"):
-        return Capabilities(
-            model=model_name,
-            family="gemini-2.5-flash-lite",
-            provider="google",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=1048576,  # 1M tokens
-        )
-    
-    # Gemini 2.0 Flash (previous gen)
-    if m.startswith("gemini-2.0-flash") or m.startswith("gemini-2-flash") or m.startswith("gemini-2.0"):
-        return Capabilities(
-            model=model_name,
-            family="gemini-2.0-flash",
-            provider="google",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=1000000,  # 1M tokens
-        )
-    
-    # Gemini 1.5 Pro (legacy)
-    if m.startswith("gemini-1.5-pro") or m.startswith("gemini-1-5-pro"):
-        return Capabilities(
-            model=model_name,
-            family="gemini-1.5-pro",
-            provider="google",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=2000000,  # 2M tokens
-        )
-    
-    # Gemini 1.5 Flash (legacy)
-    if m.startswith("gemini-1.5-flash") or m.startswith("gemini-1-5-flash"):
-        return Capabilities(
-            model=model_name,
-            family="gemini-1.5-flash",
-            provider="google",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=1000000,  # 1M tokens
-        )
-    
-    # Generic Gemini fallback (for any new Gemini models)
-    if m.startswith("gemini"):
-        return Capabilities(
-            model=model_name,
-            family="gemini",
-            provider="google",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=1000000,
-        )
-
-    # ========================================================================
-    # OpenRouter models (detect underlying model)
-    # ========================================================================
-    
+    # --- OpenRouter models (dynamic matching on underlying model) -----------
     if m.startswith("openrouter/") or "/" in m:
-        # Extract underlying model name for capability detection
         underlying = m.split("/")[-1] if "/" in m else m
-        
-        # OpenRouter DeepSeek models (reasoning capable)
+
+        # DeepSeek
         if "deepseek" in m:
             is_r1 = "deepseek-r1" in m
             is_terminus = "terminus" in m
-            return Capabilities(
-                model=model_name,
-                family="openrouter-deepseek",
-                provider="openrouter",
-                supports_responses_api=False,
-                supports_chat_completions=True,
-                api_preference="langchain",
+            return _build_caps(model_name, "openrouter-deepseek", _OPENROUTER_BASE, dict(
                 is_reasoning_model=is_r1 or is_terminus,
-                supports_reasoning_effort=True,  # DeepSeek supports reasoning via enabled flag
-                supports_developer_messages=True,
-                supports_image_input=True,
-                supports_image_detail=False,
-                default_ocr_detail="high",
-                supports_structured_outputs=True,
-                supports_function_calling=True,
-                supports_sampler_controls=not is_r1,  # R1 models don't support sampler controls
-                max_context_tokens=128000,
-            )
-        
-        # OpenRouter GPT-5 models (reasoning, no sampler controls)
+                supports_reasoning_effort=True,
+                supports_sampler_controls=not is_r1,
+            ))
+
+        # GPT-5 via OpenRouter
         if "gpt-5" in m:
-            return Capabilities(
-                model=model_name,
-                family="openrouter-gpt5",
-                provider="openrouter",
-                supports_responses_api=False,
-                supports_chat_completions=True,
-                api_preference="langchain",
+            return _build_caps(model_name, "openrouter-gpt5", _OPENROUTER_BASE, dict(
                 is_reasoning_model=True,
                 supports_reasoning_effort=True,
-                supports_developer_messages=True,
-                supports_image_input=True,
                 supports_image_detail=True,
-                default_ocr_detail="high",
-                supports_structured_outputs=True,
-                supports_function_calling=True,
                 supports_sampler_controls=False,
                 max_context_tokens=256000,
-            )
-        
-        # OpenRouter o-series models (reasoning, no sampler controls)
+            ))
+
+        # o-series via OpenRouter
         if any(x in m for x in ("/o1", "/o3", "/o4", "openai/o1", "openai/o3", "openai/o4")):
-            return Capabilities(
-                model=model_name,
-                family="openrouter-o-series",
-                provider="openrouter",
-                supports_responses_api=False,
-                supports_chat_completions=True,
-                api_preference="langchain",
+            return _build_caps(model_name, "openrouter-o-series", _OPENROUTER_BASE, dict(
                 is_reasoning_model=True,
                 supports_reasoning_effort=True,
-                supports_developer_messages=True,
-                supports_image_input="mini" not in m,  # o*-mini don't support vision
+                supports_image_input="mini" not in m,
                 supports_image_detail=True,
-                default_ocr_detail="high",
-                supports_structured_outputs=True,
-                supports_function_calling=True,
                 supports_sampler_controls=False,
                 max_context_tokens=200000,
-            )
-        
-        # OpenRouter Anthropic models (reasoning via extended thinking)
-        if "claude" in underlying or "anthropic/" in m:
-            return Capabilities(
-                model=model_name,
-                family="openrouter-claude",
-                provider="openrouter",
-                supports_responses_api=False,
-                supports_chat_completions=True,
-                api_preference="langchain",
-                is_reasoning_model=True,  # Claude supports extended thinking
-                supports_reasoning_effort=True,  # Mapped to budget_tokens via OpenRouter
-                supports_developer_messages=True,
-                supports_image_input=True,
-                supports_image_detail=False,
-                default_ocr_detail="high",
-                supports_structured_outputs=True,
-                supports_function_calling=True,
-                supports_sampler_controls=True,  # Claude supports temperature
-                max_context_tokens=200000,
-            )
-        
-        # OpenRouter Google Gemini models (reasoning for 2.5+/3.0)
-        if "gemini" in underlying or "google/" in m:
-            is_thinking_model = any(x in m for x in ("gemini-2.5", "gemini-3", "gemini-2-5", "gemini-3-"))
-            return Capabilities(
-                model=model_name,
-                family="openrouter-gemini",
-                provider="openrouter",
-                supports_responses_api=False,
-                supports_chat_completions=True,
-                api_preference="langchain",
-                is_reasoning_model=is_thinking_model,
-                supports_reasoning_effort=True,  # Gemini supports thinking_level via OpenRouter
-                supports_developer_messages=True,
-                supports_image_input=True,
-                supports_image_detail=False,
-                default_ocr_detail="high",
-                supports_structured_outputs=True,
-                supports_function_calling=True,
-                supports_sampler_controls=True,
-                max_context_tokens=1000000,
-            )
-        
-        # OpenRouter Llama models (no reasoning support)
-        if "llama" in underlying or "meta/" in m:
-            supports_vision = "vision" in m or "llama-3.2" in m
-            return Capabilities(
-                model=model_name,
-                family="openrouter-llama",
-                provider="openrouter",
-                supports_responses_api=False,
-                supports_chat_completions=True,
-                api_preference="langchain",
-                is_reasoning_model=False,
-                supports_reasoning_effort=False,
-                supports_developer_messages=True,
-                supports_image_input=supports_vision,
-                supports_image_detail=False,
-                default_ocr_detail="high",
-                supports_structured_outputs=True,
-                supports_function_calling=True,
-                supports_sampler_controls=True,
-                max_context_tokens=128000,
-            )
-        
-        # OpenRouter Mistral models (no reasoning support)
-        if "mistral" in underlying or "mixtral" in m:
-            supports_vision = "pixtral" in m
-            return Capabilities(
-                model=model_name,
-                family="openrouter-mistral",
-                provider="openrouter",
-                supports_responses_api=False,
-                supports_chat_completions=True,
-                api_preference="langchain",
-                is_reasoning_model=False,
-                supports_reasoning_effort=False,
-                supports_developer_messages=True,
-                supports_image_input=supports_vision,
-                supports_image_detail=False,
-                default_ocr_detail="high",
-                supports_structured_outputs=True,
-                supports_function_calling=True,
-                supports_sampler_controls=True,
-                max_context_tokens=128000,
-            )
-        
-        # Generic OpenRouter fallback
-        return Capabilities(
-            model=model_name,
-            family="openrouter",
-            provider="openrouter",
-            supports_responses_api=False,
-            supports_chat_completions=True,
-            api_preference="langchain",
-            is_reasoning_model=False,
-            supports_reasoning_effort=False,
-            supports_developer_messages=True,
-            supports_image_input=True,  # Optimistic default
-            supports_image_detail=False,
-            default_ocr_detail="high",
-            supports_structured_outputs=True,
-            supports_function_calling=True,
-            supports_sampler_controls=True,
-            max_context_tokens=128000,
-        )
+            ))
 
-    # Fallback conservative text-only
+        # Claude via OpenRouter
+        if "claude" in underlying or "anthropic/" in m:
+            return _build_caps(model_name, "openrouter-claude", _OPENROUTER_BASE, dict(
+                is_reasoning_model=True,
+                supports_reasoning_effort=True,
+                max_context_tokens=200000,
+            ))
+
+        # Gemini via OpenRouter
+        if "gemini" in underlying or "google/" in m:
+            is_thinking = any(x in m for x in ("gemini-2.5", "gemini-3", "gemini-2-5", "gemini-3-"))
+            return _build_caps(model_name, "openrouter-gemini", _OPENROUTER_BASE, dict(
+                is_reasoning_model=is_thinking,
+                supports_reasoning_effort=True,
+                max_context_tokens=1000000,
+            ))
+
+        # Llama via OpenRouter
+        if "llama" in underlying or "meta/" in m:
+            return _build_caps(model_name, "openrouter-llama", _OPENROUTER_BASE, dict(
+                supports_image_input="vision" in m or "llama-3.2" in m,
+            ))
+
+        # Mistral via OpenRouter
+        if "mistral" in underlying or "mixtral" in m:
+            return _build_caps(model_name, "openrouter-mistral", _OPENROUTER_BASE, dict(
+                supports_image_input="pixtral" in m,
+            ))
+
+        # Generic OpenRouter fallback
+        return _build_caps(model_name, "openrouter", _OPENROUTER_BASE, {})
+
+    # --- Fallback: conservative text-only -----------------------------------
     return Capabilities(
         model=model_name,
         family="unknown",

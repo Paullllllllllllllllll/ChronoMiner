@@ -18,6 +18,27 @@ from modules.core.json_utils import extract_entries_from_json
 logger = logging.getLogger(__name__)
 
 
+def resolve_field(entry: dict, key: str, default: Any = "") -> Any:
+    """
+    Resolve a possibly-dotted key from *entry*.
+
+    Supports one level of nesting, e.g. ``"address.street"`` looks up
+    ``entry["address"]["street"]``.
+
+    :param entry: Source dictionary
+    :param key: Flat or dotted key
+    :param default: Value returned when the key is absent
+    :return: Resolved value or *default*
+    """
+    if "." in key:
+        outer, inner = key.split(".", 1)
+        sub = entry.get(outer)
+        if isinstance(sub, dict):
+            return sub.get(inner, default)
+        return default
+    return entry.get(key, default)
+
+
 class BaseConverter(ABC):
     """
     Abstract base class for data format converters.

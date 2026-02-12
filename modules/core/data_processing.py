@@ -8,7 +8,7 @@ from typing import Any, Dict, List
 
 import pandas as pd
 
-from modules.core.converter_base import BaseConverter
+from modules.core.converter_base import BaseConverter, resolve_field
 
 logger = logging.getLogger(__name__)
 
@@ -309,59 +309,65 @@ class CSVConverter(BaseConverter):
         df = pd.DataFrame(rows)
         return df
 
+    # Shared field keys for Brazilian occupation/military records CSV columns.
+    # Each tuple is (column_name, entry_key, default).
+    _BRAZILIAN_CSV_FIELDS: List[tuple] = [
+        ("surname", "surname", ""),
+        ("first_name", "first_name", ""),
+        ("record_header", "record_header", ""),
+        ("location", "location", ""),
+        ("height", "height", ""),
+        ("skin_color", "skin_color", ""),
+        ("hair_color", "hair_color", ""),
+        ("hair_texture", "hair_texture", ""),
+        ("beard", "beard", ""),
+        ("mustache", "mustache", ""),
+        ("assignatura", "assignatura", ""),
+        ("reservista", "reservista", ""),
+        ("eyes", "eyes", ""),
+        ("mouth", "mouth", ""),
+        ("face", "face", ""),
+        ("nose", "nose", ""),
+        ("marks", "marks", ""),
+        ("father", "father", ""),
+        ("mother", "mother", ""),
+        ("birth_date", "birth_date", ""),
+        ("birth_place", "birth_place", ""),
+        ("municipality", "municipality", ""),
+        ("profession", "profession", ""),
+        ("civil_status", "civil_status", ""),
+        ("vaccinated", "vaccinated", ""),
+        ("can_read", "can_read", ""),
+        ("can_write", "can_write", ""),
+        ("can_count", "can_count", ""),
+        ("swimming", "swimming", ""),
+        ("cyclist", "cyclist", ""),
+        ("motorcyclist", "motorcyclist", ""),
+        ("driver", "driver", ""),
+        ("chauffeur", "chauffeur", ""),
+        ("telegraphist", "telegraphist", ""),
+        ("telephonist", "telephonist", ""),
+        ("residence", "residence", ""),
+        ("observations", "observations", ""),
+    ]
+
+    @staticmethod
+    def _format_officials(entry: dict) -> str:
+        officials = entry.get("officials", [])
+        if officials is None:
+            return ""
+        return "; ".join(
+            f"{o.get('position', '')}: {o.get('signature', '')}" for o in officials
+        )
+
     def _convert_brazilianoccupationrecords_to_df(self, entries: List[Any]) -> pd.DataFrame:
         rows: List[Dict[str, Any]] = []
         for entry in entries:
-            officials = entry.get("officials", [])
-            if officials is None:
-                officials_str = ""
-            else:
-                officials_str = "; ".join(
-                    [f"{o.get('position', '')}: {o.get('signature', '')}" for o in officials]
-                )
-            row = {
-                "surname": entry.get("surname", ""),
-                "first_name": entry.get("first_name", ""),
-                "record_header": entry.get("record_header", ""),
-                "location": entry.get("location", ""),
-                "height": entry.get("height", ""),
-                "skin_color": entry.get("skin_color", ""),
-                "hair_color": entry.get("hair_color", ""),
-                "hair_texture": entry.get("hair_texture", ""),
-                "beard": entry.get("beard", ""),
-                "mustache": entry.get("mustache", ""),
-                "assignatura": entry.get("assignatura", ""),
-                "reservista": entry.get("reservista", ""),
-                "eyes": entry.get("eyes", ""),
-                "mouth": entry.get("mouth", ""),
-                "face": entry.get("face", ""),
-                "nose": entry.get("nose", ""),
-                "marks": entry.get("marks", ""),
-                "officials": officials_str,
-                "father": entry.get("father", ""),
-                "mother": entry.get("mother", ""),
-                "birth_date": entry.get("birth_date", ""),
-                "birth_place": entry.get("birth_place", ""),
-                "municipality": entry.get("municipality", ""),
-                "profession": entry.get("profession", ""),
-                "civil_status": entry.get("civil_status", ""),
-                "vaccinated": entry.get("vaccinated", ""),
-                "can_read": entry.get("can_read", ""),
-                "can_write": entry.get("can_write", ""),
-                "can_count": entry.get("can_count", ""),
-                "swimming": entry.get("swimming", ""),
-                "cyclist": entry.get("cyclist", ""),
-                "motorcyclist": entry.get("motorcyclist", ""),
-                "driver": entry.get("driver", ""),
-                "chauffeur": entry.get("chauffeur", ""),
-                "telegraphist": entry.get("telegraphist", ""),
-                "telephonist": entry.get("telephonist", ""),
-                "residence": entry.get("residence", ""),
-                "observations": entry.get("observations", "")
-            }
+            row = {col: resolve_field(entry, key, default)
+                   for col, key, default in self._BRAZILIAN_CSV_FIELDS}
+            row["officials"] = self._format_officials(entry)
             rows.append(row)
-        df = pd.DataFrame(rows)
-        return df
+        return pd.DataFrame(rows)
 
     def _convert_culinary_persons_to_df(self, entries: List[Any]) -> pd.DataFrame:
         """
