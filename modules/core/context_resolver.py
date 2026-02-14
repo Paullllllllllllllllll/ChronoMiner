@@ -1,17 +1,17 @@
 """Context resolution utilities for ChronoMiner.
 
-This module provides hierarchical context resolution for extraction and line-range-readjustment tasks,
-supporting file-specific, folder-specific, and schema/boundary-type-specific context files.
+This module provides hierarchical context resolution for extraction and
+line-range-readjustment tasks, using filename-suffix-based matching across
+three resolution levels.
 
-Context Resolution Hierarchy:
-1. File-specific: <filename>_<suffix>.txt next to the input file
-2. Folder-specific: <foldername>_<suffix>.txt in the parent directory
-3. Type-specific: context/<subdir>/<type_name>.txt
-4. Global fallback: context/<subdir>/general.txt
+Context Resolution Hierarchy (most specific wins):
+1. File-specific:   {input_stem}_{suffix}.txt   next to the input file
+2. Folder-specific: {parent_folder}_{suffix}.txt next to the input's parent folder
+3. General fallback: context/{suffix}.txt        in the project root
 
-Where <suffix> and <subdir> are:
-- For extraction: "extraction" 
-- For line range readjustment: "line_ranges"
+Suffixes per task type:
+- Extraction:              extract_context
+- Line-range readjustment: adjust_context
 """
 
 from __future__ import annotations
@@ -27,137 +27,120 @@ _CONTEXT_DIR = _PROJECT_ROOT / "context"
 
 DEFAULT_CONTEXT_SIZE_THRESHOLD = 4000
 
-ContextType = Literal["extraction", "line_ranges"]
+ContextTask = Literal["extract_context", "adjust_context"]
 
 
 def _resolve_context(
-    context_type: ContextType,
-    type_name: str,
+    suffix: str,
     text_file: Optional[Path] = None,
-    global_context_dir: Optional[Path] = None,
+    context_dir: Optional[Path] = None,
     size_threshold: int = DEFAULT_CONTEXT_SIZE_THRESHOLD,
 ) -> Tuple[Optional[str], Optional[Path]]:
     """Generic hierarchical context resolution.
-    
+
     Searches for context in this order:
-    1. File-specific: <filename>_<context_type>.txt in the same directory as text_file
-    2. Folder-specific: <parent_folder_name>_<context_type>.txt in grandparent directory
-    3. Type-specific: context/<context_type>/<type_name>.txt
-    4. Global fallback: context/<context_type>/general.txt
-    
+    1. File-specific:   {input_stem}_{suffix}.txt   in the same directory as *text_file*
+    2. Folder-specific: {parent_folder}_{suffix}.txt in the grandparent directory
+    3. General fallback: context/{suffix}.txt        in the project context directory
+
     Parameters
     ----------
-    context_type : ContextType
-        The type of context ("extraction" or "line_ranges")
-    type_name : str
-        Name of the schema or boundary type
+    suffix : str
+        Context-file suffix without leading underscore (e.g. ``"extract_context"``).
     text_file : Optional[Path]
-        Path to the input text file (for file/folder-specific context)
-    global_context_dir : Optional[Path]
-        Override for the global context directory (defaults to PROJECT_ROOT/context)
+        Path to the input text file (enables file- and folder-specific lookup).
+    context_dir : Optional[Path]
+        Override for the project-level context directory (defaults to
+        ``PROJECT_ROOT/context``).
     size_threshold : int
-        Character count threshold for size warning
-        
+        Character-count threshold for a size warning.
+
     Returns
     -------
     Tuple[Optional[str], Optional[Path]]
-        A tuple of (context_content, resolved_path) or (None, None) if no context found
+        ``(content, resolved_path)`` or ``(None, None)`` when nothing is found.
     """
-    context_dir = global_context_dir or _CONTEXT_DIR
-    suffix = f"_{context_type}.txt"
-    
+    effective_context_dir = context_dir or _CONTEXT_DIR
+    filename_suffix = f"_{suffix}.txt"
+
     # 1. File-specific context
     if text_file is not None:
         text_file = Path(text_file).resolve()
-        file_specific = text_file.with_name(f"{text_file.stem}{suffix}")
+        file_specific = text_file.with_name(f"{text_file.stem}{filename_suffix}")
         if file_specific.exists():
             content = _read_and_validate_context(file_specific, size_threshold)
             if content:
-                logger.info(f"Using file-specific {context_type} context: {file_specific}")
+                logger.info(f"Using file-specific context: {file_specific}")
                 return content, file_specific
-        
+
         # 2. Folder-specific context
         parent_folder = text_file.parent
         if parent_folder.parent.exists():
-            folder_specific = parent_folder.parent / f"{parent_folder.name}{suffix}"
+            folder_specific = parent_folder.parent / f"{parent_folder.name}{filename_suffix}"
             if folder_specific.exists():
                 content = _read_and_validate_context(folder_specific, size_threshold)
                 if content:
-                    logger.info(f"Using folder-specific {context_type} context: {folder_specific}")
+                    logger.info(f"Using folder-specific context: {folder_specific}")
                     return content, folder_specific
-    
-    # 3. Type-specific context
-    type_specific = context_dir / context_type / f"{type_name}.txt"
-    if type_specific.exists():
-        content = _read_and_validate_context(type_specific, size_threshold)
+
+    # 3. General fallback
+    general_fallback = effective_context_dir / f"{suffix}.txt"
+    if general_fallback.exists():
+        content = _read_and_validate_context(general_fallback, size_threshold)
         if content:
-            logger.info(f"Using type-specific {context_type} context: {type_specific}")
-            return content, type_specific
-    
-    # 4. Global fallback
-    global_fallback = context_dir / context_type / "general.txt"
-    if global_fallback.exists():
-        content = _read_and_validate_context(global_fallback, size_threshold)
-        if content:
-            logger.info(f"Using global {context_type} context: {global_fallback}")
-            return content, global_fallback
-    
-    logger.debug(f"No {context_type} context found for '{type_name}'")
+            logger.info(f"Using general context: {general_fallback}")
+            return content, general_fallback
+
+    logger.debug(f"No {suffix} context found")
     return None, None
 
 
 def resolve_context_for_extraction(
-    schema_name: str,
     text_file: Optional[Path] = None,
-    global_context_dir: Optional[Path] = None,
+    context_dir: Optional[Path] = None,
     size_threshold: int = DEFAULT_CONTEXT_SIZE_THRESHOLD,
 ) -> Tuple[Optional[str], Optional[Path]]:
     """Resolve extraction context using hierarchical fallback.
-    
+
     Parameters
     ----------
-    schema_name : str
-        Name of the extraction schema
     text_file : Optional[Path]
-        Path to the input text file (for file/folder-specific context)
-    global_context_dir : Optional[Path]
-        Override for the global context directory (defaults to PROJECT_ROOT/context)
+        Path to the input text file (for file/folder-specific context).
+    context_dir : Optional[Path]
+        Override for the project-level context directory.
     size_threshold : int
-        Character count threshold for size warning
-        
+        Character-count threshold for a size warning.
+
     Returns
     -------
     Tuple[Optional[str], Optional[Path]]
-        A tuple of (context_content, resolved_path) or (None, None) if no context found
+        ``(content, resolved_path)`` or ``(None, None)`` when nothing is found.
     """
-    return _resolve_context("extraction", schema_name, text_file, global_context_dir, size_threshold)
+    return _resolve_context("extract_context", text_file, context_dir, size_threshold)
 
 
 def resolve_context_for_readjustment(
-    boundary_type: str,
     text_file: Optional[Path] = None,
-    global_context_dir: Optional[Path] = None,
+    context_dir: Optional[Path] = None,
     size_threshold: int = DEFAULT_CONTEXT_SIZE_THRESHOLD,
 ) -> Tuple[Optional[str], Optional[Path]]:
     """Resolve line-range-readjustment context using hierarchical fallback.
-    
+
     Parameters
     ----------
-    boundary_type : str
-        Type of semantic boundary to detect (typically schema name)
     text_file : Optional[Path]
-        Path to the input text file (for file/folder-specific context)
-    global_context_dir : Optional[Path]
-        Override for the global context directory (defaults to PROJECT_ROOT/context)
+        Path to the input text file (for file/folder-specific context).
+    context_dir : Optional[Path]
+        Override for the project-level context directory.
     size_threshold : int
-        Character count threshold for size warning
-        
+        Character-count threshold for a size warning.
+
     Returns
     -------
     Tuple[Optional[str], Optional[Path]]
-        A tuple of (context_content, resolved_path) or (None, None) if no context found
+        ``(content, resolved_path)`` or ``(None, None)`` when nothing is found.
     """
-    return _resolve_context("line_ranges", boundary_type, text_file, global_context_dir, size_threshold)
+    return _resolve_context("adjust_context", text_file, context_dir, size_threshold)
 
 
 def _read_and_validate_context(

@@ -204,19 +204,17 @@ class TestAdjustRangesCLI:
         assert args.input == "test_file.txt"
         assert args.schema == "TestSchema"
 
-    def test_cli_args_parser_with_context(self):
-        """Test CLI argument parsing with context options."""
+    def test_cli_args_parser_with_context_window(self):
+        """Test CLI argument parsing with context-window option."""
         from modules.cli.args_parser import create_adjust_ranges_parser
 
         parser = create_adjust_ranges_parser()
         args = parser.parse_args([
             "--input", "test_file.txt",
             "--schema", "TestSchema",
-            "--use-context",
             "--context-window", "15",
         ])
 
-        assert args.use_context is True
         assert args.context_window == 15
 
 

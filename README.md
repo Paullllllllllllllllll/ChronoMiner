@@ -45,7 +45,7 @@ Daily token enforcement configured in `config/concurrency_config.yaml`. When ena
 - **Flexible Text Chunking**: Token-based with automatic, manual, or pre-defined strategies
 - **Schema-Based Extraction**: JSON schema-driven with customizable templates
 - **Dual Processing Modes**: Synchronous (real-time) or batch (OpenAI, Anthropic, Google)
-- **Context-Aware Processing**: File-specific, folder-specific, or schema-specific context
+- **Context-Aware Processing**: File-specific, folder-specific, or general fallback context
 - **Multi-Format Output**: JSON, CSV, DOCX, and TXT simultaneously
 - **Fine-Tuning Dataset Prep**: txt-based correction workflow for OpenAI SFT datasets
 - **Extensible Architecture**: Easy custom schema integration
@@ -73,11 +73,10 @@ Daily token enforcement configured in `config/concurrency_config.yaml`. When ena
 
 Unified, hierarchical context resolution automatically selects the most specific context:
 
-- **Automatic Resolution**: No user configuration needed
-- **File-Specific**: `{filename}_extraction.txt` or `{filename}_line_ranges.txt` next to input
-- **Folder-Specific**: `{foldername}_extraction.txt` or `{foldername}_line_ranges.txt` in parent
-- **Schema-Specific**: `context/extraction/{SchemaName}.txt` and `context/line_ranges/{SchemaName}.txt`
-- **Global Fallback**: `context/extraction/general.txt` or `context/line_ranges/general.txt`
+- **Automatic Resolution**: Context is always resolved; no flags or user configuration needed
+- **File-Specific**: `{filename}_extract_context.txt` or `{filename}_adjust_context.txt` next to input
+- **Folder-Specific**: `{foldername}_extract_context.txt` or `{foldername}_adjust_context.txt` in parent
+- **General Fallback**: `context/extract_context.txt` or `context/adjust_context.txt`
 
 Context resolved separately for extraction and line-range-readjustment tasks.
 
@@ -526,23 +525,27 @@ retry:
 
 ### Context Files
 
-Unified context directory with separate subdirectories for extraction and line-range-readjustment.
+Context files provide domain-specific guidance to the LLM during extraction and line-range readjustment.
+Resolution uses a 3-level hierarchy based on filename suffixes (most specific wins):
+
+**Context Resolution Order**:
+
+1. **File-specific**: `{input_stem}_extract_context.txt` (or `_adjust_context.txt`) next to the input file
+2. **Folder-specific**: `{parent_folder}_extract_context.txt` (or `_adjust_context.txt`) next to the input's parent folder
+3. **General fallback**: `context/extract_context.txt` (or `context/adjust_context.txt`) in the project root
 
 **Directory Structure**:
 
 ```
 context/
-  extraction/           # Context for data extraction
-    BibliographicEntries.txt
-    HistoricalRecipesEntries.txt
-    general.txt         # Optional global fallback
-  line_ranges/          # Context for semantic boundary detection
-    BibliographicEntries.txt
-    HistoricalRecipesEntries.txt
-    general.txt         # Optional global fallback
+  extract_context.txt   # General fallback for extraction tasks
+  adjust_context.txt    # General fallback for line-range readjustment
+  legacy/               # Previous per-schema context files (reference only)
+    extraction/
+    line_ranges/
 ```
 
-**Extraction Context** (`context/extraction/{SchemaName}.txt`):
+**Example Context File** (`context/extract_context.txt`):
 
 ```
 The input text consists of bibliographic records describing historical culinary literature
@@ -552,34 +555,12 @@ EXTRACTION RULES:
 - Take title and main author from first edition for full_title, short_title, main_author.
 - Put every edition into edition_info as its own object.
 - Keep multiple editions together under same root entry.
-
-BIBLIOGRAPHIC CONVENTIONS:
-- Pre-1800 bibliographies often follow Short Title Catalogue conventions
-- Historical spelling varies significantly
-- Preserve diacritics and special characters
 ```
 
-**Line Ranges Context** (`context/line_ranges/{SchemaName}.txt`):
+Previous per-schema context files (e.g., `BibliographicEntries.txt`) are preserved in `context/legacy/` for reference.
+To use schema-specific context, place it as a folder-specific file next to the relevant input folder.
 
-```
-The input text consists of bibliographic records describing historical culinary literature.
-
-SEMANTIC BOUNDARY IDENTIFICATION:
-Treat the start of a full bibliographic entry (with all editions and volumes) as one boundary.
-Each boundary marks the beginning of a complete bibliographic record.
-```
-
-**File-Specific and Folder-Specific Context**:
-
-- File-specific: `{filename}_extraction.txt` or `{filename}_line_ranges.txt` next to input
-- Folder-specific: `{foldername}_extraction.txt` or `{foldername}_line_ranges.txt` in parent
-
-**Context Resolution Order**:
-
-1. File-specific: `{filename}_extraction.txt` (or `_line_ranges.txt`)
-2. Folder-specific: `{foldername}_extraction.txt` (or `_line_ranges.txt`)
-3. Schema-specific: `context/extraction/{SchemaName}.txt` (or `context/line_ranges/`)
-4. Global fallback: `context/extraction/general.txt` (or `context/line_ranges/general.txt`)
+Keep context files under 4,000 characters for optimal performance.
 
 ## Usage
 
@@ -943,8 +924,9 @@ ChronoMiner/
 │   └── ui/                   # User interface and prompts
 ├── schemas/                   # JSON schemas for structured outputs
 ├── context/                   # Unified context directory
-│   ├── extraction/           # Context for extraction tasks
-│   └── line_ranges/          # Context for semantic boundary detection
+│   ├── extract_context.txt   # General extraction context fallback
+│   ├── adjust_context.txt    # General line-range adjustment context fallback
+│   └── legacy/               # Previous per-schema context files (reference)
 ├── developer_messages/        # Developer message templates
 ├── prompts/                   # System prompt templates
 ├── gimmicks/                  # LLM prompts for generating context files

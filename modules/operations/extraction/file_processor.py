@@ -129,8 +129,6 @@ class FileProcessorRefactored:
         inject_schema: bool,
         schema_paths: Dict[str, Any],
         global_chunking_method: Optional[str] = None,
-        use_context: bool = True,
-        context_source: str = "default",
         ui: Any = None,
         resume: bool = False,
         chunk_slice: Optional[ChunkSlice] = None,
@@ -205,26 +203,15 @@ class FileProcessorRefactored:
                 f"Chunk slice applied: processing {len(chunks)}/{original_count} chunks"
             )
 
-        context = None
-        context_path = None
-        if use_context:
-            global_context_dir = None
-            if str(context_source).lower().strip() == "file":
-                global_context_dir = Path(__file__).resolve().parents[3] / "__no_context_dir__"
+        context, context_path = resolve_context_for_extraction(
+            text_file=file_path,
+        )
 
-            context, context_path = resolve_context_for_extraction(
-                schema_name=schema_name,
-                text_file=file_path,
-                global_context_dir=global_context_dir,
-            )
-
-            if context_path:
-                logger.info(f"Using extraction context from: {context_path}")
-                messenger.info(f"Using context from: {context_path.name}")
-            else:
-                logger.info(f"No context found for schema '{schema_name}'")
+        if context_path:
+            logger.info(f"Using extraction context from: {context_path}")
+            messenger.info(f"Using context from: {context_path.name}")
         else:
-            logger.info("Context disabled for this run")
+            logger.debug(f"No extraction context found for '{file_path.name}'")
 
         # Render system prompt
         schema_definition = selected_schema.get("schema", {})

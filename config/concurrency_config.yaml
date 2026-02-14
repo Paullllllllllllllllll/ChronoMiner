@@ -20,7 +20,7 @@ concurrency:
     concurrency_limit: 1500
 
     # Delay (seconds) between starting each task.
-    delay_between_tasks: 0.05
+    delay_between_tasks: 0.00
 
   # -------------------------------------------------------------------------
   # Extraction
@@ -35,7 +35,7 @@ concurrency:
 
     # Delay (seconds) between starting each extraction task.
     # Helps avoid rate limiting; set to 0 for maximum throughput.
-    delay_between_tasks: 0.05
+    delay_between_tasks: 0.00
 
     # OpenAI service tier for synchronous mode.
     # Values: 'auto', 'default', 'flex', 'priority'
@@ -79,4 +79,4 @@ daily_token_limit:
 
   # Maximum tokens allowed per day (input + output combined).
   # Processing pauses when this limit is reached; resumes at midnight.
-  daily_tokens: 9000000
+  daily_tokens: 10000000

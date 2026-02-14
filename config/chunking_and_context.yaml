@@ -10,7 +10,7 @@
 # ── Chunking ───────────────────────────────────────────────────────────────────
 # Controls how source text is split into chunks for LLM processing.
 chunking:
-  default_tokens_per_chunk: 3000   # Target chunk size in tokens (not characters)
+  default_tokens_per_chunk: 10000   # Target chunk size in tokens (not characters)
                                    # Larger = fewer API calls but may hit context limits
                                    # Smaller = more granular but higher API costs
 

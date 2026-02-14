@@ -57,8 +57,8 @@ Examples:
   # Process a directory with specific chunking
   python main/process_text_files.py --schema BibliographicEntries --input data/ --chunking auto
   
-  # Use batch processing with additional context
-  python main/process_text_files.py --schema BibliographicEntries --input data/ --batch --context
+  # Use batch processing
+  python main/process_text_files.py --schema BibliographicEntries --input data/ --batch
         """
     )
     
@@ -75,18 +75,6 @@ Examples:
         "--batch",
         action="store_true",
         help="Use batch processing (50%% cost reduction, results within 24h)"
-    )
-    parser.add_argument(
-        "--context",
-        action="store_true",
-        help="Use additional context for extraction"
-    )
-    parser.add_argument(
-        "--context-source",
-        type=str,
-        choices=["default", "file"],
-        default="default",
-        help="Context source: 'default' for schema-specific, 'file' for file-specific (default: default)"
     )
     parser.add_argument(
         "--resume",
@@ -223,7 +211,7 @@ Examples:
   # Adjust ranges for a file
   python main/line_range_readjuster.py --input data/file.txt --schema BibliographicEntries
   
-  # Adjust with custom context window
+  # Adjust with custom context window size
   python main/line_range_readjuster.py --input data/ --schema BibliographicEntries --context-window 10
   
   # Resume: skip files whose line ranges were already adjusted
@@ -252,16 +240,6 @@ Examples:
         "--prompt-path",
         type=str,
         help="Path to custom prompt template"
-    )
-    parser.add_argument(
-        "--use-context",
-        action="store_true",
-        help="Use additional context for boundary detection"
-    )
-    parser.add_argument(
-        "--default-context",
-        action="store_true",
-        help="Use default schema-specific context (requires --use-context)"
     )
     parser.add_argument(
         "--verbose",

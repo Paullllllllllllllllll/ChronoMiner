@@ -497,8 +497,6 @@ async def _run_cli_mode(
     # Process CLI arguments
     global_chunking_method = args.chunking if args.chunking else "auto"
     use_batch = args.batch if hasattr(args, 'batch') else False
-    use_context = bool(getattr(args, "context", False))
-    context_source = getattr(args, "context_source", "default")
     use_resume = getattr(args, "resume", False) and not getattr(args, "force", False)
     
     # Build chunk slice from CLI args
@@ -599,8 +597,6 @@ async def _run_cli_mode(
                 inject_schema=inject_schema,
                 schema_paths=effective_schema_paths,
                 global_chunking_method=global_chunking_method,
-                use_context=use_context,
-                context_source=context_source,
                 ui=None,
                 resume=use_resume,
                 chunk_slice=chunk_slice,
@@ -629,8 +625,6 @@ async def _run_cli_mode(
                     inject_schema=inject_schema,
                     schema_paths=effective_schema_paths,
                     global_chunking_method=global_chunking_method,
-                    use_context=use_context,
-                    context_source=context_source,
                     ui=None,
                     resume=use_resume,
                     chunk_slice=chunk_slice,

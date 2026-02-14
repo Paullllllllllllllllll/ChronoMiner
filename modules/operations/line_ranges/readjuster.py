@@ -168,14 +168,13 @@ class LineRangeReadjuster:
 
         # Resolve unified context using hierarchical resolution
         context, context_path = resolve_context_for_readjustment(
-            boundary_type=boundary_type,
             text_file=text_file,
         )
         
         if context_path:
             logger.info(f"Using line ranges context from: {context_path}")
         else:
-            logger.info(f"No line ranges context found for boundary type '{boundary_type}'")
+            logger.debug(f"No adjust_context found for '{text_file.name}'")
 
         adjusted_ranges: List[Tuple[int, int]] = []
         ranges_to_delete: List[int] = []  # Track indices of ranges with no content

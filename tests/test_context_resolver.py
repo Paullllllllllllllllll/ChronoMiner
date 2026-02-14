@@ -1,117 +1,207 @@
-"""Tests for the unified context resolver."""
+"""Tests for the unified context resolver.
+
+Tests the 3-level hierarchy:
+1. File-specific:   {input_stem}_{suffix}.txt   next to the input file
+2. Folder-specific: {parent_folder}_{suffix}.txt next to the input's parent folder
+3. General fallback: context/{suffix}.txt        in the project context directory
+
+Suffixes: extract_context (extraction), adjust_context (line-range readjustment)
+"""
 
 from pathlib import Path
 import pytest
 from modules.core.context_resolver import (
+    _resolve_context,
     resolve_context_for_extraction,
     resolve_context_for_readjustment,
+    _read_and_validate_context,
 )
 
 
+# ---------------------------------------------------------------------------
+# _resolve_context (generic)
+# ---------------------------------------------------------------------------
+
 @pytest.mark.unit
-def test_resolve_extraction_context_schema_specific(tmp_path):
-    """Test schema-specific extraction context resolution."""
-    # Create context structure
-    context_dir = tmp_path / "context"
-    extraction_dir = context_dir / "extraction"
-    extraction_dir.mkdir(parents=True)
-    
-    # Create schema-specific context
-    schema_file = extraction_dir / "TestSchema.txt"
-    schema_file.write_text("Schema-specific extraction context", encoding="utf-8")
-    
-    # Resolve context
-    context, path = resolve_context_for_extraction(
-        schema_name="TestSchema",
-        global_context_dir=context_dir,
-    )
-    
-    assert context == "Schema-specific extraction context"
-    assert path == schema_file
+def test_resolve_context_file_specific(tmp_path):
+    """File-specific context is found and returned."""
+    text_file = tmp_path / "myfile.txt"
+    text_file.write_text("body", encoding="utf-8")
+    ctx = tmp_path / "myfile_extract_context.txt"
+    ctx.write_text("file-level ctx", encoding="utf-8")
+
+    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=tmp_path)
+    assert content == "file-level ctx"
+    assert path == ctx
 
 
 @pytest.mark.unit
-def test_resolve_extraction_context_file_specific(tmp_path):
-    """Test file-specific extraction context takes precedence."""
-    # Create context structure
-    context_dir = tmp_path / "context"
-    extraction_dir = context_dir / "extraction"
-    extraction_dir.mkdir(parents=True)
-    
-    # Create schema-specific context
-    schema_file = extraction_dir / "TestSchema.txt"
-    schema_file.write_text("Schema-specific extraction context", encoding="utf-8")
-    
-    # Create file-specific context
-    text_file = tmp_path / "test_file.txt"
-    text_file.write_text("Some text", encoding="utf-8")
-    file_context = tmp_path / "test_file_extraction.txt"
-    file_context.write_text("File-specific extraction context", encoding="utf-8")
-    
-    # Resolve context
-    context, path = resolve_context_for_extraction(
-        schema_name="TestSchema",
-        text_file=text_file,
-        global_context_dir=context_dir,
-    )
-    
-    assert context == "File-specific extraction context"
-    assert path == file_context
+def test_resolve_context_folder_specific(tmp_path):
+    """Folder-specific context is found when no file-specific exists."""
+    subfolder = tmp_path / "archive"
+    subfolder.mkdir()
+    text_file = subfolder / "myfile.txt"
+    text_file.write_text("body", encoding="utf-8")
+    ctx = tmp_path / "archive_extract_context.txt"
+    ctx.write_text("folder-level ctx", encoding="utf-8")
+
+    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=tmp_path)
+    assert content == "folder-level ctx"
+    assert path == ctx
 
 
 @pytest.mark.unit
-def test_resolve_readjustment_context_boundary_specific(tmp_path):
-    """Test boundary-type-specific readjustment context resolution."""
-    # Create context structure
+def test_resolve_context_general_fallback(tmp_path):
+    """General fallback is used when no file/folder context exists."""
     context_dir = tmp_path / "context"
-    line_ranges_dir = context_dir / "line_ranges"
-    line_ranges_dir.mkdir(parents=True)
-    
-    # Create boundary-type-specific context
-    boundary_file = line_ranges_dir / "TestBoundary.txt"
-    boundary_file.write_text("Boundary-specific readjustment context", encoding="utf-8")
-    
-    # Resolve context
-    context, path = resolve_context_for_readjustment(
-        boundary_type="TestBoundary",
-        global_context_dir=context_dir,
-    )
-    
-    assert context == "Boundary-specific readjustment context"
-    assert path == boundary_file
+    context_dir.mkdir()
+    general = context_dir / "extract_context.txt"
+    general.write_text("general ctx", encoding="utf-8")
+
+    text_file = tmp_path / "some" / "deep" / "file.txt"
+    text_file.parent.mkdir(parents=True)
+    text_file.write_text("body", encoding="utf-8")
+
+    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=context_dir)
+    assert content == "general ctx"
+    assert path == general
 
 
 @pytest.mark.unit
-def test_resolve_extraction_context_no_context(tmp_path):
-    """Test extraction context when no context exists."""
+def test_resolve_context_file_wins_over_folder(tmp_path):
+    """File-specific context takes precedence over folder-specific."""
+    subfolder = tmp_path / "archive"
+    subfolder.mkdir()
+    text_file = subfolder / "myfile.txt"
+    text_file.write_text("body", encoding="utf-8")
+
+    file_ctx = subfolder / "myfile_adjust_context.txt"
+    file_ctx.write_text("file wins", encoding="utf-8")
+    folder_ctx = tmp_path / "archive_adjust_context.txt"
+    folder_ctx.write_text("folder loses", encoding="utf-8")
+
+    content, path = _resolve_context("adjust_context", text_file=text_file, context_dir=tmp_path)
+    assert content == "file wins"
+    assert path == file_ctx
+
+
+@pytest.mark.unit
+def test_resolve_context_folder_wins_over_general(tmp_path):
+    """Folder-specific context takes precedence over general fallback."""
     context_dir = tmp_path / "context"
-    
-    context, path = resolve_context_for_extraction(
-        schema_name="NonExistent",
-        global_context_dir=context_dir,
-    )
-    
-    assert context is None
+    context_dir.mkdir()
+    general = context_dir / "extract_context.txt"
+    general.write_text("general ctx", encoding="utf-8")
+
+    subfolder = tmp_path / "archive"
+    subfolder.mkdir()
+    text_file = subfolder / "myfile.txt"
+    text_file.write_text("body", encoding="utf-8")
+    folder_ctx = tmp_path / "archive_extract_context.txt"
+    folder_ctx.write_text("folder wins", encoding="utf-8")
+
+    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=context_dir)
+    assert content == "folder wins"
+    assert path == folder_ctx
+
+
+@pytest.mark.unit
+def test_resolve_context_no_context(tmp_path):
+    """Returns (None, None) when no context exists anywhere."""
+    text_file = tmp_path / "myfile.txt"
+    text_file.write_text("body", encoding="utf-8")
+
+    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=tmp_path)
+    assert content is None
     assert path is None
 
 
 @pytest.mark.unit
-def test_resolve_extraction_context_global_fallback(tmp_path):
-    """Test extraction context falls back to general.txt."""
-    # Create context structure
+def test_resolve_context_no_text_file(tmp_path):
+    """General fallback is used when no text_file is provided."""
     context_dir = tmp_path / "context"
-    extraction_dir = context_dir / "extraction"
-    extraction_dir.mkdir(parents=True)
-    
-    # Create only general context
-    general_file = extraction_dir / "general.txt"
-    general_file.write_text("General extraction context", encoding="utf-8")
-    
-    # Resolve context for non-existent schema
-    context, path = resolve_context_for_extraction(
-        schema_name="NonExistent",
-        global_context_dir=context_dir,
-    )
-    
-    assert context == "General extraction context"
-    assert path == general_file
+    context_dir.mkdir()
+    general = context_dir / "adjust_context.txt"
+    general.write_text("fallback only", encoding="utf-8")
+
+    content, path = _resolve_context("adjust_context", text_file=None, context_dir=context_dir)
+    assert content == "fallback only"
+    assert path == general
+
+
+@pytest.mark.unit
+def test_resolve_context_empty_file_skipped(tmp_path):
+    """Empty context files are skipped."""
+    text_file = tmp_path / "myfile.txt"
+    text_file.write_text("body", encoding="utf-8")
+    empty_ctx = tmp_path / "myfile_extract_context.txt"
+    empty_ctx.write_text("", encoding="utf-8")
+
+    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=tmp_path)
+    assert content is None
+    assert path is None
+
+
+# ---------------------------------------------------------------------------
+# Public helpers
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_resolve_context_for_extraction(tmp_path):
+    """resolve_context_for_extraction uses 'extract_context' suffix."""
+    text_file = tmp_path / "data.txt"
+    text_file.write_text("body", encoding="utf-8")
+    ctx = tmp_path / "data_extract_context.txt"
+    ctx.write_text("extraction ctx", encoding="utf-8")
+
+    content, path = resolve_context_for_extraction(text_file=text_file, context_dir=tmp_path)
+    assert content == "extraction ctx"
+    assert path == ctx
+
+
+@pytest.mark.unit
+def test_resolve_context_for_readjustment(tmp_path):
+    """resolve_context_for_readjustment uses 'adjust_context' suffix."""
+    text_file = tmp_path / "data.txt"
+    text_file.write_text("body", encoding="utf-8")
+    ctx = tmp_path / "data_adjust_context.txt"
+    ctx.write_text("adjust ctx", encoding="utf-8")
+
+    content, path = resolve_context_for_readjustment(text_file=text_file, context_dir=tmp_path)
+    assert content == "adjust ctx"
+    assert path == ctx
+
+
+# ---------------------------------------------------------------------------
+# _read_and_validate_context
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+def test_read_and_validate_context_valid(tmp_path):
+    """Valid file returns stripped content."""
+    ctx = tmp_path / "ctx.txt"
+    ctx.write_text("  hello world  \n", encoding="utf-8")
+    assert _read_and_validate_context(ctx) == "hello world"
+
+
+@pytest.mark.unit
+def test_read_and_validate_context_empty(tmp_path):
+    """Empty file returns None."""
+    ctx = tmp_path / "ctx.txt"
+    ctx.write_text("", encoding="utf-8")
+    assert _read_and_validate_context(ctx) is None
+
+
+@pytest.mark.unit
+def test_read_and_validate_context_whitespace_only(tmp_path):
+    """Whitespace-only file returns None."""
+    ctx = tmp_path / "ctx.txt"
+    ctx.write_text("   \n\t  ", encoding="utf-8")
+    assert _read_and_validate_context(ctx) is None
+
+
+@pytest.mark.unit
+def test_read_and_validate_context_missing_file(tmp_path):
+    """Non-existent file returns None."""
+    result = _read_and_validate_context(tmp_path / "missing.txt")
+    assert result is None
