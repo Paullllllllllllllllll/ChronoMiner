@@ -41,6 +41,30 @@ def test_get_files_from_path_excludes_output_dirs(tmp_path: Path):
     assert (outs / "out2.txt") not in files
 
 
+@pytest.mark.unit
+def test_get_files_from_path_excludes_context_files(tmp_path: Path):
+    """Context files (_extract_context, _adjust_context, _transcr_context) must
+    never be returned as processable input files."""
+    root = tmp_path / "root"
+    root.mkdir()
+
+    # Legitimate input file
+    (root / "document.txt").write_text("content", encoding="utf-8")
+
+    # Context files that must be excluded
+    (root / "document_extract_context.txt").write_text("ctx", encoding="utf-8")
+    (root / "document_adjust_context.txt").write_text("ctx", encoding="utf-8")
+    (root / "document_transcr_context.txt").write_text("ctx", encoding="utf-8")
+    # Folder-level context
+    (root / "root_extract_context.txt").write_text("ctx", encoding="utf-8")
+
+    files = get_files_from_path(
+        root, pattern="*.txt", exclude_patterns=["*_line_ranges.txt", "*_context.txt"]
+    )
+    assert (root / "document.txt") in files
+    assert len(files) == 1, f"Expected only document.txt, got {[f.name for f in files]}"
+
+
 # ---------------------------------------------------------------------------
 # Chunk-slice CLI arguments
 # ---------------------------------------------------------------------------

@@ -160,7 +160,7 @@ class GenerateLineRangesScript(DualModeScript):
         
         file_candidates: List[Path] = [
             f for f in raw_text_dir.rglob(file_input) 
-            if not f.name.endswith("_line_ranges.txt")
+            if not f.name.endswith("_line_ranges.txt") and not f.name.endswith("_context.txt")
         ]
         
         if not file_candidates:
