@@ -82,9 +82,9 @@ Context resolved separately for extraction and line-range-readjustment tasks.
 
 ### Multi-Provider LLM Support
 
-- **OpenAI**: GPT-5.1, GPT-5, GPT-4.1, GPT-4o, o3, o4-mini and variants
-- **Anthropic**: Claude Opus/Sonnet/Haiku 4.5, 4.1, 4, 3.5
-- **Google**: Gemini 3 Pro, Gemini 2.5 Pro/Flash, Gemini 2.0/1.5
+- **OpenAI**: GPT-5.2, GPT-5.1, GPT-5, GPT-4.1, GPT-4o, o3, o4-mini and variants
+- **Anthropic**: Claude Opus 4.6/4.5, Sonnet 4.6/4.5, Haiku 4.5, 4.1, 4, 3.5
+- **Google**: Gemini 3 Pro, Gemini 3 Flash Preview, Gemini 2.5 Pro/Flash, Gemini 2.0/1.5
 - **OpenRouter**: 100+ models through unified API
 - **LangChain Backend**: Unified interface with automatic capability guarding
 - **Reasoning Support**: Cross-provider translation of `reasoning.effort` parameter
@@ -121,8 +121,9 @@ ChronoMiner supports multiple LLM providers through LangChain. Provider is autom
 
 | Model Family | Models | Type | Notes |
 |--------------|--------|------|-------|
-| GPT-5.1 | gpt-5.1, gpt-5.1-instant, gpt-5.1-thinking | Reasoning | Latest, adaptive thinking |
-| GPT-5 | gpt-5, gpt-5-mini, gpt-5-nano | Reasoning | See OpenAI model docs for current context/output limits |
+| GPT-5.2 | gpt-5.2 | Reasoning | 400k context; reasoning.effort (none–xhigh) |
+| GPT-5.1 | gpt-5.1, gpt-5.1-instant, gpt-5.1-thinking | Reasoning | 400k context; adaptive thinking |
+| GPT-5 | gpt-5, gpt-5-mini, gpt-5-nano | Reasoning | 400k context |
 | GPT-4.1 | gpt-4.1, gpt-4.1-mini, gpt-4.1-nano | Standard | 1M token context window |
 | GPT-4o | gpt-4o, gpt-4o-mini | Standard | 128k token context window (e.g., gpt-4o-2024-08-06) |
 | o4-mini | o4-mini | Reasoning | Tool use optimized |
@@ -135,7 +136,9 @@ Environment variable: `OPENAI_API_KEY`
 
 | Model Family | Models | Notes |
 |--------------|--------|-------|
-| Opus 4.5 | claude-opus-4-5-20251101 | Most intelligent |
+| Opus 4.6 | claude-opus-4-6 | Most intelligent; 1M token context (beta) |
+| Sonnet 4.6 | claude-sonnet-4-6 | Frontier performance; 1M token context (beta) |
+| Opus 4.5 | claude-opus-4-5-20251101 | Previous flagship |
 | Opus 4.1 | claude-opus-4-1-20250805 | Previous flagship |
 | Opus 4 | claude-opus-4-20250514 | Code and agents |
 | Sonnet 4.5 | claude-sonnet-4-5-* | Most aligned |
@@ -152,6 +155,7 @@ Environment variable: `ANTHROPIC_API_KEY`
 | Model Family | Models | Type | Notes |
 |--------------|--------|------|-------|
 | Gemini 3 Pro | gemini-3-pro-preview | Thinking | Input 1,048,576; output 65,536 tokens |
+| Gemini 3 Flash Preview | gemini-3-flash-preview | Thinking | Input 1,048,576; output 65,536 tokens |
 | Gemini 2.5 Pro | gemini-2.5-pro | Thinking | Input 1,048,576; output 65,536 tokens |
 | Gemini 2.5 Flash | gemini-2.5-flash | Thinking | Input 1,048,576; output 65,536 tokens |
 | Gemini 2.5 Flash-Lite | gemini-2.5-flash-lite | Standard | Input 1,048,576; output 65,536 tokens |
@@ -179,7 +183,7 @@ Environment variable: `OPENROUTER_API_KEY`
 
 Automatic capability detection and parameter adjustment:
 
-- **Reasoning Models** (GPT-5, o-series, Gemini 2.5+, Claude 4.x, DeepSeek R1): Temperature/top_p disabled; reasoning effort configurable
+- **Reasoning Models** (GPT-5.2/5.1/5, o-series, Gemini 2.5+/3, Claude 4.x, DeepSeek R1): Temperature/top_p disabled; reasoning effort configurable
 - **Standard Models** (GPT-4.1, GPT-4o, Gemini 2.0, Llama, Mistral): Full sampler control
 - **Structured Outputs**: Supported where the underlying model/provider supports schema-constrained output (capability-guarded)
 - **Batch Processing**: OpenAI (50% savings), Anthropic, Google (provider-specific pricing)
