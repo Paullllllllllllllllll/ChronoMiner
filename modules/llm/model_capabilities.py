@@ -207,13 +207,17 @@ _OPENROUTER_BASE: dict = dict(
 # ---------------------------------------------------------------------------
 
 _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
+    # --- OpenAI GPT-5.2 family ---
+    (("gpt-5.2",), "gpt-5.2", _OPENAI_REASONING_BASE, dict(
+        supports_chat_completions=False, max_context_tokens=400000,
+    )),
     # --- OpenAI GPT-5.1 family ---
     (("gpt-5.1",), "gpt-5.1", _OPENAI_REASONING_BASE, dict(
-        supports_chat_completions=False, max_context_tokens=256000,
+        supports_chat_completions=False, max_context_tokens=400000,
     )),
     # --- OpenAI GPT-5 family ---
     (("gpt-5",), "gpt-5", _OPENAI_REASONING_BASE, dict(
-        supports_chat_completions=False, max_context_tokens=256000,
+        supports_chat_completions=False, max_context_tokens=400000,
     )),
     # --- OpenAI o-series reasoning models ---
     (("o4-mini", "o4"), "o4-mini", _OPENAI_REASONING_BASE, {}),
@@ -235,9 +239,11 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         api_preference="langchain",
     )),
     # --- Anthropic Claude models (most-specific first) ---
+    (("claude-opus-4-6", "claude-opus-4.6"), "claude-opus-4.6", _ANTHROPIC_BASE, {}),
     (("claude-opus-4-5", "claude-opus-4.5"), "claude-opus-4.5", _ANTHROPIC_BASE, {}),
     (("claude-opus-4-1", "claude-opus-4.1"), "claude-opus-4.1", _ANTHROPIC_BASE, {}),
     (("claude-opus-4",), "claude-opus-4", _ANTHROPIC_BASE, {}),
+    (("claude-sonnet-4-6", "claude-sonnet-4.6"), "claude-sonnet-4.6", _ANTHROPIC_BASE, {}),
     (("claude-sonnet-4-5", "claude-sonnet-4.5"), "claude-sonnet-4.5", _ANTHROPIC_BASE, {}),
     (("claude-sonnet-4",), "claude-sonnet-4", _ANTHROPIC_BASE, {}),
     (("claude-haiku-4-5", "claude-haiku-4.5"), "claude-haiku-4.5", _ANTHROPIC_BASE, {}),
@@ -250,6 +256,9 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
     (("claude",), "claude", _ANTHROPIC_BASE, {}),
     # --- Google Gemini models (most-specific first) ---
     (("gemini-3-pro", "gemini-3.0-pro"), "gemini-3-pro", _GOOGLE_BASE, dict(
+        is_reasoning_model=True, max_context_tokens=1048576,
+    )),
+    (("gemini-3-flash-preview", "gemini-3.0-flash-preview"), "gemini-3-flash-preview", _GOOGLE_BASE, dict(
         is_reasoning_model=True, max_context_tokens=1048576,
     )),
     (("gemini-2.5-pro", "gemini-2-5-pro"), "gemini-2.5-pro", _GOOGLE_BASE, dict(

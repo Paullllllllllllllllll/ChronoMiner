@@ -103,7 +103,7 @@ class TestDetectCapabilities:
         assert caps.is_reasoning_model is True
         assert caps.supports_reasoning_effort is True
         assert caps.supports_sampler_controls is False
-        assert caps.max_context_tokens == 256000
+        assert caps.max_context_tokens == 400000
     
     @pytest.mark.unit
     def test_gpt51_capabilities(self):
