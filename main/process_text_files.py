@@ -139,6 +139,37 @@ async def _adjust_line_ranges_workflow(
                 ui.print_error(f"Failed to adjust {text_file.name}: {e}")
 
 
+def _count_existing_outputs(
+    files: List[Path],
+    paths_config: Dict,
+    schema_name: str,
+    schemas_paths: Dict,
+) -> int:
+    """
+    Count how many output JSON files already exist for the given input files.
+
+    :param files: List of input file paths
+    :param paths_config: Paths configuration dictionary
+    :param schema_name: Name of the selected schema
+    :param schemas_paths: Schema-specific paths dictionary
+    :return: Number of input files that already have a corresponding output file
+    """
+    use_input_as_output = paths_config.get("general", {}).get("input_paths_is_output_path", False)
+    count = 0
+    for file_path in files:
+        if use_input_as_output:
+            output_path = file_path.parent / f"{file_path.stem}_output.json"
+        else:
+            schema_cfg = schemas_paths.get(schema_name, {})
+            output_dir_str = schema_cfg.get("output", "")
+            if not output_dir_str:
+                continue
+            output_path = Path(output_dir_str) / f"{file_path.stem}_output.json"
+        if output_path.exists():
+            count += 1
+    return count
+
+
 async def _run_interactive_mode(
     config_loader,
     paths_config: Dict,
@@ -199,7 +230,7 @@ async def _run_interactive_mode(
         sys.exit(1)
     
     # State machine for navigation
-    # States: schema -> chunking -> batch -> context -> files -> confirm
+    # States: schema -> chunking -> batch -> resume -> context -> chunk_slice -> files -> confirm
     current_step = "schema"
     state = {}
     
@@ -235,36 +266,61 @@ async def _run_interactive_mode(
             current_step = "resume"
         
         elif current_step == "resume":
-            use_resume = ui.confirm(
-                "Resume mode? (skip fully processed files, resume partial ones)",
-                default=True,
+            # CM-9: use select_option with allow_back=True so back returns to batch step
+            resume_choice = ui.select_option(
+                "Resume mode?",
+                [
+                    ("resume", "Skip / resume partial - skip fully processed files, resume partial ones"),
+                    ("reprocess", "Reprocess everything - process all files from scratch"),
+                ],
+                allow_back=True,
             )
-            state["resume"] = use_resume
+            if resume_choice is None:
+                current_step = "batch"
+                continue
+            state["resume"] = (resume_choice == "resume")
+            current_step = "context"
+
+        elif current_step == "context":
+            # CM-8: explicit context-selection step
+            context_result = ui.ask_context_selection(allow_back=True)
+            if context_result is None:
+                current_step = "resume"
+                continue
+            state["context_override"] = context_result
             current_step = "chunk_slice"
-        
+
         elif current_step == "chunk_slice":
             chunk_slice = ui.ask_chunk_slice(allow_back=True)
             if chunk_slice is None:
-                current_step = "resume"
+                current_step = "context"
                 continue
             state["chunk_slice"] = chunk_slice
             current_step = "files"
-        
+
         elif current_step == "files":
             # Determine input directory
             if state["selected_schema_name"] in schemas_paths:
                 raw_text_dir = Path(schemas_paths[state["selected_schema_name"]].get("input"))
             else:
                 raw_text_dir = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
-            
+
             files = ui.select_input_source(raw_text_dir, allow_back=True)
             if files is None:
-                current_step = "batch"
+                current_step = "chunk_slice"
                 continue
             state["files"] = files
             current_step = "confirm"
         
         elif current_step == "confirm":
+            # CM-10: count existing output files before showing confirmation
+            existing_output_count = _count_existing_outputs(
+                state["files"],
+                paths_config,
+                state["selected_schema_name"],
+                schemas_paths,
+            )
+
             # Handle line range adjustment workflow if selected
             if state["global_chunking_method"] == "adjust-line-ranges":
                 matching_config = (chunking_and_context_config or {}).get("matching", {})
@@ -284,6 +340,12 @@ async def _run_interactive_mode(
                 logger.info("Line range adjustment complete. Using adjusted line ranges for processing.")
                 state["global_chunking_method"] = "line_ranges.txt"
             
+            # Derive context_mode string for the summary display
+            _ctx = state.get("context_override") or {}
+            _ctx_mode = _ctx.get("mode", "auto")
+            if _ctx_mode == "manual" and _ctx.get("path"):
+                _ctx_mode = str(_ctx["path"])
+
             # Confirm processing
             proceed = ui.display_processing_summary(
                 state["files"],
@@ -294,6 +356,8 @@ async def _run_interactive_mode(
                 paths_config=paths_config,
                 concurrency_config=concurrency_config,
                 chunk_slice=state.get("chunk_slice"),
+                context_mode=_ctx_mode,
+                existing_output_count=existing_output_count,
             )
             
             if not proceed:
@@ -356,6 +420,7 @@ async def _run_interactive_mode(
                 ui=ui,
                 resume=state.get("resume", False),
                 chunk_slice=state.get("chunk_slice"),
+                context_override=state.get("context_override"),
             )
             processed_count += 1
             
@@ -384,9 +449,14 @@ async def _run_interactive_mode(
                     ui=ui,
                     resume=state.get("resume", False),
                     chunk_slice=state.get("chunk_slice"),
+                    context_override=state.get("context_override"),
                 )
             )
-        await asyncio.gather(*tasks)
+        # CM-11: return_exceptions=True ensures all finally blocks complete on cancellation
+        _gather_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for _exc in _gather_results:
+            if isinstance(_exc, Exception):
+                logger.error("Error in concurrent file processing: %s", _exc, exc_info=_exc)
     
     # Calculate duration and set counts for non-sequential processing
     duration_seconds = time.time() - start_time
@@ -630,8 +700,12 @@ async def _run_cli_mode(
                     chunk_slice=chunk_slice,
                 )
             )
-        await asyncio.gather(*tasks)
-    
+        # CM-11: return_exceptions=True ensures all finally blocks complete on cancellation
+        _cli_results = await asyncio.gather(*tasks, return_exceptions=True)
+        for _exc in _cli_results:
+            if isinstance(_exc, Exception):
+                logger.error("Error in concurrent file processing: %s", _exc, exc_info=_exc)
+
     # Final summary
     logger.info("Processing complete")
     if not args.quiet:

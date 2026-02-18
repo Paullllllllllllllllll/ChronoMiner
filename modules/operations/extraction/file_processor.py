@@ -132,6 +132,7 @@ class FileProcessorRefactored:
         ui: Any = None,
         resume: bool = False,
         chunk_slice: Optional[ChunkSlice] = None,
+        context_override: Optional[Dict[str, Any]] = None,
     ) -> None:
         """
         Process a single text file with refactored architecture.
@@ -146,6 +147,7 @@ class FileProcessorRefactored:
         :param global_chunking_method: Global chunking method if specified
         :param ui: UserInterface instance for user feedback
         :param resume: If True, skip completed chunks and resume partial outputs
+        :param context_override: Optional dict with 'mode' ('auto'|'none'|'manual') and 'path' (CM-8)
         """
         # Create messaging adapter
         messenger = _create_messaging_adapter(ui)
@@ -203,14 +205,30 @@ class FileProcessorRefactored:
                 f"Chunk slice applied: processing {len(chunks)}/{original_count} chunks"
             )
 
-        context, context_path = resolve_context_for_extraction(
-            text_file=file_path,
-        )
+        # Resolve context — honour context_override if provided (CM-8)
+        context: Optional[str]
+        context_path: Optional[Path]
+        override_mode = (context_override or {}).get("mode", "auto")
+        if override_mode == "none":
+            context, context_path = None, None
+            logger.debug(f"Context disabled for '{file_path.name}'")
+        elif override_mode == "manual" and (context_override or {}).get("path"):
+            manual_path = Path(context_override["path"])  # type: ignore[arg-type]
+            if manual_path.exists():
+                context = manual_path.read_text(encoding="utf-8").strip()
+                context_path = manual_path
+                logger.info(f"Using manual context from: {manual_path}")
+                messenger.info(f"Using context from: {manual_path.name}")
+            else:
+                logger.warning(f"Manual context path not found: {manual_path}; falling back to auto")
+                context, context_path = resolve_context_for_extraction(text_file=file_path)
+        else:
+            context, context_path = resolve_context_for_extraction(text_file=file_path)
 
-        if context_path:
+        if context_path and override_mode == "auto":
             logger.info(f"Using extraction context from: {context_path}")
             messenger.info(f"Using context from: {context_path.name}")
-        else:
+        elif not context_path and override_mode == "auto":
             logger.debug(f"No extraction context found for '{file_path.name}'")
 
         # Render system prompt
@@ -361,7 +379,19 @@ class FileProcessorRefactored:
             temp_jsonl_path = ensure_path_safe(working_folder / f"{file_path.stem}_temp.jsonl")
             working_folder.mkdir(parents=True, exist_ok=True)
         else:
-            working_folder = ensure_path_safe(Path(schema_paths["output"]))
+            output_path_str = schema_paths.get("output", "")
+            # CM-7: Validate that output path is not empty or CWD
+            if not output_path_str or not str(output_path_str).strip():
+                raise ValueError(
+                    "Output path is not configured. Set 'output' in paths_config.yaml for this schema, "
+                    "or enable 'input_paths_is_output_path: true' in general settings."
+                )
+            working_folder = ensure_path_safe(Path(output_path_str))
+            if working_folder.resolve() == Path.cwd().resolve():
+                raise ValueError(
+                    f"Output path '{working_folder}' resolves to the current working directory. "
+                    "Configure a specific output directory to avoid mixing output with project files."
+                )
             temp_folder = ensure_path_safe(working_folder / "temp_jsonl")
             working_folder.mkdir(parents=True, exist_ok=True)
             temp_folder.mkdir(parents=True, exist_ok=True)

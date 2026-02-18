@@ -239,6 +239,14 @@ class BatchProcessingStrategy(ProcessingStrategy):
     - OpenRouter: Not supported (falls back to sync or raises error)
     """
 
+    def __init__(self, concurrency_config: Optional[Dict[str, Any]] = None) -> None:
+        """
+        Initialize batch processing strategy.
+
+        :param concurrency_config: Concurrency configuration (used for service_tier, etc.)
+        """
+        self.concurrency_config = concurrency_config or {}
+
     async def process_chunks(
         self,
         chunks: List[str],
@@ -291,17 +299,28 @@ class BatchProcessingStrategy(ProcessingStrategy):
         except ValueError as e:
             console_print(f"[ERROR] {e}")
             raise
-        
+
         # Extract schema name from handler if available
         schema_name = getattr(handler, "schema_name", None) or "ExtractionSchema"
-        
+
+        # Inject service_tier from concurrency_config into model_config for the backend (CM-2)
+        extraction_cfg = (
+            (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
+        )
+        service_tier = extraction_cfg.get("service_tier")
+        effective_model_config = model_config
+        if service_tier:
+            tm_copy = dict(model_config.get("transcription_model", {}))
+            tm_copy["service_tier"] = service_tier
+            effective_model_config = {**model_config, "transcription_model": tm_copy}
+
         # Submit batch using the provider-agnostic backend
         try:
             console_print(f"[INFO] Submitting batch to {provider}...")
             handle: BatchHandle = await asyncio.to_thread(
                 backend.submit_batch,
                 batch_requests,
-                model_config,
+                effective_model_config,
                 system_prompt=dev_message,
                 schema=schema,
                 schema_name=schema_name,
@@ -370,6 +389,6 @@ def create_processing_strategy(
     :return: ProcessingStrategy instance
     """
     if use_batch:
-        return BatchProcessingStrategy()
+        return BatchProcessingStrategy(concurrency_config)
     else:
         return SynchronousProcessingStrategy(concurrency_config)

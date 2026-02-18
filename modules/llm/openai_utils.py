@@ -121,6 +121,23 @@ class LLMExtractor:
     
     def _initialize_llm(self) -> None:
         """Initialize the LangChain LLM instance."""
+        # Load service_tier from concurrency config (CM-1)
+        extraction_cfg = (
+            (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
+        )
+        service_tier = extraction_cfg.get("service_tier")
+
+        # Build extra_params including reasoning (CM-3) and service_tier (CM-1)
+        extra_params: Dict[str, Any] = {
+            "presence_penalty": self.presence_penalty if self.caps.supports_sampler_controls else 0.0,
+            "frequency_penalty": self.frequency_penalty if self.caps.supports_sampler_controls else 0.0,
+            "reasoning_config": self.reasoning,
+            "reasoning_effort": self.reasoning.get("effort", "medium"),
+            "text_config": self.text_params,
+        }
+        if service_tier:
+            extra_params["service_tier"] = service_tier
+
         # Build provider config
         config = ProviderConfig(
             provider=self.provider,
@@ -129,10 +146,7 @@ class LLMExtractor:
             temperature=self.temperature if self.caps.supports_sampler_controls else 0.0,
             max_tokens=self.max_output_tokens,
             top_p=self.top_p if self.caps.supports_sampler_controls else 1.0,
-            extra_params={
-                "presence_penalty": self.presence_penalty if self.caps.supports_sampler_controls else 0.0,
-                "frequency_penalty": self.frequency_penalty if self.caps.supports_sampler_controls else 0.0,
-            },
+            extra_params=extra_params,
         )
         
         # Set base URL for OpenRouter

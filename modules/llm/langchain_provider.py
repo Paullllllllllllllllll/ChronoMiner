@@ -421,7 +421,19 @@ class LangChainLLM:
             # Add reasoning effort for reasoning models
             if caps.supports_reasoning_effort:
                 params["reasoning_effort"] = self.config.extra_params.get("reasoning_effort", "medium")
-            
+
+            # Add service_tier if configured (CM-1)
+            service_tier = self.config.extra_params.get("service_tier")
+            if service_tier:
+                params["service_tier"] = service_tier
+
+            # Add text verbosity for GPT-5 family models (CM-5)
+            text_config = self.config.extra_params.get("text_config", {})
+            if text_config and caps.family in ("gpt-5", "gpt-5.1"):
+                verbosity = text_config.get("verbosity")
+                if verbosity:
+                    params["text"] = {"verbosity": verbosity}
+
             return ChatOpenAI(**params)
         
         elif provider == "anthropic":
@@ -434,6 +446,22 @@ class LangChainLLM:
                 else:
                     anthropic_params.pop("temperature", None)
 
+            # Add extended thinking for Anthropic when reasoning is configured (CM-4)
+            reasoning_config = self.config.extra_params.get("reasoning_config", {})
+            if reasoning_config and reasoning_config.get("effort") and reasoning_config.get("effort") != "none":
+                effort = reasoning_config.get("effort", "medium")
+                budget = _compute_openrouter_reasoning_max_tokens(
+                    max_tokens=self.config.max_tokens, effort=str(effort)
+                )
+                if budget > 0:
+                    anthropic_params["thinking"] = {"type": "enabled", "budget_tokens": budget}
+                    anthropic_params["temperature"] = 1.0
+                    anthropic_params.pop("top_p", None)
+                    anthropic_params["betas"] = ["interleaved-thinking-2025-05-14"]
+                    logger.info(
+                        f"Anthropic extended thinking enabled: budget_tokens={budget}, effort={effort}"
+                    )
+
             return ChatAnthropic(
                 model=self.config.model,
                 api_key=self.config.api_key,
@@ -444,13 +472,31 @@ class LangChainLLM:
         
         elif provider == "google":
             from langchain_google_genai import ChatGoogleGenerativeAI
-            
+
+            google_params = dict(common_params)
+
+            # Add thinking config for Google when reasoning is configured (CM-4)
+            reasoning_config = self.config.extra_params.get("reasoning_config", {})
+            if reasoning_config and reasoning_config.get("effort") and reasoning_config.get("effort") != "none":
+                effort = reasoning_config.get("effort", "medium")
+                budget = _compute_openrouter_reasoning_max_tokens(
+                    max_tokens=self.config.max_tokens, effort=str(effort)
+                )
+                if budget > 0:
+                    google_params["thinking_config"] = {
+                        "include_thoughts": True,
+                        "thinking_budget": budget,
+                    }
+                    logger.info(
+                        f"Google thinking enabled: budget={budget}, effort={effort}"
+                    )
+
             return ChatGoogleGenerativeAI(
                 model=self.config.model,
                 google_api_key=self.config.api_key,
                 timeout=self.config.timeout,
                 max_retries=self.config.max_retries,
-                **common_params,
+                **google_params,
             )
         
         elif provider == "openrouter":
