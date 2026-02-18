@@ -534,6 +534,8 @@ class UserInterface:
         paths_config: Optional[Dict[str, Any]] = None,
         concurrency_config: Optional[Dict[str, Any]] = None,
         chunk_slice: Any = None,
+        context_mode: Optional[str] = None,
+        existing_output_count: Optional[int] = None,
     ) -> bool:
         """
         Display a detailed summary of the selected processing options and ask for confirmation.
@@ -545,6 +547,9 @@ class UserInterface:
         :param model_config: Model configuration dictionary
         :param paths_config: Paths configuration dictionary
         :param concurrency_config: Concurrency configuration dictionary
+        :param chunk_slice: Optional ChunkSlice for first/last N chunks
+        :param context_mode: Context mode string (e.g. 'auto', 'none', or a path)
+        :param existing_output_count: Number of output files that already exist (CM-10)
         :return: True if user confirms, False otherwise
         """
         self.print_section_header("Processing Summary")
@@ -581,8 +586,14 @@ class UserInterface:
             elif last_n is not None:
                 self.console_print(f"    - Chunk range: Last {last_n} chunks only")
 
-        # Context is now resolved automatically
-        self.console_print(f"    {self.DIM}- Context: Automatic (hierarchical resolution){self.RESET}")
+        # Context display (CM-8)
+        if context_mode is None or context_mode == "auto":
+            context_display = "Automatic (hierarchical resolution)"
+        elif context_mode == "none":
+            context_display = "Disabled"
+        else:
+            context_display = f"Manual: {context_mode}"
+        self.console_print(f"    {self.DIM}- Context: {context_display}{self.RESET}")
         
         self.console_print(self.HORIZONTAL_LINE)
         
@@ -621,17 +632,16 @@ class UserInterface:
             self.console_print(f"\n  {self.BOLD}Concurrency Configuration:{self.RESET}")
             self.console_print(self.HORIZONTAL_LINE)
             
-            # API request concurrency
-            api_requests = concurrency_config.get("api_requests", {})
-            trans_api = api_requests.get("transcription", {})
-            trans_concurrency = trans_api.get("concurrency_limit", 5)
-            trans_service_tier = trans_api.get("service_tier", "default")
+            # API request concurrency (CM-6: correct key path)
+            extraction_cfg = concurrency_config.get("concurrency", {}).get("extraction", {})
+            trans_concurrency = extraction_cfg.get("concurrency_limit", 5)
+            trans_service_tier = extraction_cfg.get("service_tier", "default")
             self.console_print(f"    - API requests: {trans_concurrency} concurrent")
             self.console_print(f"    {self.DIM}- Service tier: {trans_service_tier}{self.RESET}")
-            
+
             # Retry configuration
-            retry_config = concurrency_config.get("retry", {})
-            max_attempts = retry_config.get("max_attempts", 5)
+            retry_config = extraction_cfg.get("retry", {})
+            max_attempts = retry_config.get("attempts", 5)
             self.console_print(f"    {self.DIM}- Max retry attempts: {max_attempts}{self.RESET}")
             
             self.console_print(self.HORIZONTAL_LINE)
@@ -674,9 +684,64 @@ class UserInterface:
         if len(files) > 5:
             self.console_print(f"    {self.DIM}... and {len(files) - 5} more{self.RESET}")
 
+        # Pre-check existing output files (CM-10)
+        if existing_output_count is not None and existing_output_count > 0:
+            self.console_print("")
+            self.console_print(
+                f"    {self.WARNING}Warning: {existing_output_count}/{len(files)} output file(s) already exist "
+                f"and will be overwritten.{self.RESET}"
+            )
+
         self.console_print("")  # Empty line
         return self.confirm("Proceed with processing?", default=True)
     
+    def ask_context_selection(self, allow_back: bool = False) -> Optional[Dict[str, Any]]:
+        """
+        Ask user to select a context mode for extraction.
+
+        :param allow_back: Whether to allow going back to the previous step
+        :return: Dict with 'mode' ('auto', 'none', or 'manual') and optional 'path', or None on back
+        """
+        self.print_section_header("Context Selection")
+
+        context_options = [
+            ("auto", "Automatic - Use hierarchical context resolution (file/folder/global fallback)"),
+            ("manual", "Manual - Enter a specific context file path"),
+            ("none", "No context - Disable context for this run"),
+        ]
+
+        mode = self.select_option(
+            "Select context mode:",
+            context_options,
+            allow_back=allow_back,
+        )
+
+        if mode is None:
+            return None
+
+        if mode == "auto":
+            return {"mode": "auto", "path": None}
+
+        if mode == "none":
+            return {"mode": "none", "path": None}
+
+        # Manual path entry
+        while True:
+            path_input = self.get_input(
+                "Enter path to context file:",
+                allow_back=True,
+            )
+            if path_input is None:
+                return self.ask_context_selection(allow_back=allow_back)
+
+            from pathlib import Path as _Path
+            context_path = _Path(path_input)
+            if context_path.exists():
+                return {"mode": "manual", "path": context_path}
+            else:
+                self.print_error(f"File not found: {path_input}")
+                self.print_info("Please enter a valid file path or press 'b' to go back.")
+
     def display_completion_summary(
         self,
         processed_count: int,
