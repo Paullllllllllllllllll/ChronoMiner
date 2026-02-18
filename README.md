@@ -1,10 +1,10 @@
 # ChronoMiner
 
-> **Work in Progress** — ChronoMiner is under active development. We aim to keep it continuously maintained and improved, but bugs may be present. If you encounter any issues, please [open an issue on GitHub](https://github.com/Paullllllllllllllllll/ChronoMiner/issues) — reports are very welcome and help us improve the tool.
-
 A Python-based tool for researchers and archivists to extract structured data from large-scale historical and academic text files. ChronoMiner leverages multiple LLM providers through LangChain with schema-based extraction to transform unstructured text into well-organized, analyzable datasets in multiple formats (JSON, CSV, DOCX, TXT).
 
 Designed to integrate with [ChronoTranscriber](https://github.com/Paullllllllllllllllll/ChronoTranscriber) and [ChronoDownloader](https://github.com/Paullllllllllllllllll/ChronoDownloader) for a complete document retrieval, transcription, and data extraction pipeline.
+
+> **Work in Progress** — ChronoMiner is under active development. We aim to keep it continuously maintained and improved, but bugs may be present. If you encounter any issues, please [open an issue on GitHub](https://github.com/Paullllllllllllllllll/ChronoMiner/issues) — reports are very welcome and help us improve the tool.
 
 ## Table of Contents
 
