@@ -244,6 +244,9 @@ class ProviderConfig:
         # Get timeout from config
         timeouts_cfg = extraction_cfg.get("timeouts", {}) or {}
         timeout = float(timeouts_cfg.get("total", 600.0))
+
+        # Get service_tier from concurrency config
+        service_tier = extraction_cfg.get("service_tier")
         
         # Build extra_params including reasoning config
         extra_params = {
@@ -263,6 +266,10 @@ class ProviderConfig:
         text_cfg = tm.get("text")
         if text_cfg:
             extra_params["text_config"] = text_cfg
+
+        # Add service_tier from concurrency config
+        if service_tier:
+            extra_params["service_tier"] = service_tier
         
         return cls(
             provider=provider,
