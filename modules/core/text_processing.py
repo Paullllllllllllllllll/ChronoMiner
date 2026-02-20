@@ -883,9 +883,9 @@ class DocumentConverter(BaseConverter):
             if ingredients:
                 document.add_heading("Ingredients", level=2)
                 for ing in ingredients:
-                    name = ing.get("name_modern_english", ing.get("name_original", ""))
-                    qty = ing.get("quantity_original", "")
-                    prep = ing.get("preparation_note_modern_english", "")
+                    name = ing.get("name_modern_english") or ing.get("name_original") or ""
+                    qty = ing.get("quantity_original") or ""
+                    prep = ing.get("preparation_note_modern_english") or ""
                     ing_text = name
                     if qty:
                         ing_text += f" - {qty}"
@@ -897,7 +897,7 @@ class DocumentConverter(BaseConverter):
             methods = entry.get("cooking_methods", [])
             if methods:
                 document.add_heading("Cooking Methods", level=2)
-                method_names = [m.get("method_modern_english", m.get("method_original", "")) for m in methods]
+                method_names = [m.get("method_modern_english") or m.get("method_original") or "" for m in methods]
                 document.add_paragraph(", ".join(method_names))
             
             # Original recipe text
@@ -1125,9 +1125,9 @@ class DocumentConverter(BaseConverter):
             if ingredients:
                 lines.append("Ingredients:")
                 for ing in ingredients:
-                    name = ing.get("name_modern_english", ing.get("name_original", ""))
-                    qty = ing.get("quantity_original", "")
-                    prep = ing.get("preparation_note_modern_english", "")
+                    name = ing.get("name_modern_english") or ing.get("name_original") or ""
+                    qty = ing.get("quantity_original") or ""
+                    prep = ing.get("preparation_note_modern_english") or ""
                     ing_text = f" - {name}"
                     if qty:
                         ing_text += f" ({qty})"
@@ -1138,7 +1138,7 @@ class DocumentConverter(BaseConverter):
             # Cooking methods
             methods = entry.get("cooking_methods", [])
             if methods:
-                method_names = [m.get("method_modern_english", m.get("method_original", "")) for m in methods]
+                method_names = [m.get("method_modern_english") or m.get("method_original") or "" for m in methods]
                 lines.append(f"Cooking Methods: {', '.join(method_names)}")
             
             # Original recipe text

@@ -589,23 +589,23 @@ class CSVConverter(BaseConverter):
             ingredients_list = []
             for ing in ingredients:
                 if isinstance(ing, dict):
-                    name = ing.get("name_modern_english", ing.get("name_original", ""))
+                    name = ing.get("name_modern_english") or ing.get("name_original") or ""
                     qty_val = ing.get("quantity_standardized_value")
                     qty_unit = ing.get("quantity_standardized_unit")
                     qty_str = f"{qty_val} {qty_unit}" if qty_val and qty_unit else ""
-                    prep = ing.get("preparation_note_modern_english", "")
+                    prep = ing.get("preparation_note_modern_english") or ""
                     ing_str = f"{name} ({qty_str}) {prep}".strip()
                     ingredients_list.append(ing_str)
             ingredients_str = "; ".join(ingredients_list)
             
             # Extract cooking methods
             methods = entry.get("cooking_methods", [])
-            methods_str = ", ".join([m.get("method_modern_english", m.get("method_original", "")) 
+            methods_str = ", ".join([m.get("method_modern_english") or m.get("method_original") or ""
                                      for m in methods if isinstance(m, dict)])
             
             # Extract utensils
             utensils = entry.get("utensils_equipment", [])
-            utensils_str = ", ".join([u.get("utensil_modern_english", u.get("utensil_original", "")) 
+            utensils_str = ", ".join([u.get("utensil_modern_english") or u.get("utensil_original") or ""
                                       for u in utensils if isinstance(u, dict)])
             
             # Extract yield
