@@ -1,0 +1,76 @@
+{
+  "name": "CookbookMetadataEntries",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no identifiable title page or metadata. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title": {
+              "type": ["string", "null"],
+              "description": "The full, descriptive title of the work as it appears on the title page, including any subtitles. Preserve exactly as transcribed, including archaic spelling. The title may be long and complex - include it in its entirety. Set to null if not found."
+            },
+            "author": {
+              "type": ["string", "null"],
+              "description": "The author(s) of the work, including any titles or roles (e.g., 'Cocinero Mayor', 'Chef de Cuisine'). Set to null if no author is named on the title page. Preserve exactly as transcribed."
+            },
+            "year": {
+              "type": ["string", "null"],
+              "description": "The year of publication. Convert Roman numerals (e.g., MDCCLXXIII) to Arabic numerals (1773). Set to null if not found."
+            },
+            "edition": {
+              "type": ["string", "null"],
+              "description": "Any edition statement (e.g., 'Third Edition', 'Terceira Edição', 'Nouvelle Édition', 'Neue Ausgabe'). Preserve in original language. Set to null if not found."
+            },
+            "content": {
+              "type": ["string", "null"],
+              "description": "A short description of the work's content based on the title page and introductory matter. What does the work claim to contain? (e.g., 'Recipes for soups, meat dishes, pastries, and confections; includes method for carving and serving'). Set to null if not determinable."
+            },
+            "notes": {
+              "type": ["string", "null"],
+              "description": "Publication details: printer/publisher names, city of publication, any dedications, privileges, or other relevant bibliographic context found on the title page or preliminary pages. Set to null if none found."
+            },
+            "library": {
+              "type": ["string", "null"],
+              "description": "The library or archive that holds/provided the physical copy (e.g., 'Biblioteca Nazionale Centrale di Firenze', 'Bayerische Staatsbibliothek'). Extract from digitizer watermarks or copyright notices. Set to null if not found."
+            },
+            "digitizer": {
+              "type": ["string", "null"],
+              "description": "The institution that digitized the work (e.g., 'Google Books', 'ProQuest Early European Books', 'Internet Archive', 'Münchener DigitalisierungsZentrum'). May be identical to library. Set to null if not found."
+            },
+            "misc": {
+              "type": ["string", "null"],
+              "description": "Additional information useful for programmatic analysis: shelfmarks, catalog numbers, dedications to notable persons, any unique identifiers. Set to null if none found."
+            }
+          },
+          "required": [
+            "title",
+            "author",
+            "year",
+            "edition",
+            "content",
+            "notes",
+            "library",
+            "digitizer",
+            "misc"
+          ],
+          "additionalProperties": false
+        },
+        "minItems": 1,
+        "maxItems": 1,
+        "description": "Exactly one metadata entry per transcription file."
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

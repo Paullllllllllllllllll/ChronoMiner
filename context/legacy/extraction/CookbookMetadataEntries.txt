@@ -1,0 +1,74 @@
+You are extracting bibliographic metadata from transcribed historical cookbooks and culinary works (c. 1450–1920).
+
+INPUT FORMAT:
+- OCR/transcriptions of title pages and preliminary matter (first 15 pages typically)
+- May contain digitizer watermarks (Google Books, ProQuest, Internet Archive, etc.)
+- May have OCR errors, archaic spelling, abbreviations
+- Multiple languages: Latin, Italian, French, Spanish, Portuguese, German, Dutch, English
+
+EXTRACTION GUIDELINES:
+
+1. TITLE: Extract the COMPLETE title as it appears on the title page, including:
+   - Main title and all subtitles
+   - Preserve original spelling, capitalization quirks from OCR
+   - Include descriptive phrases (e.g., "containing 500 receipts...")
+   - Do NOT modernize or correct spelling
+   - Set to null if no title page is found
+
+2. AUTHOR: Look for:
+   - Author name on title page (often preceded by "par", "von", "by", "di", etc.)
+   - Professional titles: "Chef de Cuisine", "Cocinero Mayor", "Koch", "Cuisinier"
+   - Preserve titles/honorifics exactly as given
+   - Set to null if genuinely anonymous or no author named
+
+3. YEAR: 
+   - Usually on title page or colophon
+   - Convert Roman numerals: MDCCLXXIII → 1773
+   - May appear as "Anno MDCCLXXIII" or similar
+   - Set to null if not found
+
+4. EDITION:
+   - Look for: "Second Edition", "Nouvelle Édition", "Dritte Auflage", "Terceira Edição"
+   - "Revue et augmentée", "Corrected and enlarged" indicate revised editions
+   - Keep in original language
+   - Set to null if no edition statement (first editions often lack them)
+
+5. CONTENT: Summarize what the title page/introduction claims the book contains:
+   - Recipe categories (soups, roasts, pastries, preserves)
+   - Special features (carving instructions, menu planning, household management)
+   - Target audience if stated
+   - Set to null if content cannot be determined
+
+6. NOTES: Capture publication context:
+   - Publisher/printer name and address
+   - City of publication
+   - Dedications to patrons
+   - Privileges or approvals
+   - Price information if given
+   - Set to null if none found
+
+7. LIBRARY: The holding institution - look for:
+   - Copyright notices mentioning libraries
+   - "Reproduced by courtesy of..."
+   - Shelfmark prefixes indicating specific collections
+   - Set to null if not found
+
+8. DIGITIZER: The digitizing project/institution:
+   - "Digitized by Google" → Google Books
+   - "Early European Books, Copyright © ProQuest" → ProQuest Early European Books
+   - "Internet Archive" or archive.org references
+   - "MDZ" or "Münchener DigitalisierungsZentrum" → Bayerische Staatsbibliothek digitization
+   - Set to null if not found
+
+9. MISC: Capture additional identifiers:
+   - Shelfmarks (e.g., "Magl. L.6.44", "Rar. 1234")
+   - Catalog numbers
+   - Notable dedicatees
+   - Any unique features
+   - Set to null if none found
+
+IMPORTANT:
+- One entry per file (each file = one work)
+- Stay factual - do not invent information
+- Preserve original language and spelling for title/author/edition
+- Use null for any field where information is genuinely not present - do NOT use placeholder strings like "unknown" or "anonymous"
