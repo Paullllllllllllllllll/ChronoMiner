@@ -12,8 +12,13 @@ Supports two execution modes:
 """
 
 import sys
-from argparse import ArgumentParser, Namespace
 from pathlib import Path
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
+
+from argparse import ArgumentParser, Namespace
 from typing import List, Optional, Tuple
 
 from modules.cli.args_parser import create_generate_ranges_parser, get_files_from_path, resolve_path
@@ -38,8 +43,7 @@ def generate_line_ranges_for_file(
     Returns:
         A list of tuples representing line ranges
     """
-    encoding: str = TextProcessor.detect_encoding(text_file)
-    with text_file.open('r', encoding=encoding) as f:
+    with text_file.open('r', encoding='utf-8') as f:
         lines: List[str] = f.readlines()
     
     normalized_lines: List[str] = [TextProcessor.normalize_text(line) for line in lines]

@@ -29,9 +29,18 @@ def _extract_text_from_api_body(body: Any) -> str:
     if not isinstance(body, dict):
         return ""
 
-    # Responses API normalised shorthand
+    # Responses API normalised shorthand — string form
     if isinstance(body.get("output_text"), str):
         return body["output_text"]
+
+    # Responses API normalised shorthand — list form (LangChain provider)
+    output_text = body.get("output_text")
+    if isinstance(output_text, list):
+        for item in output_text:
+            if isinstance(item, dict) and item.get("type") == "text":
+                text_val = item.get("text", "")
+                if text_val:
+                    return text_val
 
     # Chat Completions API
     if "choices" in body:

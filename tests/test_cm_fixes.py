@@ -296,7 +296,7 @@ class TestCM5TextVerbosity:
 
     @pytest.mark.unit
     def test_text_verbosity_passed_for_gpt5(self):
-        """ChatOpenAI receives text={"verbosity": ...} for gpt-5 model."""
+        """ChatOpenAI receives text={"verbosity": ...} via model_kwargs for gpt-5 model."""
         from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
 
         config = ProviderConfig(
@@ -314,7 +314,8 @@ class TestCM5TextVerbosity:
             MockChatOpenAI.return_value = MagicMock()
             llm._create_chat_model()
             call_kwargs = MockChatOpenAI.call_args[1]
-            assert call_kwargs.get("text") == {"verbosity": "medium"}
+            assert call_kwargs.get("text") is None, "text must not be a top-level param"
+            assert call_kwargs.get("model_kwargs", {}).get("text") == {"verbosity": "medium"}
 
     @pytest.mark.unit
     def test_text_verbosity_not_passed_for_non_gpt5(self):
