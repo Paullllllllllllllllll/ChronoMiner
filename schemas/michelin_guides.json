@@ -1,6 +1,6 @@
 {
   "name": "MichelinGuides",
-  "schema_version": "1.1",
+  "schema_version": "2.0",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -26,15 +26,24 @@
               "description": "Locality line(s) as printed in the guide header around the entry.",
               "properties": {
                 "city_or_town": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "City or town name where the establishment is located."
                 },
                 "neighbourhood_or_area": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Neighbourhood or area designation within the city."
                 }
               },
-              "required": ["city_or_town", "neighbourhood_or_area"],
+              "required": [
+                "city_or_town",
+                "neighbourhood_or_area"
+              ],
               "additionalProperties": false
             },
             "address": {
@@ -42,19 +51,32 @@
               "description": "Postal address details if printed.",
               "properties": {
                 "street": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Street name of the establishment."
                 },
                 "house_number": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "House or building number."
                 },
                 "postal_code": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Postal or ZIP code."
                 }
               },
-              "required": ["street", "house_number", "postal_code"],
+              "required": [
+                "street",
+                "house_number",
+                "postal_code"
+              ],
               "additionalProperties": false
             },
             "contact": {
@@ -62,23 +84,40 @@
               "description": "Contact channels printed in the entry.",
               "properties": {
                 "telephone": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Telephone number as printed."
                 },
                 "fax": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Fax number if provided."
                 },
                 "website": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Website URL or web address."
                 },
                 "email": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Email address if provided."
                 }
               },
-              "required": ["telephone", "fax", "website", "email"],
+              "required": [
+                "telephone",
+                "fax",
+                "website",
+                "email"
+              ],
               "additionalProperties": false
             },
             "map_reference": {
@@ -86,11 +125,16 @@
               "description": "Town-plan or atlas grid references printed near the entry.",
               "properties": {
                 "plan_grid": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Grid reference code (e.g., 'A3', 'B2') for locating on map."
                 }
               },
-              "required": ["plan_grid"],
+              "required": [
+                "plan_grid"
+              ],
               "additionalProperties": false
             },
             "awards": {
@@ -98,39 +142,76 @@
               "description": "Quantitative and binary distinctions exactly as printed.",
               "properties": {
                 "stars": {
-                  "type": ["integer", "null"],
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "description": "Number of MICHELIN Stars (0-3).",
                   "minimum": 0,
                   "maximum": 3
                 },
                 "bib_gourmand": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Bib Gourmand award indicator."
                 },
                 "michelin_plate": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "MICHELIN Plate recognition indicator."
                 },
                 "green_star": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Green Star for sustainable gastronomy."
                 },
                 "new_in_guide": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Indicates if establishment is newly listed in this edition."
                 },
                 "pleasant_marker": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Agréable/pleasant/angenehm mark if explicit."
                 },
                 "comfort_covers": {
-                  "type": ["integer", "null"],
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "description": "Historic comfort class for restaurants (1-5 'covers').",
                   "minimum": 1,
                   "maximum": 5
+                },
+                "selected": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
+                  "description": "MICHELIN Plate (2016-2022) or Selected Restaurant (2022+) when printed without stars. Null if not applicable or not present in this edition."
                 }
               },
-              "required": ["stars", "bib_gourmand", "michelin_plate", "green_star", "new_in_guide", "pleasant_marker", "comfort_covers"],
+              "required": [
+                "stars",
+                "bib_gourmand",
+                "michelin_plate",
+                "green_star",
+                "new_in_guide",
+                "pleasant_marker",
+                "comfort_covers",
+                "selected"
+              ],
               "additionalProperties": false
             },
             "cuisine": {
@@ -138,32 +219,49 @@
               "description": "Culinary style and specialty information.",
               "properties": {
                 "styles": {
-                  "type": ["array", "null"],
+                  "type": [
+                    "array",
+                    "null"
+                  ],
                   "description": "Cuisine types or styles (e.g., 'French', 'Italian', 'Contemporary').",
                   "items": {
                     "type": "string"
                   }
                 },
                 "specialties": {
-                  "type": ["array", "null"],
+                  "type": [
+                    "array",
+                    "null"
+                  ],
                   "description": "Signature dishes or specialties mentioned in the guide.",
                   "items": {
                     "type": "string"
                   }
                 },
                 "chef": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Chef name if explicitly mentioned."
                 },
                 "keywords": {
-                  "type": ["array", "null"],
+                  "type": [
+                    "array",
+                    "null"
+                  ],
                   "description": "Additional culinary keywords or descriptors.",
                   "items": {
                     "type": "string"
                   }
                 }
               },
-              "required": ["styles", "specialties", "chef", "keywords"],
+              "required": [
+                "styles",
+                "specialties",
+                "chef",
+                "keywords"
+              ],
               "additionalProperties": false
             },
             "opening": {
@@ -171,30 +269,51 @@
               "description": "Opening hours and closure patterns as printed.",
               "properties": {
                 "lunch_hours": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Lunch service hours or times."
                 },
                 "dinner_hours": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Dinner service hours or times."
                 },
                 "days_closed": {
-                  "type": ["array", "null"],
+                  "type": [
+                    "array",
+                    "null"
+                  ],
                   "description": "Days of the week when establishment is closed.",
                   "items": {
                     "type": "string"
                   }
                 },
                 "annual_closure": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Annual closure periods (e.g., vacation dates)."
                 },
                 "open_for_breakfast": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Indicates if breakfast service is available."
                 }
               },
-              "required": ["lunch_hours", "dinner_hours", "days_closed", "annual_closure", "open_for_breakfast"],
+              "required": [
+                "lunch_hours",
+                "dinner_hours",
+                "days_closed",
+                "annual_closure",
+                "open_for_breakfast"
+              ],
               "additionalProperties": false
             },
             "pricing": {
@@ -202,58 +321,112 @@
               "description": "Menu and à-la-carte price ranges.",
               "properties": {
                 "currency": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Currency code or symbol (e.g., 'EUR', '€', 'USD')."
                 },
                 "menu_price_min": {
-                  "type": ["number", "null"],
+                  "type": [
+                    "number",
+                    "null"
+                  ],
                   "description": "Minimum price for set menus."
                 },
                 "menu_price_max": {
-                  "type": ["number", "null"],
+                  "type": [
+                    "number",
+                    "null"
+                  ],
                   "description": "Maximum price for set menus."
                 },
                 "a_la_carte_price_min": {
-                  "type": ["number", "null"],
+                  "type": [
+                    "number",
+                    "null"
+                  ],
                   "description": "Minimum price for à la carte dining."
                 },
                 "a_la_carte_price_max": {
-                  "type": ["number", "null"],
+                  "type": [
+                    "number",
+                    "null"
+                  ],
                   "description": "Maximum price for à la carte dining."
                 },
                 "lunch_menu_price": {
-                  "type": ["number", "null"],
+                  "type": [
+                    "number",
+                    "null"
+                  ],
                   "description": "Fixed price for lunch menu if specified separately."
                 },
                 "set_menus": {
-                  "type": ["array", "null"],
+                  "type": [
+                    "array",
+                    "null"
+                  ],
                   "description": "Detailed information about specific set menu offerings.",
                   "items": {
                     "type": "object",
                     "properties": {
                       "label": {
-                        "type": ["string", "null"],
+                        "type": [
+                          "string",
+                          "null"
+                        ],
                         "description": "Name or description of the menu."
                       },
                       "price_min": {
-                        "type": ["number", "null"],
+                        "type": [
+                          "number",
+                          "null"
+                        ],
                         "description": "Minimum price for this menu."
                       },
                       "price_max": {
-                        "type": ["number", "null"],
+                        "type": [
+                          "number",
+                          "null"
+                        ],
                         "description": "Maximum price for this menu."
                       }
                     },
-                    "required": ["label", "price_min", "price_max"],
+                    "required": [
+                      "label",
+                      "price_min",
+                      "price_max"
+                    ],
                     "additionalProperties": false
                   }
                 },
                 "price_note": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Additional pricing notes or clarifications."
+                },
+                "price_band_raw": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Raw price-band symbol as printed (e.g. '€', '€€', '€€€€'). Null if no band symbol appears in the entry."
                 }
               },
-              "required": ["currency", "menu_price_min", "menu_price_max", "a_la_carte_price_min", "a_la_carte_price_max", "lunch_menu_price", "set_menus", "price_note"],
+              "required": [
+                "currency",
+                "menu_price_min",
+                "menu_price_max",
+                "a_la_carte_price_min",
+                "a_la_carte_price_max",
+                "lunch_menu_price",
+                "set_menus",
+                "price_note",
+                "price_band_raw"
+              ],
               "additionalProperties": false
             },
             "amenities": {
@@ -261,87 +434,168 @@
               "description": "Boolean mappings from printed pictograms/symbols.",
               "properties": {
                 "wheelchair_access": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Wheelchair accessibility available."
                 },
                 "air_conditioning": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Air conditioning available."
                 },
                 "non_smoking": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Non-smoking establishment or area."
                 },
                 "dogs_allowed": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Dogs permitted. If 'no dogs' symbol appears, set to false and set no_dogs to true."
                 },
                 "no_dogs": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Dogs explicitly not permitted."
                 },
                 "terrace": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Terrace seating available."
                 },
                 "garden_or_park": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Garden or park area on premises."
                 },
                 "outside_dining": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Outdoor dining available."
                 },
                 "great_view": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Establishment has a notable or scenic view."
                 },
                 "peaceful": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Quiet or peaceful setting."
                 },
                 "notable_wine_list": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Exceptional or extensive wine selection."
                 },
                 "notable_cocktail_list": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Exceptional or extensive cocktail selection."
                 },
                 "private_dining_room": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Private dining room available."
                 },
                 "conference_room": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Conference or meeting room facilities."
                 },
                 "parking": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Parking available on-site or nearby."
                 },
                 "garage": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Garage parking available."
                 },
                 "valet_parking": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Valet parking service available."
                 },
                 "mooring_or_landing": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Boat mooring or landing facilities."
                 },
                 "open_for_breakfast": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Breakfast service available."
                 },
                 "has_rooms": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Restaurant/inn with letting rooms (symbol or text)."
                 }
               },
-              "required": ["wheelchair_access", "air_conditioning", "non_smoking", "dogs_allowed", "no_dogs", "terrace", "garden_or_park", "outside_dining", "great_view", "peaceful", "notable_wine_list", "notable_cocktail_list", "private_dining_room", "conference_room", "parking", "garage", "valet_parking", "mooring_or_landing", "open_for_breakfast", "has_rooms"],
+              "required": [
+                "wheelchair_access",
+                "air_conditioning",
+                "non_smoking",
+                "dogs_allowed",
+                "no_dogs",
+                "terrace",
+                "garden_or_park",
+                "outside_dining",
+                "great_view",
+                "peaceful",
+                "notable_wine_list",
+                "notable_cocktail_list",
+                "private_dining_room",
+                "conference_room",
+                "parking",
+                "garage",
+                "valet_parking",
+                "mooring_or_landing",
+                "open_for_breakfast",
+                "has_rooms"
+              ],
               "additionalProperties": false
             },
             "rooms": {
@@ -349,27 +603,48 @@
               "description": "If 'has_rooms' is true and the guide prints room details.",
               "properties": {
                 "room_count": {
-                  "type": ["integer", "null"],
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "description": "Number of guest rooms available."
                 },
                 "room_price_min": {
-                  "type": ["number", "null"],
+                  "type": [
+                    "number",
+                    "null"
+                  ],
                   "description": "Minimum room price per night."
                 },
                 "room_price_max": {
-                  "type": ["number", "null"],
+                  "type": [
+                    "number",
+                    "null"
+                  ],
                   "description": "Maximum room price per night."
                 },
                 "room_currency": {
-                  "type": ["string", "null"],
+                  "type": [
+                    "string",
+                    "null"
+                  ],
                   "description": "Currency for room prices."
                 },
                 "breakfast_available": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Breakfast included or available with rooms."
                 }
               },
-              "required": ["room_count", "room_price_min", "room_price_max", "room_currency", "breakfast_available"],
+              "required": [
+                "room_count",
+                "room_price_min",
+                "room_price_max",
+                "room_currency",
+                "breakfast_available"
+              ],
               "additionalProperties": false
             },
             "payments": {
@@ -377,48 +652,102 @@
               "description": "Boolean flags mapped from payment symbols/notes.",
               "properties": {
                 "credit_cards_accepted": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Credit cards accepted for payment."
                 },
                 "no_credit_cards": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Credit cards explicitly not accepted."
                 },
                 "accept_visa": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Visa cards accepted."
                 },
                 "accept_mastercard": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Mastercard accepted."
                 },
                 "accept_amex": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "American Express accepted."
                 },
                 "accept_diners": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "Diners Club accepted."
                 },
                 "accept_jcb": {
-                  "type": ["boolean", "null"],
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
                   "description": "JCB cards accepted."
                 }
               },
-              "required": ["credit_cards_accepted", "no_credit_cards", "accept_visa", "accept_mastercard", "accept_amex", "accept_diners", "accept_jcb"],
+              "required": [
+                "credit_cards_accepted",
+                "no_credit_cards",
+                "accept_visa",
+                "accept_mastercard",
+                "accept_amex",
+                "accept_diners",
+                "accept_jcb"
+              ],
               "additionalProperties": false
             },
             "raw_entry_text": {
               "type": "string",
               "description": "Verbatim text span for this establishment (for QA and provenance)."
+            },
+            "inspector_note": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Verbatim inspector short note (2-3 lines of prose per entry, introduced 2003). Null for all pre-2003 editions and for entries that carry no prose note."
             }
           },
-          "required": ["establishment_name", "location", "address", "contact", "map_reference", "awards", "cuisine", "opening", "pricing", "amenities", "rooms", "payments", "raw_entry_text"],
+          "required": [
+            "establishment_name",
+            "location",
+            "address",
+            "contact",
+            "map_reference",
+            "awards",
+            "cuisine",
+            "opening",
+            "pricing",
+            "amenities",
+            "rooms",
+            "payments",
+            "inspector_note",
+            "raw_entry_text"
+          ],
           "additionalProperties": false
         }
       }
     },
-    "required": ["contains_no_content_of_requested_type", "entries"],
+    "required": [
+      "contains_no_content_of_requested_type",
+      "entries"
+    ],
     "additionalProperties": false
   }
 }

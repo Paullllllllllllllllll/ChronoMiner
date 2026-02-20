@@ -155,9 +155,8 @@ class LineRangeReadjuster:
             logger.warning("No ranges found in %s", line_ranges_file)
             return []
 
-        encoding = TextProcessor.detect_encoding(text_file)
         safe_text_file = ensure_path_safe(text_file)
-        with safe_text_file.open("r", encoding=encoding) as handle:
+        with safe_text_file.open("r", encoding="utf-8") as handle:
             raw_lines = handle.readlines()
 
         # Detect provider from model name and get appropriate API key
