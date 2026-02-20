@@ -659,7 +659,14 @@ class LangChainLLM:
                 else:
                     output_text = json.dumps(parsed_response, ensure_ascii=False)
             else:
-                output_text = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+                content = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+                if isinstance(content, list):
+                    content = next(
+                        (item.get('text', '') for item in content
+                         if isinstance(item, dict) and item.get('type') == 'text'),
+                        '',
+                    ) or str(content)
+                output_text = content
             
             # Track token usage - usage_metadata can be dict or object
             usage_metadata = getattr(raw_response, 'usage_metadata', None)
