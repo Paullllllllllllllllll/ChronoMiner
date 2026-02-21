@@ -31,44 +31,108 @@ dataset:
 # Models to Evaluate
 # =============================================================================
 models:
-  # OpenAI Models
-  - name: "gpt_5.1_medium"
+  # OpenAI Models — 2,500-token chunks
+  - name: "gpt_5.2_medium_c2500"
     provider: "openai"
-    model_id: "gpt-5.1"
+    model_id: "gpt-5.2"
     reasoning_effort: "medium"
-    description: "GPT-5.1 with medium reasoning"
-    
-  - name: "gpt_5_mini_medium"
+    tokens_per_chunk: 2500
+    description: "GPT-5.2 medium reasoning, 2500-token chunks"
+
+  - name: "gpt_5_mini_medium_c2500"
     provider: "openai"
     model_id: "gpt-5-mini"
     reasoning_effort: "medium"
-    description: "GPT-5 Mini with medium reasoning"
+    tokens_per_chunk: 2500
+    description: "GPT-5 Mini medium reasoning, 2500-token chunks"
+
+  # OpenAI Models — 5,000-token chunks
+  - name: "gpt_5.2_medium_c5000"
+    provider: "openai"
+    model_id: "gpt-5.2"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 5000
+    description: "GPT-5.2 medium reasoning, 5000-token chunks"
+
+  - name: "gpt_5_mini_medium_c5000"
+    provider: "openai"
+    model_id: "gpt-5-mini"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 5000
+    description: "GPT-5 Mini medium reasoning, 5000-token chunks"
   
   # Google Models
-  - name: "gemini_3.0_pro_medium"
-    provider: "google"
-    model_id: "gemini-3.0-pro"
-    reasoning_effort: "medium"
-    description: "Gemini 3.0 Pro with medium reasoning"
-    
-  - name: "gemini_2.5_flash"
-    provider: "google"
-    model_id: "gemini-2.5-flash"
-    reasoning_effort: null
-    description: "Gemini 2.5 Flash (no reasoning)"
-  
-  # Anthropic Models
-  - name: "claude_sonnet_4.5_medium"
+  # EXCLUDED FROM BENCHMARK — Hard API limit: Gemini enforces a maximum schema
+  # nesting depth of ~5 levels (tightened Aug 2025, documented in official Gemini
+  # Structured Outputs docs under "Limitations").  All three evaluation schemas
+  # (BibliographicEntries, BrazilianMilitaryRecords, HistoricalAddressBookEntries)
+  # exceed this limit.  Requests fail with HTTP 400 "A schema in GenerationConfig
+  # in the request exceeds the maximum allowed nesting depth."  This cannot be
+  # resolved through model-parameter tuning; schema simplification would invalidate
+  # the evaluation framework.  Results cells will be left blank in the error-rate
+  # table with an explanatory footnote.
+  #
+  # - name: "gemini_3.0_pro_medium"
+  #   provider: "google"
+  #   model_id: "gemini-3-pro-preview"
+  #   reasoning_effort: "medium"
+  #   description: "Gemini 3 Pro Preview with medium reasoning"
+  #
+  # - name: "gemini_3.0_flash"
+  #   provider: "google"
+  #   model_id: "gemini-3-flash-preview"
+  #   reasoning_effort: "medium"
+  #   description: "Gemini 3 Flash Preview"
+
+  # Anthropic Models — 2,500-token chunks
+  - name: "claude_sonnet_4.5_medium_c2500"
     provider: "anthropic"
-    model_id: "claude-sonnet-4-5-20241022"
+    model_id: "claude-sonnet-4-5-20250929"
     reasoning_effort: "medium"
-    description: "Claude Sonnet 4.5 with medium reasoning"
-    
-  - name: "claude_haiku_4.5_medium"
+    tokens_per_chunk: 2500
+    description: "Claude Sonnet 4.5 medium reasoning, 2500-token chunks"
+
+  - name: "claude_haiku_4.5_medium_c2500"
     provider: "anthropic"
-    model_id: "claude-haiku-4-5-20241022"
+    model_id: "claude-haiku-4-5"
     reasoning_effort: "medium"
-    description: "Claude Haiku 4.5 with medium reasoning"
+    tokens_per_chunk: 2500
+    description: "Claude Haiku 4.5 medium reasoning, 2500-token chunks"
+
+  # Anthropic Models — 5,000-token chunks
+  - name: "claude_sonnet_4.5_medium_c5000"
+    provider: "anthropic"
+    model_id: "claude-sonnet-4-5-20250929"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 5000
+    description: "Claude Sonnet 4.5 medium reasoning, 5000-token chunks"
+
+  - name: "claude_haiku_4.5_medium_c5000"
+    provider: "anthropic"
+    model_id: "claude-haiku-4-5"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 5000
+    description: "Claude Haiku 4.5 medium reasoning, 5000-token chunks"
+
+  # OpenRouter / DeepInfra Models — 2,500-token chunks
+  # GPT-OSS-120b: open-weight 117B MoE model from OpenAI, accessed via DeepInfra fp4
+  # quantization on OpenRouter (endpoint: openai/gpt-oss-120b).
+  # Pricing: $0.039/M input, $0.19/M output (DeepInfra fp4, Feb 2026).
+  # Used here as the open-source/open-weight extraction baseline.
+  - name: "gpt_oss_120b_c2500"
+    provider: "openrouter"
+    model_id: "openai/gpt-oss-120b"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 2500
+    description: "GPT-OSS-120b via OpenRouter/DeepInfra fp4, 2500-token chunks"
+
+  # OpenRouter / DeepInfra Models — 5,000-token chunks
+  - name: "gpt_oss_120b_c5000"
+    provider: "openrouter"
+    model_id: "openai/gpt-oss-120b"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 5000
+    description: "GPT-OSS-120b via OpenRouter/DeepInfra fp4, 5000-token chunks"
 
 # =============================================================================
 # Evaluation Settings

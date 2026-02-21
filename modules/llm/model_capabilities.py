@@ -323,6 +323,17 @@ def detect_capabilities(model_name: str) -> Capabilities:
                 supports_sampler_controls=not is_r1,
             ))
 
+        # GPT-OSS-120b via OpenRouter (DeepInfra fp4)
+        if "gpt-oss" in m:
+            return _build_caps(model_name, "openrouter-gpt-oss", _OPENROUTER_BASE, dict(
+                is_reasoning_model=True,
+                supports_reasoning_effort=True,
+                supports_sampler_controls=False,
+                supports_structured_outputs=True,
+                supports_function_calling=True,
+                max_context_tokens=131072,
+            ))
+
         # GPT-5 via OpenRouter
         if "gpt-5" in m:
             return _build_caps(model_name, "openrouter-gpt5", _OPENROUTER_BASE, dict(
