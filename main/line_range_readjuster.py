@@ -14,9 +14,14 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from copy import deepcopy
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple
+
+_PROJECT_ROOT = Path(__file__).resolve().parents[1]
+if str(_PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(_PROJECT_ROOT))
 
 from modules.core.chunking_service import ChunkSlice
 from modules.core.logger import setup_logger
@@ -38,6 +43,15 @@ from modules.core.workflow_utils import (
 from modules.cli.mode_detector import should_use_interactive_mode
 
 logger = setup_logger(__name__)
+
+
+def _model_config_with_verbosity(model_config: Dict[str, any], verbosity: str) -> Dict[str, any]:
+    """Return a copied model config with transcription verbosity overridden."""
+    updated = deepcopy(model_config or {})
+    transcription_cfg = updated.setdefault("transcription_model", {})
+    text_cfg = transcription_cfg.setdefault("text", {})
+    text_cfg["verbosity"] = verbosity
+    return updated
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -72,6 +86,16 @@ def parse_arguments() -> argparse.Namespace:
         "--prompt-path",
         type=Path,
         help="Override the prompt template used when calling the model.",
+    )
+    parser.add_argument(
+        "--resume",
+        action="store_true",
+        help="Skip files whose line ranges were already adjusted with the same settings",
+    )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="Force re-adjustment of all files, ignoring existing adjustment markers",
     )
     chunk_slice_group = parser.add_mutually_exclusive_group()
     chunk_slice_group.add_argument(
@@ -142,8 +166,10 @@ async def _adjust_files(
     ui: Optional[UserInterface] = None,
     resume: bool = False,
 ) -> Tuple[List[Tuple[Path, Path]], List[Path], List[Tuple[Path, Exception]]]:
+    line_range_model_config = _model_config_with_verbosity(model_config, "low")
+
     readjuster = LineRangeReadjuster(
-        model_config,
+        line_range_model_config,
         context_window=context_window,
         prompt_path=prompt_path,
         matching_config=matching_config,
@@ -170,7 +196,7 @@ async def _adjust_files(
             continue
 
         # Resume: skip files already adjusted with the same settings
-        model_name = model_config.get("transcription_model", {}).get("name", "")
+        model_name = line_range_model_config.get("transcription_model", {}).get("name", "")
         if resume and is_adjustment_current(
             line_ranges_file,
             boundary_type=boundary_type,

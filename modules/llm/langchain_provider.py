@@ -668,28 +668,49 @@ class LangChainLLM:
                     ) or str(content)
                 output_text = content
             
-            # Track token usage - usage_metadata can be dict or object
+            # Track token usage from provider-specific metadata containers.
+            usage_candidates: List[Any] = []
             usage_metadata = getattr(raw_response, 'usage_metadata', None)
             if usage_metadata:
-                # Handle both dict and object access patterns
-                if isinstance(usage_metadata, dict):
-                    input_tokens = usage_metadata.get('input_tokens', 0)
-                    output_tokens = usage_metadata.get('output_tokens', 0)
-                    total_tokens = usage_metadata.get('total_tokens', 0)
+                usage_candidates.append(usage_metadata)
+
+            response_metadata = getattr(raw_response, 'response_metadata', None)
+            if isinstance(response_metadata, dict):
+                token_usage = response_metadata.get('token_usage')
+                if token_usage:
+                    usage_candidates.append(token_usage)
+            elif response_metadata is not None:
+                token_usage = getattr(response_metadata, 'token_usage', None)
+                if token_usage:
+                    usage_candidates.append(token_usage)
+
+            input_tokens = 0
+            output_tokens = 0
+            total_tokens = 0
+
+            for usage in usage_candidates:
+                if isinstance(usage, dict):
+                    input_tokens = input_tokens or int(usage.get('input_tokens') or usage.get('prompt_tokens') or 0)
+                    output_tokens = output_tokens or int(usage.get('output_tokens') or usage.get('completion_tokens') or 0)
+                    total_tokens = total_tokens or int(usage.get('total_tokens') or 0)
                 else:
-                    input_tokens = getattr(usage_metadata, 'input_tokens', 0)
-                    output_tokens = getattr(usage_metadata, 'output_tokens', 0)
-                    total_tokens = getattr(usage_metadata, 'total_tokens', 0)
-                
+                    input_tokens = input_tokens or int(getattr(usage, 'input_tokens', 0) or getattr(usage, 'prompt_tokens', 0) or 0)
+                    output_tokens = output_tokens or int(getattr(usage, 'output_tokens', 0) or getattr(usage, 'completion_tokens', 0) or 0)
+                    total_tokens = total_tokens or int(getattr(usage, 'total_tokens', 0) or 0)
+
+            if total_tokens <= 0 and (input_tokens > 0 or output_tokens > 0):
+                total_tokens = input_tokens + output_tokens
+
+            if total_tokens > 0 or input_tokens > 0 or output_tokens > 0:
                 response_data["usage"] = {
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                     "total_tokens": total_tokens,
                 }
-                
+
                 # Report to token tracker
                 try:
-                    if total_tokens:
+                    if total_tokens > 0:
                         token_tracker = get_token_tracker()
                         token_tracker.add_tokens(total_tokens)
                         logger.debug(
