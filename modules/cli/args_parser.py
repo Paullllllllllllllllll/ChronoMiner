@@ -11,6 +11,19 @@ from pathlib import Path
 from typing import Optional, List
 
 
+def _positive_int(value: str) -> int:
+    """Parse and validate a strictly positive integer for CLI arguments."""
+    try:
+        parsed = int(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"Expected integer, got: {value}") from exc
+
+    if parsed <= 0:
+        raise argparse.ArgumentTypeError(f"Value must be > 0, got: {value}")
+
+    return parsed
+
+
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     """
     Add common arguments used across multiple scripts.
@@ -86,7 +99,39 @@ Examples:
         action="store_true",
         help="Force reprocessing of all files, ignoring existing outputs"
     )
-    
+    parser.add_argument(
+        "--model",
+        type=str,
+        help=(
+            "Override model_config.transcription_model.name for this run "
+            "(e.g., gpt-5-mini, claude-sonnet-4-5, google/gemini-3-pro)"
+        )
+    )
+    parser.add_argument(
+        "--reasoning-effort",
+        type=str,
+        choices=["low", "medium", "high", "none"],
+        help=(
+            "Override model_config.transcription_model.reasoning.effort for this run "
+            "(low|medium|high|none)"
+        )
+    )
+    parser.add_argument(
+        "--verbosity",
+        type=str,
+        choices=["low", "medium", "high"],
+        help=(
+            "Override model_config.transcription_model.text.verbosity for this run "
+            "(OpenAI GPT-5 family only: gpt-5, gpt-5-mini, gpt-5.1, gpt-5.2)"
+        )
+    )
+    parser.add_argument(
+        "--max-output-tokens",
+        type=_positive_int,
+        metavar="N",
+        help="Override model_config.transcription_model.max_output_tokens for this run"
+    )
+
     chunk_slice_group = parser.add_mutually_exclusive_group()
     chunk_slice_group.add_argument(
         "--first-n-chunks",

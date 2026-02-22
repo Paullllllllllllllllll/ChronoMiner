@@ -113,3 +113,32 @@ class TestChunkSliceArgs:
         args = parser.parse_args(["--input", "data/", "--last-n-chunks", "7"])
         assert args.last_n_chunks == 7
         assert args.first_n_chunks is None
+
+
+class TestProcessParserModelOverrides:
+    """Tests for model-related CLI override options in process parser."""
+
+    def test_process_parser_model_overrides(self):
+        parser = create_process_parser()
+        args = parser.parse_args([
+            "--schema", "Test",
+            "--input", "data/",
+            "--model", "gpt-5-mini",
+            "--reasoning-effort", "high",
+            "--verbosity", "low",
+            "--max-output-tokens", "8192",
+        ])
+
+        assert args.model == "gpt-5-mini"
+        assert args.reasoning_effort == "high"
+        assert args.verbosity == "low"
+        assert args.max_output_tokens == 8192
+
+    def test_process_parser_max_output_tokens_must_be_positive(self):
+        parser = create_process_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args([
+                "--schema", "Test",
+                "--input", "data/",
+                "--max-output-tokens", "0",
+            ])

@@ -65,6 +65,8 @@ class LLMExtractor:
         prompt_path: Optional[Path] = None,
         model: str = "",
         provider: Optional[ProviderType] = None,
+        model_config_override: Optional[Dict[str, Any]] = None,
+        concurrency_config_override: Optional[Dict[str, Any]] = None,
     ) -> None:
         if not model:
             raise ValueError("Model must be specified.")
@@ -96,8 +98,10 @@ class LLMExtractor:
         
         # Load configuration using cached loader
         config = get_config_loader()
-        self.model_config: Dict[str, Any] = config.get_model_config()
-        self.concurrency_config: Dict[str, Any] = config.get_concurrency_config()
+        self.model_config: Dict[str, Any] = model_config_override or config.get_model_config()
+        self.concurrency_config: Dict[str, Any] = (
+            concurrency_config_override or config.get_concurrency_config()
+        )
         
         tm: Dict[str, Any] = self.model_config.get("transcription_model", {})
         
@@ -174,6 +178,8 @@ async def open_extractor(
     prompt_path: Path,
     model: str,
     provider: Optional[ProviderType] = None,
+    model_config_override: Optional[Dict[str, Any]] = None,
+    concurrency_config_override: Optional[Dict[str, Any]] = None,
 ) -> AsyncGenerator[LLMExtractor, None]:
     """
     Asynchronous context manager for LLMExtractor.
@@ -184,7 +190,14 @@ async def open_extractor(
     :param provider: Optional provider type override.
     :yield: An instance of LLMExtractor.
     """
-    extractor = LLMExtractor(api_key, prompt_path, model, provider)
+    extractor = LLMExtractor(
+        api_key=api_key,
+        prompt_path=prompt_path,
+        model=model,
+        provider=provider,
+        model_config_override=model_config_override,
+        concurrency_config_override=concurrency_config_override,
+    )
     try:
         yield extractor
     finally:

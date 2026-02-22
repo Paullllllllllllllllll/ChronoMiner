@@ -338,6 +338,28 @@ class TestCM5TextVerbosity:
             call_kwargs = MockChatOpenAI.call_args[1]
             assert "text" not in call_kwargs
 
+    @pytest.mark.unit
+    def test_text_verbosity_passed_for_gpt52(self):
+        """ChatOpenAI receives text verbosity for gpt-5.2 models as well."""
+        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+
+        config = ProviderConfig(
+            provider="openai",
+            model="gpt-5.2",
+            api_key="test-key",
+            extra_params={
+                "text_config": {"verbosity": "high"},
+                "reasoning_effort": "medium",
+            },
+        )
+        llm = LangChainLLM(config)
+
+        with patch("langchain_openai.ChatOpenAI") as MockChatOpenAI:
+            MockChatOpenAI.return_value = MagicMock()
+            llm._create_chat_model()
+            call_kwargs = MockChatOpenAI.call_args[1]
+            assert call_kwargs.get("model_kwargs", {}).get("text") == {"verbosity": "high"}
+
 
 # ---------------------------------------------------------------------------
 # CM-6: Processing summary reads correct concurrency config keys

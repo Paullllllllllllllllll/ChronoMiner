@@ -151,7 +151,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         async with open_extractor(
             api_key=api_key,
             prompt_path=Path("prompts/structured_output_prompt.txt"),
-            model=model_config["transcription_model"]["name"]
+            model=model_config["transcription_model"]["name"],
+            model_config_override=model_config,
+            concurrency_config_override=self.concurrency_config,
         ) as extractor:
             with temp_jsonl_path.open(file_mode, encoding="utf-8") as tempf:
                 semaphore = asyncio.Semaphore(concurrency_limit)

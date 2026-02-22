@@ -188,6 +188,56 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
 
 
 @pytest.mark.asyncio
+async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_open_extractor(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai"))
+    monkeypatch.setattr(ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key"))
+    monkeypatch.setattr(ps, "get_token_tracker", lambda: _DummyTokenTracker(enabled=False))
+
+    captured_kwargs: Dict[str, Any] = {}
+
+    def _open_extractor_stub(**kwargs):
+        captured_kwargs.update(kwargs)
+        return _AsyncExtractorCM(object())
+
+    monkeypatch.setattr(ps, "open_extractor", _open_extractor_stub)
+
+    async def _process_text_chunk(*, text_chunk: str, extractor: object, system_message: str, json_schema: Dict[str, Any]):
+        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}, "text": text_chunk}
+
+    monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
+
+    strat = ps.SynchronousProcessingStrategy(
+        concurrency_config={"concurrency": {"extraction": {"concurrency_limit": 1}}}
+    )
+    model_config = {
+        "transcription_model": {
+            "name": "gpt-5-mini",
+            "max_output_tokens": 12000,
+            "reasoning": {"effort": "high"},
+            "text": {"verbosity": "low"},
+        }
+    }
+
+    await strat.process_chunks(
+        chunks=["c1"],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config=model_config,
+        schema={"type": "object"},
+        file_path=tmp_path / "input.txt",
+        temp_jsonl_path=tmp_path / "temp.jsonl",
+        console_print=lambda *_args, **_kwargs: None,
+    )
+
+    assert captured_kwargs["model"] == "gpt-5-mini"
+    assert captured_kwargs["model_config_override"] == model_config
+    assert captured_kwargs["concurrency_config_override"] == strat.concurrency_config
+
+
+@pytest.mark.asyncio
 async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "anthropic"))
     monkeypatch.setattr(ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key"))

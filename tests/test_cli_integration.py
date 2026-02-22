@@ -6,8 +6,9 @@ Tests CLI argument parsing and execution flow without LLM calls.
 from __future__ import annotations
 
 import sys
+from argparse import Namespace
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, AsyncMock
 
 import pytest
 
@@ -54,6 +55,79 @@ class TestProcessTextFilesCLI:
         ])
 
         assert args.chunking == "line_ranges"
+
+    def test_cli_args_parser_model_override_options(self):
+        """Test model override arguments in process_text_files parser."""
+        from modules.cli.args_parser import create_process_parser
+
+        parser = create_process_parser()
+        args = parser.parse_args([
+            "--input", "test_input.txt",
+            "--schema", "TestSchema",
+            "--model", "gpt-5.2",
+            "--reasoning-effort", "high",
+            "--verbosity", "medium",
+            "--max-output-tokens", "16384",
+        ])
+
+        assert args.model == "gpt-5.2"
+        assert args.reasoning_effort == "high"
+        assert args.verbosity == "medium"
+        assert args.max_output_tokens == 16384
+
+    def test_build_effective_model_config_applies_overrides(self):
+        """CLI model overrides should be merged into effective model config only."""
+        from main.process_text_files import _build_effective_model_config
+
+        base = {
+            "transcription_model": {
+                "name": "gpt-4o",
+                "max_output_tokens": 4096,
+                "reasoning": {"effort": "medium"},
+                "text": {"verbosity": "high"},
+            }
+        }
+        args = Namespace(
+            model="gpt-5-mini",
+            max_output_tokens=20000,
+            reasoning_effort="low",
+            verbosity="low",
+        )
+
+        effective = _build_effective_model_config(base, args)
+
+        assert effective["transcription_model"]["name"] == "gpt-5-mini"
+        assert effective["transcription_model"]["max_output_tokens"] == 20000
+        assert effective["transcription_model"]["reasoning"]["effort"] == "low"
+        assert effective["transcription_model"]["text"]["verbosity"] == "low"
+        # Ensure original config was not mutated
+        assert base["transcription_model"]["name"] == "gpt-4o"
+        assert base["transcription_model"]["max_output_tokens"] == 4096
+
+    def test_build_effective_paths_config_output_disables_input_as_output(self):
+        """When --output is provided, output path mode should be enabled."""
+        from main.process_text_files import _build_effective_paths_config
+
+        base_paths = {"general": {"input_paths_is_output_path": True}}
+        args = Namespace(output="C:/tmp/output")
+
+        effective = _build_effective_paths_config(base_paths, args)
+        assert effective["general"]["input_paths_is_output_path"] is False
+        assert base_paths["general"]["input_paths_is_output_path"] is True
+
+    @pytest.mark.asyncio
+    async def test_process_script_run_cli_forwards_parsed_args(self):
+        """ProcessTextFilesScript.run_cli should forward framework-parsed args."""
+        from main.process_text_files import ProcessTextFilesScript
+
+        script = ProcessTextFilesScript()
+        cli_args = Namespace(schema="TestSchema", input="test_input.txt")
+
+        with patch("main.process_text_files._run_cli_mode", new_callable=AsyncMock) as mock_run:
+            await script.run_cli(cli_args)
+
+        assert mock_run.await_count == 1
+        assert mock_run.await_args.args[0] is cli_args
 
     def test_mode_detector_detects_cli_args(self, config_loader, monkeypatch):
         """Test mode detector identifies CLI mode when args provided."""

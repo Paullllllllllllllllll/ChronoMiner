@@ -18,6 +18,7 @@ Workflow:
 """
 
 import asyncio
+from copy import deepcopy
 import sys
 import time
 from pathlib import Path
@@ -168,6 +169,40 @@ def _count_existing_outputs(
         if output_path.exists():
             count += 1
     return count
+
+
+def _build_effective_model_config(model_config: Dict, args) -> Dict:
+    """Build a per-run model config with CLI overrides applied."""
+    effective_model_config = deepcopy(model_config or {})
+    transcription_model = effective_model_config.setdefault("transcription_model", {})
+
+    if getattr(args, "model", None):
+        transcription_model["name"] = args.model
+
+    if getattr(args, "max_output_tokens", None) is not None:
+        transcription_model["max_output_tokens"] = int(args.max_output_tokens)
+
+    if getattr(args, "reasoning_effort", None):
+        reasoning = dict(transcription_model.get("reasoning", {}) or {})
+        reasoning["effort"] = args.reasoning_effort
+        transcription_model["reasoning"] = reasoning
+
+    if getattr(args, "verbosity", None):
+        text_config = dict(transcription_model.get("text", {}) or {})
+        text_config["verbosity"] = args.verbosity
+        transcription_model["text"] = text_config
+
+    return effective_model_config
+
+
+def _build_effective_paths_config(paths_config: Dict, args) -> Dict:
+    """Build a per-run paths config, honoring CLI output overrides."""
+    effective_paths_config = deepcopy(paths_config or {})
+    if getattr(args, "output", None):
+        general = dict(effective_paths_config.get("general", {}) or {})
+        general["input_paths_is_output_path"] = False
+        effective_paths_config["general"] = general
+    return effective_paths_config
 
 
 async def _run_interactive_mode(
@@ -489,6 +524,7 @@ async def _run_interactive_mode(
 
 
 async def _run_cli_mode(
+    args,
     config_loader,
     paths_config: Dict,
     model_config: Dict,
@@ -497,7 +533,6 @@ async def _run_cli_mode(
 ) -> None:
     """Run text processing in CLI mode."""
     parser = create_process_parser()
-    args = parser.parse_args()
     
     logger.info("Starting ChronoMiner processing workflow (CLI Mode).")
     
@@ -526,11 +561,22 @@ async def _run_cli_mode(
         "chunking": (chunking_and_context_config or {}).get("chunking", {})
     }
     concurrency_config = config_loader.get_concurrency_config()
+
+    effective_model_config = _build_effective_model_config(model_config, args)
+    effective_paths_config = _build_effective_paths_config(paths_config, args)
+
+    effective_model_name = effective_model_config.get("transcription_model", {}).get("name", "")
+    if getattr(args, "verbosity", None) and "gpt-5" not in str(effective_model_name).lower():
+        logger.warning(
+            "--verbosity was provided, but model '%s' is not GPT-5 family. "
+            "Verbosity is currently only applied to OpenAI GPT-5 series models.",
+            effective_model_name,
+        )
     
     # Initialize file processor
     file_processor = FileProcessor(
-        paths_config=paths_config,
-        model_config=model_config,
+        paths_config=effective_paths_config,
+        model_config=effective_model_config,
         chunking_config=chunking_config,
         concurrency_config=concurrency_config,
     )
@@ -623,7 +669,7 @@ async def _run_cli_mode(
         await _adjust_line_ranges_workflow(
             files=files,
             selected_schema_name=selected_schema_name,
-            model_config=model_config,
+            model_config=effective_model_config,
             chunking_config=chunking_and_context_config or {},
             matching_config=matching_config,
             retry_config=retry_config,
@@ -638,7 +684,7 @@ async def _run_cli_mode(
     
     # Process files sequentially if token limiting is enabled (for better control)
     # Otherwise process concurrently for speed
-    inject_schema = model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
+    inject_schema = effective_model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
     token_limit_enabled = check_token_limit_enabled()
     
     # Allow overriding output directory per invocation (useful for smoke tests)
@@ -753,6 +799,7 @@ class ProcessTextFilesScript(AsyncDualModeScript):
     async def run_cli(self, args) -> None:
         """Run text processing in CLI mode."""
         await _run_cli_mode(
+            args,
             self.config_loader,
             self.paths_config,
             self.model_config,

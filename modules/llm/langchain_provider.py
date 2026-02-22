@@ -436,7 +436,7 @@ class LangChainLLM:
 
             # Add text verbosity for GPT-5 family models (CM-5)
             text_config = self.config.extra_params.get("text_config", {})
-            if text_config and caps.family in ("gpt-5", "gpt-5.1"):
+            if text_config and str(caps.family).startswith("gpt-5"):
                 verbosity = text_config.get("verbosity")
                 if verbosity:
                     params.setdefault("model_kwargs", {})["text"] = {"verbosity": verbosity}
