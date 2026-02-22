@@ -2,20 +2,11 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import pytest
 
 import modules.core.processing_strategy as ps
-
-
-class _DummyTokenTracker:
-    def __init__(self, enabled: bool = False):
-        self.enabled = enabled
-        self.added: List[int] = []
-
-    def add_tokens(self, n: int) -> None:
-        self.added.append(n)
 
 
 class _AsyncExtractorCM:
@@ -149,9 +140,6 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
     monkeypatch.setattr(ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai"))
     monkeypatch.setattr(ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key"))
 
-    tracker = _DummyTokenTracker(enabled=True)
-    monkeypatch.setattr(ps, "get_token_tracker", lambda: tracker)
-
     extractor = object()
     monkeypatch.setattr(ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(extractor))
 
@@ -179,7 +167,6 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
     )
 
     assert len(results) == 2
-    assert tracker.added == [5, 5]
 
     lines = [json.loads(line) for line in temp_jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
     assert len(lines) == 2
@@ -194,7 +181,6 @@ async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_ope
 ) -> None:
     monkeypatch.setattr(ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai"))
     monkeypatch.setattr(ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key"))
-    monkeypatch.setattr(ps, "get_token_tracker", lambda: _DummyTokenTracker(enabled=False))
 
     captured_kwargs: Dict[str, Any] = {}
 
@@ -241,9 +227,6 @@ async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_ope
 async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "anthropic"))
     monkeypatch.setattr(ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key"))
-
-    tracker = _DummyTokenTracker(enabled=False)
-    monkeypatch.setattr(ps, "get_token_tracker", lambda: tracker)
 
     monkeypatch.setattr(ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object()))
     monkeypatch.setattr(ps.random, "uniform", lambda a, b: 0.0)

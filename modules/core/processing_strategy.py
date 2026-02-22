@@ -24,7 +24,6 @@ from pathlib import Path
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
-from modules.core.token_tracker import get_token_tracker
 from modules.llm.batching import build_batch_files, submit_batch
 from modules.llm.openai_utils import open_extractor, process_text_chunk
 from modules.llm.langchain_provider import ProviderConfig
@@ -144,9 +143,6 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         if provider == "anthropic":
             concurrency_limit = 1
 
-        # Token tracking
-        token_tracker = get_token_tracker()
-
         file_mode = "a" if skip_indices else "w"
         async with open_extractor(
             api_key=api_key,
@@ -172,13 +168,6 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                     system_message=dev_message,
                                     json_schema=schema
                                 )
-
-                                # Track tokens if enabled
-                                if token_tracker.enabled:
-                                    usage = result.get("usage", {})
-                                    input_tokens = usage.get("input_tokens", 0)
-                                    output_tokens = usage.get("output_tokens", 0)
-                                    token_tracker.add_tokens(input_tokens + output_tokens)
 
                                 # Write to temp file
                                 request_obj = handler.prepare_payload(
