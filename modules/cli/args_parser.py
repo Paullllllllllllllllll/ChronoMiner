@@ -131,6 +131,15 @@ Examples:
         metavar="N",
         help="Override model_config.transcription_model.max_output_tokens for this run"
     )
+    parser.add_argument(
+        "--chunk-size",
+        type=_positive_int,
+        metavar="N",
+        help=(
+            "Override chunking.default_tokens_per_chunk for this run "
+            "(token target per chunk)"
+        )
+    )
 
     chunk_slice_group = parser.add_mutually_exclusive_group()
     chunk_slice_group.add_argument(

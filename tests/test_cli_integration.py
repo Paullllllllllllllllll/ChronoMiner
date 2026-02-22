@@ -68,12 +68,14 @@ class TestProcessTextFilesCLI:
             "--reasoning-effort", "high",
             "--verbosity", "medium",
             "--max-output-tokens", "16384",
+            "--chunk-size", "7000",
         ])
 
         assert args.model == "gpt-5.2"
         assert args.reasoning_effort == "high"
         assert args.verbosity == "medium"
         assert args.max_output_tokens == 16384
+        assert args.chunk_size == 7000
 
     def test_build_effective_model_config_applies_overrides(self):
         """CLI model overrides should be merged into effective model config only."""
@@ -114,6 +116,31 @@ class TestProcessTextFilesCLI:
         effective = _build_effective_paths_config(base_paths, args)
         assert effective["general"]["input_paths_is_output_path"] is False
         assert base_paths["general"]["input_paths_is_output_path"] is True
+
+    def test_build_effective_chunking_config_applies_chunk_size_override(self):
+        """CLI chunk-size should override per-run chunking config only."""
+        from main.process_text_files import _build_effective_chunking_config
+
+        base = {"chunking": {"default_tokens_per_chunk": 10000, "other_setting": True}}
+        args = Namespace(chunk_size=4200)
+
+        effective = _build_effective_chunking_config(base, args)
+
+        assert effective["chunking"]["default_tokens_per_chunk"] == 4200
+        assert effective["chunking"]["other_setting"] is True
+        assert base["chunking"]["default_tokens_per_chunk"] == 10000
+
+    def test_build_effective_chunking_config_keeps_default_when_no_override(self):
+        """Without --chunk-size, effective chunking config should remain unchanged."""
+        from main.process_text_files import _build_effective_chunking_config
+
+        base = {"chunking": {"default_tokens_per_chunk": 10000}}
+        args = Namespace(chunk_size=None)
+
+        effective = _build_effective_chunking_config(base, args)
+
+        assert effective["chunking"]["default_tokens_per_chunk"] == 10000
+        assert effective is not base
 
     @pytest.mark.asyncio
     async def test_process_script_run_cli_forwards_parsed_args(self):

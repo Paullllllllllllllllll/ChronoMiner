@@ -127,12 +127,14 @@ class TestProcessParserModelOverrides:
             "--reasoning-effort", "high",
             "--verbosity", "low",
             "--max-output-tokens", "8192",
+            "--chunk-size", "6000",
         ])
 
         assert args.model == "gpt-5-mini"
         assert args.reasoning_effort == "high"
         assert args.verbosity == "low"
         assert args.max_output_tokens == 8192
+        assert args.chunk_size == 6000
 
     def test_process_parser_max_output_tokens_must_be_positive(self):
         parser = create_process_parser()
@@ -141,4 +143,13 @@ class TestProcessParserModelOverrides:
                 "--schema", "Test",
                 "--input", "data/",
                 "--max-output-tokens", "0",
+            ])
+
+    def test_process_parser_chunk_size_must_be_positive(self):
+        parser = create_process_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args([
+                "--schema", "Test",
+                "--input", "data/",
+                "--chunk-size", "0",
             ])

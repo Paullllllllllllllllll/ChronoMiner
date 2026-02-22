@@ -205,6 +205,16 @@ def _build_effective_paths_config(paths_config: Dict, args) -> Dict:
     return effective_paths_config
 
 
+def _build_effective_chunking_config(chunking_and_context_config: Dict, args) -> Dict:
+    """Build a per-run chunking config with optional CLI chunk-size override."""
+    effective_chunking_config = {
+        "chunking": dict((chunking_and_context_config or {}).get("chunking", {}) or {})
+    }
+    if getattr(args, "chunk_size", None) is not None:
+        effective_chunking_config["chunking"]["default_tokens_per_chunk"] = int(args.chunk_size)
+    return effective_chunking_config
+
+
 async def _run_interactive_mode(
     config_loader,
     paths_config: Dict,
@@ -557,9 +567,7 @@ async def _run_cli_mode(
         sys.exit(1)
     
     # Load other configs
-    chunking_config = {
-        "chunking": (chunking_and_context_config or {}).get("chunking", {})
-    }
+    chunking_config = _build_effective_chunking_config(chunking_and_context_config, args)
     concurrency_config = config_loader.get_concurrency_config()
 
     effective_model_config = _build_effective_model_config(model_config, args)
@@ -670,7 +678,7 @@ async def _run_cli_mode(
             files=files,
             selected_schema_name=selected_schema_name,
             model_config=effective_model_config,
-            chunking_config=chunking_and_context_config or {},
+            chunking_config=chunking_config,
             matching_config=matching_config,
             retry_config=retry_config,
             ui=None,
