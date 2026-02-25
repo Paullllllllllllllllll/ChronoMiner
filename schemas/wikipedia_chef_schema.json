@@ -1,0 +1,302 @@
+{
+  "name": "WikipediaChefEntries",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no chef or culinary professional biography content. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "description": "Array of chef biography entries extracted from Wikipedia article text. For a single Wikipedia article, this will typically contain one entry.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "full_name": {
+              "type": "string",
+              "description": "Chef's full name as used professionally (typically the Wikipedia article title name)."
+            },
+            "birth_name": {
+              "type": ["string", "null"],
+              "description": "Birth name if different from the professional name. Null if identical to full_name or not mentioned."
+            },
+            "birth_date": {
+              "type": ["string", "null"],
+              "description": "Date of birth as stated in the article, preserving the original format (e.g., '7 April 1945', '1846'). Null if not mentioned."
+            },
+            "birth_year": {
+              "type": ["integer", "null"],
+              "description": "Year of birth extracted as an integer for computational use. Null if not mentioned."
+            },
+            "birth_place": {
+              "type": ["string", "null"],
+              "description": "Place of birth as stated in the article (city, region, country). Null if not mentioned."
+            },
+            "death_date": {
+              "type": ["string", "null"],
+              "description": "Date of death as stated in the article, preserving original format. Null if still living or not mentioned."
+            },
+            "death_year": {
+              "type": ["integer", "null"],
+              "description": "Year of death as an integer. Null if still living or not mentioned."
+            },
+            "death_place": {
+              "type": ["string", "null"],
+              "description": "Place of death as stated in the article. Null if still living or not mentioned."
+            },
+            "cause_of_death": {
+              "type": ["string", "null"],
+              "description": "Cause of death if explicitly stated in the article. Null if not mentioned."
+            },
+            "nationality": {
+              "type": ["array", "null"],
+              "description": "Nationality or nationalities as stated in the article. Null if not mentioned.",
+              "items": { "type": "string" }
+            },
+            "culinary_training": {
+              "type": "array",
+              "description": "Formal culinary training, apprenticeships, and formative mentorships, in chronological order where possible. Return empty array if not described.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "mentor_or_institution": {
+                    "type": "string",
+                    "description": "Name of the mentor chef or training institution (whichever is primary for this entry)."
+                  },
+                  "establishment": {
+                    "type": ["string", "null"],
+                    "description": "Name of the restaurant, hotel, or school where training took place. Null if not specified."
+                  },
+                  "location": {
+                    "type": ["string", "null"],
+                    "description": "City and/or country of training. Null if not specified."
+                  },
+                  "approximate_period": {
+                    "type": ["string", "null"],
+                    "description": "Approximate years or period of training as stated (e.g., '1960-1963', 'early 1970s', 'age 15'). Null if not specified."
+                  }
+                },
+                "required": [
+                  "mentor_or_institution",
+                  "establishment",
+                  "location",
+                  "approximate_period"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "career_positions": {
+              "type": "array",
+              "description": "Key professional positions held over the course of the chef's career, in chronological order where possible. Return empty array if not described.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "role": {
+                    "type": "string",
+                    "description": "Job title or role as described (e.g., 'Head Chef', 'Executive Chef', 'Owner-Chef', 'Chef de Cuisine')."
+                  },
+                  "establishment_name": {
+                    "type": "string",
+                    "description": "Name of the restaurant, hotel, or institution."
+                  },
+                  "location": {
+                    "type": ["string", "null"],
+                    "description": "City and/or country of the position. Null if not specified."
+                  },
+                  "year_start": {
+                    "type": ["integer", "null"],
+                    "description": "Year this position began. Null if not specified."
+                  },
+                  "year_end": {
+                    "type": ["integer", "null"],
+                    "description": "Year this position ended. Null if ongoing at time of article or not specified."
+                  }
+                },
+                "required": [
+                  "role",
+                  "establishment_name",
+                  "location",
+                  "year_start",
+                  "year_end"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "primary_restaurant_name": {
+              "type": ["string", "null"],
+              "description": "The single restaurant most closely associated with this chef's identity and enduring reputation, if one can be identified. Null if the chef is associated with multiple establishments of equal importance or if none is mentioned."
+            },
+            "culinary_movements": {
+              "type": ["array", "null"],
+              "description": "Named culinary movements this chef is associated with (e.g., 'Nouvelle Cuisine', 'Molecular Gastronomy', 'New Nordic Cuisine'). Null if none explicitly mentioned.",
+              "items": { "type": "string" }
+            },
+            "cuisine_styles": {
+              "type": ["array", "null"],
+              "description": "Cuisine styles or types associated with this chef (e.g., 'French haute cuisine', 'contemporary European', 'avant-garde'). Null if not mentioned.",
+              "items": { "type": "string" }
+            },
+            "michelin_stars_peak_simultaneously": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "description": "Maximum number of Michelin stars held simultaneously across all restaurants at any point in the chef's career. Null if not mentioned."
+            },
+            "awards_and_honors": {
+              "type": "array",
+              "description": "Professional awards, honors, state decorations, and distinctions received. Return empty array if none mentioned.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "award_name": {
+                    "type": "string",
+                    "description": "Full name of the award or honor."
+                  },
+                  "year": {
+                    "type": ["integer", "null"],
+                    "description": "Year the award was received. Null if not specified."
+                  },
+                  "awarding_body": {
+                    "type": ["string", "null"],
+                    "description": "Organization, government body, or publication that conferred the award. Null if not mentioned."
+                  }
+                },
+                "required": ["award_name", "year", "awarding_body"],
+                "additionalProperties": false
+              }
+            },
+            "notable_dishes": {
+              "type": ["array", "null"],
+              "description": "Named signature or iconic dishes associated with this chef, as mentioned in the article. Null if none mentioned.",
+              "items": { "type": "string" }
+            },
+            "publications": {
+              "type": "array",
+              "description": "Books, cookbooks, or other significant publications authored or co-authored. Return empty array if none mentioned.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "title": {
+                    "type": "string",
+                    "description": "Title of the publication as given in the article."
+                  },
+                  "year": {
+                    "type": ["integer", "null"],
+                    "description": "Year of first publication. Null if not stated."
+                  },
+                  "co_authors": {
+                    "type": ["array", "null"],
+                    "description": "Names of co-authors if mentioned. Null if sole-authored or co-authors not mentioned.",
+                    "items": { "type": "string" }
+                  }
+                },
+                "required": ["title", "year", "co_authors"],
+                "additionalProperties": false
+              }
+            },
+            "television_appearances": {
+              "type": "array",
+              "description": "Television shows, series, or programmes involving this chef in a substantive role. Return empty array if none mentioned.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "show_name": {
+                    "type": "string",
+                    "description": "Title of the television programme."
+                  },
+                  "network": {
+                    "type": ["string", "null"],
+                    "description": "Broadcasting network or channel. Null if not mentioned."
+                  },
+                  "years_active": {
+                    "type": ["string", "null"],
+                    "description": "Years the programme aired or the chef participated (e.g., '1996-1999', 'from 2003'). Null if not specified."
+                  }
+                },
+                "required": ["show_name", "network", "years_active"],
+                "additionalProperties": false
+              }
+            },
+            "mentors": {
+              "type": ["array", "null"],
+              "description": "Full names of key mentors or formative culinary teachers as explicitly mentioned in the article. Null if not mentioned.",
+              "items": { "type": "string" }
+            },
+            "notable_proteges": {
+              "type": ["array", "null"],
+              "description": "Full names of notable chefs who trained under or were significantly shaped by this chef, as mentioned in the article. Null if not mentioned.",
+              "items": { "type": "string" }
+            },
+            "epithets": {
+              "type": ["array", "null"],
+              "description": "Notable nicknames, titles, or epithets applied to this chef in the article (e.g., 'The Pope of Gastronomy', 'King of Chefs and Chef of Kings'). Null if none mentioned.",
+              "items": { "type": "string" }
+            },
+            "associated_restaurant_names": {
+              "type": ["array", "null"],
+              "description": "Names of all restaurants explicitly associated with this chef in the article. Used to construct the restaurant enrichment cascade. Null if no named restaurants are mentioned.",
+              "items": { "type": "string" }
+            },
+            "brief_biography": {
+              "type": ["string", "null"],
+              "description": "A concise 2-4 sentence factual summary of this chef's identity, career arc, and historical significance, drawn directly from the article. Null if insufficient information is provided."
+            },
+            "extraction_audit": {
+              "type": "object",
+              "description": "Extraction quality metadata for auditability.",
+              "properties": {
+                "confidence_overall": {
+                  "type": ["number", "null"],
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Overall confidence in the extraction (0.0 = no confidence, 1.0 = complete confidence). Consider article length, presence of structured infobox, and clarity of biographical information. Use null if confidence cannot be assessed."
+                },
+                "ambiguity_notes": {
+                  "type": "array",
+                  "description": "Brief notes on ambiguous, conflicting, or uncertain fields (e.g., 'birth date given differently in infobox and text', 'protege list incomplete'). Return empty array if no significant ambiguities.",
+                  "items": { "type": "string" }
+                }
+              },
+              "required": ["confidence_overall", "ambiguity_notes"],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "full_name",
+            "birth_name",
+            "birth_date",
+            "birth_year",
+            "birth_place",
+            "death_date",
+            "death_year",
+            "death_place",
+            "cause_of_death",
+            "nationality",
+            "culinary_training",
+            "career_positions",
+            "primary_restaurant_name",
+            "culinary_movements",
+            "cuisine_styles",
+            "michelin_stars_peak_simultaneously",
+            "awards_and_honors",
+            "notable_dishes",
+            "publications",
+            "television_appearances",
+            "mentors",
+            "notable_proteges",
+            "epithets",
+            "associated_restaurant_names",
+            "brief_biography",
+            "extraction_audit"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

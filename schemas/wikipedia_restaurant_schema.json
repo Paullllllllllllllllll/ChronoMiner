@@ -1,0 +1,287 @@
+{
+  "name": "WikipediaRestaurantEntries",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no restaurant article content. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "description": "Array of restaurant entries extracted from Wikipedia article text. For a single Wikipedia article, this will typically contain one entry.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "establishment_name": {
+              "type": "string",
+              "description": "Restaurant name as it appears in the Wikipedia article title or infobox (normalized spacing and casing allowed)."
+            },
+            "also_known_as": {
+              "type": ["array", "null"],
+              "description": "Alternative names, former names, or common abbreviations for this restaurant. Null if none mentioned.",
+              "items": { "type": "string" }
+            },
+            "location": {
+              "type": "object",
+              "description": "Geographic location of the restaurant.",
+              "properties": {
+                "city": {
+                  "type": ["string", "null"],
+                  "description": "City or municipality where the restaurant is located. Null if not mentioned."
+                },
+                "country": {
+                  "type": ["string", "null"],
+                  "description": "Country where the restaurant is located, using modern English country name. Null if not mentioned."
+                },
+                "street_address": {
+                  "type": ["string", "null"],
+                  "description": "Street address as stated in the article. Null if not provided."
+                },
+                "district_or_neighbourhood": {
+                  "type": ["string", "null"],
+                  "description": "District, arrondissement, neighbourhood, or similar sub-city designation. Null if not mentioned."
+                }
+              },
+              "required": [
+                "city",
+                "country",
+                "street_address",
+                "district_or_neighbourhood"
+              ],
+              "additionalProperties": false
+            },
+            "founding_year": {
+              "type": ["integer", "null"],
+              "description": "Year the restaurant was founded or first opened. Null if not stated."
+            },
+            "closure_year": {
+              "type": ["integer", "null"],
+              "description": "Year the restaurant permanently closed. Null if still active or closure year not stated."
+            },
+            "is_currently_active": {
+              "type": ["boolean", "null"],
+              "description": "True if the restaurant is currently operating at the time of the article. False if permanently closed. Null if unclear."
+            },
+            "cuisine_types": {
+              "type": ["array", "null"],
+              "description": "Cuisine styles or types as described in the article (e.g., 'French haute cuisine', 'New Nordic', 'Molecular gastronomy'). Null if not mentioned.",
+              "items": { "type": "string" }
+            },
+            "culinary_movements": {
+              "type": ["array", "null"],
+              "description": "Named culinary movements or schools with which this restaurant is associated (e.g., 'Nouvelle Cuisine', 'New Nordic Cuisine'). Null if none explicitly mentioned.",
+              "items": { "type": "string" }
+            },
+            "founders": {
+              "type": ["array", "null"],
+              "description": "Full names of founders or original owners as stated in the article. Null if not mentioned.",
+              "items": { "type": "string" }
+            },
+            "ownership_history": {
+              "type": "array",
+              "description": "Sequence of owners or notable ownership changes as described in the article. Return empty array if not mentioned.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "owner_name": {
+                    "type": "string",
+                    "description": "Name of the owner or owning entity."
+                  },
+                  "period": {
+                    "type": ["string", "null"],
+                    "description": "Period of ownership as stated (e.g., '1890-1930', 'from 1975'). Null if not specified."
+                  }
+                },
+                "required": ["owner_name", "period"],
+                "additionalProperties": false
+              }
+            },
+            "head_chef_history": {
+              "type": "array",
+              "description": "Sequence of head chefs as described in the article, in chronological order where possible. Return empty array if not mentioned.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "chef_name": {
+                    "type": "string",
+                    "description": "Full name of the head chef."
+                  },
+                  "year_start": {
+                    "type": ["integer", "null"],
+                    "description": "Year this chef took charge. Null if not specified."
+                  },
+                  "year_end": {
+                    "type": ["integer", "null"],
+                    "description": "Year this chef left or was replaced. Null if ongoing or not specified."
+                  }
+                },
+                "required": ["chef_name", "year_start", "year_end"],
+                "additionalProperties": false
+              }
+            },
+            "michelin_stars_current": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 3,
+              "description": "Number of Michelin stars held at the time of the article. Null if not mentioned."
+            },
+            "michelin_stars_peak": {
+              "type": ["integer", "null"],
+              "minimum": 0,
+              "maximum": 3,
+              "description": "Maximum number of Michelin stars ever held simultaneously. Null if not mentioned."
+            },
+            "michelin_star_events": {
+              "type": "array",
+              "description": "Key events in the restaurant's Michelin star history (gaining or losing stars). Return empty array if not mentioned.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "year": {
+                    "type": ["integer", "null"],
+                    "description": "Year of the Michelin event. Null if not specified."
+                  },
+                  "event_type": {
+                    "type": "string",
+                    "enum": [
+                      "First star awarded",
+                      "Star added",
+                      "Star lost",
+                      "Stars regained",
+                      "Other"
+                    ],
+                    "description": "Type of Michelin recognition event."
+                  },
+                  "stars_after_event": {
+                    "type": ["integer", "null"],
+                    "minimum": 0,
+                    "maximum": 3,
+                    "description": "Total Michelin stars held immediately after this event. Null if not specified."
+                  }
+                },
+                "required": ["year", "event_type", "stars_after_event"],
+                "additionalProperties": false
+              }
+            },
+            "worlds_50_best_peak_rank": {
+              "type": ["integer", "null"],
+              "minimum": 1,
+              "description": "Best rank ever achieved in the World's 50 Best Restaurants list. Null if not mentioned or not applicable."
+            },
+            "worlds_50_best_years_at_no1": {
+              "type": ["array", "null"],
+              "description": "Years in which the restaurant ranked No. 1 in the World's 50 Best Restaurants. Null if not mentioned or not applicable.",
+              "items": { "type": "integer" }
+            },
+            "other_distinctions": {
+              "type": "array",
+              "description": "Other notable awards, honours, or distinctions mentioned in the article beyond Michelin stars and World's 50 Best. Return empty array if none.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "distinction_name": {
+                    "type": "string",
+                    "description": "Name of the award or distinction."
+                  },
+                  "year": {
+                    "type": ["integer", "null"],
+                    "description": "Year awarded. Null if not specified."
+                  },
+                  "awarding_body": {
+                    "type": ["string", "null"],
+                    "description": "Organisation that conferred the distinction. Null if not mentioned."
+                  }
+                },
+                "required": ["distinction_name", "year", "awarding_body"],
+                "additionalProperties": false
+              }
+            },
+            "signature_dishes": {
+              "type": ["array", "null"],
+              "description": "Named signature or iconic dishes associated with this restaurant, as mentioned in the article. Null if none mentioned.",
+              "items": { "type": "string" }
+            },
+            "seating_capacity": {
+              "type": ["integer", "null"],
+              "description": "Number of covers or seats if mentioned in the article. Null if not provided."
+            },
+            "parent_group_or_brand": {
+              "type": ["string", "null"],
+              "description": "Name of the restaurant group, chain, or brand this establishment belongs to. Null if independent or not mentioned."
+            },
+            "predecessor_establishment": {
+              "type": ["string", "null"],
+              "description": "Name of a predecessor establishment on the same site or in the same lineage, if mentioned. Null if none."
+            },
+            "successor_establishment": {
+              "type": ["string", "null"],
+              "description": "Name of a successor establishment or project if the restaurant closed and was replaced or transformed, if mentioned. Null if none."
+            },
+            "associated_chef_names": {
+              "type": ["array", "null"],
+              "description": "Full names of all chefs associated with this restaurant as mentioned in the article (head chefs, founders with culinary roles, guest chefs). Used to construct the chef enrichment cascade. Null if no named chefs are mentioned.",
+              "items": { "type": "string" }
+            },
+            "brief_description": {
+              "type": ["string", "null"],
+              "description": "A concise 2-4 sentence factual summary of the restaurant's identity and historical significance, drawn directly from the article. Null if insufficient information is provided."
+            },
+            "extraction_audit": {
+              "type": "object",
+              "description": "Extraction quality metadata for auditability.",
+              "properties": {
+                "confidence_overall": {
+                  "type": ["number", "null"],
+                  "minimum": 0,
+                  "maximum": 1,
+                  "description": "Overall confidence in the extraction (0.0 = no confidence, 1.0 = complete confidence). Consider article length, structured infobox presence, and clarity of information. Use null if confidence cannot be assessed."
+                },
+                "ambiguity_notes": {
+                  "type": "array",
+                  "description": "Brief notes on ambiguous, conflicting, or uncertain fields (e.g., 'founding date disputed in article', 'two different star counts cited'). Return empty array if no significant ambiguities.",
+                  "items": { "type": "string" }
+                }
+              },
+              "required": ["confidence_overall", "ambiguity_notes"],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "establishment_name",
+            "also_known_as",
+            "location",
+            "founding_year",
+            "closure_year",
+            "is_currently_active",
+            "cuisine_types",
+            "culinary_movements",
+            "founders",
+            "ownership_history",
+            "head_chef_history",
+            "michelin_stars_current",
+            "michelin_stars_peak",
+            "michelin_star_events",
+            "worlds_50_best_peak_rank",
+            "worlds_50_best_years_at_no1",
+            "other_distinctions",
+            "signature_dishes",
+            "seating_capacity",
+            "parent_group_or_brand",
+            "predecessor_establishment",
+            "successor_establishment",
+            "associated_chef_names",
+            "brief_description",
+            "extraction_audit"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}
