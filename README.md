@@ -84,7 +84,7 @@ Context resolved separately for extraction and line-range-readjustment tasks.
 
 ### Multi-Provider LLM Support
 
-- **OpenAI**: GPT-5.2, GPT-5.1, GPT-5, GPT-4.1, GPT-4o, o3, o4-mini and variants
+- **OpenAI**: GPT-5.4, GPT-5.3, GPT-5.2, GPT-5.1, GPT-5, GPT-4.1, GPT-4o, o3, o4-mini and variants
 - **Anthropic**: Claude Opus 4.6/4.5, Sonnet 4.6/4.5, Haiku 4.5, 4.1, 4, 3.5
 - **Google**: Gemini 3 Pro, Gemini 3 Flash Preview, Gemini 2.5 Pro/Flash, Gemini 2.0/1.5
 - **OpenRouter**: 100+ models through unified API
@@ -123,6 +123,8 @@ ChronoMiner supports multiple LLM providers through LangChain. Provider is autom
 
 | Model Family | Models | Type | Notes |
 |--------------|--------|------|-------|
+| GPT-5.4 | gpt-5.4, gpt-5.4-pro | Reasoning | 1.05M context; frontier reasoning |
+| GPT-5.3 | gpt-5.3-chat-latest, gpt-5.3-codex | Mixed | 128k–400k context; chat (standard) and codex (reasoning) |
 | GPT-5.2 | gpt-5.2 | Reasoning | 400k context; reasoning.effort (none–xhigh) |
 | GPT-5.1 | gpt-5.1, gpt-5.1-instant, gpt-5.1-thinking | Reasoning | 400k context; adaptive thinking |
 | GPT-5 | gpt-5, gpt-5-mini, gpt-5-nano | Reasoning | 400k context |
@@ -185,7 +187,7 @@ Environment variable: `OPENROUTER_API_KEY`
 
 Automatic capability detection and parameter adjustment:
 
-- **Reasoning Models** (GPT-5.2/5.1/5, o-series, Gemini 2.5+/3, Claude 4.x, DeepSeek R1): Temperature/top_p disabled; reasoning effort configurable
+- **Reasoning Models** (GPT-5.4/5.3/5.2/5.1/5, o-series, Gemini 2.5+/3, Claude 4.x, DeepSeek R1): Temperature/top_p disabled; reasoning effort configurable
 - **Standard Models** (GPT-4.1, GPT-4o, Gemini 2.0, Llama, Mistral): Full sampler control
 - **Structured Outputs**: Supported where the underlying model/provider supports schema-constrained output (capability-guarded)
 - **Batch Processing**: OpenAI (50% savings), Anthropic, Google (provider-specific pricing)

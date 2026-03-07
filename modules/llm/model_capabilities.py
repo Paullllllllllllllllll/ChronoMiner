@@ -38,7 +38,7 @@ class Capabilities:
     Registry of model capabilities to gate API payload features.
     
     Supports multiple providers:
-    - OpenAI (GPT-4o, GPT-4.1, o1, o3, GPT-5)
+    - OpenAI (GPT-4o, GPT-4.1, o1, o3, GPT-5, GPT-5.3, GPT-5.4)
     - Anthropic (Claude 3.5 Sonnet, Claude 3 Opus, etc.)
     - Google (Gemini 2.0 Flash, Gemini 1.5 Pro, etc.)
     - OpenRouter (unified access to multiple providers)
@@ -207,6 +207,24 @@ _OPENROUTER_BASE: dict = dict(
 # ---------------------------------------------------------------------------
 
 _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
+    # --- OpenAI GPT-5.4 family ---
+    (("gpt-5.4-pro",), "gpt-5.4-pro", _OPENAI_REASONING_BASE, dict(
+        supports_chat_completions=False, max_context_tokens=1050000,
+        supports_structured_outputs=False,
+    )),
+    (("gpt-5.4",), "gpt-5.4", _OPENAI_REASONING_BASE, dict(
+        supports_chat_completions=False, max_context_tokens=1050000,
+    )),
+    # --- OpenAI GPT-5.3 family ---
+    (("gpt-5.3-chat",), "gpt-5.3-chat", _OPENAI_STANDARD_BASE, dict(
+        max_context_tokens=128000,
+    )),
+    (("gpt-5.3-codex",), "gpt-5.3-codex", _OPENAI_REASONING_BASE, dict(
+        supports_chat_completions=False, max_context_tokens=400000,
+    )),
+    (("gpt-5.3",), "gpt-5.3", _OPENAI_REASONING_BASE, dict(
+        supports_chat_completions=False, max_context_tokens=400000,
+    )),
     # --- OpenAI GPT-5.2 family ---
     (("gpt-5.2",), "gpt-5.2", _OPENAI_REASONING_BASE, dict(
         supports_chat_completions=False, max_context_tokens=400000,

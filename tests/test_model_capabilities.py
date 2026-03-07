@@ -19,6 +19,10 @@ class TestDetectProvider:
         assert detect_provider("gpt-4.1") == "openai"
         assert detect_provider("gpt-5") == "openai"
         assert detect_provider("gpt-5.1") == "openai"
+        assert detect_provider("gpt-5.3-chat-latest") == "openai"
+        assert detect_provider("gpt-5.3-codex") == "openai"
+        assert detect_provider("gpt-5.4") == "openai"
+        assert detect_provider("gpt-5.4-pro") == "openai"
     
     @pytest.mark.unit
     def test_detect_openai_reasoning_models(self):
@@ -106,10 +110,58 @@ class TestDetectCapabilities:
         assert caps.max_context_tokens == 400000
     
     @pytest.mark.unit
+    def test_gpt54_capabilities(self):
+        """Test GPT-5.4 capabilities."""
+        caps = detect_capabilities("gpt-5.4")
+
+        assert caps.family == "gpt-5.4"
+        assert caps.provider == "openai"
+        assert caps.is_reasoning_model is True
+        assert caps.supports_reasoning_effort is True
+        assert caps.supports_sampler_controls is False
+        assert caps.supports_structured_outputs is True
+        assert caps.max_context_tokens == 1050000
+
+    @pytest.mark.unit
+    def test_gpt54_pro_capabilities(self):
+        """Test GPT-5.4-pro capabilities (no structured outputs)."""
+        caps = detect_capabilities("gpt-5.4-pro")
+
+        assert caps.family == "gpt-5.4-pro"
+        assert caps.provider == "openai"
+        assert caps.is_reasoning_model is True
+        assert caps.supports_structured_outputs is False
+        assert caps.max_context_tokens == 1050000
+
+    @pytest.mark.unit
+    def test_gpt53_chat_capabilities(self):
+        """Test GPT-5.3-chat-latest is a standard (non-reasoning) model."""
+        caps = detect_capabilities("gpt-5.3-chat-latest")
+
+        assert caps.family == "gpt-5.3-chat"
+        assert caps.provider == "openai"
+        assert caps.is_reasoning_model is False
+        assert caps.supports_sampler_controls is True
+        assert caps.supports_structured_outputs is True
+        assert caps.max_context_tokens == 128000
+
+    @pytest.mark.unit
+    def test_gpt53_codex_capabilities(self):
+        """Test GPT-5.3-codex is a reasoning model with 400K context."""
+        caps = detect_capabilities("gpt-5.3-codex")
+
+        assert caps.family == "gpt-5.3-codex"
+        assert caps.provider == "openai"
+        assert caps.is_reasoning_model is True
+        assert caps.supports_reasoning_effort is True
+        assert caps.supports_sampler_controls is False
+        assert caps.max_context_tokens == 400000
+
+    @pytest.mark.unit
     def test_gpt51_capabilities(self):
         """Test GPT-5.1 capabilities."""
         caps = detect_capabilities("gpt-5.1")
-        
+
         assert caps.family == "gpt-5.1"
         assert caps.is_reasoning_model is True
         assert caps.supports_reasoning_effort is True

@@ -33,7 +33,9 @@ transcription_model:
   # Examples by provider:
   #
   # OpenAI:
-  #   - GPT-5.1: gpt-5.1, gpt-5.1-mini, gpt-5.1-nano (newest, adaptive thinking)
+  #   - GPT-5.4: gpt-5.4, gpt-5.4-pro (1M context, frontier reasoning)
+  #   - GPT-5.3: gpt-5.3-chat-latest, gpt-5.3-codex
+  #   - GPT-5.1: gpt-5.1, gpt-5.1-mini, gpt-5.1-nano (adaptive thinking)
   #   - GPT-5: gpt-5, gpt-5-mini, gpt-5-nano
   #   - o-series: o4-mini, o3, o3-pro, o3-mini, o1, o1-pro, o1-mini
   #   - GPT-4.1: gpt-4.1, gpt-4.1-mini, gpt-4.1-nano (1M context)
@@ -78,12 +80,12 @@ transcription_model:
   #   - medium: Balanced reasoning depth (recommended)
   #   - high: Maximum reasoning depth, slower but more thorough
   reasoning:
-    effort: low
+    effort: high
 
   # Text output controls (OpenAI GPT-5 only).
   # Verbosity: low | medium | high
   text:
-    verbosity: high
+    verbosity: medium
 
   # -------------------------------------------------------------------------
   # Sampler Controls

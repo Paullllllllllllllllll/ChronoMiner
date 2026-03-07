@@ -16,9 +16,15 @@ logger = setup_logger(__name__)
 
 # Model pricing per million tokens (input, cached_input, output)
 # Note: Use 0.0 for cached_input when not available
-# Pricing last updated: December 2024
+# Pricing last updated: March 2026
 MODEL_PRICING = {
     # ============== OpenAI Models ==============
+    # GPT-5.4 family
+    "gpt-5.4": (2.50, 0.25, 15.00),
+    "gpt-5.4-pro": (30.00, 0.0, 180.00),
+    # GPT-5.3 family
+    "gpt-5.3-chat-latest": (1.75, 0.175, 14.00),
+    "gpt-5.3-codex": (1.75, 0.175, 14.00),
     # GPT-5 family
     "gpt-5": (1.25, 0.125, 10.00),
     "gpt-5-mini": (0.25, 0.025, 2.00),

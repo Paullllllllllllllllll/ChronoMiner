@@ -244,6 +244,47 @@ class TestCalculateCost:
         cost = calculate_cost(0, 0, 0, "gpt-4o")
         assert cost == 0.0
 
+    def test_gpt54_cost(self):
+        # gpt-5.4: (2.50, 0.25, 15.00) per million
+        cost = calculate_cost(
+            prompt_tokens=1_000_000,
+            cached_tokens=0,
+            completion_tokens=1_000_000,
+            model="gpt-5.4",
+        )
+        assert cost == pytest.approx(2.50 + 15.00, abs=0.001)
+
+    def test_gpt54_pro_cost(self):
+        # gpt-5.4-pro: (30.00, 0.0, 180.00) per million
+        cost = calculate_cost(
+            prompt_tokens=1_000_000,
+            cached_tokens=0,
+            completion_tokens=1_000_000,
+            model="gpt-5.4-pro",
+        )
+        assert cost == pytest.approx(30.00 + 180.00, abs=0.001)
+
+    def test_gpt53_chat_cost(self):
+        # gpt-5.3-chat-latest: (1.75, 0.175, 14.00) per million
+        cost = calculate_cost(
+            prompt_tokens=1_000_000,
+            cached_tokens=500_000,
+            completion_tokens=1_000_000,
+            model="gpt-5.3-chat-latest",
+        )
+        expected = (500_000 * 1.75 / 1e6) + (500_000 * 0.175 / 1e6) + (1_000_000 * 14.00 / 1e6)
+        assert cost == pytest.approx(expected, abs=0.001)
+
+    def test_gpt53_codex_cost(self):
+        # gpt-5.3-codex: (1.75, 0.175, 14.00) per million
+        cost = calculate_cost(
+            prompt_tokens=1_000_000,
+            cached_tokens=0,
+            completion_tokens=1_000_000,
+            model="gpt-5.3-codex",
+        )
+        assert cost == pytest.approx(1.75 + 14.00, abs=0.001)
+
 
 # ---------------------------------------------------------------------------
 # analyze_jsonl_file

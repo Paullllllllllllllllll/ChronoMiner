@@ -17,7 +17,7 @@ ChronoMiner v3.0 introduces a major architectural evolution with **multi-provide
 ChronoMiner now supports four major LLM providers through a unified LangChain-based abstraction:
 
 **Supported Providers:**
-- **OpenAI** - GPT-4o, GPT-4.1, o1, o3, o4-mini, GPT-5, GPT-5.1
+- **OpenAI** - GPT-4o, GPT-4.1, o1, o3, o4-mini, GPT-5, GPT-5.1, GPT-5.3, GPT-5.4
 - **Anthropic** - Claude 3.5 Sonnet, Claude 4 Opus, Claude 4.5
 - **Google Gemini** - Gemini 2.0 Flash, Gemini 2.5, Gemini 3 Pro
 - **OpenRouter** - Unified access to 100+ models
@@ -43,7 +43,7 @@ transcription_model:
 A new capability detection system automatically handles model-specific features and limitations:
 
 **Capability Guarding:**
-- Automatic parameter filtering for reasoning models (o1, o3, GPT-5)
+- Automatic parameter filtering for reasoning models (o1, o3, GPT-5, GPT-5.3, GPT-5.4)
 - Disables unsupported parameters (temperature, top_p) for thinking models
 - Structured output validation per provider
 - Context window validation
@@ -58,6 +58,8 @@ A new capability detection system automatically handles model-specific features 
 #### OpenAI Models Added
 | Model | Context | Features |
 |-------|---------|----------|
+| `gpt-5.4`, `gpt-5.4-pro` | 1.05M | Frontier reasoning, largest OpenAI context |
+| `gpt-5.3-chat-latest`, `gpt-5.3-codex` | 128K–400K | Chat (standard) and codex (reasoning) |
 | `gpt-5.1`, `gpt-5.1-instant`, `gpt-5.1-thinking` | 256K | Adaptive thinking, Responses API |
 | `gpt-5`, `gpt-5-mini`, `gpt-5-nano` | 256K | Reasoning models |
 | `o4-mini` | 200K | Tool-use optimized reasoning |
