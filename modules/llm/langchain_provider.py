@@ -296,7 +296,7 @@ class ProviderConfig:
         # Default to "openai" for backward compatibility (canonical returns "unknown")
         if provider == "unknown":
             return "openai"
-        return provider  # type: ignore
+        return provider
     
     @staticmethod
     def _get_api_key(provider: ProviderType) -> Optional[str]:

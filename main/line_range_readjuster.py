@@ -40,7 +40,7 @@ from modules.core.workflow_utils import (
     load_schema_manager,
     validate_schema_paths,
 )
-from modules.cli.mode_detector import should_use_interactive_mode
+from modules.cli.mode_detector import detect_execution_mode
 
 logger = setup_logger(__name__)
 
@@ -263,7 +263,7 @@ async def main_async() -> None:
     default_context_window = int(chunking_config.get("line_range_context_window", 6) or 6)
     
     # Determine execution mode
-    is_interactive = should_use_interactive_mode(config_loader)
+    is_interactive = detect_execution_mode(config_loader)
     
     if is_interactive:
         # ============================================================

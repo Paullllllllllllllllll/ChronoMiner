@@ -41,7 +41,7 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, *, interactive: bool) -> None
         return logger
 
     monkeypatch.setattr(ef, "setup_logger", _setup_logger)
-    monkeypatch.setattr(ef, "should_use_interactive_mode", lambda _cfg: interactive)
+    monkeypatch.setattr(ef, "detect_execution_mode", lambda _cfg: interactive)
     monkeypatch.setattr(
         ef,
         "load_core_resources",

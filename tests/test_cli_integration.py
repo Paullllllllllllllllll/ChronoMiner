@@ -162,18 +162,18 @@ class TestProcessTextFilesCLI:
 
         monkeypatch.setattr(sys, "argv", ["script", "--input", "file.txt"])
 
-        is_interactive, has_cli_args = detect_execution_mode(config_loader)
-        assert has_cli_args is True
+        is_interactive = detect_execution_mode(config_loader)
         assert is_interactive is False
 
     def test_mode_detector_interactive_mode(self, config_loader, monkeypatch):
-        """Test mode detector identifies interactive mode when no args."""
+        """Test mode detector respects config when no args."""
         from modules.cli.mode_detector import detect_execution_mode
 
         monkeypatch.setattr(sys, "argv", ["script"])
 
-        is_interactive, has_cli_args = detect_execution_mode(config_loader)
-        assert has_cli_args is False
+        # Config fixture has interactive_mode: False
+        is_interactive = detect_execution_mode(config_loader)
+        assert is_interactive is False
 
 
 @pytest.mark.integration

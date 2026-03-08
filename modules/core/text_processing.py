@@ -521,15 +521,6 @@ class DocumentConverter(BaseConverter):
     def _brazilian_header(entry: dict) -> str:
         return f"{entry.get('surname', '')}, {entry.get('first_name', '')} - {entry.get('profession', '')}"
 
-    @staticmethod
-    def _format_officials(entry: dict) -> str:
-        officials = entry.get("officials", [])
-        if officials:
-            return "; ".join(
-                f"{o.get('position', '')}: {o.get('signature', '')}" for o in officials
-            )
-        return ""
-
     def _convert_brazilianoccupationrecords_to_docx(self, entries: List[Any], document: Document) -> None:
         for entry in entries:
             document.add_heading(self._brazilian_header(entry), level=1)
@@ -673,10 +664,7 @@ class DocumentConverter(BaseConverter):
     # --- Culinary Schemas DOCX Converters ---
     def _convert_culinary_persons_to_docx(self, entries: List[Any], document: Document) -> None:
         """Converts culinary persons entries to DOCX format."""
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         for entry in entries:
             name = entry.get("canonical_name_original", "Unknown")
             document.add_heading(name, level=1)
@@ -693,11 +681,8 @@ class DocumentConverter(BaseConverter):
             if roles:
                 document.add_paragraph(f"Roles: {', '.join(roles)}")
             
-            period = entry.get("period", {})
-            if period:
-                period_str = f"{period.get('start_year', 'Unknown')} - {period.get('end_year', 'Unknown')}"
-                if period.get("notation"):
-                    period_str += f" ({period['notation']})"
+            period_str = self._format_period(entry)
+            if period_str:
                 document.add_paragraph(f"Period: {period_str}")
             
             associated_works = entry.get("associated_works", [])
@@ -725,10 +710,7 @@ class DocumentConverter(BaseConverter):
 
     def _convert_culinary_places_to_docx(self, entries: List[Any], document: Document) -> None:
         """Converts culinary places entries to DOCX format."""
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         for entry in entries:
             name = entry.get("name_original", "Unknown")
             document.add_heading(name, level=1)
@@ -744,11 +726,8 @@ class DocumentConverter(BaseConverter):
             if country:
                 document.add_paragraph(f"Country: {country}")
             
-            period = entry.get("period", {})
-            if period:
-                period_str = f"{period.get('start_year', 'Unknown')} - {period.get('end_year', 'Unknown')}"
-                if period.get("notation"):
-                    period_str += f" ({period['notation']})"
+            period_str = self._format_period(entry)
+            if period_str:
                 document.add_paragraph(f"Period: {period_str}")
             
             roles = entry.get("roles_in_culinary_ecosystem", [])
@@ -776,10 +755,7 @@ class DocumentConverter(BaseConverter):
 
     def _convert_culinary_works_to_docx(self, entries: List[Any], document: Document) -> None:
         """Converts culinary works entries to DOCX format."""
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         for entry in entries:
             title = entry.get("title_original", "Unknown")
             document.add_heading(title, level=1)
@@ -837,10 +813,7 @@ class DocumentConverter(BaseConverter):
 
     def _convert_historical_recipes_to_docx(self, entries: List[Any], document: Document) -> None:
         """Converts historical recipes entries to DOCX format."""
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         for entry in entries:
             title = entry.get("title_original", "Unknown Recipe")
             document.add_heading(title, level=1)
@@ -854,29 +827,17 @@ class DocumentConverter(BaseConverter):
                 document.add_paragraph(f"Type: {recipe_type}")
             
             # Yield, prep time, cook time
-            yields = entry.get("yield", [])
-            if yields and len(yields) > 0:
-                y = yields[0]
-                val = y.get("value_modern_english")
-                unit = y.get("unit_modern_english")
-                if val and unit:
-                    document.add_paragraph(f"Yield: {val} {unit}")
-            
-            prep_times = entry.get("preparation_time", [])
-            if prep_times and len(prep_times) > 0:
-                t = prep_times[0]
-                val = t.get("value_modern_english")
-                unit = t.get("unit_modern_english")
-                if val and unit:
-                    document.add_paragraph(f"Preparation Time: {val} {unit}")
-            
-            cook_times = entry.get("cooking_time", [])
-            if cook_times and len(cook_times) > 0:
-                t = cook_times[0]
-                val = t.get("value_modern_english")
-                unit = t.get("unit_modern_english")
-                if val and unit:
-                    document.add_paragraph(f"Cooking Time: {val} {unit}")
+            yield_str = self._extract_first_measurement(entry, "yield")
+            if yield_str:
+                document.add_paragraph(f"Yield: {yield_str}")
+            prep_str = self._extract_first_measurement(
+                entry, "preparation_time")
+            if prep_str:
+                document.add_paragraph(f"Preparation Time: {prep_str}")
+            cook_str = self._extract_first_measurement(
+                entry, "cooking_time")
+            if cook_str:
+                document.add_paragraph(f"Cooking Time: {cook_str}")
             
             # Ingredients
             ingredients = entry.get("ingredients", [])
@@ -917,10 +878,7 @@ class DocumentConverter(BaseConverter):
     # --- Culinary Schemas TXT Converters ---
     def _convert_culinary_persons_to_txt(self, entries: List[Any]) -> List[str]:
         """Converts culinary persons entries to TXT format."""
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         lines: List[str] = []
         for entry in entries:
             name = entry.get("canonical_name_original", "Unknown")
@@ -938,11 +896,8 @@ class DocumentConverter(BaseConverter):
             if roles:
                 lines.append(f"Roles: {', '.join(roles)}")
             
-            period = entry.get("period", {})
-            if period:
-                period_str = f"{period.get('start_year', 'Unknown')} - {period.get('end_year', 'Unknown')}"
-                if period.get("notation"):
-                    period_str += f" ({period['notation']})"
+            period_str = self._format_period(entry)
+            if period_str:
                 lines.append(f"Period: {period_str}")
             
             associated_works = entry.get("associated_works", [])
@@ -970,10 +925,7 @@ class DocumentConverter(BaseConverter):
 
     def _convert_culinary_places_to_txt(self, entries: List[Any]) -> List[str]:
         """Converts culinary places entries to TXT format."""
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         lines: List[str] = []
         for entry in entries:
             name = entry.get("name_original", "Unknown")
@@ -990,11 +942,8 @@ class DocumentConverter(BaseConverter):
             if country:
                 lines.append(f"Country: {country}")
             
-            period = entry.get("period", {})
-            if period:
-                period_str = f"{period.get('start_year', 'Unknown')} - {period.get('end_year', 'Unknown')}"
-                if period.get("notation"):
-                    period_str += f" ({period['notation']})"
+            period_str = self._format_period(entry)
+            if period_str:
                 lines.append(f"Period: {period_str}")
             
             roles = entry.get("roles_in_culinary_ecosystem", [])
@@ -1018,10 +967,7 @@ class DocumentConverter(BaseConverter):
 
     def _convert_culinary_works_to_txt(self, entries: List[Any]) -> List[str]:
         """Converts culinary works entries to TXT format."""
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         lines: List[str] = []
         for entry in entries:
             title = entry.get("title_original", "Unknown")
@@ -1078,10 +1024,7 @@ class DocumentConverter(BaseConverter):
 
     def _convert_historical_recipes_to_txt(self, entries: List[Any]) -> List[str]:
         """Converts historical recipes entries to TXT format."""
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         lines: List[str] = []
         for entry in entries:
             title = entry.get("title_original", "Unknown Recipe")
@@ -1096,29 +1039,17 @@ class DocumentConverter(BaseConverter):
                 lines.append(f"Type: {recipe_type}")
             
             # Yield, prep time, cook time
-            yields = entry.get("yield", [])
-            if yields and len(yields) > 0:
-                y = yields[0]
-                val = y.get("value_modern_english")
-                unit = y.get("unit_modern_english")
-                if val and unit:
-                    lines.append(f"Yield: {val} {unit}")
-            
-            prep_times = entry.get("preparation_time", [])
-            if prep_times and len(prep_times) > 0:
-                t = prep_times[0]
-                val = t.get("value_modern_english")
-                unit = t.get("unit_modern_english")
-                if val and unit:
-                    lines.append(f"Preparation Time: {val} {unit}")
-            
-            cook_times = entry.get("cooking_time", [])
-            if cook_times and len(cook_times) > 0:
-                t = cook_times[0]
-                val = t.get("value_modern_english")
-                unit = t.get("unit_modern_english")
-                if val and unit:
-                    lines.append(f"Cooking Time: {val} {unit}")
+            yield_str = self._extract_first_measurement(entry, "yield")
+            if yield_str:
+                lines.append(f"Yield: {yield_str}")
+            prep_str = self._extract_first_measurement(
+                entry, "preparation_time")
+            if prep_str:
+                lines.append(f"Preparation Time: {prep_str}")
+            cook_str = self._extract_first_measurement(
+                entry, "cooking_time")
+            if cook_str:
+                lines.append(f"Cooking Time: {cook_str}")
             
             # Ingredients
             ingredients = entry.get("ingredients", [])
@@ -1158,6 +1089,45 @@ class DocumentConverter(BaseConverter):
 
     # --- Michelin Guide Converters ---
 
+    # (key, full_label, compact_label)
+    _MICHELIN_AWARD_KEYS = [
+        ("bib_gourmand", "Bib Gourmand", "Bib Gourmand"),
+        ("green_star", "Green Star", "Green Star"),
+        ("michelin_plate", "Michelin Plate", "Michelin Plate"),
+        ("new_in_guide", "New in Guide", "New"),
+    ]
+
+    _MICHELIN_AMENITY_KEYS = [
+        ("terrace", "Terrace", "Terrace"),
+        ("garden_or_park", "Garden", "Garden"),
+        ("great_view", "Great View", "View"),
+        ("parking", "Parking", "Parking"),
+        ("wheelchair_access", "Wheelchair Access", "Wheelchair"),
+        ("notable_wine_list", "Notable Wine List", "Wine List"),
+    ]
+
+    @classmethod
+    def _build_michelin_awards(
+        cls, awards: dict, compact: bool = False
+    ) -> List[str]:
+        """Return list of award display strings from an awards dict."""
+        return [
+            (short if compact else full)
+            for key, full, short in cls._MICHELIN_AWARD_KEYS
+            if awards.get(key)
+        ]
+
+    @classmethod
+    def _build_michelin_amenities(
+        cls, amenities: dict, compact: bool = False
+    ) -> List[str]:
+        """Return list of amenity display strings from an amenities dict."""
+        return [
+            (short if compact else full)
+            for key, full, short in cls._MICHELIN_AMENITY_KEYS
+            if amenities.get(key)
+        ]
+
     def _convert_michelin_guides_to_docx(self, entries: List[Any], document: Document) -> None:
         """Convert Michelin Guide entries to DOCX format."""
         for entry in entries:
@@ -1190,15 +1160,7 @@ class DocumentConverter(BaseConverter):
                 document.add_paragraph(f"Address: {' '.join(address_parts)}")
             
             # Awards section
-            award_items = []
-            if awards.get("bib_gourmand"):
-                award_items.append("Bib Gourmand")
-            if awards.get("green_star"):
-                award_items.append("Green Star")
-            if awards.get("michelin_plate"):
-                award_items.append("Michelin Plate")
-            if awards.get("new_in_guide"):
-                award_items.append("New in Guide")
+            award_items = self._build_michelin_awards(awards)
             if award_items:
                 document.add_paragraph(f"Awards: {', '.join(award_items)}")
             
@@ -1252,19 +1214,7 @@ class DocumentConverter(BaseConverter):
             
             # Amenities
             amenities = entry.get("amenities", {}) or {}
-            amenity_list = []
-            if amenities.get("terrace"):
-                amenity_list.append("Terrace")
-            if amenities.get("garden_or_park"):
-                amenity_list.append("Garden")
-            if amenities.get("great_view"):
-                amenity_list.append("Great View")
-            if amenities.get("parking"):
-                amenity_list.append("Parking")
-            if amenities.get("wheelchair_access"):
-                amenity_list.append("Wheelchair Access")
-            if amenities.get("notable_wine_list"):
-                amenity_list.append("Notable Wine List")
+            amenity_list = self._build_michelin_amenities(amenities)
             if amenity_list:
                 document.add_paragraph(f"Amenities: {', '.join(amenity_list)}")
             
@@ -1307,15 +1257,8 @@ class DocumentConverter(BaseConverter):
                 lines.append(f"Address: {addr_str}")
             
             # Awards
-            award_items = []
-            if awards.get("bib_gourmand"):
-                award_items.append("Bib Gourmand")
-            if awards.get("green_star"):
-                award_items.append("Green Star")
-            if awards.get("michelin_plate"):
-                award_items.append("Michelin Plate")
-            if awards.get("new_in_guide"):
-                award_items.append("New")
+            award_items = self._build_michelin_awards(
+                awards, compact=True)
             if award_items:
                 lines.append(f"Awards: {', '.join(award_items)}")
             
@@ -1367,19 +1310,8 @@ class DocumentConverter(BaseConverter):
             
             # Amenities
             amenities = entry.get("amenities", {}) or {}
-            amenity_list = []
-            if amenities.get("terrace"):
-                amenity_list.append("Terrace")
-            if amenities.get("garden_or_park"):
-                amenity_list.append("Garden")
-            if amenities.get("great_view"):
-                amenity_list.append("View")
-            if amenities.get("parking"):
-                amenity_list.append("Parking")
-            if amenities.get("wheelchair_access"):
-                amenity_list.append("Wheelchair")
-            if amenities.get("notable_wine_list"):
-                amenity_list.append("Wine List")
+            amenity_list = self._build_michelin_amenities(
+                amenities, compact=True)
             if amenity_list:
                 lines.append(f"Amenities: {', '.join(amenity_list)}")
             

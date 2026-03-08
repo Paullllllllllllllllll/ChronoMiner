@@ -13,7 +13,7 @@ from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Any, Awaitable, Callable, Dict, Optional
 
-from modules.cli.mode_detector import should_use_interactive_mode
+from modules.cli.mode_detector import detect_execution_mode
 from modules.config.loader import ConfigLoader
 from modules.core.logger import setup_logger
 from modules.core.workflow_utils import load_core_resources
@@ -174,7 +174,7 @@ class DualModeScript(_DualModeBase, ABC):
         """
         try:
             self.initialize_config()
-            self.is_interactive = should_use_interactive_mode(self.config_loader)
+            self.is_interactive = detect_execution_mode(self.config_loader)
 
             if self.is_interactive:
                 self.initialize_ui()
@@ -263,7 +263,7 @@ class AsyncDualModeScript(_DualModeBase, ABC):
         """
         try:
             self.initialize_config()
-            self.is_interactive = should_use_interactive_mode(self.config_loader)
+            self.is_interactive = detect_execution_mode(self.config_loader)
 
             if self.is_interactive:
                 self.initialize_ui()

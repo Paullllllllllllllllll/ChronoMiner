@@ -146,6 +146,76 @@ class BaseConverter(ABC):
                 formatted.append(base)
         return formatted if as_list else "; ".join(formatted)
     
+    @staticmethod
+    def _normalize_entries(entries: List[Any]) -> List[Any]:
+        """Guard against a None list and filter out null elements."""
+        if entries is None:
+            return []
+        return [e for e in entries if e is not None]
+
+    @staticmethod
+    def _extract_period(
+        entry: Dict[str, Any], key: str = "period"
+    ) -> tuple:
+        """Return (start_year, end_year, notation) from a nested period dict."""
+        period = entry.get(key, {})
+        if not isinstance(period, dict):
+            return None, None, None
+        return (
+            period.get("start_year"),
+            period.get("end_year"),
+            period.get("notation"),
+        )
+
+    @staticmethod
+    def _format_period(entry: Dict[str, Any], key: str = "period") -> str:
+        """Format a period dict as 'start - end (notation)' string."""
+        period = entry.get(key, {})
+        if not isinstance(period, dict) or not period:
+            return ""
+        period_str = (
+            f"{period.get('start_year', 'Unknown')} - "
+            f"{period.get('end_year', 'Unknown')}"
+        )
+        if period.get("notation"):
+            period_str += f" ({period['notation']})"
+        return period_str
+
+    @staticmethod
+    def _format_links(links: Any) -> str:
+        """Format a links list as semicolon-separated descriptor strings."""
+        if not isinstance(links, list):
+            return ""
+        return "; ".join(
+            f"{l.get('entity_type', '')}: {l.get('entity_label', '')} - {l.get('relationship', '')}"
+            for l in links
+            if isinstance(l, dict)
+        )
+
+    @staticmethod
+    def _format_officials(entry: dict) -> str:
+        """Format officials list as 'position: signature' strings."""
+        officials = entry.get("officials", [])
+        if not officials:
+            return ""
+        return "; ".join(
+            f"{o.get('position', '')}: {o.get('signature', '')}"
+            for o in officials
+        )
+
+    @staticmethod
+    def _extract_first_measurement(entry: Dict[str, Any], key: str) -> str:
+        """Extract first value/unit pair from a measurement list field."""
+        items = entry.get(key, [])
+        if items and isinstance(items, list) and len(items) > 0:
+            item = items[0]
+            if isinstance(item, dict):
+                val = item.get("value_modern_english")
+                unit = item.get("unit_modern_english")
+                if val and unit:
+                    return f"{val} {unit}"
+        return ""
+
     def get_converter(
         self,
         converters: Dict[str, Callable]

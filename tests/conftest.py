@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 import pytest
 import yaml
@@ -124,3 +125,38 @@ def _reset_token_tracker(tmp_path: Path):
     token_tracker._TOKEN_TRACKER_FILE = tmp_path / "token_state.json"
     yield
     token_tracker._tracker_instance = None
+
+
+class MockUI:
+    """Lightweight UI mock for tests that need a UserInterface stand-in."""
+
+    def __init__(
+        self,
+        logger: logging.Logger | None = None,
+        use_colors: bool = True,
+    ) -> None:
+        self.logger = logger or logging.getLogger("test.mock_ui")
+        self.use_colors = use_colors
+        self.banner_shown = False
+        self.messages: List[tuple[str, str]] = []
+
+    def display_banner(self) -> None:
+        self.banner_shown = True
+
+    def print_info(self, msg: str) -> None:
+        self.messages.append(("info", msg))
+
+    def print_warning(self, msg: str) -> None:
+        self.messages.append(("warning", msg))
+
+    def print_error(self, msg: str) -> None:
+        self.messages.append(("error", msg))
+
+    def print_success(self, msg: str) -> None:
+        self.messages.append(("success", msg))
+
+
+@pytest.fixture()
+def mock_ui() -> MockUI:
+    """Provide a minimal UI mock for tests."""
+    return MockUI()

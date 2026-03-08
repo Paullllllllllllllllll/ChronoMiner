@@ -361,6 +361,68 @@ class UserInterface:
             allow_back=allow_back,
         )
 
+    # Suffixes for auxiliary files excluded from text-mode discovery
+    _AUXILIARY_SUFFIXES = ("_context.txt", "_line_ranges.txt")
+
+    def _discover_files(
+        self,
+        directory: Path,
+        valid_exts: set,
+        is_visual: bool,
+    ) -> List[Path]:
+        """Discover all processable files in a directory.
+
+        Text mode uses a targeted ``*.txt`` glob with auxiliary-suffix
+        exclusion.  Visual mode uses a broad ``*`` glob filtered by
+        extension set membership.
+        """
+        if is_visual:
+            return sorted(
+                f for f in directory.rglob("*")
+                if f.is_file() and f.suffix.lower() in valid_exts
+            )
+        return sorted(
+            f for f in directory.rglob("*.txt")
+            if not any(
+                f.name.endswith(s) for s in self._AUXILIARY_SUFFIXES
+            )
+        )
+
+    def _display_output_location(
+        self,
+        paths_config: Optional[Dict[str, Any]],
+        schema_name: Optional[str],
+        dir_label: str = "Output directory",
+        formats_label: str = "Output formats",
+    ) -> None:
+        """Display output location and format information."""
+        if not paths_config:
+            self.console_print("    - Output: Configured output directory")
+            return
+        use_input_as_output = paths_config.get(
+            "general", {}).get("input_paths_is_output_path", False)
+        if use_input_as_output:
+            self.console_print(
+                f"    - {dir_label}: Same directory as input files")
+            return
+        if not schema_name:
+            return
+        schemas_paths = paths_config.get("schemas_paths", {})
+        schema_config = schemas_paths.get(schema_name, {})
+        output_dir = schema_config.get(
+            "output", "configured output directory")
+        self.console_print(f"    - {dir_label}: {output_dir}")
+        output_formats = []
+        if schema_config.get("csv_output", False):
+            output_formats.append("CSV")
+        if schema_config.get("docx_output", False):
+            output_formats.append("DOCX")
+        if schema_config.get("txt_output", False):
+            output_formats.append("TXT")
+        if output_formats:
+            self.console_print(
+                f"    - {formats_label}: {', '.join(output_formats)}")
+
     def select_input_source(self, raw_text_dir: Path, allow_back: bool = False, input_type: Optional[str] = None) -> Optional[List[Path]]:
         """
         Guide user through selecting input source (single file, multiple files, or folder).
@@ -485,18 +547,8 @@ class UserInterface:
                 continue
 
             elif mode == "multi":
-                if is_visual:
-                    all_files = sorted(
-                        f for f in raw_text_dir.rglob("*")
-                        if f.is_file() and f.suffix.lower() in valid_exts
-                    )
-                else:
-                    # Get all .txt files, filtering out auxiliary files
-                    all_files = sorted(
-                        f for f in raw_text_dir.rglob("*.txt")
-                        if not (f.name.endswith("_line_ranges.txt") or
-                                f.name.endswith("_context.txt"))
-                    )
+                all_files = self._discover_files(
+                    raw_text_dir, valid_exts, is_visual)
 
                 if not all_files:
                     self.print_error(f"No {file_label} found in {raw_text_dir}")
@@ -564,16 +616,8 @@ class UserInterface:
                 continue
 
             elif mode == "folder":
-                if is_visual:
-                    files = sorted(
-                        f for f in raw_text_dir.rglob("*")
-                        if f.is_file() and f.suffix.lower() in valid_exts
-                    )
-                else:
-                    # Get all .txt files, filtering out auxiliary files
-                    files = [f for f in raw_text_dir.rglob("*.txt")
-                             if not (f.name.endswith("_line_ranges.txt") or
-                                     f.name.endswith("_context.txt"))]
+                files = self._discover_files(
+                    raw_text_dir, valid_exts, is_visual)
 
                 if not files:
                     self.print_error(f"No {file_label} found in {raw_text_dir}")
@@ -708,31 +752,7 @@ class UserInterface:
         # === Output Location ===
         self.console_print(f"\n  {self.BOLD}Output Location:{self.RESET}")
         self.console_print(self.HORIZONTAL_LINE)
-        
-        if paths_config:
-            use_input_as_output = paths_config.get('general', {}).get('input_paths_is_output_path', False)
-            if use_input_as_output:
-                self.console_print("    - Output: Same directory as input files")
-            else:
-                # Show configured output directory for this schema
-                schemas_paths = paths_config.get('schemas_paths', {})
-                schema_config = schemas_paths.get(selected_schema_name, {})
-                output_dir = schema_config.get('output', 'configured output directory')
-                self.console_print(f"    - Output directory: {output_dir}")
-                
-                # Show output formats if configured
-                output_formats = []
-                if schema_config.get('csv_output', False):
-                    output_formats.append('CSV')
-                if schema_config.get('docx_output', False):
-                    output_formats.append('DOCX')
-                if schema_config.get('txt_output', False):
-                    output_formats.append('TXT')
-                if output_formats:
-                    self.console_print(f"    - Output formats: {', '.join(output_formats)}")
-        else:
-            self.console_print("    - Output: Configured output directory")
-        
+        self._display_output_location(paths_config, selected_schema_name)
         self.console_print(self.HORIZONTAL_LINE)
 
         # === Selected Files ===
@@ -857,28 +877,9 @@ class UserInterface:
         # === Output Location ===
         self.console_print(f"\n  {self.BOLD}Output:{self.RESET}")
         self.console_print(self.HORIZONTAL_LINE)
-        
-        if paths_config:
-            use_input_as_output = paths_config.get('general', {}).get('input_paths_is_output_path', False)
-            if use_input_as_output:
-                self.console_print("    - Location: Same directory as input files")
-            elif selected_schema_name:
-                schemas_paths = paths_config.get('schemas_paths', {})
-                schema_config = schemas_paths.get(selected_schema_name, {})
-                output_dir = schema_config.get('output', 'configured output directory')
-                self.console_print(f"    - Location: {output_dir}")
-                
-                # Show output formats
-                output_formats = []
-                if schema_config.get('csv_output', False):
-                    output_formats.append('CSV')
-                if schema_config.get('docx_output', False):
-                    output_formats.append('DOCX')
-                if schema_config.get('txt_output', False):
-                    output_formats.append('TXT')
-                if output_formats:
-                    self.console_print(f"    - Formats: {', '.join(output_formats)}")
-        
+        self._display_output_location(
+            paths_config, selected_schema_name,
+            dir_label="Location", formats_label="Formats")
         self.console_print(self.HORIZONTAL_LINE)
         
         # === Next Steps (for batch mode) ===

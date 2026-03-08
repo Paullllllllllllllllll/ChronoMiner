@@ -25,10 +25,12 @@ class ConfigLoader:
       - chunking_and_context.yaml
       - concurrency_config.yaml
     """
-    REQUIRED_PATHS_KEYS = ['general', 'schemas_paths']
-    REQUIRED_MODEL_CONFIG = ['transcription_model']
-    REQUIRED_CONCURRENCY = ['concurrency']
-    REQUIRED_CHUNKING_AND_CONTEXT_KEYS = ['chunking']
+    _REQUIRED_KEYS: Dict[str, list] = {
+        "paths_config.yaml": ["general", "schemas_paths"],
+        "model_config.yaml": ["transcription_model"],
+        "concurrency_config.yaml": ["concurrency"],
+        "chunking_and_context.yaml": ["chunking"],
+    }
 
     def __init__(self, config_dir: Optional[Path] = None) -> None:
         self.config_dir = config_dir or Path(__file__).resolve().parents[2] / 'config'
@@ -48,12 +50,23 @@ class ConfigLoader:
         self.chunking_and_context_config = self._load_yaml(
             'chunking_and_context.yaml')
 
-        self._validate_paths_config(self.paths_config)
+        configs = {
+            "paths_config.yaml": self.paths_config,
+            "model_config.yaml": self.model_config,
+            "concurrency_config.yaml": self.concurrency_config,
+            "chunking_and_context.yaml": self.chunking_and_context_config,
+        }
+        for filename, config in configs.items():
+            self._validate_config(
+                config, self._REQUIRED_KEYS[filename], filename)
+
         self._resolve_paths(self.paths_config)
-        self._validate_model_config(self.model_config)
-        self._validate_concurrency_config(self.concurrency_config)
-        self._validate_chunking_and_context_config(
-            self.chunking_and_context_config)
+
+        # Validate image support if expects_image_inputs is set
+        tm = self.model_config.get("transcription_model", {})
+        if tm.get("expects_image_inputs", False):
+            self._ensure_image_support(tm.get("name", ""), True)
+
         logger.info("All configurations loaded and validated successfully.")
 
     def _load_yaml(self, filename: str) -> Dict[str, Any]:
@@ -99,10 +112,6 @@ class ConfigLoader:
                 logger.error(error_msg)
                 raise KeyError(error_msg)
 
-    def _validate_paths_config(self, config: Dict[str, Any]) -> None:
-        """Validate the paths configuration for required keys."""
-        self._validate_config(config, self.REQUIRED_PATHS_KEYS, 'paths_config.yaml')
-
     def _resolve_paths(self, config: Dict[str, Any]) -> None:
         """
         Resolve relative paths in configuration if enabled.
@@ -142,18 +151,6 @@ class ConfigLoader:
                     logger.info(
                         f"Resolved {schema}.{path_key} to: {schema_config[path_key]}")
 
-    def _validate_model_config(self, config: Dict[str, Any]) -> None:
-        """Validate the model configuration for required keys and image support."""
-        self._validate_config(config, self.REQUIRED_MODEL_CONFIG, 'model_config.yaml')
-        
-        # Validate image input support if expects_image_inputs is set
-        tm = config.get("transcription_model", {})
-        expects_images = tm.get("expects_image_inputs", False)
-        
-        if expects_images:
-            model_name = tm.get("name", "")
-            self._ensure_image_support(model_name, expects_images)
-
     def _ensure_image_support(self, model_name: str, expects_images: bool) -> None:
         """
         Validate that the model supports image inputs if expects_image_inputs is True.
@@ -183,14 +180,6 @@ class ConfigLoader:
         except ImportError:
             # If model_capabilities is not available, skip validation
             logger.warning("Could not validate image support - model_capabilities not available")
-
-    def _validate_concurrency_config(self, config: Dict[str, Any]) -> None:
-        """Validate the concurrency configuration for required keys."""
-        self._validate_config(config, self.REQUIRED_CONCURRENCY, 'concurrency_config.yaml')
-
-    def _validate_chunking_and_context_config(self, config: Dict[str, Any]) -> None:
-        """Validate the chunking and context configuration for required keys."""
-        self._validate_config(config, self.REQUIRED_CHUNKING_AND_CONTEXT_KEYS, 'chunking_and_context.yaml')
 
     def get_paths_config(self) -> Dict[str, Any]:
         """
