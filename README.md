@@ -910,8 +910,8 @@ ChronoMiner/
 │   └── legacy/               # Previous per-schema context files (reference)
 ├── developer_messages/        # Developer message templates
 ├── prompts/                   # System prompt templates
-│   ├── structured_output_prompt.txt
-│   └── visual_extraction_prompt.txt
+│   ├── text_extraction_prompt.txt
+│   └── image_extraction_prompt.txt
 ├── LICENSE
 ├── README.md
 └── requirements.txt

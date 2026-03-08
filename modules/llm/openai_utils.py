@@ -395,7 +395,7 @@ async def process_text_chunk_with_provider(
     # Create extractor and process
     async with open_extractor(
         api_key=api_key,
-        prompt_path=Path("prompts/structured_output_prompt.txt"),
+        prompt_path=Path("prompts/text_extraction_prompt.txt"),
         model=model,
         provider=detected_provider,
     ) as extractor:

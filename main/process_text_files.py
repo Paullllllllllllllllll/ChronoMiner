@@ -45,7 +45,7 @@ from modules.core.workflow_utils import (
 )
 from modules.llm.prompt_utils import load_prompt_template
 from modules.core.chunking_service import ChunkSlice
-from modules.operations.extraction.file_processor import FileProcessorRefactored as FileProcessor
+from modules.operations.extraction.file_processor import FileProcessor
 from modules.operations.line_ranges.readjuster import LineRangeReadjuster
 from modules.ui.core import UserInterface
 
@@ -297,9 +297,9 @@ async def _run_interactive_mode(
 
             # Load appropriate prompt template
             prompt_path = (
-                Path("prompts/visual_extraction_prompt.txt")
+                Path("prompts/image_extraction_prompt.txt")
                 if state["is_visual"]
-                else Path("prompts/structured_output_prompt.txt")
+                else Path("prompts/text_extraction_prompt.txt")
             )
             try:
                 prompt_template = load_prompt_template(prompt_path)
@@ -667,9 +667,9 @@ async def _run_cli_mode(
 
     # Load prompt template (visual or text)
     if is_visual:
-        prompt_path = Path("prompts/visual_extraction_prompt.txt")
+        prompt_path = Path("prompts/image_extraction_prompt.txt")
     else:
-        prompt_path = Path("prompts/structured_output_prompt.txt")
+        prompt_path = Path("prompts/text_extraction_prompt.txt")
     try:
         prompt_template = load_prompt_template(prompt_path)
     except FileNotFoundError as exc:

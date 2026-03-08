@@ -90,7 +90,7 @@ directory contains image or PDF files.
 
 ### 4. New Prompt Template
 
-`prompts/visual_extraction_prompt.txt` provides a dedicated system prompt for visual
+`prompts/image_extraction_prompt.txt` provides a dedicated system prompt for visual
 extraction tasks, replacing the text-oriented default prompt when a visual input is detected.
 
 ### 5. Evaluation Framework Reorganization
@@ -152,7 +152,7 @@ populated. Existing text-only workflows are unaffected.
 | `modules/processing/pdf_utils.py` | New | PDF → per-page image rendering (PyMuPDF) |
 | `modules/llm/image_message_builder.py` | New | Multimodal LangChain message assembly |
 | `config/image_processing_config.yaml` | New | Per-provider detail/DPI defaults |
-| `prompts/visual_extraction_prompt.txt` | New | Visual extraction system prompt |
+| `prompts/image_extraction_prompt.txt` | New | Visual extraction system prompt |
 | `eval/prepare_ground_truth.py` | New (relocated) | Ground-truth preparation script |
 | `modules/cli/args_parser.py` | Updated | `--image-detail`, `--input-type`, `detect_input_type()` |
 | `modules/ui/core.py` | Updated | `ask_image_detail()` |

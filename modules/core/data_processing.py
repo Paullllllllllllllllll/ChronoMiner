@@ -369,15 +369,44 @@ class CSVConverter(BaseConverter):
             rows.append(row)
         return pd.DataFrame(rows)
 
+    @staticmethod
+    def _normalize_entries(entries: List[Any]) -> List[Any]:
+        """Guard against a None list and filter out null elements."""
+        if entries is None:
+            entries = []
+        return [e for e in entries if e is not None]
+
+    @staticmethod
+    def _extract_period(
+        entry: Dict[str, Any], key: str = "period"
+    ) -> tuple:
+        """Return (start_year, end_year, notation) from a nested period dict."""
+        period = entry.get(key, {})
+        if not isinstance(period, dict):
+            return None, None, None
+        return (
+            period.get("start_year"),
+            period.get("end_year"),
+            period.get("notation"),
+        )
+
+    @staticmethod
+    def _format_links(links: Any) -> str:
+        """Format a links list as 'entity_type: entity_label - relationship' strings."""
+        if not isinstance(links, list):
+            return ""
+        return "; ".join(
+            f"{l.get('entity_type', '')}: {l.get('entity_label', '')} - {l.get('relationship', '')}"
+            for l in links
+            if isinstance(l, dict)
+        )
+
     def _convert_culinary_persons_to_df(self, entries: List[Any]) -> pd.DataFrame:
         """
         Converts culinary persons entries to DataFrame according to schema v2.0.
         Handles nested arrays for name_variants, associated_places, works, sources, and links.
         """
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         rows = []
         for entry in entries:
             # Extract basic fields
@@ -386,33 +415,27 @@ class CSVConverter(BaseConverter):
             gender = entry.get("gender")
             roles = entry.get("roles", [])
             notes = entry.get("notes")
-            
-            # Extract period
-            period = entry.get("period", {})
-            period_start = period.get("start_year") if isinstance(period, dict) else None
-            period_end = period.get("end_year") if isinstance(period, dict) else None
-            period_notation = period.get("notation") if isinstance(period, dict) else None
-            
+
+            period_start, period_end, period_notation = self._extract_period(entry)
+
             # Extract and format arrays
             name_variants = entry.get("name_variants", [])
-            name_variants_str = "; ".join([f"{v.get('name_original', '')} ({v.get('name_modern_english', '')})" 
+            name_variants_str = "; ".join([f"{v.get('name_original', '')} ({v.get('name_modern_english', '')})"
                                            for v in name_variants if isinstance(v, dict)])
-            
+
             associated_places = entry.get("associated_places", [])
-            places_str = "; ".join([f"{p.get('place_original', '')} - {p.get('association_type', '')}" 
+            places_str = "; ".join([f"{p.get('place_original', '')} - {p.get('association_type', '')}"
                                     for p in associated_places if isinstance(p, dict)])
-            
+
             associated_works = entry.get("associated_works", [])
-            works_str = "; ".join([f"{w.get('title_original', '')} ({w.get('role', '')})" 
+            works_str = "; ".join([f"{w.get('title_original', '')} ({w.get('role', '')})"
                                    for w in associated_works if isinstance(w, dict)])
-            
+
             sources = entry.get("sources", [])
-            sources_str = "; ".join([f"{s.get('author', '')} - {s.get('title', '')} ({s.get('year', '')})" 
+            sources_str = "; ".join([f"{s.get('author', '')} - {s.get('title', '')} ({s.get('year', '')})"
                                      for s in sources if isinstance(s, dict)])
-            
-            links = entry.get("links", [])
-            links_str = "; ".join([f"{l.get('entity_type', '')}: {l.get('entity_label', '')} - {l.get('relationship', '')}" 
-                                   for l in links if isinstance(l, dict)])
+
+            links_str = self._format_links(entry.get("links", []))
             
             row = {
                 "canonical_name_original": canonical_orig,
@@ -439,10 +462,7 @@ class CSVConverter(BaseConverter):
         Converts culinary places entries to DataFrame according to schema v2.0.
         Handles nested arrays for roles, products, establishments, people, and links.
         """
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         rows = []
         for entry in entries:
             # Extract basic fields
@@ -451,30 +471,24 @@ class CSVConverter(BaseConverter):
             place_type = entry.get("place_type")
             country_modern = entry.get("country_modern")
             notes = entry.get("notes")
-            
-            # Extract period
-            period = entry.get("period", {})
-            period_start = period.get("start_year") if isinstance(period, dict) else None
-            period_end = period.get("end_year") if isinstance(period, dict) else None
-            period_notation = period.get("notation") if isinstance(period, dict) else None
-            
+
+            period_start, period_end, period_notation = self._extract_period(entry)
+
             # Extract and format arrays
             roles = entry.get("roles_in_culinary_ecosystem", [])
             roles_str = ", ".join(roles) if isinstance(roles, list) else ""
-            
+
             products = entry.get("associated_products", [])
             products_str = ", ".join(products) if isinstance(products, list) else ""
-            
+
             establishments = entry.get("notable_establishments", [])
             establishments_str = ", ".join(establishments) if isinstance(establishments, list) else ""
-            
+
             people = entry.get("associated_people", [])
-            people_str = "; ".join([f"{p.get('name_original', '')} - {p.get('association_type', '')}" 
+            people_str = "; ".join([f"{p.get('name_original', '')} - {p.get('association_type', '')}"
                                     for p in people if isinstance(p, dict)])
-            
-            links = entry.get("links", [])
-            links_str = "; ".join([f"{l.get('entity_type', '')}: {l.get('entity_label', '')} - {l.get('relationship', '')}" 
-                                   for l in links if isinstance(l, dict)])
+
+            links_str = self._format_links(entry.get("links", []))
             
             row = {
                 "name_original": name_orig,
@@ -501,10 +515,7 @@ class CSVConverter(BaseConverter):
         Converts culinary works entries to DataFrame according to schema v2.0.
         Handles nested arrays for culinary_focus, languages, contributors, edition_years, places, and links.
         """
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         rows = []
         for entry in entries:
             # Extract basic fields
@@ -514,36 +525,34 @@ class CSVConverter(BaseConverter):
             description = entry.get("description")
             genre = entry.get("genre")
             notes = entry.get("notes")
-            
+
             # Extract and format arrays
             culinary_focus = entry.get("culinary_focus", [])
             culinary_focus_str = ", ".join(culinary_focus) if isinstance(culinary_focus, list) else ""
-            
+
             languages = entry.get("languages", [])
             languages_str = ", ".join(languages) if isinstance(languages, list) else ""
-            
+
             contributors = entry.get("contributors", [])
-            contributors_str = "; ".join([f"{c.get('name_original', '')} ({c.get('role', '')})" 
+            contributors_str = "; ".join([f"{c.get('name_original', '')} ({c.get('role', '')})"
                                           for c in contributors if isinstance(c, dict)])
-            
+
             edition_years = entry.get("edition_years", [])
             edition_years_str = ", ".join([str(y) for y in edition_years if y is not None]) if isinstance(edition_years, list) else ""
-            
+
             pub_places = entry.get("publication_places", [])
-            pub_places_str = "; ".join([f"{p.get('name_original', '')} ({p.get('name_modern_english', '')})" 
+            pub_places_str = "; ".join([f"{p.get('name_original', '')} ({p.get('name_modern_english', '')})"
                                         for p in pub_places if isinstance(p, dict)])
-            
+
             assoc_places = entry.get("associated_places", [])
-            assoc_places_str = "; ".join([f"{p.get('name_original', '')} - {p.get('association_type', '')}" 
+            assoc_places_str = "; ".join([f"{p.get('name_original', '')} - {p.get('association_type', '')}"
                                           for p in assoc_places if isinstance(p, dict)])
-            
+
             assoc_persons = entry.get("associated_persons", [])
-            assoc_persons_str = "; ".join([f"{p.get('name_original', '')} - {p.get('association_type', '')}" 
+            assoc_persons_str = "; ".join([f"{p.get('name_original', '')} - {p.get('association_type', '')}"
                                            for p in assoc_persons if isinstance(p, dict)])
-            
-            links = entry.get("links", [])
-            links_str = "; ".join([f"{l.get('entity_type', '')}: {l.get('entity_label', '')} - {l.get('relationship', '')}" 
-                                   for l in links if isinstance(l, dict)])
+
+            links_str = self._format_links(entry.get("links", []))
             
             row = {
                 "title_original": title_orig,
@@ -571,10 +580,7 @@ class CSVConverter(BaseConverter):
         Converts historical recipes entries to DataFrame according to schema v2.2.
         Handles deeply nested structures for ingredients, cooking methods, utensils, and more.
         """
-        # Filter out None entries
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         rows = []
         for entry in entries:
             # Extract basic fields
@@ -680,15 +686,13 @@ class CSVConverter(BaseConverter):
         Converts Michelin Guide entries to DataFrame according to schema v1.1.
         Handles deeply nested structures for location, address, awards, cuisine, pricing, amenities, etc.
         """
-        if entries is None:
-            entries = []
-        entries = [entry for entry in entries if entry is not None]
+        entries = self._normalize_entries(entries)
         rows = []
-        
+
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
-            
+
             # Basic info
             establishment_name = entry.get("establishment_name")
             raw_entry_text = entry.get("raw_entry_text")

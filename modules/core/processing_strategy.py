@@ -149,9 +149,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
 
         is_visual = image_chunks is not None and len(image_chunks) > 0
         prompt_path = (
-            Path("prompts/visual_extraction_prompt.txt")
+            Path("prompts/image_extraction_prompt.txt")
             if is_visual
-            else Path("prompts/structured_output_prompt.txt")
+            else Path("prompts/text_extraction_prompt.txt")
         )
 
         file_mode = "a" if skip_indices else "w"

@@ -85,7 +85,7 @@ def _create_messaging_adapter(ui: Any = None) -> _MessagingAdapter:
     return _MessagingAdapter(ui)
 
 
-class FileProcessorRefactored:
+class FileProcessor:
     """
     Refactored file processor with modular architecture.
     Orchestrates text processing, chunking, and API interactions.
@@ -524,7 +524,7 @@ class FileProcessorRefactored:
             messenger.info(f"Using context from: {context_path.name}")
 
         # 6. Render system prompt using visual extraction prompt
-        visual_prompt_path = Path("prompts/visual_extraction_prompt.txt")
+        visual_prompt_path = Path("prompts/image_extraction_prompt.txt")
         try:
             visual_prompt_template = load_prompt_template(visual_prompt_path)
         except FileNotFoundError:

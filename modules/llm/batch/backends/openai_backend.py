@@ -20,42 +20,13 @@ from modules.llm.batch.backends.base import (
     BatchStatusInfo,
 )
 from modules.llm.model_capabilities import detect_capabilities
+from modules.llm.schema_utils import _build_structured_text_format
 
 logger = logging.getLogger(__name__)
 
 # Limits for OpenAI Batch API
 MAX_BATCH_REQUESTS = 50000
 MAX_BATCH_BYTES = 150 * 1024 * 1024  # 150 MB safety margin (limit is 200MB)
-
-
-def _build_structured_text_format(
-    schema_obj: Dict[str, Any],
-    default_name: str = "ExtractionSchema",
-    default_strict: bool = True,
-) -> Optional[Dict[str, Any]]:
-    """Build the Responses API `text.format` object for Structured Outputs."""
-    if not isinstance(schema_obj, dict) or not schema_obj:
-        return None
-    
-    # Unwrap schema: accept either wrapper dict or bare JSON Schema
-    if "schema" in schema_obj and isinstance(schema_obj["schema"], dict):
-        name = schema_obj.get("name") or default_name
-        schema = schema_obj.get("schema") or {}
-        strict = bool(schema_obj.get("strict", default_strict))
-    else:
-        name = default_name
-        schema = schema_obj
-        strict = default_strict
-    
-    if not schema:
-        return None
-    
-    return {
-        "type": "json_schema",
-        "name": str(name),
-        "schema": schema,
-        "strict": strict,
-    }
 
 
 def _build_responses_body(

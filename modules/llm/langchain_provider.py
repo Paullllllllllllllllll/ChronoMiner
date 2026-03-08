@@ -17,7 +17,7 @@ import json
 import logging
 import os
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Sequence, Type, Union
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel
 
@@ -351,7 +351,7 @@ class LangChainLLM:
             self._capabilities = detect_capabilities(self.config.model)
         return self._capabilities
     
-    def _get_disabled_params(self) -> dict[str, Any] | None:
+    def _get_disabled_params(self) -> Optional[Dict[str, Any]]:
         """
         Get parameters to disable based on model capabilities.
         

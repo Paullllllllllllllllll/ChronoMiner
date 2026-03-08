@@ -411,7 +411,7 @@ class TestCM7EmptyOutputPath:
     @pytest.mark.unit
     def test_empty_output_path_raises(self, tmp_path):
         """ValueError raised when output path is empty string."""
-        from modules.operations.extraction.file_processor import FileProcessorRefactored
+        from modules.operations.extraction.file_processor import FileProcessor
 
         paths_config = {
             "general": {
@@ -419,7 +419,7 @@ class TestCM7EmptyOutputPath:
                 "retain_temporary_jsonl": True,
             }
         }
-        fp = FileProcessorRefactored(
+        fp = FileProcessor(
             paths_config=paths_config,
             model_config={"transcription_model": {"name": "gpt-4o"}},
             chunking_config={"chunking": {}},
@@ -435,7 +435,7 @@ class TestCM7EmptyOutputPath:
     def test_cwd_output_path_raises(self, tmp_path, monkeypatch):
         """ValueError raised when output path resolves to CWD."""
         import os
-        from modules.operations.extraction.file_processor import FileProcessorRefactored
+        from modules.operations.extraction.file_processor import FileProcessor
 
         monkeypatch.chdir(tmp_path)
 
@@ -445,7 +445,7 @@ class TestCM7EmptyOutputPath:
                 "retain_temporary_jsonl": True,
             }
         }
-        fp = FileProcessorRefactored(
+        fp = FileProcessor(
             paths_config=paths_config,
             model_config={"transcription_model": {"name": "gpt-4o"}},
             chunking_config={"chunking": {}},
@@ -460,7 +460,7 @@ class TestCM7EmptyOutputPath:
     @pytest.mark.unit
     def test_valid_output_path_does_not_raise(self, tmp_path):
         """No exception when output path is a valid non-CWD directory."""
-        from modules.operations.extraction.file_processor import FileProcessorRefactored
+        from modules.operations.extraction.file_processor import FileProcessor
 
         output_dir = tmp_path / "output"
 
@@ -470,7 +470,7 @@ class TestCM7EmptyOutputPath:
                 "retain_temporary_jsonl": True,
             }
         }
-        fp = FileProcessorRefactored(
+        fp = FileProcessor(
             paths_config=paths_config,
             model_config={"transcription_model": {"name": "gpt-4o"}},
             chunking_config={"chunking": {}},
@@ -524,7 +524,7 @@ class TestCM8ContextSelection:
     @pytest.mark.asyncio
     async def test_process_file_context_none_mode(self, tmp_path):
         """process_file skips context resolution when context_override mode=none."""
-        from modules.operations.extraction.file_processor import FileProcessorRefactored
+        from modules.operations.extraction.file_processor import FileProcessor
 
         paths_config = {
             "general": {
@@ -532,7 +532,7 @@ class TestCM8ContextSelection:
                 "retain_temporary_jsonl": True,
             }
         }
-        fp = FileProcessorRefactored(
+        fp = FileProcessor(
             paths_config=paths_config,
             model_config={"transcription_model": {"name": "gpt-4o"}},
             chunking_config={"chunking": {"default_tokens_per_chunk": 500}},

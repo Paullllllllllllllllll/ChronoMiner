@@ -43,7 +43,7 @@ class DummyHandler:
 
 @pytest.mark.integration
 def test_file_processor_writes_output_json_offline(tmp_path: Path, config_loader, monkeypatch):
-    from modules.operations.extraction.file_processor import FileProcessorRefactored
+    from modules.operations.extraction.file_processor import FileProcessor
 
     monkeypatch.setattr(
         "modules.operations.extraction.file_processor.create_processing_strategy",
@@ -61,7 +61,7 @@ def test_file_processor_writes_output_json_offline(tmp_path: Path, config_loader
     schemas_paths = config_loader.get_schemas_paths()
     schema_paths = schemas_paths["TestSchema"]
 
-    fp = FileProcessorRefactored(
+    fp = FileProcessor(
         paths_config=paths_config,
         model_config=config_loader.get_model_config(),
         chunking_config={"chunking": {"default_tokens_per_chunk": 10}},
@@ -97,8 +97,8 @@ def test_file_processor_writes_output_json_offline(tmp_path: Path, config_loader
 
 
 def _run_with_slice(tmp_path, config_loader, monkeypatch, chunk_slice):
-    """Helper to run FileProcessorRefactored with a given chunk_slice."""
-    from modules.operations.extraction.file_processor import FileProcessorRefactored
+    """Helper to run FileProcessor with a given chunk_slice."""
+    from modules.operations.extraction.file_processor import FileProcessor
 
     monkeypatch.setattr(
         "modules.operations.extraction.file_processor.create_processing_strategy",
@@ -117,7 +117,7 @@ def _run_with_slice(tmp_path, config_loader, monkeypatch, chunk_slice):
     schemas_paths = config_loader.get_schemas_paths()
     schema_paths = schemas_paths["TestSchema"]
 
-    fp = FileProcessorRefactored(
+    fp = FileProcessor(
         paths_config=paths_config,
         model_config=config_loader.get_model_config(),
         chunking_config={"chunking": {"default_tokens_per_chunk": 10}},
