@@ -1,6 +1,6 @@
 {
   "name": "MichelinGuides",
-  "schema_version": "2.0",
+  "schema_version": "3.0",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -9,6 +9,10 @@
       "contains_no_content_of_requested_type": {
         "type": "boolean",
         "description": "Set to true if the input text contains no bibliographic entries. Otherwise, set to false."
+      },
+      "active_city_or_town": {
+        "type": ["string", "null"],
+        "description": "The last bold all-caps town or city heading visible on this page, including headings that appear above the first entry. Set to the heading text exactly as printed (e.g. 'MÜNCHEN', 'PARIS'). Null only if no town heading appears anywhere on the page (e.g. a pure map page)."
       },
       "entries": {
         "type": "array",
@@ -146,7 +150,7 @@
                     "integer",
                     "null"
                   ],
-                  "description": "Number of MICHELIN Stars (0-3).",
+                  "description": "Number of MICHELIN Stars (0-3). Set to 0 if the entry is complete and no star glyph (★ or *) appears next to the establishment name. Set to null ONLY when entry_is_fragment is true and the star/award line was not visible on this page.",
                   "minimum": 0,
                   "maximum": 3
                 },
@@ -155,42 +159,42 @@
                     "boolean",
                     "null"
                   ],
-                  "description": "Bib Gourmand award indicator."
+                  "description": "Bib Gourmand award indicator. Set to false if the symbol is absent on a complete entry. Set to null only when entry_is_fragment is true and the award section was not visible on this page."
                 },
                 "michelin_plate": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "MICHELIN Plate recognition indicator."
+                  "description": "MICHELIN Plate recognition indicator. Set to false if the symbol is absent on a complete entry. Set to null only when entry_is_fragment is true and the award section was not visible on this page."
                 },
                 "green_star": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Green Star for sustainable gastronomy."
+                  "description": "Green Star for sustainable gastronomy. Set to false if the symbol is absent on a complete entry. Set to null only when entry_is_fragment is true and the award section was not visible on this page."
                 },
                 "new_in_guide": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Indicates if establishment is newly listed in this edition."
+                  "description": "Indicates if establishment is newly listed in this edition. Set to false if the symbol is absent on a complete entry. Set to null only when entry_is_fragment is true and the award section was not visible on this page."
                 },
                 "pleasant_marker": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Agréable/pleasant/angenehm mark if explicit."
+                  "description": "Agréable/pleasant/angenehm mark if explicit. Set to false if the symbol is absent on a complete entry. Set to null only when entry_is_fragment is true and the award section was not visible on this page."
                 },
                 "comfort_covers": {
                   "type": [
                     "integer",
                     "null"
                   ],
-                  "description": "Historic comfort class for restaurants (1-5 'covers').",
+                  "description": "Historic comfort class for restaurants (1-5 'covers'). Set to null if the comfort-covers symbol is absent or if entry_is_fragment is true and the symbol row was not visible.",
                   "minimum": 1,
                   "maximum": 5
                 },
@@ -438,140 +442,140 @@
                     "boolean",
                     "null"
                   ],
-                  "description": "Wheelchair accessibility available."
+                  "description": "Wheelchair accessibility available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "air_conditioning": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Air conditioning available."
+                  "description": "Air conditioning available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "non_smoking": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Non-smoking establishment or area."
+                  "description": "Non-smoking establishment or area. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "dogs_allowed": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Dogs permitted. If 'no dogs' symbol appears, set to false and set no_dogs to true."
+                  "description": "Dogs permitted. If 'no dogs' symbol appears, set to false and set no_dogs to true. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "no_dogs": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Dogs explicitly not permitted."
+                  "description": "Dogs explicitly not permitted. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "terrace": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Terrace seating available."
+                  "description": "Terrace seating available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "garden_or_park": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Garden or park area on premises."
+                  "description": "Garden or park area on premises. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "outside_dining": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Outdoor dining available."
+                  "description": "Outdoor dining available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "great_view": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Establishment has a notable or scenic view."
+                  "description": "Establishment has a notable or scenic view. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "peaceful": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Quiet or peaceful setting."
+                  "description": "Quiet or peaceful setting. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "notable_wine_list": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Exceptional or extensive wine selection."
+                  "description": "Exceptional or extensive wine selection. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "notable_cocktail_list": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Exceptional or extensive cocktail selection."
+                  "description": "Exceptional or extensive cocktail selection. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "private_dining_room": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Private dining room available."
+                  "description": "Private dining room available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "conference_room": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Conference or meeting room facilities."
+                  "description": "Conference or meeting room facilities. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "parking": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Parking available on-site or nearby."
+                  "description": "Parking available on-site or nearby. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "garage": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Garage parking available."
+                  "description": "Garage parking available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "valet_parking": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Valet parking service available."
+                  "description": "Valet parking service available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "mooring_or_landing": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Boat mooring or landing facilities."
+                  "description": "Boat mooring or landing facilities. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "open_for_breakfast": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Breakfast service available."
+                  "description": "Breakfast service available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "has_rooms": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Restaurant/inn with letting rooms (symbol or text)."
+                  "description": "Restaurant/inn with letting rooms (symbol or text). False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 }
               },
               "required": [
@@ -722,6 +726,10 @@
                 "null"
               ],
               "description": "Verbatim inspector short note (2-3 lines of prose per entry, introduced 2003). Null for all pre-2003 editions and for entries that carry no prose note."
+            },
+            "entry_is_fragment": {
+              "type": "boolean",
+              "description": "True if this entry is incomplete because it continues from the previous page or continues onto the next page — i.e., the full entry text was not visible on a single page. False for all complete, self-contained entries."
             }
           },
           "required": [
@@ -738,7 +746,8 @@
             "rooms",
             "payments",
             "inspector_note",
-            "raw_entry_text"
+            "raw_entry_text",
+            "entry_is_fragment"
           ],
           "additionalProperties": false
         }
@@ -746,6 +755,7 @@
     },
     "required": [
       "contains_no_content_of_requested_type",
+      "active_city_or_town",
       "entries"
     ],
     "additionalProperties": false
