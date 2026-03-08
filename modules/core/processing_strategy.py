@@ -27,6 +27,7 @@ from typing import Any, Dict, List, Optional
 from modules.llm.batching import build_batch_files, submit_batch
 from modules.llm.openai_utils import open_extractor, process_text_chunk, process_image_chunk
 from modules.llm.langchain_provider import ProviderConfig
+from modules.llm.model_capabilities import detect_capabilities
 from modules.llm.batch import (
     BatchRequest,
     BatchHandle,
@@ -147,6 +148,10 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         if provider == "anthropic":
             concurrency_limit = 1
 
+        # Detect prompt caching capability for Anthropic models
+        caps = detect_capabilities(model_name)
+        enable_cache = caps.supports_prompt_caching
+
         is_visual = image_chunks is not None and len(image_chunks) > 0
         prompt_path = (
             Path("prompts/image_extraction_prompt.txt")
@@ -183,13 +188,15 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                         system_message=dev_message,
                                         json_schema=schema,
                                         image_detail=img_data.get("detail"),
+                                        enable_cache_control=enable_cache,
                                     )
                                 else:
                                     result = await process_text_chunk(
                                         text_chunk=chunk,
                                         extractor=extractor,
                                         system_message=dev_message,
-                                        json_schema=schema
+                                        json_schema=schema,
+                                        enable_cache_control=enable_cache,
                                     )
 
                                 # Write to temp file

@@ -14,8 +14,8 @@ OUTPUT REQUIREMENTS
 - Return only valid JSON matching the schema below—no commentary, code fences, or additional fields
 - Use only information present in the input text—do not invent or infer unsupported data
 
-Context:
-{{CONTEXT}}
-
 The JSON schema:
 {{TRANSCRIPTION_SCHEMA}}
+
+Context:
+{{CONTEXT}}

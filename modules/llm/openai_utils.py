@@ -208,7 +208,8 @@ async def process_text_chunk(
     text_chunk: str,
     extractor: LLMExtractor,
     system_message: Optional[str] = None,
-    json_schema: Optional[dict] = None
+    json_schema: Optional[dict] = None,
+    enable_cache_control: bool = False,
 ) -> Dict[str, Any]:
     """
     Process a text chunk using LangChain with the configured provider.
@@ -223,19 +224,26 @@ async def process_text_chunk(
     """
     if system_message is None:
         system_message = ""
-    
+
+    # Build system content block with optional cache_control for Anthropic
+    system_content: list[Dict[str, Any]] = [
+        {"type": "input_text", "text": system_message}
+    ]
+    if enable_cache_control:
+        system_content[-1]["cache_control"] = {"type": "ephemeral"}
+
     # Build messages in LangChain format
     messages = [
         {
             "role": "system",
-            "content": [{"type": "input_text", "text": system_message}],
+            "content": system_content,
         },
         {
             "role": "user",
             "content": [{"type": "input_text", "text": text_chunk}],
         },
     ]
-    
+
     # Build structured output schema if provided
     # NOTE: LangChain's with_structured_output() handles schema validation internally
     structured_schema = None
@@ -277,6 +285,7 @@ async def process_image_chunk(
     json_schema: Optional[dict] = None,
     image_detail: Optional[str] = None,
     user_instruction: str = "Extract structured data from this image according to the schema.",
+    enable_cache_control: bool = False,
 ) -> Dict[str, Any]:
     """
     Process a single image using LangChain with the configured provider.
@@ -308,11 +317,18 @@ async def process_image_chunk(
         supports_image_detail=extractor.caps.supports_image_detail,
     )
 
+    # Build system content block with optional cache_control for Anthropic
+    system_content: list[Dict[str, Any]] = [
+        {"type": "input_text", "text": system_message}
+    ]
+    if enable_cache_control:
+        system_content[-1]["cache_control"] = {"type": "ephemeral"}
+
     # Build multimodal messages
     messages = [
         {
             "role": "system",
-            "content": [{"type": "input_text", "text": system_message}],
+            "content": system_content,
         },
         {
             "role": "user",

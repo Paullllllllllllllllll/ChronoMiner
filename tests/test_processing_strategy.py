@@ -218,7 +218,7 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
     extractor = object()
     monkeypatch.setattr(ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(extractor))
 
-    async def _process_text_chunk(*, text_chunk: str, extractor: object, system_message: str, json_schema: Dict[str, Any]):
+    async def _process_text_chunk(*, text_chunk: str, extractor: object, system_message: str, json_schema: Dict[str, Any], **kwargs):
         assert extractor is extractor
         assert system_message == "dev"
         return {"ok": True, "usage": {"input_tokens": 2, "output_tokens": 3}, "text": text_chunk}
@@ -265,7 +265,7 @@ async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_ope
 
     monkeypatch.setattr(ps, "open_extractor", _open_extractor_stub)
 
-    async def _process_text_chunk(*, text_chunk: str, extractor: object, system_message: str, json_schema: Dict[str, Any]):
+    async def _process_text_chunk(*, text_chunk: str, extractor: object, system_message: str, json_schema: Dict[str, Any], **kwargs):
         return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}, "text": text_chunk}
 
     monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
@@ -313,7 +313,7 @@ async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(monk
 
     calls = {"n": 0}
 
-    async def _process_text_chunk(*, text_chunk: str, extractor: object, system_message: str, json_schema: Dict[str, Any]):
+    async def _process_text_chunk(*, text_chunk: str, extractor: object, system_message: str, json_schema: Dict[str, Any], **kwargs):
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("429 rate_limit")

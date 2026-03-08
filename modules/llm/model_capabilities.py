@@ -71,6 +71,9 @@ class Capabilities:
 
     supports_sampler_controls: bool = True
     
+    # Prompt caching support (explicit cache_control breakpoints)
+    supports_prompt_caching: bool = False
+
     # Extended context window support (for Claude, Gemini)
     max_context_tokens: int = 128000
 
@@ -166,6 +169,7 @@ _ANTHROPIC_BASE: dict = dict(
     supports_structured_outputs=True,
     supports_function_calling=True,
     supports_sampler_controls=True,
+    supports_prompt_caching=True,
     max_context_tokens=200000,
 )
 
@@ -378,6 +382,7 @@ def detect_capabilities(model_name: str) -> Capabilities:
             return _build_caps(model_name, "openrouter-claude", _OPENROUTER_BASE, dict(
                 is_reasoning_model=True,
                 supports_reasoning_effort=True,
+                supports_prompt_caching=True,
                 max_context_tokens=200000,
             ))
 

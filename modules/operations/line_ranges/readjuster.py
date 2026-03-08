@@ -25,6 +25,7 @@ from modules.core.resume import write_adjustment_marker
 from modules.core.text_utils import TextProcessor, load_line_ranges
 from modules.llm.openai_utils import open_extractor, process_text_chunk
 from modules.llm.langchain_provider import ProviderConfig, ProviderType
+from modules.llm.model_capabilities import detect_capabilities
 from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
 from modules.core.path_utils import ensure_path_safe
 
@@ -98,6 +99,7 @@ class LineRangeReadjuster:
         self.prompt_path = prompt_path or Path("prompts/semantic_boundary_prompt.txt")
         self.prompt_template = load_prompt_template(self.prompt_path)
         self.text_processor = TextProcessor()
+        self._enable_cache_control = detect_capabilities(model_name).supports_prompt_caching
         
         # Load matching configuration with defaults
         self.matching_config = matching_config or {}
@@ -578,6 +580,7 @@ class LineRangeReadjuster:
             extractor=extractor,
             system_message=system_prompt,
             json_schema=SEMANTIC_BOUNDARY_SCHEMA,
+            enable_cache_control=self._enable_cache_control,
         )
 
         raw_output = response_payload.get("output_text", "")

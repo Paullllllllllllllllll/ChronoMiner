@@ -94,10 +94,17 @@ class AnthropicBatchBackend(BatchBackend):
                 ]
 
             # Build params for Messages API
+            # Use structured system message with cache_control for prompt caching
             params: Dict[str, Any] = {
                 "model": model_name,
                 "max_tokens": max_tokens,
-                "system": system_prompt,
+                "system": [
+                    {
+                        "type": "text",
+                        "text": system_prompt,
+                        "cache_control": {"type": "ephemeral"},
+                    }
+                ],
                 "messages": [
                     {"role": "user", "content": user_content},
                 ],

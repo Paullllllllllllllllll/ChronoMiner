@@ -588,18 +588,31 @@ class LangChainLLM:
             role = msg.get("role", "user")
             content = msg.get("content", "")
             
-            # Handle content that might be a list (for multimodal)
+            # Handle content that might be a list (for multimodal or cache-annotated)
             if isinstance(content, list):
                 has_image = any(
                     isinstance(item, dict) and item.get("type") in ("image_url", "image")
                     for item in content
                 )
-                if has_image:
-                    # Multimodal: pass list content directly to HumanMessage
-                    # LangChain HumanMessage accepts list content for vision
-                    pass  # content remains as list
+                has_cache_control = any(
+                    isinstance(item, dict) and "cache_control" in item
+                    for item in content
+                )
+                if has_image or has_cache_control:
+                    # Preserve list structure for multimodal or cache-annotated blocks.
+                    # Convert input_text type to text type for Anthropic compatibility.
+                    if has_cache_control:
+                        content = [
+                            {
+                                **{k: v for k, v in item.items() if k != "type"},
+                                "type": "text",
+                            }
+                            if isinstance(item, dict) and item.get("type") == "input_text"
+                            else item
+                            for item in content
+                        ]
                 else:
-                    # Text-only: extract text content
+                    # Text-only without cache_control: extract text content
                     text_parts = []
                     for item in content:
                         if isinstance(item, dict) and item.get("type") == "input_text":
@@ -710,12 +723,47 @@ class LangChainLLM:
             if total_tokens <= 0 and (input_tokens > 0 or output_tokens > 0):
                 total_tokens = input_tokens + output_tokens
 
+            # Extract cache-specific token counts (Anthropic prompt caching)
+            cache_creation_tokens = 0
+            cache_read_tokens = 0
+            for usage in usage_candidates:
+                if isinstance(usage, dict):
+                    cache_creation_tokens = cache_creation_tokens or int(
+                        usage.get("cache_creation_input_tokens", 0) or 0
+                    )
+                    cache_read_tokens = cache_read_tokens or int(
+                        usage.get("cache_read_input_tokens", 0) or 0
+                    )
+                else:
+                    cache_creation_tokens = cache_creation_tokens or int(
+                        getattr(usage, "cache_creation_input_tokens", 0) or 0
+                    )
+                    cache_read_tokens = cache_read_tokens or int(
+                        getattr(usage, "cache_read_input_tokens", 0) or 0
+                    )
+
+            if cache_creation_tokens > 0 or cache_read_tokens > 0:
+                if cache_read_tokens > 0:
+                    logger.info(
+                        "[CACHE] Hit: %s tokens read from cache, %s written",
+                        f"{cache_read_tokens:,}",
+                        f"{cache_creation_tokens:,}",
+                    )
+                else:
+                    logger.info(
+                        "[CACHE] Miss: %s tokens written to cache",
+                        f"{cache_creation_tokens:,}",
+                    )
+
             if total_tokens > 0 or input_tokens > 0 or output_tokens > 0:
                 response_data["usage"] = {
                     "input_tokens": input_tokens,
                     "output_tokens": output_tokens,
                     "total_tokens": total_tokens,
                 }
+                if cache_creation_tokens > 0 or cache_read_tokens > 0:
+                    response_data["usage"]["cache_creation_input_tokens"] = cache_creation_tokens
+                    response_data["usage"]["cache_read_input_tokens"] = cache_read_tokens
 
                 # Report to token tracker
                 try:
