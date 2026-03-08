@@ -25,7 +25,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional
 
 from modules.llm.batching import build_batch_files, submit_batch
-from modules.llm.openai_utils import open_extractor, process_text_chunk
+from modules.llm.openai_utils import open_extractor, process_text_chunk, process_image_chunk
 from modules.llm.langchain_provider import ProviderConfig
 from modules.llm.batch import (
     BatchRequest,
@@ -52,6 +52,7 @@ class ProcessingStrategy(ABC):
         temp_jsonl_path: Path,
         console_print: Any,
         completed_chunk_indices: Optional[set] = None,
+        image_chunks: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """
         Process text chunks using the strategy.
@@ -65,6 +66,8 @@ class ProcessingStrategy(ABC):
         :param temp_jsonl_path: Temporary JSONL file path
         :param console_print: Console print function
         :param completed_chunk_indices: 1-based indices of chunks already processed (for resume)
+        :param image_chunks: Optional list of image chunk dicts with 'base64', 'mime_type', 'detail' keys.
+            When provided, process_image_chunk() is used instead of process_text_chunk().
         :return: List of processing results
         """
         pass
@@ -92,6 +95,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         temp_jsonl_path: Path,
         console_print: Any,
         completed_chunk_indices: Optional[set] = None,
+        image_chunks: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """Process chunks synchronously with concurrent API calls."""
         # Detect provider from model name
@@ -143,10 +147,17 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         if provider == "anthropic":
             concurrency_limit = 1
 
+        is_visual = image_chunks is not None and len(image_chunks) > 0
+        prompt_path = (
+            Path("prompts/visual_extraction_prompt.txt")
+            if is_visual
+            else Path("prompts/structured_output_prompt.txt")
+        )
+
         file_mode = "a" if skip_indices else "w"
         async with open_extractor(
             api_key=api_key,
-            prompt_path=Path("prompts/structured_output_prompt.txt"),
+            prompt_path=prompt_path,
             model=model_config["transcription_model"]["name"],
             model_config_override=model_config,
             concurrency_config_override=self.concurrency_config,
@@ -159,15 +170,27 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                     async with semaphore:
                         if delay_between_tasks > 0:
                             await asyncio.sleep(delay_between_tasks)
-                        
+
                         for attempt in range(retry_attempts):
                             try:
-                                result = await process_text_chunk(
-                                    text_chunk=chunk,
-                                    extractor=extractor,
-                                    system_message=dev_message,
-                                    json_schema=schema
-                                )
+                                # Route to image or text processing
+                                if is_visual and image_chunks is not None:
+                                    img_data = image_chunks[idx - 1]
+                                    result = await process_image_chunk(
+                                        image_base64=img_data["base64"],
+                                        mime_type=img_data["mime_type"],
+                                        extractor=extractor,
+                                        system_message=dev_message,
+                                        json_schema=schema,
+                                        image_detail=img_data.get("detail"),
+                                    )
+                                else:
+                                    result = await process_text_chunk(
+                                        text_chunk=chunk,
+                                        extractor=extractor,
+                                        system_message=dev_message,
+                                        json_schema=schema
+                                    )
 
                                 # Write to temp file
                                 request_obj = handler.prepare_payload(
@@ -184,7 +207,8 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 tempf.write(json.dumps(response_obj) + "\n")
                                 tempf.flush()
 
-                                console_print(f"[INFO] Processed chunk {idx}/{total_chunks}")
+                                unit_label = "page" if is_visual else "chunk"
+                                console_print(f"[INFO] Processed {unit_label} {idx}/{total_chunks}")
                                 return result
                             except Exception as e:
                                 msg = str(e)
@@ -249,6 +273,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
         temp_jsonl_path: Path,
         console_print: Any,
         completed_chunk_indices: Optional[set] = None,
+        image_chunks: Optional[List[Dict[str, Any]]] = None,
     ) -> List[Dict[str, Any]]:
         """Prepare and submit batch processing job using provider-agnostic backend."""
         # Detect provider from model config
@@ -257,9 +282,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
         if not provider:
             model_name = tm.get("name", "")
             provider = ProviderConfig._detect_provider(model_name)
-        
-        console_print(f"[INFO] Preparing batch processing for {len(chunks)} chunks (provider: {provider})...")
-        
+
         # Check if provider supports batch processing
         if not supports_batch(provider):
             error_msg = (
@@ -268,21 +291,47 @@ class BatchProcessingStrategy(ProcessingStrategy):
             )
             console_print(f"[ERROR] {error_msg}")
             raise ValueError(error_msg)
-        
+
         # Build BatchRequest objects for the provider-agnostic backend
+        is_visual_batch = image_chunks is not None and len(image_chunks) > 0
         batch_requests: List[BatchRequest] = []
-        for idx, chunk in enumerate(chunks, 1):
-            custom_id = f"{file_path.stem}-chunk-{idx}"
-            batch_requests.append(BatchRequest(
-                custom_id=custom_id,
-                text=chunk,
-                order_index=idx,
-                metadata={
-                    "file_path": str(file_path),
-                    "chunk_index": idx,
-                    "total_chunks": len(chunks),
-                }
-            ))
+
+        if is_visual_batch:
+            console_print(
+                f"[INFO] Preparing visual batch processing for {len(image_chunks)} "
+                f"page(s) (provider: {provider})..."
+            )
+            for idx, img in enumerate(image_chunks, 1):
+                custom_id = f"{file_path.stem}-page-{idx}"
+                batch_requests.append(BatchRequest(
+                    custom_id=custom_id,
+                    image_base64=img["base64"],
+                    mime_type=img["mime_type"],
+                    image_detail=img.get("detail"),
+                    order_index=idx,
+                    metadata={
+                        "file_path": str(file_path),
+                        "page_index": idx,
+                        "total_pages": len(image_chunks),
+                    },
+                ))
+        else:
+            console_print(
+                f"[INFO] Preparing batch processing for {len(chunks)} "
+                f"chunks (provider: {provider})..."
+            )
+            for idx, chunk in enumerate(chunks, 1):
+                custom_id = f"{file_path.stem}-chunk-{idx}"
+                batch_requests.append(BatchRequest(
+                    custom_id=custom_id,
+                    text=chunk,
+                    order_index=idx,
+                    metadata={
+                        "file_path": str(file_path),
+                        "chunk_index": idx,
+                        "total_chunks": len(chunks),
+                    },
+                ))
         
         # Get the appropriate batch backend
         try:

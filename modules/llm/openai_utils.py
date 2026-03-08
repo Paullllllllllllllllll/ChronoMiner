@@ -269,6 +269,89 @@ async def process_text_chunk(
     }
 
 
+async def process_image_chunk(
+    image_base64: str,
+    mime_type: str,
+    extractor: LLMExtractor,
+    system_message: Optional[str] = None,
+    json_schema: Optional[dict] = None,
+    image_detail: Optional[str] = None,
+    user_instruction: str = "Extract structured data from this image according to the schema.",
+) -> Dict[str, Any]:
+    """
+    Process a single image using LangChain with the configured provider.
+
+    Constructs multimodal messages with the image content block and sends
+    them through the same LLM pipeline as text chunks.
+
+    :param image_base64: Base64-encoded image data.
+    :param mime_type: MIME type of the image (e.g., 'image/jpeg').
+    :param extractor: An instance of LLMExtractor.
+    :param system_message: Optional system message.
+    :param json_schema: Optional JSON schema for response formatting.
+    :param image_detail: Image detail level ('low', 'high', 'auto', 'original').
+    :param user_instruction: Text instruction accompanying the image.
+    :return: Dictionary containing the model output text, raw response payload,
+        and request metadata used for the call.
+    """
+    from modules.llm.image_message_builder import build_image_content_block
+
+    if system_message is None:
+        system_message = ""
+
+    # Build provider-specific image content block
+    image_block = build_image_content_block(
+        image_base64=image_base64,
+        mime_type=mime_type,
+        provider=extractor.provider,
+        detail=image_detail,
+        supports_image_detail=extractor.caps.supports_image_detail,
+    )
+
+    # Build multimodal messages
+    messages = [
+        {
+            "role": "system",
+            "content": [{"type": "input_text", "text": system_message}],
+        },
+        {
+            "role": "user",
+            "content": [
+                {"type": "text", "text": user_instruction},
+                image_block,
+            ],
+        },
+    ]
+
+    # Build structured output schema if provided
+    structured_schema = None
+    if json_schema and extractor.caps.supports_structured_outputs:
+        if "schema" in json_schema and isinstance(json_schema.get("schema"), dict):
+            structured_schema = {
+                "name": json_schema.get("name", "TranscriptionSchema"),
+                "schema": json_schema.get("schema", {}),
+                "strict": bool(json_schema.get("strict", True)),
+            }
+        elif isinstance(json_schema, dict) and json_schema:
+            structured_schema = {
+                "name": "TranscriptionSchema",
+                "schema": json_schema,
+                "strict": True,
+            }
+
+    result = await extractor.llm.ainvoke_with_structured_output(
+        messages=messages,
+        json_schema=structured_schema,
+    )
+
+    return {
+        "output_text": result.get("output_text", ""),
+        "response_data": result.get("response_data", {}),
+        "request_metadata": result.get("request_metadata", {}),
+        "usage": result.get("response_data", {}).get("usage", {}),
+    }
+
+
 async def process_text_chunk_with_provider(
     text_chunk: str,
     system_message: str,

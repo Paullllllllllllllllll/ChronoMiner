@@ -10,7 +10,6 @@ Structure:
 - core.py: UserInterface class (backward-compatible wrapper)
 - prompts.py: Core prompt utilities with navigation support
 - workflows.py: WorkflowUI class for multi-step workflows
-- cost_display.py: Cost analysis display utilities
 """
 
 from modules.ui.core import UserInterface

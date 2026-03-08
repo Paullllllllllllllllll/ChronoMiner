@@ -29,7 +29,7 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from modules.cli.args_parser import create_process_parser, get_files_from_path, resolve_path
+from modules.cli.args_parser import create_process_parser, detect_input_type, get_files_from_path, resolve_path
 from modules.cli.execution_framework import AsyncDualModeScript
 from modules.config.manager import ConfigManager, ConfigValidationError
 from modules.core.logger import setup_logger
@@ -265,20 +265,12 @@ async def _run_interactive_mode(
         logger.error("Failed to load schema manager", exc_info=exc)
         sys.exit(1)
     
-    # Load unified prompt template
-    prompt_path = Path("prompts/structured_output_prompt.txt")
-    try:
-        prompt_template = load_prompt_template(prompt_path)
-    except FileNotFoundError as exc:
-        ui.print_error(f"Prompt template not found: {exc}")
-        logger.error("Prompt template missing", exc_info=exc)
-        sys.exit(1)
-    
     # State machine for navigation
-    # States: schema -> chunking -> batch -> resume -> context -> chunk_slice -> files -> confirm
+    # States: schema -> chunking -> batch -> resume -> context -> image_detail -> chunk_slice -> files -> confirm
     current_step = "schema"
     state = {}
-    
+    prompt_template = None
+
     while True:
         if current_step == "schema":
             result = ui.select_schema(schema_manager, allow_back=False)
@@ -286,21 +278,49 @@ async def _run_interactive_mode(
                 ui.print_info("Schema selection cancelled.")
                 return
             state["selected_schema"], state["selected_schema_name"] = result
-            
+
             # Validate schema has paths configured
             if not validate_schema_paths(state["selected_schema_name"], schemas_paths, ui):
                 logger.error(f"Exiting: No path configuration for schema '{state['selected_schema_name']}'")
                 sys.exit(1)
-            
+
+            # Detect input type from schema's configured input directory
+            if state["selected_schema_name"] in schemas_paths:
+                schema_input_dir = Path(schemas_paths[state["selected_schema_name"]].get("input", ""))
+                if schema_input_dir.exists():
+                    state["input_type"] = detect_input_type(schema_input_dir)
+                else:
+                    state["input_type"] = "text"
+            else:
+                state["input_type"] = "text"
+            state["is_visual"] = state["input_type"] in ("image", "pdf", "mixed")
+
+            # Load appropriate prompt template
+            prompt_path = (
+                Path("prompts/visual_extraction_prompt.txt")
+                if state["is_visual"]
+                else Path("prompts/structured_output_prompt.txt")
+            )
+            try:
+                prompt_template = load_prompt_template(prompt_path)
+            except FileNotFoundError as exc:
+                ui.print_error(f"Prompt template not found: {exc}")
+                logger.error("Prompt template missing", exc_info=exc)
+                sys.exit(1)
+
             current_step = "chunking"
         
         elif current_step == "chunking":
-            global_chunking_method = ui.ask_global_chunking_mode(allow_back=True)
-            if global_chunking_method is None:
-                current_step = "schema"
-                continue
-            state["global_chunking_method"] = global_chunking_method
-            current_step = "batch"
+            if state.get("is_visual"):
+                state["global_chunking_method"] = "none"
+                current_step = "batch"
+            else:
+                global_chunking_method = ui.ask_global_chunking_mode(allow_back=True)
+                if global_chunking_method is None:
+                    current_step = "schema"
+                    continue
+                state["global_chunking_method"] = global_chunking_method
+                current_step = "batch"
         
         elif current_step == "batch":
             use_batch = ui.ask_batch_processing(allow_back=True)
@@ -333,12 +353,21 @@ async def _run_interactive_mode(
                 current_step = "resume"
                 continue
             state["context_override"] = context_result
+            current_step = "image_detail"
+
+        elif current_step == "image_detail":
+            if state.get("is_visual"):
+                result = ui.ask_image_detail(allow_back=True)
+                if result is None:
+                    current_step = "context"
+                    continue
+                state["image_detail"] = result
             current_step = "chunk_slice"
 
         elif current_step == "chunk_slice":
             chunk_slice = ui.ask_chunk_slice(allow_back=True)
             if chunk_slice is None:
-                current_step = "context"
+                current_step = "image_detail"
                 continue
             state["chunk_slice"] = chunk_slice
             current_step = "files"
@@ -350,7 +379,11 @@ async def _run_interactive_mode(
             else:
                 raw_text_dir = Path(paths_config.get("input_paths", {}).get("raw_text_dir", ""))
 
-            files = ui.select_input_source(raw_text_dir, allow_back=True)
+            files = ui.select_input_source(
+                raw_text_dir,
+                allow_back=True,
+                input_type=state.get("input_type"),
+            )
             if files is None:
                 current_step = "chunk_slice"
                 continue
@@ -392,10 +425,15 @@ async def _run_interactive_mode(
                 _ctx_mode = str(_ctx["path"])
 
             # Confirm processing
+            _display_chunking = (
+                "none (visual)"
+                if state.get("is_visual") and state["global_chunking_method"] == "none"
+                else state["global_chunking_method"]
+            )
             proceed = ui.display_processing_summary(
                 state["files"],
                 state["selected_schema_name"],
-                state["global_chunking_method"],
+                _display_chunking,
                 state["use_batch"],
                 model_config=model_config,
                 paths_config=paths_config,
@@ -466,6 +504,7 @@ async def _run_interactive_mode(
                 resume=state.get("resume", False),
                 chunk_slice=state.get("chunk_slice"),
                 context_override=state.get("context_override"),
+                image_detail=state.get("image_detail"),
             )
             processed_count += 1
             
@@ -495,6 +534,7 @@ async def _run_interactive_mode(
                     resume=state.get("resume", False),
                     chunk_slice=state.get("chunk_slice"),
                     context_override=state.get("context_override"),
+                    image_detail=state.get("image_detail"),
                 )
             )
         # CM-11: return_exceptions=True ensures all finally blocks complete on cancellation
@@ -609,20 +649,42 @@ async def _run_cli_mode(
         logger.error(f"Exiting: No path configuration for schema '{selected_schema_name}'")
         sys.exit(1)
     
-    # Load prompt template
-    prompt_path = Path("prompts/structured_output_prompt.txt")
+    # Resolve input path and check exists
+    input_path = resolve_path(args.input)
+    if not input_path.exists():
+        logger.error(f"Input path does not exist: {input_path}")
+        print(f"[ERROR] Input path not found: {input_path}")
+        sys.exit(1)
+
+    # Detect input type
+    input_type = detect_input_type(input_path)
+    is_visual = input_type in ("image", "pdf", "mixed")
+
+    # Apply --input-type override if provided
+    if getattr(args, "input_type", None):
+        input_type = args.input_type
+        is_visual = input_type in ("image", "pdf")
+
+    # Load prompt template (visual or text)
+    if is_visual:
+        prompt_path = Path("prompts/visual_extraction_prompt.txt")
+    else:
+        prompt_path = Path("prompts/structured_output_prompt.txt")
     try:
         prompt_template = load_prompt_template(prompt_path)
     except FileNotFoundError as exc:
         logger.error("Prompt template missing", exc_info=exc)
-        print("[ERROR] Prompt template not found")
+        print(f"[ERROR] Prompt template not found: {prompt_path}")
         sys.exit(1)
-    
+
     # Process CLI arguments
-    global_chunking_method = args.chunking if args.chunking else "auto"
+    if is_visual:
+        global_chunking_method = "none"
+    else:
+        global_chunking_method = args.chunking if args.chunking else "auto"
     use_batch = args.batch if hasattr(args, 'batch') else False
     use_resume = getattr(args, "resume", False) and not getattr(args, "force", False)
-    
+
     # Build chunk slice from CLI args
     chunk_slice = None
     first_n = getattr(args, "first_n_chunks", None)
@@ -631,19 +693,20 @@ async def _run_cli_mode(
         chunk_slice = ChunkSlice(first_n=first_n)
     elif last_n is not None:
         chunk_slice = ChunkSlice(last_n=last_n)
-    
-    # Resolve input path and get files
-    input_path = resolve_path(args.input)
-    if not input_path.exists():
-        logger.error(f"Input path does not exist: {input_path}")
-        print(f"[ERROR] Input path not found: {input_path}")
-        sys.exit(1)
-    
-    files = get_files_from_path(input_path, pattern="*.txt", exclude_patterns=["*_line_ranges.txt", "*_context.txt"])
-    
+
+    # Collect files
+    if is_visual:
+        files = get_files_from_path(input_path, input_type=input_type)
+    else:
+        files = get_files_from_path(
+            input_path, pattern="*.txt",
+            exclude_patterns=["*_line_ranges.txt", "*_context.txt"],
+        )
+
     if not files:
-        logger.error(f"No files found at: {input_path}")
-        print(f"[ERROR] No text files found at: {input_path}")
+        file_type_label = "visual" if is_visual else "text"
+        logger.error(f"No {file_type_label} files found at: {input_path}")
+        print(f"[ERROR] No {file_type_label} files found at: {input_path}")
         sys.exit(1)
     
     logger.info(f"Found {len(files)} file(s) to process")
@@ -724,9 +787,10 @@ async def _run_cli_mode(
                 ui=None,
                 resume=use_resume,
                 chunk_slice=chunk_slice,
+                image_detail=getattr(args, "image_detail", None),
             )
             processed_count += 1
-            
+
             # Log token usage after each file
             token_tracker = get_token_tracker()
             stats = token_tracker.get_stats()
@@ -752,6 +816,7 @@ async def _run_cli_mode(
                     ui=None,
                     resume=use_resume,
                     chunk_slice=chunk_slice,
+                    image_detail=getattr(args, "image_detail", None),
                 )
             )
         # CM-11: return_exceptions=True ensures all finally blocks complete on cancellation

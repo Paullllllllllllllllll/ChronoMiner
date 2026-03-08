@@ -128,6 +128,73 @@ def _build_responses_body(
     return body
 
 
+def _build_image_responses_body(
+    *,
+    model_config: Dict[str, Any],
+    system_prompt: str,
+    image_base64: str,
+    mime_type: str,
+    image_detail: Optional[str] = None,
+    schema: Optional[Dict[str, Any]] = None,
+    schema_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Construct a Responses API request body for visual extraction."""
+    tm = model_config.get("transcription_model", {}) or model_config
+    model_name: str = tm.get("name", "gpt-4o-2024-08-06")
+    caps = detect_capabilities(model_name)
+
+    detail = image_detail or "auto"
+    data_url = f"data:{mime_type};base64,{image_base64}"
+
+    body: Dict[str, Any] = {
+        "model": model_name,
+        "input": [
+            {
+                "role": "system",
+                "content": [{"type": "input_text", "text": system_prompt}],
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "input_image",
+                        "image_url": data_url,
+                        "detail": detail,
+                    }
+                ],
+            },
+        ],
+        "max_output_tokens": int(
+            tm.get("max_output_tokens")
+            or tm.get("max_completion_tokens")
+            or tm.get("max_tokens", 4096)
+        ),
+    }
+
+    # Service tier handling (same logic as text)
+    effective_service_tier = tm.get("service_tier")
+    if effective_service_tier:
+        tier_str = str(effective_service_tier)
+        if tier_str == "flex":
+            logger.info("Batch API does not support service_tier='flex'. Using 'auto'.")
+            body["service_tier"] = "auto"
+        elif tier_str in {"auto", "default", "priority"}:
+            body["service_tier"] = tier_str
+
+    # Structured outputs
+    if schema and caps.supports_structured_outputs:
+        fmt = _build_structured_text_format(schema, schema_name or "ExtractionSchema", True)
+        if fmt is not None:
+            body.setdefault("text", {})
+            body["text"]["format"] = fmt
+
+    # Reasoning controls for reasoning models
+    if caps.supports_reasoning_effort and tm.get("reasoning"):
+        body["reasoning"] = tm["reasoning"]
+
+    return body
+
+
 class OpenAIBatchBackend(BatchBackend):
     """OpenAI Batch API backend using /v1/responses endpoint."""
 
@@ -168,14 +235,25 @@ class OpenAIBatchBackend(BatchBackend):
         # Build JSONL content
         jsonl_lines = []
         for req in requests:
-            # Build request body
-            body = _build_responses_body(
-                model_config=model_config,
-                system_prompt=system_prompt,
-                user_text=req.text,
-                schema=schema,
-                schema_name=schema_name,
-            )
+            # Route by input type: visual or text
+            if req.is_visual:
+                body = _build_image_responses_body(
+                    model_config=model_config,
+                    system_prompt=system_prompt,
+                    image_base64=req.image_base64,
+                    mime_type=req.mime_type,
+                    image_detail=req.image_detail,
+                    schema=schema,
+                    schema_name=schema_name,
+                )
+            else:
+                body = _build_responses_body(
+                    model_config=model_config,
+                    system_prompt=system_prompt,
+                    user_text=req.text,
+                    schema=schema,
+                    schema_name=schema_name,
+                )
 
             request_line = {
                 "custom_id": req.custom_id,

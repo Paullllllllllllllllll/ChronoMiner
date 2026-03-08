@@ -36,6 +36,7 @@ class ConfigLoader:
         self.model_config: Optional[Dict[str, Any]] = None
         self.concurrency_config: Optional[Dict[str, Any]] = None
         self.chunking_and_context_config: Optional[Dict[str, Any]] = None
+        self._image_processing_config: Optional[Dict[str, Any]] = None
 
     def load_configs(self) -> None:
         """
@@ -222,6 +223,23 @@ class ConfigLoader:
         :return: The chunking and context configuration dictionary.
         """
         return self.chunking_and_context_config  # type: ignore
+
+    def get_image_processing_config(self) -> Dict[str, Any]:
+        """
+        Get the image processing configuration.
+
+        Loaded lazily from image_processing_config.yaml. Returns an empty
+        dict if the file does not exist (image pipeline is optional).
+
+        :return: The image processing configuration dictionary.
+        """
+        if self._image_processing_config is None:
+            path = self.config_dir / "image_processing_config.yaml"
+            if path.exists():
+                self._image_processing_config = self._load_yaml("image_processing_config.yaml")
+            else:
+                self._image_processing_config = {}
+        return self._image_processing_config
 
     def get_schemas_paths(self) -> Dict[str, Any]:
         """

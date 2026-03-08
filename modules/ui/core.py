@@ -15,6 +15,12 @@ from pathlib import Path
 from typing import List, Optional, Tuple, Dict, Any
 import logging
 
+from modules.config.constants import (
+    SUPPORTED_IMAGE_EXTENSIONS,
+    SUPPORTED_PDF_EXTENSIONS,
+    SUPPORTED_VISUAL_EXTENSIONS,
+)
+
 # Import from modular prompts system
 from modules.ui.prompts import (
     PromptStyle,
@@ -338,14 +344,45 @@ class UserInterface:
             except ValueError:
                 self.print_error("Invalid number. Please enter a positive integer.")
 
-    def select_input_source(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
+    def ask_image_detail(self, allow_back: bool = False) -> Optional[str]:
+        """Prompt user for image detail level for vision models."""
+        options = [
+            ("auto",     "Auto  — let the model decide (recommended)"),
+            ("high",     "High  — full resolution, higher cost"),
+            ("low",      "Low   — 512 px tile, cheapest"),
+            ("original", "Original — no resizing, maximum fidelity"),
+        ]
+        return self.select_option(
+            "Select image detail level:",
+            options,
+            allow_back=allow_back,
+        )
+
+    def select_input_source(self, raw_text_dir: Path, allow_back: bool = False, input_type: Optional[str] = None) -> Optional[List[Path]]:
         """
         Guide user through selecting input source (single file, multiple files, or folder).
 
         :param raw_text_dir: Base directory for input files
         :param allow_back: Whether to allow going back to previous step
+        :param input_type: Input type ('text', 'image', 'pdf', 'mixed', or None for text behavior)
         :return: List of selected file paths or None if back selected
         """
+        is_visual = input_type in ("image", "pdf", "mixed")
+
+        # Determine valid extensions and labels for visual modes
+        if input_type == "image":
+            valid_exts = SUPPORTED_IMAGE_EXTENSIONS
+            file_label = "image files"
+        elif input_type == "pdf":
+            valid_exts = SUPPORTED_PDF_EXTENSIONS
+            file_label = "PDF files"
+        elif input_type == "mixed":
+            valid_exts = SUPPORTED_VISUAL_EXTENSIONS
+            file_label = "visual files"
+        else:
+            valid_exts = {".txt"}
+            file_label = "text files"
+
         while True:  # Allow retry on errors
             self.print_section_header("Input Selection")
 
@@ -369,31 +406,41 @@ class UserInterface:
 
             if mode == "single":
                 while True:  # Inner loop for single file selection
-                    self.print_info("Enter the filename to process (with or without .txt extension)")
-                    self.console_print("  - Enter the base text filename")
-                    self.console_print("  - Or enter the line range filename ending in '_line_ranges.txt'")
-                    
+                    if is_visual:
+                        self.print_info("Enter the filename to process (including extension)")
+                        self.console_print(f"  - Supported formats: {', '.join(sorted(valid_exts))}")
+                    else:
+                        self.print_info("Enter the filename to process (with or without .txt extension)")
+                        self.console_print("  - Enter the base text filename")
+                        self.console_print("  - Or enter the line range filename ending in '_line_ranges.txt'")
+
                     file_input = self.get_input("Filename", allow_back=True, allow_quit=True)
                     if not file_input:
                         # User went back - break to mode selection
                         break
-                    
-                    normalized_input = (
-                        file_input if file_input.lower().endswith(".txt") else f"{file_input}.txt"
-                    )
 
-                    wants_line_range = normalized_input.lower().endswith(
-                        ("_line_ranges.txt", "_line_range.txt")
-                    )
-                    excluded_suffixes = ["_context.txt"]
-                    if not wants_line_range:
-                        excluded_suffixes.extend(["_line_ranges.txt", "_line_range.txt"])
-
-                    file_candidates = [
-                        f
-                        for f in raw_text_dir.rglob(normalized_input)
-                        if not any(f.name.endswith(suffix) for suffix in excluded_suffixes)
-                    ]
+                    if is_visual:
+                        normalized_input = file_input
+                        # Search by exact name across valid extensions
+                        file_candidates = [
+                            f for f in raw_text_dir.rglob(normalized_input)
+                            if f.is_file() and f.suffix.lower() in valid_exts
+                        ]
+                    else:
+                        normalized_input = (
+                            file_input if file_input.lower().endswith(".txt") else f"{file_input}.txt"
+                        )
+                        wants_line_range = normalized_input.lower().endswith(
+                            ("_line_ranges.txt", "_line_range.txt")
+                        )
+                        excluded_suffixes = ["_context.txt"]
+                        if not wants_line_range:
+                            excluded_suffixes.extend(["_line_ranges.txt", "_line_range.txt"])
+                        file_candidates = [
+                            f
+                            for f in raw_text_dir.rglob(normalized_input)
+                            if not any(f.name.endswith(suffix) for suffix in excluded_suffixes)
+                        ]
 
                     if not file_candidates:
                         self.print_error(f"File '{normalized_input}' not found in {raw_text_dir}")
@@ -407,14 +454,12 @@ class UserInterface:
                         self.print_warning(f"Found {len(file_candidates)} matching files:")
                         self.console_print(self.HORIZONTAL_LINE)
 
-                        file_options = [(str(i), str(f.relative_to(raw_text_dir))) for i, f in enumerate(file_candidates)]
-                        
                         for idx, f in enumerate(file_candidates, 1):
                             self.console_print(f"  {idx}. {f.relative_to(raw_text_dir)}")
 
                         while True:
                             selected_index = self.get_input("Select file by number", allow_back=True, allow_quit=True)
-                            
+
                             if not selected_index:
                                 # User went back - break to filename input
                                 break
@@ -429,49 +474,54 @@ class UserInterface:
                                     self.print_error(f"Please enter a number between 1 and {len(file_candidates)}.")
                             except ValueError:
                                 self.print_error("Invalid input. Please enter a number.")
-                        
+
                         # If we broke out of the number selection loop, retry filename input
                         continue
-                
+
                 # If we broke out of the filename loop, return to mode selection
                 continue
 
             elif mode == "multi":
-                # Get all .txt files, filtering out auxiliary files
-                all_files = [f for f in raw_text_dir.rglob("*.txt")
-                             if not (f.name.endswith("_line_ranges.txt") or
-                                     f.name.endswith("_context.txt"))]
-                
+                if is_visual:
+                    all_files = sorted(
+                        f for f in raw_text_dir.rglob("*")
+                        if f.is_file() and f.suffix.lower() in valid_exts
+                    )
+                else:
+                    # Get all .txt files, filtering out auxiliary files
+                    all_files = sorted(
+                        f for f in raw_text_dir.rglob("*.txt")
+                        if not (f.name.endswith("_line_ranges.txt") or
+                                f.name.endswith("_context.txt"))
+                    )
+
                 if not all_files:
-                    self.print_error(f"No .txt files found in {raw_text_dir}")
+                    self.print_error(f"No {file_label} found in {raw_text_dir}")
                     self.print_info("Please check the directory or go back to select a different option.")
                     continue
-                
-                # Sort files for consistent ordering
-                all_files = sorted(all_files)
-                
-                self.print_info(f"Found {len(all_files)} text files in {raw_text_dir.name}")
+
+                self.print_info(f"Found {len(all_files)} {file_label} in {raw_text_dir.name}")
                 self.console_print(self.HORIZONTAL_LINE)
-                
+
                 # Display all files with numbers
                 for idx, f in enumerate(all_files, 1):
                     self.console_print(f"  {idx}. {f.relative_to(raw_text_dir)}")
-                
+
                 self.console_print("")  # Empty line for spacing
                 self.print_info("Enter file numbers to process (comma-separated, e.g., '1,3,5' or '1-3,5')")
-                
+
                 while True:
                     selection = self.get_input("File selection", allow_back=True, allow_quit=True)
-                    
+
                     if not selection:
                         # User went back to mode selection
                         break
-                    
+
                     try:
                         # Parse comma-separated indices and ranges
                         selected_indices: set[int] = set()
                         parts = selection.split(',')
-                        
+
                         for part in parts:
                             part = part.strip()
                             if '-' in part:
@@ -488,40 +538,46 @@ class UserInterface:
                                 if idx < 1 or idx > len(all_files):
                                     raise ValueError(f"Index {idx} out of range")
                                 selected_indices.add(idx)
-                        
+
                         if not selected_indices:
                             self.print_error("No files selected. Please enter at least one file number.")
                             continue
-                        
+
                         # Convert to file paths
                         files = [all_files[idx - 1] for idx in sorted(selected_indices)]
-                        
+
                         # Confirm selection
                         self.print_success(f"Selected {len(files)} file(s):")
                         for f in files:
                             self.console_print(f"  - {f.name}")
-                        
+
                         return files
-                        
+
                     except ValueError as e:
                         self.print_error(f"Invalid selection: {e}")
                         self.print_info(f"Please enter numbers between 1 and {len(all_files)}, comma-separated")
-                
+
                 # If we broke out of selection loop, return to mode selection
                 continue
 
             elif mode == "folder":
-                # Get all .txt files, filtering out auxiliary files
-                files = [f for f in raw_text_dir.rglob("*.txt")
-                         if not (f.name.endswith("_line_ranges.txt") or
-                                 f.name.endswith("_context.txt"))]
+                if is_visual:
+                    files = sorted(
+                        f for f in raw_text_dir.rglob("*")
+                        if f.is_file() and f.suffix.lower() in valid_exts
+                    )
+                else:
+                    # Get all .txt files, filtering out auxiliary files
+                    files = [f for f in raw_text_dir.rglob("*.txt")
+                             if not (f.name.endswith("_line_ranges.txt") or
+                                     f.name.endswith("_context.txt"))]
 
                 if not files:
-                    self.print_error(f"No .txt files found in {raw_text_dir}")
+                    self.print_error(f"No {file_label} found in {raw_text_dir}")
                     self.print_info("Please check the directory or go back to select a different option.")
                     continue
 
-                self.print_success(f"Found {len(files)} text files to process")
+                self.print_success(f"Found {len(files)} {file_label} to process")
                 return files
 
     def display_processing_summary(

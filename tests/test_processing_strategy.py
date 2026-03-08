@@ -116,6 +116,81 @@ async def test_batch_processing_strategy_writes_request_and_tracking_records(mon
 
 
 @pytest.mark.asyncio
+async def test_batch_processing_strategy_builds_visual_batch_requests(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """When image_chunks are provided, BatchProcessingStrategy builds visual BatchRequests."""
+    monkeypatch.setattr(ps, "supports_batch", lambda provider: True)
+
+    captured_requests: list = []
+
+    class _VisualBackend:
+        def submit_batch(
+            self,
+            requests,
+            model_config,
+            *,
+            system_prompt: str,
+            schema: Optional[Dict[str, Any]] = None,
+            schema_name: Optional[str] = None,
+        ):
+            captured_requests.extend(requests)
+            return ps.BatchHandle(provider="openai", batch_id="vis_batch_1", metadata={})
+
+    monkeypatch.setattr(ps, "get_batch_backend", lambda provider: _VisualBackend())
+
+    strat = ps.BatchProcessingStrategy()
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "doc.pdf"
+
+    image_chunks = [
+        {"base64": "AAA=", "mime_type": "image/jpeg", "detail": "low"},
+        {"base64": "BBB=", "mime_type": "image/jpeg", "detail": "low"},
+    ]
+
+    model_config = {"transcription_model": {"provider": "openai", "name": "gpt-4o"}}
+
+    res = await strat.process_chunks(
+        chunks=[],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config=model_config,
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_args, **_kwargs: None,
+        image_chunks=image_chunks,
+    )
+
+    assert res == []
+    # Exactly two visual BatchRequests were submitted
+    assert len(captured_requests) == 2
+    for req in captured_requests:
+        assert req.is_visual is True
+        assert req.image_base64 is not None
+        assert req.mime_type == "image/jpeg"
+    # Custom IDs use -page- pattern
+    assert captured_requests[0].custom_id == f"{file_path.stem}-page-1"
+    assert captured_requests[1].custom_id == f"{file_path.stem}-page-2"
+
+    # Tracking JSONL written with correct page metadata
+    lines = [
+        json.loads(line)
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    page_records = [ln for ln in lines if "batch_request" in ln]
+    assert len(page_records) == 2
+    assert page_records[0]["batch_request"]["custom_id"] == f"{file_path.stem}-page-1"
+    assert page_records[0]["batch_request"]["metadata"]["page_index"] == 1
+    assert page_records[0]["batch_request"]["metadata"]["total_pages"] == 2
+
+    tracking = [ln for ln in lines if "batch_tracking" in ln]
+    assert len(tracking) == 1
+    assert tracking[0]["batch_tracking"]["batch_id"] == "vis_batch_1"
+
+
+@pytest.mark.asyncio
 async def test_synchronous_processing_strategy_raises_when_api_key_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
     monkeypatch.setattr(ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai"))
     monkeypatch.setattr(ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: None))

@@ -2,7 +2,7 @@
 
 A Python-based tool for researchers and archivists to extract structured data from large-scale historical and academic text files. ChronoMiner leverages multiple LLM providers through LangChain with schema-based extraction to transform unstructured text into well-organized, analyzable datasets in multiple formats (JSON, CSV, DOCX, TXT).
 
-Designed to integrate with [ChronoTranscriber](https://github.com/Paullllllllllllllllll/ChronoTranscriber) and [ChronoDownloader](https://github.com/Paullllllllllllllllll/ChronoDownloader) for a complete document retrieval, transcription, and data extraction pipeline.
+Designed to integrate with [ChronoTranscriber](https://github.com/Paullllllllllllllllll/ChronoTranscriber) and [ChronoDownloader](https://github.com/Paullllllllllllllllll/ChronoDownloader) for a complete document retrieval, transcription, and data extraction pipeline. ChronoMiner also accepts scanned images and PDFs as direct input, processing them through vision-capable LLMs without a prior transcription step.
 
 > **Work in Progress** — ChronoMiner is under active development. We aim to keep it continuously maintained and improved, but bugs may be present. If you encounter any issues, please [open an issue on GitHub](https://github.com/Paullllllllllllllllll/ChronoMiner/issues) — reports are very welcome and help us improve the tool.
 
@@ -20,7 +20,6 @@ Designed to integrate with [ChronoTranscriber](https://github.com/Paulllllllllll
 - [Configuration](#configuration)
 - [Usage](#usage)
 - [Batch Processing](#batch-processing)
-- [Fine-Tuning Dataset Preparation](#fine-tuning-dataset-preparation)
 - [Utilities](#utilities)
 - [Architecture](#architecture)
 - [Frequently Asked Questions](#frequently-asked-questions)
@@ -44,16 +43,15 @@ Daily token enforcement configured in `config/concurrency_config.yaml`. When ena
 ### Key Capabilities
 
 - **Dual Execution Modes**: Interactive prompts or CLI automation
+- **Native Image/PDF Input** — process scanned pages, photographs, and PDF documents directly through vision-capable LLMs (GPT-5, Claude 4, Gemini 2.5+), eliminating the ChronoTranscriber step for visual sources.
 - **Flexible Text Chunking**: Token-based with automatic, manual, or pre-defined strategies
 - **Schema-Based Extraction**: JSON schema-driven with customizable templates
 - **Dual Processing Modes**: Synchronous (real-time) or batch (OpenAI, Anthropic, Google)
 - **Context-Aware Processing**: File-specific, folder-specific, or general fallback context
 - **Multi-Format Output**: JSON, CSV, DOCX, and TXT simultaneously
-- **Fine-Tuning Dataset Prep**: txt-based correction workflow for OpenAI SFT datasets
 - **Extensible Architecture**: Easy custom schema integration
 - **Batch Management**: Full suite of tools to manage, monitor, and repair jobs
 - **Semantic Boundary Detection**: LLM-powered chunk optimization with certainty validation
-- **Token Cost Analytics**: Per-model spend calculation with CSV export
 - **Daily Token Budgeting**: Configurable per-day limits with automatic reset
 
 ## Key Features
@@ -114,6 +112,7 @@ Context resolved separately for extraction and line-range-readjustment tasks.
 - **Smart Chunking**: Automatic request splitting with chunk size limits
 - **Metadata Tracking**: custom_id and metadata for reliable reconstruction
 - **Debug Artifacts**: Submission metadata for batch tracking and repair
+- **Visual Batch Support**: Image and PDF inputs supported in batch mode across all three providers (OpenAI, Anthropic, Google)
 
 ## Supported Providers and Models
 
@@ -233,6 +232,7 @@ All dependencies in `requirements.txt`. Key packages:
 - APIs: `openai==2.8.1`, `anthropic==0.75.0`
 - Processing: `tiktoken==0.12.0`, `pandas==2.3.3`, `python-docx==1.2.0`
 - Data: `pydantic==2.12.5`, `PyYAML==6.0.3`, `tqdm==4.67.1`
+- Visual pipeline: `Pillow>=10.0.0`, `PyMuPDF>=1.24.0`
 
 ## Installation
 
@@ -412,6 +412,26 @@ python main/line_range_readjuster.py --path data/file.txt --schema Bibliographic
 python main/process_text_files.py --schema BibliographicEntries --input data/file.txt --chunking line_ranges
 ```
 
+**Workflow 4: Visual Input (Images and PDFs)**
+
+```bash
+# Single image
+python main/process_text_files.py --schema HistoricalRecipesEntries \
+  --input path/to/page.png --image-detail high
+
+# Folder of images
+python main/process_text_files.py --schema HistoricalRecipesEntries \
+  --input path/to/images/
+
+# PDF (first 3 pages)
+python main/process_text_files.py --schema HistoricalRecipesEntries \
+  --input path/to/document.pdf --first-n-chunks 3 --image-detail low
+
+# PDF batch submission (process all pages, retrieve results later)
+python main/process_text_files.py --schema HistoricalRecipesEntries \
+  --input path/to/document.pdf --batch --image-detail low
+```
+
 ## Configuration
 
 ChronoMiner uses YAML configuration files in `config/` directory.
@@ -481,7 +501,32 @@ chunking:
 **Key Parameters**:
 - `chunking.default_tokens_per_chunk`: Target tokens per chunk
 
-### 4. Concurrency Configuration (`concurrency_config.yaml`)
+### 4. Image Processing Configuration (`image_processing_config.yaml`)
+
+Controls preprocessing for visual inputs (images and PDFs). Provider-specific sections are applied automatically based on the active model.
+
+```yaml
+# OpenAI / OpenRouter vision models
+api_image_processing:
+  llm_detail: high        # low | high | auto | original
+
+# Anthropic vision models
+anthropic_image_processing:
+  resize_profile: auto    # auto | high | low | original
+
+# Google Gemini vision models
+google_image_processing:
+  media_resolution: high  # low | high | auto
+
+# PDF rendering
+target_dpi: 300           # DPI for PDF-to-image conversion (higher = better quality)
+```
+
+**Key Parameters**:
+- `llm_detail` / `resize_profile` / `media_resolution`: Default detail level per provider (overridden by `--image-detail` CLI flag)
+- `target_dpi`: Resolution for rendering PDF pages to images before sending to the LLM
+
+### 5. Concurrency Configuration (`concurrency_config.yaml`)
 
 ```yaml
 concurrency:
@@ -582,6 +627,8 @@ python main/process_text_files.py
 
 Guides through schema, chunking strategy, processing mode, and file selection. Context resolved automatically.
 
+When the schema's configured input directory contains images or PDFs, interactive mode automatically detects visual inputs: the chunking step is skipped, an image detail level prompt is shown, and the file list displays image and PDF files instead of text files.
+
 **CLI Mode**:
 
 ```bash
@@ -600,6 +647,8 @@ python main/process_text_files.py --help
 - `--input`: Input file or directory (required)
 - `--chunking`: Chunking method (auto, auto-adjust, line_ranges, adjust-line-ranges)
 - `--batch`: Use batch processing mode (default: synchronous)
+- `--image-detail`: Detail level for vision models: `low`, `high`, `auto`, `original` (default: from `image_processing_config.yaml`)
+- `--input-type`: Override auto-detected input type: `text`, `image`, `pdf`
 - `--first-n-chunks N`: Process only the first N chunks of each file
 - `--last-n-chunks N`: Process only the last N chunks of each file
 - `--verbose`: Enable verbose output
@@ -797,90 +846,7 @@ Ensures consistent user experience, easy addition of new providers, automatic pr
 
 **Google**: Gemini Batch API, schema nesting depth limits (reject very deep schemas like `BibliographicEntries`), best for flatter schemas (e.g., `StructuredSummaries`), variable completion times.
 
-## Fine-Tuning Dataset Preparation
-
-ChronoMiner includes a separate workflow to prepare OpenAI SFT datasets from manually-provided chunk inputs using txt-based correction.
-
-**Artifacts**: Written under `fine_tuning/artifacts/`:
-- `fine_tuning/artifacts/editable_txt/`: Editable files for research assistants
-- `fine_tuning/artifacts/annotations_jsonl/`: Imported corrected annotations
-- `fine_tuning/artifacts/datasets/<dataset_id>/`: `train.jsonl` and `val.jsonl`
-
-### Workflow Steps
-
-**1) Prepare Chunk Inputs**
-
-Create text file with numbered chunks:
-
-```text
-=== chunk 1 ===
-<paste chunk text here>
-=== chunk 2 ===
-<paste chunk text here>
-```
-
-**2) Create Editable Correction File**
-
-Generate `_editable.txt` file (optionally prefilled by model):
-
-```bash
-.\.venv\Scripts\python.exe -m fine_tuning.cli create-editable --schema BibliographicEntries --chunks path\to\chunks.txt --model gpt-5-mini
-```
-
-For blank template (no model call): add `--blank`
-
-**3) Edit JSON in txt File**
-
-In each chunk section:
-- Keep all markers unchanged
-- Edit only JSON inside `--- OUTPUT_JSON_BEGIN ---` / `--- OUTPUT_JSON_END ---`
-- Output must be valid JSON object
-- Use `null` for missing values
-
-**4) Import Corrected Annotations into JSONL**
-
-```bash
-.\.venv\Scripts\python.exe -m fine_tuning.cli import-annotations --schema BibliographicEntries --editable fine_tuning\artifacts\editable_txt\chunks_editable.txt --annotator-id RA1
-```
-
-**5) Build OpenAI SFT Dataset**
-
-Create `train.jsonl` and `val.jsonl`:
-
-```bash
-.\.venv\Scripts\python.exe -m fine_tuning.cli build-sft --schema BibliographicEntries --annotations fine_tuning\artifacts\annotations_jsonl\chunks.jsonl --dataset-id my_dataset_v1 --val-ratio 0.1 --seed 0
-```
-
-Default system prompt built from `prompts/structured_output_prompt.txt` with schema injection.
-
 ## Utilities
-
-### Token Cost Analysis
-
-Inspects preserved `.jsonl` files and produces detailed cost estimates.
-
-**When to Run**:
-- Preserve temporary files: `retain_temporary_jsonl: true` in `paths_config.yaml`
-- After processing completes
-- To validate budgeting assumptions
-
-**Execution Modes**:
-
-```bash
-# Interactive UI
-python main/cost_analysis.py
-
-# CLI Mode
-python main/cost_analysis.py --save-csv --output path/to/report.csv --quiet
-```
-
-**Output Features**:
-- Aggregated totals (uncached input, cached, output, reasoning tokens)
-- Dual pricing (standard + 50% discount for batch/flex)
-- Model normalization (date-stamped variants mapped to parent profiles)
-- CSV export with per-file ledger and summary row
-
-See [OpenAI Pricing](https://platform.openai.com/docs/pricing) for current rates.
 
 ### Daily Token Budgeting
 
@@ -914,8 +880,12 @@ ChronoMiner/
 ├── config/                    # Configuration files
 │   ├── chunking_and_context.yaml
 │   ├── concurrency_config.yaml
+│   ├── image_processing_config.yaml
 │   ├── model_config.yaml
 │   └── paths_config.yaml
+├── eval/                      # Extraction evaluation framework
+│   ├── prepare_ground_truth.py
+│   └── ...
 ├── main/                      # CLI entry points
 │   ├── cancel_batches.py
 │   ├── check_batches.py
@@ -929,6 +899,9 @@ ChronoMiner/
 │   ├── core/                 # Core utilities, token tracking, workflow
 │   ├── llm/                  # LLM interaction and batch processing
 │   ├── operations/           # High-level operations
+│   ├── processing/           # Image and PDF preprocessing utilities
+│   │   ├── image_utils.py
+│   │   └── pdf_utils.py
 │   └── ui/                   # User interface and prompts
 ├── schemas/                   # JSON schemas for structured outputs
 ├── context/                   # Unified context directory
@@ -937,7 +910,8 @@ ChronoMiner/
 │   └── legacy/               # Previous per-schema context files (reference)
 ├── developer_messages/        # Developer message templates
 ├── prompts/                   # System prompt templates
-├── gimmicks/                  # LLM prompts for generating context files
+│   ├── structured_output_prompt.txt
+│   └── visual_extraction_prompt.txt
 ├── LICENSE
 ├── README.md
 └── requirements.txt
@@ -977,8 +951,6 @@ A: With OpenAI gpt-5.1:
 - Medium file (500 KB, 50 chunks): ~$1-2
 - Large file (5 MB, 500 chunks): ~$10-20
 - Batch processing: 50% discount
-
-Use `python main/cost_analysis.py` to track actual spending.
 
 **Q: Should I use batch or synchronous mode?**
 
@@ -1042,11 +1014,7 @@ A:
 5. Configure paths in `paths_config.yaml`
 6. Test with sample files
 
-To generate context files, use the LLM prompts in `gimmicks/`:
-- `extraction_context_prompt.txt`: Generate extraction context from sample text
-- `line_ranges_context_prompt.txt`: Generate semantic boundary detection context
-
-Feed sample text to an LLM with these prompts to auto-generate context files.
+To generate context files, use an LLM with sample text from the source and instruct it to write extraction guidance for the schema in question.
 
 ### Processing Questions
 

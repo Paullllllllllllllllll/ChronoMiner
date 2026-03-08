@@ -19,7 +19,31 @@ from modules.llm.batch import (
 
 class TestBatchDataClasses:
     """Test batch data classes."""
-    
+
+    def test_batch_request_is_visual_false_for_text(self):
+        """BatchRequest without image_base64 reports is_visual=False."""
+        req = BatchRequest(custom_id="req-1", text="some text")
+        assert req.is_visual is False
+
+    def test_batch_request_is_visual_true_when_image_set(self):
+        """BatchRequest with image_base64 reports is_visual=True."""
+        req = BatchRequest(
+            custom_id="req-1",
+            image_base64="abc123",
+            mime_type="image/png",
+            image_detail="low",
+        )
+        assert req.is_visual is True
+        assert req.mime_type == "image/png"
+        assert req.image_detail == "low"
+
+    def test_batch_request_visual_fields_default_to_none(self):
+        """Visual fields default to None for text requests."""
+        req = BatchRequest(custom_id="req-1", text="text")
+        assert req.image_base64 is None
+        assert req.mime_type is None
+        assert req.image_detail is None
+
     def test_batch_handle_serialization(self):
         """Test BatchHandle to_dict and from_dict."""
         handle = BatchHandle(
@@ -308,6 +332,225 @@ class TestGoogleBackend:
                 
                 assert status.status == BatchStatus.COMPLETED
                 assert status.results_available is True
+
+
+class TestOpenAIImageResponsesBody:
+    """Test _build_image_responses_body helper for OpenAI visual batch requests."""
+
+    def test_builds_input_image_content_block(self):
+        """Output body contains input_image block with correct data URL and detail."""
+        from modules.llm.batch.backends.openai_backend import _build_image_responses_body
+
+        model_config = {"transcription_model": {"name": "gpt-4o", "max_output_tokens": 1024}}
+        body = _build_image_responses_body(
+            model_config=model_config,
+            system_prompt="Extract recipes.",
+            image_base64="AAAA",
+            mime_type="image/png",
+            image_detail="low",
+        )
+
+        assert body["model"] == "gpt-4o"
+        # Check user turn contains input_image block
+        user_turn = body["input"][1]
+        assert user_turn["role"] == "user"
+        assert len(user_turn["content"]) == 1
+        img_block = user_turn["content"][0]
+        assert img_block["type"] == "input_image"
+        assert img_block["detail"] == "low"
+        assert img_block["image_url"] == "data:image/png;base64,AAAA"
+
+    def test_defaults_detail_to_auto(self):
+        """When image_detail is None, body uses 'auto'."""
+        from modules.llm.batch.backends.openai_backend import _build_image_responses_body
+
+        model_config = {"transcription_model": {"name": "gpt-4o", "max_output_tokens": 1024}}
+        body = _build_image_responses_body(
+            model_config=model_config,
+            system_prompt="sys",
+            image_base64="B64",
+            mime_type="image/jpeg",
+            image_detail=None,
+        )
+
+        img_block = body["input"][1]["content"][0]
+        assert img_block["detail"] == "auto"
+
+    def test_service_tier_flex_converted_to_auto(self):
+        """service_tier='flex' is converted to 'auto' for batch API."""
+        from modules.llm.batch.backends.openai_backend import _build_image_responses_body
+
+        model_config = {
+            "transcription_model": {"name": "gpt-4o", "max_output_tokens": 512, "service_tier": "flex"}
+        }
+        body = _build_image_responses_body(
+            model_config=model_config,
+            system_prompt="sys",
+            image_base64="X",
+            mime_type="image/png",
+        )
+
+        assert body.get("service_tier") == "auto"
+
+
+class TestOpenAIVisualBatchRouting:
+    """Test that submit_batch routes visual requests through _build_image_responses_body."""
+
+    def setup_method(self):
+        clear_backend_cache()
+
+    @patch("openai.OpenAI")
+    def test_submit_visual_batch_uses_input_image(self, mock_openai_class):
+        """Visual BatchRequests produce input_image content blocks in the JSONL."""
+        import json
+
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        mock_file_response = MagicMock()
+        mock_file_response.id = "file-vis"
+        mock_client.files.create.return_value = mock_file_response
+
+        mock_batch_response = MagicMock()
+        mock_batch_response.id = "batch-vis"
+        mock_client.batches.create.return_value = mock_batch_response
+
+        captured_jsonl: list = []
+
+        original_create = mock_client.files.create
+
+        def _capture_file(file, purpose):
+            content = file.read().decode("utf-8")
+            captured_jsonl.extend(content.strip().split("\n"))
+            return mock_file_response
+
+        mock_client.files.create.side_effect = _capture_file
+
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test"}):
+            backend = get_batch_backend("openai")
+            requests = [
+                BatchRequest(
+                    custom_id="stem-page-1",
+                    image_base64="IMGDATA",
+                    mime_type="image/jpeg",
+                    image_detail="high",
+                    order_index=1,
+                )
+            ]
+            model_config = {"transcription_model": {"name": "gpt-4o", "max_output_tokens": 512}}
+            backend.submit_batch(
+                requests,
+                model_config,
+                system_prompt="sys",
+            )
+
+        assert len(captured_jsonl) == 1
+        line = json.loads(captured_jsonl[0])
+        user_content = line["body"]["input"][1]["content"]
+        assert user_content[0]["type"] == "input_image"
+        assert "IMGDATA" in user_content[0]["image_url"]
+
+
+class TestAnthropicVisualBatchRouting:
+    """Test Anthropic backend routes visual requests with image source blocks."""
+
+    def setup_method(self):
+        clear_backend_cache()
+
+    @patch("anthropic.Anthropic")
+    def test_submit_visual_batch_uses_image_source_block(self, mock_anthropic_class):
+        """Visual BatchRequests produce Anthropic image source blocks."""
+        mock_client = MagicMock()
+        mock_anthropic_class.return_value = mock_client
+
+        mock_batch_response = MagicMock()
+        mock_batch_response.id = "anthr-batch-1"
+        mock_client.messages.batches.create.return_value = mock_batch_response
+
+        captured_requests: list = []
+
+        def _capture_create(requests):
+            captured_requests.extend(requests)
+            return mock_batch_response
+
+        mock_client.messages.batches.create.side_effect = _capture_create
+
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+            backend = get_batch_backend("anthropic")
+            requests = [
+                BatchRequest(
+                    custom_id="stem-page-1",
+                    image_base64="ANTHRIMG",
+                    mime_type="image/png",
+                    order_index=1,
+                )
+            ]
+            model_config = {"transcription_model": {"name": "claude-sonnet-4-20250514", "max_tokens": 512}}
+            backend.submit_batch(requests, model_config, system_prompt="sys")
+
+        assert len(captured_requests) == 1
+        user_content = captured_requests[0]["params"]["messages"][0]["content"]
+        # First block is a text prompt, second is the image source block
+        image_blocks = [b for b in user_content if b.get("type") == "image"]
+        assert len(image_blocks) == 1
+        source = image_blocks[0]["source"]
+        assert source["type"] == "base64"
+        assert source["media_type"] == "image/png"
+        assert source["data"] == "ANTHRIMG"
+
+
+class TestGoogleVisualBatchRouting:
+    """Test Google backend routes visual requests with inline_data blocks."""
+
+    def setup_method(self):
+        clear_backend_cache()
+
+    def test_submit_visual_batch_uses_inline_data(self):
+        """Visual BatchRequests produce inline_data parts in the Google request."""
+        import sys
+
+        mock_genai = MagicMock()
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        mock_batch_job = MagicMock()
+        mock_batch_job.name = "batches/google-1"
+        mock_client.batches.create.return_value = mock_batch_job
+
+        captured_src: list = []
+
+        def _capture_create(model, src, config):
+            captured_src.append(src)
+            return mock_batch_job
+
+        mock_client.batches.create.side_effect = _capture_create
+
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+
+        with patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}):
+            with patch.dict(sys.modules, {"google": mock_google, "google.genai": mock_genai}):
+                backend = get_batch_backend("google")
+                requests = [
+                    BatchRequest(
+                        custom_id="stem-page-1",
+                        image_base64="GOOGLEIMG",
+                        mime_type="image/png",
+                        order_index=1,
+                    )
+                ]
+                model_config = {"transcription_model": {"name": "gemini-2.5-flash", "max_output_tokens": 512}}
+                backend.submit_batch(requests, model_config, system_prompt="sys")
+
+        assert len(captured_src) == 1
+        src = captured_src[0]
+        # Inline submission: src is a list of request dicts
+        assert isinstance(src, list)
+        parts = src[0]["contents"][0]["parts"]
+        inline_parts = [p for p in parts if "inline_data" in p]
+        assert len(inline_parts) == 1
+        assert inline_parts[0]["inline_data"]["mime_type"] == "image/png"
+        assert inline_parts[0]["inline_data"]["data"] == "GOOGLEIMG"
 
 
 if __name__ == "__main__":

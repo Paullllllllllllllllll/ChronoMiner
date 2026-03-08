@@ -56,7 +56,7 @@ transcription_model:
   # OpenRouter (100+ models via unified API):
   #   - openai/gpt-5.1, anthropic/claude-sonnet-4-5, google/gemini-3-pro
   #   - deepseek/deepseek-r1, meta/llama-3.2-90b, mistral/pixtral-large
-  name: gpt-5-mini
+  name: gpt-5.4
 
   # -------------------------------------------------------------------------
   # Output Token Limit

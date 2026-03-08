@@ -98,7 +98,7 @@ Use the helper script to extract and edit ground truth:
 
 2. **Extract** chunk-level extractions to editable text format:
    ```bash
-   python main/prepare_extraction_ground_truth.py --extract \
+   python eval/prepare_ground_truth.py --extract \
        --input eval/test_data/output/bibliography/gpt_5.1_medium
    ```
    This creates `*_editable.txt` files with chunk markers like `=== chunk 001 ===`.
@@ -111,14 +111,14 @@ Use the helper script to extract and edit ground truth:
 
 4. **Apply** corrections to create ground truth JSONL:
    ```bash
-   python main/prepare_extraction_ground_truth.py --apply \
+   python eval/prepare_ground_truth.py --apply \
        --input eval/test_data/output/bibliography/gpt_5.1_medium
    ```
    This creates JSONL files in `test_data/ground_truth/{category}/`.
 
 5. **Check** ground truth status:
    ```bash
-   python main/prepare_extraction_ground_truth.py --status
+   python eval/prepare_ground_truth.py --status
    ```
 
 ### Step 2: Run Model Extractions

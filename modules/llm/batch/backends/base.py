@@ -1,7 +1,7 @@
 """Base interface for batch processing backends.
 
 Defines the abstract interface that all batch processing backends must implement.
-Adapted for ChronoMiner's text extraction workflow (text chunks instead of images).
+Supports both text chunk extraction and visual (image/PDF) extraction.
 """
 
 from __future__ import annotations
@@ -58,19 +58,32 @@ class BatchHandle:
 @dataclass
 class BatchRequest:
     """A single request to include in a batch.
-    
-    Adapted for text extraction: carries text content instead of image data.
-    
+
+    Supports both text chunk extraction and visual (image/PDF) extraction.
+    Set image_base64 to activate visual mode; leave it None for text mode.
+
     Attributes:
         custom_id: Unique identifier for matching results to requests
-        text: The text chunk to process
+        text: The text chunk to process (text mode)
         order_index: Original order index for result sorting
         metadata: Additional metadata (e.g., file_path, chunk_range)
+        image_base64: Base64-encoded image data (visual mode; None = text request)
+        mime_type: MIME type of the image (e.g., 'image/png', 'image/jpeg')
+        image_detail: Image detail level for vision models ('low', 'high', 'auto')
     """
     custom_id: str
     text: str = ""
     order_index: int = 0
     metadata: Dict[str, Any] = field(default_factory=dict)
+    # Visual pipeline fields (None = text request):
+    image_base64: Optional[str] = None
+    mime_type: Optional[str] = None
+    image_detail: Optional[str] = None
+
+    @property
+    def is_visual(self) -> bool:
+        """Return True if this request carries image data rather than text."""
+        return self.image_base64 is not None
 
 
 @dataclass

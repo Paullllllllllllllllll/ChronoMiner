@@ -67,7 +67,7 @@ def _extract_chunk_index(custom_id: Any) -> int:
     """Extract numeric chunk index from a custom_id like '<stem>-chunk-<n>' or 'req-<n>'."""
     if not isinstance(custom_id, str):
         return 10**9  # push unknowns to end
-    m = re.search(r"(?:-chunk-|req-)(\d+)$", custom_id)
+    m = re.search(r"(?:-chunk-|-page-|req-)(\d+)$", custom_id)
     if m:
         try:
             return int(m.group(1))

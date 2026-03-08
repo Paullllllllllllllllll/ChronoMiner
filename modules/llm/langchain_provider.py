@@ -590,14 +590,23 @@ class LangChainLLM:
             
             # Handle content that might be a list (for multimodal)
             if isinstance(content, list):
-                # Extract text content
-                text_parts = []
-                for item in content:
-                    if isinstance(item, dict) and item.get("type") == "input_text":
-                        text_parts.append(item.get("text", ""))
-                    elif isinstance(item, str):
-                        text_parts.append(item)
-                content = "\n".join(text_parts)
+                has_image = any(
+                    isinstance(item, dict) and item.get("type") in ("image_url", "image")
+                    for item in content
+                )
+                if has_image:
+                    # Multimodal: pass list content directly to HumanMessage
+                    # LangChain HumanMessage accepts list content for vision
+                    pass  # content remains as list
+                else:
+                    # Text-only: extract text content
+                    text_parts = []
+                    for item in content:
+                        if isinstance(item, dict) and item.get("type") == "input_text":
+                            text_parts.append(item.get("text", ""))
+                        elif isinstance(item, str):
+                            text_parts.append(item)
+                    content = "\n".join(text_parts)
             
             if role == "system":
                 lc_messages.append(SystemMessage(content=content))

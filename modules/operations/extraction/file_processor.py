@@ -8,9 +8,11 @@ Uses modular components with simplified orchestration and separated concerns.
 import asyncio
 import json
 import logging
+import tempfile
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
+from modules.config.constants import SUPPORTED_IMAGE_EXTENSIONS, SUPPORTED_PDF_EXTENSIONS, SUPPORTED_VISUAL_EXTENSIONS
 from modules.core.chunking_service import ChunkSlice, ChunkingService, apply_chunk_slice
 from modules.core.processing_strategy import create_processing_strategy
 from modules.core.context_resolver import resolve_context_for_extraction
@@ -23,7 +25,7 @@ from modules.core.resume import (
 )
 from modules.core.text_utils import TextProcessor
 from modules.core.path_utils import ensure_path_safe
-from modules.llm.prompt_utils import render_prompt_with_schema
+from modules.llm.prompt_utils import render_prompt_with_schema, load_prompt_template
 from modules.operations.extraction.schema_handlers import get_schema_handler
 from modules.ui import print_info, print_success, print_warning, print_error, ui_print
 
@@ -119,6 +121,19 @@ class FileProcessorRefactored:
             text_processor=self.text_processor
         )
 
+    @staticmethod
+    def _is_visual_input(file_path: Path) -> bool:
+        """Check if the path is a visual input (image, PDF, or directory of images)."""
+        if file_path.is_file():
+            return file_path.suffix.lower() in SUPPORTED_VISUAL_EXTENSIONS
+        if file_path.is_dir():
+            return any(
+                f.suffix.lower() in SUPPORTED_VISUAL_EXTENSIONS
+                for f in file_path.rglob("*")
+                if f.is_file()
+            )
+        return False
+
     async def process_file(
         self,
         file_path: Path,
@@ -133,9 +148,13 @@ class FileProcessorRefactored:
         resume: bool = False,
         chunk_slice: Optional[ChunkSlice] = None,
         context_override: Optional[Dict[str, Any]] = None,
+        image_detail: Optional[str] = None,
     ) -> None:
         """
-        Process a single text file with refactored architecture.
+        Process a single file with refactored architecture.
+
+        Routes to _process_visual_file() for image/PDF inputs, otherwise
+        runs the existing text processing pipeline.
 
         :param file_path: Path to the file to process
         :param use_batch: Whether to use batch processing
@@ -148,10 +167,26 @@ class FileProcessorRefactored:
         :param ui: UserInterface instance for user feedback
         :param resume: If True, skip completed chunks and resume partial outputs
         :param context_override: Optional dict with 'mode' ('auto'|'none'|'manual') and 'path' (CM-8)
+        :param image_detail: Image detail level for vision models
         """
+        if self._is_visual_input(file_path):
+            return await self._process_visual_file(
+                file_path=file_path,
+                use_batch=use_batch,
+                selected_schema=selected_schema,
+                schema_name=schema_name,
+                inject_schema=inject_schema,
+                schema_paths=schema_paths,
+                ui=ui,
+                resume=resume,
+                chunk_slice=chunk_slice,
+                context_override=context_override,
+                image_detail=image_detail,
+            )
+
         # Create messaging adapter
         messenger = _create_messaging_adapter(ui)
-        
+
         messenger.info(f"Processing file: {file_path.name}")
         logger.info(f"Starting processing for file: {file_path}")
 
@@ -339,6 +374,280 @@ class FileProcessorRefactored:
                         f"Processing cancelled. Partial results saved to {output_json_path}"
                     )
                 # Allow cancellation to propagate after cleanup and messaging
+            elif processing_exception is None:
+                messenger.success(f"Completed processing of file: {file_path.name}")
+
+        if processing_exception is not None:
+            return
+
+    async def _process_visual_file(
+        self,
+        file_path: Path,
+        use_batch: bool,
+        selected_schema: Dict[str, Any],
+        schema_name: str,
+        inject_schema: bool,
+        schema_paths: Dict[str, Any],
+        ui: Any = None,
+        resume: bool = False,
+        chunk_slice: Optional[ChunkSlice] = None,
+        context_override: Optional[Dict[str, Any]] = None,
+        image_detail: Optional[str] = None,
+    ) -> None:
+        """Process a visual input file (image or PDF) through the LLM vision pipeline."""
+        from modules.llm.model_capabilities import detect_capabilities
+        from modules.processing.image_utils import (
+            ImageProcessor,
+            encode_image_to_base64,
+            detect_model_type,
+            get_image_config_section_name,
+        )
+
+        messenger = _create_messaging_adapter(ui)
+        messenger.info(f"Processing visual file: {file_path.name}")
+        logger.info(f"Starting visual processing for file: {file_path}")
+
+        # 1. Validate vision support
+        model_name = self.model_config["transcription_model"]["name"]
+        caps = detect_capabilities(model_name)
+        if not caps.supports_image_input:
+            messenger.error(
+                f"Model '{model_name}' does not support image inputs. "
+                f"Use a vision-capable model (e.g., gpt-5-mini, claude-sonnet-4-5, gemini-2.5-flash)."
+            )
+            return
+
+        # 2. Determine provider and load image config
+        from modules.llm.langchain_provider import ProviderConfig
+        provider = ProviderConfig._detect_provider(model_name)
+        model_type = detect_model_type(provider, model_name)
+        section_name = get_image_config_section_name(model_type)
+
+        from modules.config.loader import get_config_loader
+        image_config = get_config_loader().get_image_processing_config()
+        img_cfg = image_config.get(section_name, {})
+
+        # Determine effective detail level
+        if image_detail is None:
+            if model_type == "google":
+                image_detail = img_cfg.get("media_resolution", "high") or "high"
+            elif model_type == "anthropic":
+                image_detail = img_cfg.get("resize_profile", "auto") or "auto"
+            else:
+                image_detail = img_cfg.get("llm_detail", "high") or "high"
+
+        # 3. Load and preprocess images
+        pil_images: list = []
+        temp_dir = None
+        ext = file_path.suffix.lower()
+
+        try:
+            if ext in SUPPORTED_PDF_EXTENSIONS:
+                from modules.processing.pdf_utils import PDFProcessor
+
+                target_dpi = int(image_config.get("target_dpi", 300))
+                with PDFProcessor(file_path) as pdf:
+                    page_count = pdf.get_page_count()
+                    messenger.info(f"PDF has {page_count} page(s), rendering at {target_dpi} DPI")
+                    pil_images = pdf.extract_pages_as_images(dpi=target_dpi)
+            else:
+                from PIL import Image
+                pil_images = [Image.open(file_path).convert("RGB")]
+
+            messenger.info(f"Loaded {len(pil_images)} image(s) from {file_path.name}")
+
+            # Apply chunk slice (treat pages as chunks)
+            if chunk_slice is not None:
+                original_count = len(pil_images)
+                if chunk_slice.first_n is not None:
+                    pil_images = pil_images[: chunk_slice.first_n]
+                elif chunk_slice.last_n is not None:
+                    pil_images = pil_images[-chunk_slice.last_n :]
+                if len(pil_images) != original_count:
+                    messenger.info(
+                        f"Chunk slice applied: processing {len(pil_images)}/{original_count} page(s)"
+                    )
+
+            # 4. Preprocess and encode each image
+            temp_dir = Path(tempfile.mkdtemp(prefix="chronominer_img_"))
+            image_chunks: list[Dict[str, Any]] = []
+
+            for i, pil_img in enumerate(pil_images):
+                # Save temp input image for ImageProcessor
+                temp_input = temp_dir / f"page_{i:04d}_raw.png"
+                pil_img.save(temp_input, format="PNG")
+
+                processor = ImageProcessor(
+                    image_path=temp_input,
+                    provider=provider,
+                    model_name=model_name,
+                    image_config=image_config,
+                )
+                temp_output = temp_dir / f"page_{i:04d}_processed"
+                processed_path = processor.process_image(temp_output)
+
+                b64_data, mime_type = encode_image_to_base64(processed_path)
+                image_chunks.append({
+                    "base64": b64_data,
+                    "mime_type": mime_type,
+                    "detail": image_detail,
+                })
+
+            messenger.info(f"Preprocessed {len(image_chunks)} image(s)")
+
+        except Exception as e:
+            messenger.error(f"Failed to load/preprocess images from {file_path.name}: {e}", exc_info=e)
+            return
+
+        # 5. Resolve context (same as text path)
+        context: Optional[str]
+        context_path: Optional[Path]
+        override_mode = (context_override or {}).get("mode", "auto")
+        if override_mode == "none":
+            context, context_path = None, None
+        elif override_mode == "manual" and (context_override or {}).get("path"):
+            manual_path = Path(context_override["path"])
+            if manual_path.exists():
+                context = manual_path.read_text(encoding="utf-8").strip()
+                context_path = manual_path
+                messenger.info(f"Using context from: {manual_path.name}")
+            else:
+                logger.warning(f"Manual context path not found: {manual_path}; falling back to auto")
+                context, context_path = resolve_context_for_extraction(text_file=file_path)
+        else:
+            context, context_path = resolve_context_for_extraction(text_file=file_path)
+
+        if context_path and override_mode == "auto":
+            messenger.info(f"Using context from: {context_path.name}")
+
+        # 6. Render system prompt using visual extraction prompt
+        visual_prompt_path = Path("prompts/visual_extraction_prompt.txt")
+        try:
+            visual_prompt_template = load_prompt_template(visual_prompt_path)
+        except FileNotFoundError:
+            messenger.error(f"Visual extraction prompt not found: {visual_prompt_path}")
+            return
+
+        schema_definition = selected_schema.get("schema", {})
+        effective_dev_message = render_prompt_with_schema(
+            visual_prompt_template,
+            schema_definition,
+            schema_name=schema_name,
+            inject_schema=inject_schema,
+            context=context,
+        )
+
+        # 7. Get schema handler
+        try:
+            handler = get_schema_handler(schema_name)
+        except Exception as e:
+            messenger.error(f"Failed to get schema handler: {e}", exc_info=e)
+            return
+
+        # 8. Set up output paths
+        try:
+            working_folder, output_json_path, temp_jsonl_path = self._setup_output_paths(
+                file_path, schema_paths
+            )
+            messenger.info(f"Output will be saved to: {output_json_path}")
+        except Exception as e:
+            messenger.error(f"Failed to set up output paths: {e}", exc_info=e)
+            return
+
+        # 9. Resume detection
+        num_pages = len(image_chunks)
+        chunks = [""] * num_pages  # Placeholder strings for index-based resume logic
+
+        completed_chunk_indices: set[int] = set()
+        if resume and not use_batch:
+            status, completed_chunk_indices = detect_extraction_status(
+                output_json_path, expected_chunks=num_pages
+            )
+            if status == FileStatus.COMPLETE:
+                messenger.info(
+                    f"Skipping {file_path.name}: already fully processed ({len(completed_chunk_indices)} pages)"
+                )
+                return
+            if status == FileStatus.PARTIAL:
+                messenger.info(
+                    f"Resuming {file_path.name}: {len(completed_chunk_indices)}/{num_pages} pages already done"
+                )
+
+        # 10. Create strategy and process
+        strategy = create_processing_strategy(use_batch, self.concurrency_config)
+
+        processing_cancelled = False
+        processing_exception: Optional[Exception] = None
+
+        try:
+            await strategy.process_chunks(
+                chunks=chunks,
+                handler=handler,
+                dev_message=effective_dev_message,
+                model_config=self.model_config,
+                schema=selected_schema["schema"],
+                file_path=file_path,
+                temp_jsonl_path=temp_jsonl_path,
+                console_print=messenger.console_print,
+                completed_chunk_indices=completed_chunk_indices,
+                image_chunks=image_chunks,
+            )
+        except asyncio.CancelledError:
+            processing_cancelled = True
+            messenger.warning(
+                "Processing interrupted by user. Attempting to persist completed pages before exit..."
+            )
+            raise
+        except Exception as e:
+            processing_exception = e
+            messenger.error(f"Error during processing: {e}", exc_info=e)
+        finally:
+            wrote_output = False
+            if not use_batch:
+                try:
+                    if temp_jsonl_path.exists() and temp_jsonl_path.stat().st_size > 0:
+                        _cs_info: Optional[dict] = None
+                        if chunk_slice is not None and (chunk_slice.first_n is not None or chunk_slice.last_n is not None):
+                            _cs_info = {}
+                            if chunk_slice.first_n is not None:
+                                _cs_info["first_n"] = chunk_slice.first_n
+                            if chunk_slice.last_n is not None:
+                                _cs_info["last_n"] = chunk_slice.last_n
+                        await asyncio.shield(
+                            self._generate_output_files(
+                                temp_jsonl_path,
+                                output_json_path,
+                                handler,
+                                schema_paths,
+                                messenger,
+                                partial=processing_cancelled or processing_exception is not None,
+                                chunk_slice_info=_cs_info,
+                            )
+                        )
+                        wrote_output = True
+                    elif processing_cancelled:
+                        messenger.warning(
+                            "Processing was interrupted before any pages completed; no output file generated."
+                        )
+                except Exception as gen_exc:
+                    messenger.error(f"Failed to write final output: {gen_exc}", exc_info=gen_exc)
+
+            self._cleanup_temp_files(use_batch, temp_jsonl_path, messenger)
+
+            # Clean up temporary preprocessed images
+            if temp_dir and temp_dir.exists():
+                import shutil
+                try:
+                    shutil.rmtree(temp_dir)
+                    logger.debug("Cleaned up temp image directory: %s", temp_dir)
+                except Exception as cleanup_err:
+                    logger.warning("Failed to clean temp images: %s", cleanup_err)
+
+            if processing_cancelled:
+                if wrote_output:
+                    messenger.warning(
+                        f"Processing cancelled. Partial results saved to {output_json_path}"
+                    )
             elif processing_exception is None:
                 messenger.success(f"Completed processing of file: {file_path.name}")
 

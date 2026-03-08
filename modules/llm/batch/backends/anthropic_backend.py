@@ -75,10 +75,23 @@ class AnthropicBatchBackend(BatchBackend):
         # Build batch requests
         batch_requests = []
         for req in requests:
-            # Build message content for text extraction
-            user_content = [
-                {"type": "text", "text": f"Input text:\n{req.text}"},
-            ]
+            # Route by input type: visual or text
+            if req.is_visual:
+                user_content = [
+                    {"type": "text", "text": "Process this image:"},
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": req.mime_type,
+                            "data": req.image_base64,
+                        },
+                    },
+                ]
+            else:
+                user_content = [
+                    {"type": "text", "text": f"Input text:\n{req.text}"},
+                ]
 
             # Build params for Messages API
             params: Dict[str, Any] = {

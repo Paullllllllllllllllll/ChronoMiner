@@ -89,13 +89,24 @@ class GoogleBatchBackend(BatchBackend):
         # Each request is a GenerateContentRequest
         inline_requests = []
         for req in requests:
-            # Build content parts for text extraction
+            # Route by input type: visual or text
+            if req.is_visual:
+                parts = [
+                    {"text": "Process this image:"},
+                    {
+                        "inline_data": {
+                            "mime_type": req.mime_type,
+                            "data": req.image_base64,
+                        }
+                    },
+                ]
+            else:
+                parts = [{"text": f"Input text:\n{req.text}"}]
+
             contents = [
                 {
                     "role": "user",
-                    "parts": [
-                        {"text": f"Input text:\n{req.text}"},
-                    ],
+                    "parts": parts,
                 }
             ]
 

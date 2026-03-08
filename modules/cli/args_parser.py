@@ -8,7 +8,13 @@ Provides consistent argument parsing across all main scripts when running in CLI
 
 import argparse
 from pathlib import Path
-from typing import Optional, List
+from typing import Literal, Optional, List
+
+from modules.config.constants import (
+    SUPPORTED_IMAGE_EXTENSIONS,
+    SUPPORTED_PDF_EXTENSIONS,
+    SUPPORTED_VISUAL_EXTENSIONS,
+)
 
 
 def _positive_int(value: str) -> int:
@@ -22,6 +28,51 @@ def _positive_int(value: str) -> int:
         raise argparse.ArgumentTypeError(f"Value must be > 0, got: {value}")
 
     return parsed
+
+
+InputType = Literal["text", "image", "pdf", "mixed"]
+
+
+def detect_input_type(path: Path) -> InputType:
+    """Detect the input type from a file or directory.
+
+    :param path: Input path (file or directory).
+    :return: One of 'text', 'image', 'pdf', or 'mixed'.
+    """
+    if path.is_file():
+        ext = path.suffix.lower()
+        if ext in SUPPORTED_IMAGE_EXTENSIONS:
+            return "image"
+        if ext in SUPPORTED_PDF_EXTENSIONS:
+            return "pdf"
+        return "text"
+
+    if path.is_dir():
+        has_text = False
+        has_image = False
+        has_pdf = False
+        for f in path.iterdir():
+            if not f.is_file():
+                continue
+            ext = f.suffix.lower()
+            if ext in SUPPORTED_IMAGE_EXTENSIONS:
+                has_image = True
+            elif ext in SUPPORTED_PDF_EXTENSIONS:
+                has_pdf = True
+            elif ext in (".txt", ".md"):
+                has_text = True
+        visual = has_image or has_pdf
+        if visual and has_text:
+            return "mixed"
+        if has_image and not has_pdf:
+            return "image"
+        if has_pdf and not has_image:
+            return "pdf"
+        if has_image and has_pdf:
+            return "mixed"
+        return "text"
+
+    return "text"
 
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
@@ -141,6 +192,26 @@ Examples:
         )
     )
 
+    parser.add_argument(
+        "--image-detail",
+        type=str,
+        choices=["low", "high", "auto", "original"],
+        default=None,
+        help="Image detail level for vision models (default: from config)"
+    )
+
+    parser.add_argument(
+        "--input-type",
+        type=str,
+        choices=["text", "image", "pdf"],
+        default=None,
+        help=(
+            "Override auto-detected input type. Useful when a folder contains a "
+            "stray image that should not trigger visual processing (text), or to "
+            "force image/pdf mode."
+        ),
+    )
+
     chunk_slice_group = parser.add_mutually_exclusive_group()
     chunk_slice_group.add_argument(
         "--first-n-chunks",
@@ -154,7 +225,7 @@ Examples:
         metavar="N",
         help="Process only the last N chunks of each input file"
     )
-    
+
     return parser
 
 
@@ -482,25 +553,63 @@ def parse_indices(indices_str: str) -> List[int]:
     return sorted(result)
 
 
-def get_files_from_path(path: Path, pattern: str = "*.txt", exclude_patterns: Optional[List[str]] = None) -> List[Path]:
+def get_files_from_path(
+    path: Path,
+    pattern: str = "*.txt",
+    exclude_patterns: Optional[List[str]] = None,
+    input_type: Optional[InputType] = None,
+) -> List[Path]:
     """
     Get list of files from a path (file or directory).
-    
+
     :param path: Input path (file or directory)
-    :param pattern: Glob pattern for files (default: *.txt)
+    :param pattern: Glob pattern for files (default: *.txt). Ignored when
+        *input_type* is 'image', 'pdf', or 'mixed'.
     :param exclude_patterns: List of patterns to exclude (e.g., ["*_line_ranges.txt", "*_context.txt"])
+    :param input_type: If provided, overrides *pattern* to collect visual files.
     :return: List of file paths
     """
     if exclude_patterns is None:
         exclude_patterns = []
-    
+
     if path.is_file():
-        # Check if file matches exclude patterns
         if any(path.match(excl) for excl in exclude_patterns):
             return []
         return [path]
-    
+
     if path.is_dir():
+        # Determine which extensions to collect
+        if input_type in ("image", "pdf", "mixed"):
+            if input_type == "image":
+                valid_exts = SUPPORTED_IMAGE_EXTENSIONS
+            elif input_type == "pdf":
+                valid_exts = SUPPORTED_PDF_EXTENSIONS
+            else:
+                # Mixed: collect visual + text files
+                valid_exts = SUPPORTED_VISUAL_EXTENSIONS | {".txt", ".md"}
+
+            files = []
+            for file in sorted(path.rglob("*")):
+                if not file.is_file():
+                    continue
+                if file.suffix.lower() not in valid_exts:
+                    continue
+
+                try:
+                    rel_parts = file.relative_to(path).parts
+                except Exception:
+                    rel_parts = file.parts
+
+                if rel_parts:
+                    top = str(rel_parts[0]).lower()
+                    if top == "output" or top.endswith("_outputs"):
+                        continue
+
+                if not any(file.match(excl) for excl in exclude_patterns):
+                    files.append(file)
+            return files
+
+        # Default text-mode: use glob pattern
         files = []
         for file in path.rglob(pattern):
             if not file.is_file():
@@ -519,5 +628,5 @@ def get_files_from_path(path: Path, pattern: str = "*.txt", exclude_patterns: Op
             if not any(file.match(excl) for excl in exclude_patterns):
                 files.append(file)
         return files
-    
+
     return []
