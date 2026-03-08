@@ -613,7 +613,7 @@ def aggregate_metrics(metrics_list: List[ExtractionMetrics]) -> ExtractionMetric
     aggregated.matched_entries = sum(m.matched_entries for m in metrics_list)
     
     # Aggregate field metrics
-    all_field_names = set()
+    all_field_names: set[str] = set()
     for m in metrics_list:
         all_field_names.update(m.field_metrics.keys())
     
@@ -662,10 +662,10 @@ def format_metrics_table(
     
     # Collect all categories
     if categories is None:
-        categories = set()
+        derived: set[str] = set()
         for cat_metrics in model_metrics.values():
-            categories.update(cat_metrics.keys())
-        categories = sorted(categories)
+            derived.update(cat_metrics.keys())
+        categories = sorted(derived)
     
     # Build header
     lines = [

@@ -19,7 +19,7 @@ if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from argparse import ArgumentParser, Namespace
-from typing import List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from modules.cli.args_parser import create_generate_ranges_parser, get_files_from_path, resolve_path
 from modules.cli.execution_framework import DualModeScript
@@ -78,7 +78,7 @@ def write_line_ranges_file(text_file: Path, line_ranges: List[Tuple[int, int]]) 
 class GenerateLineRangesScript(DualModeScript):
     """Script to generate line ranges for text files based on token chunking."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("generate_line_ranges")
         self.model_name: Optional[str] = None
         self.tokens_per_chunk: Optional[int] = None
@@ -97,6 +97,7 @@ class GenerateLineRangesScript(DualModeScript):
     
     def _select_schema(self) -> str:
         """Prompt user to select a schema."""
+        assert self.ui is not None
         schema_manager = SchemaManager()
         schema_manager.load_schemas()
         available_schemas = schema_manager.get_available_schemas()
@@ -120,6 +121,7 @@ class GenerateLineRangesScript(DualModeScript):
     
     def _select_files_interactive(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """Prompt user to select files for processing."""
+        assert self.ui is not None
         self.ui.print_section_header("Input Selection")
         
         mode_options = [
@@ -137,19 +139,20 @@ class GenerateLineRangesScript(DualModeScript):
         if mode is None:
             return None
         
-        files: List[Path] = []
-        
+        files: Optional[List[Path]] = []
+
         if mode == "single":
             files = self._select_single_file(raw_text_dir, allow_back=allow_back)
             if files is None:
                 return self._select_files_interactive(raw_text_dir, allow_back=allow_back)
         elif mode == "folder":
             files = self._select_folder_files(raw_text_dir)
-        
+
         return files
     
     def _select_single_file(self, raw_text_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """Select a single file for processing."""
+        assert self.ui is not None
         file_input = self.ui.get_input(
             "Enter the filename to process (with or without .txt extension)",
             allow_back=allow_back,
@@ -183,6 +186,7 @@ class GenerateLineRangesScript(DualModeScript):
     
     def _select_from_multiple(self, candidates: List[Path], base_dir: Path, allow_back: bool = False) -> Optional[List[Path]]:
         """Handle selection when multiple matching files are found."""
+        assert self.ui is not None
         self.ui.print_warning(f"Found {len(candidates)} matching files:")
         self.ui.console_print(self.ui.HORIZONTAL_LINE)
         
@@ -200,7 +204,7 @@ class GenerateLineRangesScript(DualModeScript):
                 return None
             
             try:
-                idx: int = int(selected_index) - 1
+                idx = int(selected_index) - 1
                 if 0 <= idx < len(candidates):
                     file_path = candidates[idx]
                     self.ui.print_success(f"Selected: {file_path.name}")
@@ -212,6 +216,7 @@ class GenerateLineRangesScript(DualModeScript):
     
     def _select_folder_files(self, raw_text_dir: Path) -> List[Path]:
         """Select all text files in a folder."""
+        assert self.ui is not None
         files = [
             f for f in raw_text_dir.rglob("*.txt") 
             if not f.name.endswith("_line_ranges.txt") and not f.name.endswith("_context.txt")
@@ -251,10 +256,12 @@ class GenerateLineRangesScript(DualModeScript):
                 
                 self.logger.info(f"Generating line ranges for {file_path}")
                 
+                assert self.tokens_per_chunk is not None
+                assert self.model_name is not None
                 line_ranges = generate_line_ranges_for_file(
                     text_file=file_path,
                     default_tokens_per_chunk=self.tokens_per_chunk,
-                    model_name=self.model_name
+                    model_name=self.model_name,
                 )
                 
                 # Apply chunk slice if requested
@@ -292,6 +299,7 @@ class GenerateLineRangesScript(DualModeScript):
     
     def run_interactive(self) -> None:
         """Run line range generation in interactive mode with back navigation support."""
+        assert self.ui is not None
         self.ui.print_section_header("Line Range Generation")
         self.ui.print_info("Loading configuration...")
         
@@ -301,7 +309,7 @@ class GenerateLineRangesScript(DualModeScript):
         # State machine for navigation
         # States: schema -> files -> chunk_slice -> confirm
         current_step = "schema"
-        state = {}
+        state: Dict[str, Any] = {}
         
         while True:
             if current_step == "schema":

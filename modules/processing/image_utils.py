@@ -259,7 +259,8 @@ class ImageProcessor:
             Path to the saved processed image (with .jpg extension).
         """
         try:
-            with Image.open(self.image_path) as img:
+            with Image.open(self.image_path) as _raw_img:
+                img: Image.Image = _raw_img
                 if self.model_type == "google":
                     detail = self.img_cfg.get("media_resolution", "high") or "high"
                 elif self.model_type == "anthropic":

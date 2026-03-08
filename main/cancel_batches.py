@@ -20,7 +20,7 @@ import json
 import os
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any, Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
 from modules.cli.args_parser import create_cancel_batches_parser
 from modules.cli.execution_framework import DualModeScript
@@ -87,7 +87,7 @@ class CancelBatchesScript(DualModeScript):
     Provider detection is automatic based on tracking records in temp files.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("cancel_batches")
         # No longer require any API key at init - backends handle their own keys
         self.root_folders: List[Path] = []
@@ -145,6 +145,7 @@ class CancelBatchesScript(DualModeScript):
     
     def run_interactive(self) -> None:
         """Run batch cancellation in interactive mode."""
+        assert self.ui is not None
         self.ui.print_section_header("Batch Cancellation")
         
         self._load_root_folders()
@@ -241,9 +242,9 @@ class CancelBatchesScript(DualModeScript):
         self.logger.info(f"Batch cancellation complete: {cancelled_count} cancelled, {failed_count} failed.")
     
     def _cancel_batches(
-        self, 
-        batches: List[Tuple[Dict[str, Any], BatchStatus]], 
-        ui: UserInterface = None
+        self,
+        batches: List[Tuple[Dict[str, Any], BatchStatus]],
+        ui: Optional[UserInterface] = None,
     ) -> Tuple[int, int]:
         """
         Cancel a list of batches using provider-agnostic backends.

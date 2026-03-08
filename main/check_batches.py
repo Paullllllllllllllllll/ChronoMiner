@@ -22,8 +22,11 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 import datetime
 
+from openai import OpenAI
+
 from modules.config.loader import ConfigLoader, get_config_loader
 from modules.core.logger import setup_logger
+from modules.llm.openai_sdk_utils import coerce_file_id
 from modules.operations.extraction.schema_handlers import get_schema_handler
 from modules.ui.core import UserInterface
 from modules.core.batch_utils import diagnose_batch_failure, extract_custom_id_mapping
@@ -192,7 +195,7 @@ def _group_temp_files_by_base(temp_files: List[Path]) -> Dict[str, List[Path]]:
     # Sort files within each group by part number
     for base_id in groups:
         groups[base_id].sort(key=lambda p: (
-            int(re.search(r"_part(\d+)$", p.stem).group(1))
+            int(re.search(r"_part(\d+)$", p.stem).group(1))  # type: ignore[union-attr]
             if re.search(r"_part(\d+)$", p.stem)
             else 0
         ))
@@ -368,7 +371,7 @@ def retrieve_responses_from_batch(
     return responses
 
 
-def _safe_print(ui: Optional[UserInterface], message: str, level: str = "info"):
+def _safe_print(ui: Optional[UserInterface], message: str, level: str = "info") -> None:
     """Safely print message to UI or logger depending on mode."""
     if ui:
         if level == "info":
@@ -393,7 +396,7 @@ def _safe_print(ui: Optional[UserInterface], message: str, level: str = "info"):
             logger.info(message)
 
 
-def _safe_subsection(ui: Optional[UserInterface], title: str):
+def _safe_subsection(ui: Optional[UserInterface], title: str) -> None:
     """Safely print subsection header."""
     if ui:
         ui.print_subsection_header(title)
@@ -467,8 +470,8 @@ def process_all_batches(
             
             responses = all_responses
             tracking = all_tracking
-            custom_id_map = combined_custom_id_map if combined_custom_id_map else None
-            order_map = combined_order_map if combined_order_map else None
+            custom_id_map = combined_custom_id_map if combined_custom_id_map else None  # type: ignore[assignment]
+            order_map = combined_order_map if combined_order_map else None  # type: ignore[assignment]
 
             if not tracking:
                 _safe_print(ui, f"Tracking information missing for {base_identifier}. Skipping final output.", "warning")
@@ -504,7 +507,7 @@ def process_all_batches(
             missing_batches: List[str] = []
 
             for track in tracking:
-                batch_id: Any = track.get("batch_id")
+                batch_id = track.get("batch_id")
                 provider: str = track.get("provider", "openai")  # Default to openai for backward compatibility
                 
                 if not batch_id:
@@ -665,7 +668,7 @@ class CheckBatchesScript(DualModeScript):
     Provider detection is automatic based on tracking records in temp files.
     """
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("check_batches")
         # No longer require OPENAI_API_KEY at init - provider backends handle their own keys
         self.repo_info_list: List[Tuple[str, Path, Dict[str, Any]]] = []
@@ -681,6 +684,7 @@ class CheckBatchesScript(DualModeScript):
     
     def run_interactive(self) -> None:
         """Run batch checking in interactive mode."""
+        assert self.ui is not None
         self.ui.print_section_header("Batch Results Retrieval")
         
         self._load_batch_config()

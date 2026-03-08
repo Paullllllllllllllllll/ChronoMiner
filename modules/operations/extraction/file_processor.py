@@ -248,7 +248,7 @@ class FileProcessor:
             context, context_path = None, None
             logger.debug(f"Context disabled for '{file_path.name}'")
         elif override_mode == "manual" and (context_override or {}).get("path"):
-            manual_path = Path(context_override["path"])  # type: ignore[arg-type]
+            manual_path = Path(context_override["path"])  # type: ignore[arg-type, index]
             if manual_path.exists():
                 context = manual_path.read_text(encoding="utf-8").strip()
                 context_path = manual_path
@@ -509,7 +509,7 @@ class FileProcessor:
         if override_mode == "none":
             context, context_path = None, None
         elif override_mode == "manual" and (context_override or {}).get("path"):
-            manual_path = Path(context_override["path"])
+            manual_path = Path(context_override["path"])  # type: ignore[index]
             if manual_path.exists():
                 context = manual_path.read_text(encoding="utf-8").strip()
                 context_path = manual_path

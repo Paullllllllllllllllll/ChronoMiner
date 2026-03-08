@@ -12,8 +12,11 @@ and consistency with ChronoTranscriber.
 
 import sys
 from pathlib import Path
-from typing import List, Optional, Tuple, Dict, Any
+from typing import TYPE_CHECKING, List, Optional, Tuple, Dict, Any
 import logging
+
+if TYPE_CHECKING:
+    from modules.core.chunking_service import ChunkSlice
 
 from modules.config.constants import (
     SUPPORTED_IMAGE_EXTENSIONS,
@@ -291,7 +294,7 @@ class UserInterface:
             return None
         return mode == "batch"
 
-    def ask_chunk_slice(self, allow_back: bool = False):
+    def ask_chunk_slice(self, allow_back: bool = False) -> Optional["ChunkSlice"]:
         """
         Prompt user to optionally limit processing to first/last N chunks.
 

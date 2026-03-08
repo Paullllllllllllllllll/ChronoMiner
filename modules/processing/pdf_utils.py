@@ -44,9 +44,13 @@ class PDFProcessor:
         self.open_pdf()
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> bool:
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
         self.close_pdf()
-        return False
 
     def get_page_count(self) -> int:
         """Return the number of pages in the PDF."""
@@ -88,7 +92,7 @@ class PDFProcessor:
                     effective_dpi,
                 )
         pix = page.get_pixmap(matrix=fitz.Matrix(effective_dpi / 72, effective_dpi / 72), alpha=False)
-        img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
+        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
         return img
 
     def extract_pages_as_images(

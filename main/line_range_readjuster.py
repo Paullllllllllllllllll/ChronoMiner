@@ -17,7 +17,7 @@ import asyncio
 from copy import deepcopy
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
@@ -45,7 +45,7 @@ from modules.cli.mode_detector import should_use_interactive_mode
 logger = setup_logger(__name__)
 
 
-def _model_config_with_verbosity(model_config: Dict[str, any], verbosity: str) -> Dict[str, any]:
+def _model_config_with_verbosity(model_config: Dict[str, Any], verbosity: str) -> Dict[str, Any]:
     """Return a copied model config with transcription verbosity overridden."""
     updated = deepcopy(model_config or {})
     transcription_cfg = updated.setdefault("transcription_model", {})
@@ -156,13 +156,13 @@ def _prompt_int(ui: Optional[UserInterface], message: str, default: int) -> int:
 async def _adjust_files(
     *,
     text_files: Sequence[Path],
-    model_config: Dict[str, any],
+    model_config: Dict[str, Any],
     context_window: int,
     prompt_path: Optional[Path],
     boundary_type: str,
-    matching_config: Optional[Dict[str, any]],
-    retry_config: Optional[Dict[str, any]],
-    notifier,
+    matching_config: Optional[Dict[str, Any]],
+    retry_config: Optional[Dict[str, Any]],
+    notifier: Any,
     ui: Optional[UserInterface] = None,
     resume: bool = False,
 ) -> Tuple[List[Tuple[Path, Path]], List[Path], List[Tuple[Path, Exception]]]:
@@ -298,12 +298,12 @@ async def main_async() -> None:
 
 async def _run_interactive_mode(
     schema_manager: SchemaManager,
-    schemas_paths: Dict[str, any],
-    paths_config: Dict[str, any],
-    model_config: Dict[str, any],
-    chunking_config: Dict[str, any],
-    matching_config: Dict[str, any],
-    retry_config: Dict[str, any],
+    schemas_paths: Dict[str, Any],
+    paths_config: Dict[str, Any],
+    model_config: Dict[str, Any],
+    chunking_config: Dict[str, Any],
+    matching_config: Dict[str, Any],
+    retry_config: Dict[str, Any],
     default_context_window: int,
 ) -> None:
     """Run line range readjustment in interactive mode with back navigation support."""
@@ -313,7 +313,7 @@ async def _run_interactive_mode(
     # State machine for navigation
     # States: schema -> files -> context -> confirm
     current_step = "schema"
-    state = {}
+    state: Dict[str, Any] = {}
     
     while True:
         if current_step == "schema":
@@ -410,7 +410,7 @@ async def _run_interactive_mode(
         )
     
     # UI-aware notifier
-    def ui_notifier(msg: str, level: str = "info"):
+    def ui_notifier(msg: str, level: str = "info") -> None:
         if level == "success":
             ui.print_success(msg)
         elif level == "error":
@@ -468,11 +468,11 @@ async def _run_interactive_mode(
 async def _run_cli_mode(
     args: argparse.Namespace,
     schema_manager: SchemaManager,
-    schemas_paths: Dict[str, any],
-    model_config: Dict[str, any],
-    chunking_config: Dict[str, any],
-    matching_config: Dict[str, any],
-    retry_config: Dict[str, any],
+    schemas_paths: Dict[str, Any],
+    model_config: Dict[str, Any],
+    chunking_config: Dict[str, Any],
+    matching_config: Dict[str, Any],
+    retry_config: Dict[str, Any],
     default_context_window: int,
 ) -> None:
     """Run line range readjustment in CLI mode."""
@@ -520,7 +520,7 @@ async def _run_cli_mode(
     prompt_path: Optional[Path] = Path(prompt_override).resolve() if prompt_override else None
     
     # Simple notifier for CLI mode
-    def cli_notifier(msg: str, level: str = "info"):
+    def cli_notifier(msg: str, level: str = "info") -> None:
         prefixes = {"success": "[SUCCESS]", "error": "[ERROR]", "warning": "[WARN]", "info": "[INFO]"}
         print(f"{prefixes.get(level, '[INFO]')} {msg}")
     

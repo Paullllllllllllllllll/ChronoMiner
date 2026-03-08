@@ -297,6 +297,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
         batch_requests: List[BatchRequest] = []
 
         if is_visual_batch:
+            assert image_chunks is not None
             console_print(
                 f"[INFO] Preparing visual batch processing for {len(image_chunks)} "
                 f"page(s) (provider: {provider})..."

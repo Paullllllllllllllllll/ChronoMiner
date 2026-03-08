@@ -18,11 +18,12 @@ Workflow:
 """
 
 import asyncio
+from argparse import ArgumentParser, Namespace
 from copy import deepcopy
 import sys
 import time
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -171,7 +172,7 @@ def _count_existing_outputs(
     return count
 
 
-def _build_effective_model_config(model_config: Dict, args) -> Dict:
+def _build_effective_model_config(model_config: Dict[str, Any], args: Any) -> Dict[str, Any]:
     """Build a per-run model config with CLI overrides applied."""
     effective_model_config = deepcopy(model_config or {})
     transcription_model = effective_model_config.setdefault("transcription_model", {})
@@ -195,7 +196,7 @@ def _build_effective_model_config(model_config: Dict, args) -> Dict:
     return effective_model_config
 
 
-def _build_effective_paths_config(paths_config: Dict, args) -> Dict:
+def _build_effective_paths_config(paths_config: Dict[str, Any], args: Any) -> Dict[str, Any]:
     """Build a per-run paths config, honoring CLI output overrides."""
     effective_paths_config = deepcopy(paths_config or {})
     if getattr(args, "output", None):
@@ -205,7 +206,7 @@ def _build_effective_paths_config(paths_config: Dict, args) -> Dict:
     return effective_paths_config
 
 
-def _build_effective_chunking_config(chunking_and_context_config: Dict, args) -> Dict:
+def _build_effective_chunking_config(chunking_and_context_config: Dict[str, Any], args: Any) -> Dict[str, Any]:
     """Build a per-run chunking config with optional CLI chunk-size override."""
     effective_chunking_config = {
         "chunking": dict((chunking_and_context_config or {}).get("chunking", {}) or {})
@@ -216,11 +217,11 @@ def _build_effective_chunking_config(chunking_and_context_config: Dict, args) ->
 
 
 async def _run_interactive_mode(
-    config_loader,
-    paths_config: Dict,
-    model_config: Dict,
-    chunking_and_context_config: Dict,
-    schemas_paths: Dict,
+    config_loader: Any,
+    paths_config: Dict[str, Any],
+    model_config: Dict[str, Any],
+    chunking_and_context_config: Dict[str, Any],
+    schemas_paths: Dict[str, Any],
 ) -> None:
     """Run text processing in interactive mode with back navigation support."""
     ui = UserInterface(logger, use_colors=True)
@@ -268,7 +269,7 @@ async def _run_interactive_mode(
     # State machine for navigation
     # States: schema -> chunking -> batch -> resume -> context -> image_detail -> chunk_slice -> files -> confirm
     current_step = "schema"
-    state = {}
+    state: Dict[str, Any] = {}
     prompt_template = None
 
     while True:
@@ -357,11 +358,11 @@ async def _run_interactive_mode(
 
         elif current_step == "image_detail":
             if state.get("is_visual"):
-                result = ui.ask_image_detail(allow_back=True)
-                if result is None:
+                image_detail_result = ui.ask_image_detail(allow_back=True)
+                if image_detail_result is None:
                     current_step = "context"
                     continue
-                state["image_detail"] = result
+                state["image_detail"] = image_detail_result
             current_step = "chunk_slice"
 
         elif current_step == "chunk_slice":
@@ -475,6 +476,7 @@ async def _run_interactive_mode(
     ui.print_section_header("Starting Processing")
     logger.info(f"Processing {len(state['files'])} file(s) with schema '{state['selected_schema_name']}'.")
     
+    assert prompt_template is not None, "prompt_template must be set before processing"
     # Process files sequentially if token limiting is enabled (for better control)
     # Otherwise process concurrently for speed
     inject_schema = model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
@@ -574,12 +576,12 @@ async def _run_interactive_mode(
 
 
 async def _run_cli_mode(
-    args,
-    config_loader,
-    paths_config: Dict,
-    model_config: Dict,
-    chunking_and_context_config: Dict,
-    schemas_paths: Dict,
+    args: Any,
+    config_loader: Any,
+    paths_config: Dict[str, Any],
+    model_config: Dict[str, Any],
+    chunking_and_context_config: Dict[str, Any],
+    schemas_paths: Dict[str, Any],
 ) -> None:
     """Run text processing in CLI mode."""
     parser = create_process_parser()
@@ -852,10 +854,10 @@ async def _run_cli_mode(
 class ProcessTextFilesScript(AsyncDualModeScript):
     """Main script for processing text files with schema-based structured data extraction."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("process_text_files")
-    
-    def create_argument_parser(self):
+
+    def create_argument_parser(self) -> ArgumentParser:
         """Create argument parser for CLI mode."""
         return create_process_parser()
     
@@ -869,7 +871,7 @@ class ProcessTextFilesScript(AsyncDualModeScript):
             self.schemas_paths,
         )
     
-    async def run_cli(self, args) -> None:
+    async def run_cli(self, args: Namespace) -> None:
         """Run text processing in CLI mode."""
         await _run_cli_mode(
             args,

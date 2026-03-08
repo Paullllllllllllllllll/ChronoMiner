@@ -439,7 +439,7 @@ class LangChainLLM:
             if text_config and str(caps.family).startswith("gpt-5"):
                 verbosity = text_config.get("verbosity")
                 if verbosity:
-                    params.setdefault("model_kwargs", {})["text"] = {"verbosity": verbosity}
+                    params.setdefault("model_kwargs", {})["text"] = {"verbosity": verbosity}  # type: ignore[call-overload]
 
             return ChatOpenAI(**params)
         

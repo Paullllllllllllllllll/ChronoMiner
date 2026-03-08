@@ -208,6 +208,8 @@ class OpenAIBatchBackend(BatchBackend):
         for req in requests:
             # Route by input type: visual or text
             if req.is_visual:
+                assert req.image_base64 is not None, "image_base64 required for visual batch requests"
+                assert req.mime_type is not None, "mime_type required for visual batch requests"
                 body = _build_image_responses_body(
                     model_config=model_config,
                     system_prompt=system_prompt,

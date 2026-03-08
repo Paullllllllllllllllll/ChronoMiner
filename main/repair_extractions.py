@@ -151,7 +151,7 @@ def _repair_temp_file(
         return
 
     for track in completed_batches:
-        batch_responses = retrieve_responses_from_batch(track, temp_file.parent, local_batch_cache)
+        batch_responses = retrieve_responses_from_batch(track, temp_file.parent, local_batch_cache)  # type: ignore[arg-type]
         responses.extend(batch_responses)
 
     if not responses:
@@ -209,7 +209,7 @@ def _repair_temp_file(
 class RepairExtractionsScript(DualModeScript):
     """Script to repair incomplete batch extractions."""
     
-    def __init__(self):
+    def __init__(self) -> None:
         super().__init__("repair_extractions")
         api_key = os.getenv("OPENAI_API_KEY", "").strip()
         if not api_key:
@@ -228,6 +228,7 @@ class RepairExtractionsScript(DualModeScript):
     
     def run_interactive(self) -> None:
         """Run extraction repair in interactive mode."""
+        assert self.ui is not None
         self.ui.print_section_header("Batch Extraction Repair")
         
         self._load_repair_config()
@@ -301,40 +302,40 @@ class RepairExtractionsScript(DualModeScript):
         self._load_repair_config()
         
         # Create a simple UI-less notifier for CLI
-        def cli_print(msg: str, level: str = "info"):
+        def cli_print(msg: str, level: str = "info") -> None:
             prefixes = {"success": "[SUCCESS]", "error": "[ERROR]", "warning": "[WARN]", "info": "[INFO]"}
             print(f"{prefixes.get(level, '[INFO]')} {msg}")
         
         # Mock UI for repair function
         class MockUI:
-            def print_subsection_header(self, title):
+            def print_subsection_header(self, title: str) -> None:
                 if args.verbose:
                     print(f"\n--- {title} ---")
-            
-            def print_warning(self, msg):
+
+            def print_warning(self, msg: str) -> None:
                 cli_print(msg, "warning")
-            
-            def print_info(self, msg):
+
+            def print_info(self, msg: str) -> None:
                 if args.verbose:
                     cli_print(msg, "info")
-            
-            def print_success(self, msg):
+
+            def print_success(self, msg: str) -> None:
                 cli_print(msg, "success")
-            
-            def print_error(self, msg):
+
+            def print_error(self, msg: str) -> None:
                 cli_print(msg, "error")
-            
-            def log(self, msg, level):
+
+            def log(self, msg: str, level: str) -> None:
                 log_method = getattr(logger, level.lower(), logger.info)
                 log_method(msg)
-            
-            def display_batch_processing_progress(self, *args):
+
+            def display_batch_processing_progress(self, *args: Any) -> None:
                 pass
         
         mock_ui = MockUI()
         
         # Discover candidates
-        candidates = _discover_candidate_temp_files(self.repo_info_list, mock_ui)
+        candidates = _discover_candidate_temp_files(self.repo_info_list, mock_ui)  # type: ignore[arg-type]
         
         if not candidates:
             self.logger.info("No temporary batch files found")
@@ -391,7 +392,7 @@ class RepairExtractionsScript(DualModeScript):
             try:
                 if args.verbose:
                     print(f"[INFO] Repairing {candidate['temp_file'].name}...")
-                _repair_temp_file(candidate, self.processing_settings, self.client, mock_ui)
+                _repair_temp_file(candidate, self.processing_settings, self.client, mock_ui)  # type: ignore[arg-type]
                 success_count += 1
             except Exception as e:
                 self.logger.exception(f"Error repairing {candidate['temp_file'].name}", exc_info=e)
