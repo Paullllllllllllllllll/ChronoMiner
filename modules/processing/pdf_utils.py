@@ -9,6 +9,7 @@ Dependencies: PyMuPDF (fitz), Pillow.
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import List, Optional
 
@@ -54,12 +55,16 @@ class PDFProcessor:
         assert self.doc is not None
         return self.doc.page_count
 
-    def render_page_to_pil(self, page_index: int, dpi: int = 300) -> Image.Image:
+    def render_page_to_pil(
+        self, page_index: int, dpi: int = 300, max_pixels: int = 0
+    ) -> Image.Image:
         """Render a single PDF page to a PIL Image.
 
         Args:
             page_index: Zero-based page index.
-            dpi: Rendering resolution.
+            dpi: Target rendering resolution.
+            max_pixels: If > 0, reduce DPI so the rendered page stays within
+                this pixel budget. Set to 0 to disable dynamic scaling.
 
         Returns:
             PIL Image in RGB mode.
@@ -68,19 +73,38 @@ class PDFProcessor:
             self.open_pdf()
         assert self.doc is not None
         page = self.doc[page_index]
-        pix = page.get_pixmap(matrix=fitz.Matrix(dpi / 72, dpi / 72), alpha=False)
+        effective_dpi = dpi
+        if max_pixels > 0:
+            rect = page.rect
+            pixels_at_dpi = (rect.width / 72 * dpi) * (rect.height / 72 * dpi)
+            if pixels_at_dpi > max_pixels:
+                effective_dpi = max(1, int(dpi * math.sqrt(max_pixels / pixels_at_dpi)))
+                logger.info(
+                    "Page %d: %.0f MP at %d DPI exceeds limit (%.0f MP); reducing to %d DPI",
+                    page_index + 1,
+                    pixels_at_dpi / 1e6,
+                    dpi,
+                    max_pixels / 1e6,
+                    effective_dpi,
+                )
+        pix = page.get_pixmap(matrix=fitz.Matrix(effective_dpi / 72, effective_dpi / 72), alpha=False)
         img = Image.frombytes("RGB", [pix.width, pix.height], pix.samples)
         return img
 
     def extract_pages_as_images(
-        self, dpi: int = 300, page_indices: Optional[List[int]] = None
+        self,
+        dpi: int = 300,
+        page_indices: Optional[List[int]] = None,
+        max_pixels: int = 0,
     ) -> List[Image.Image]:
         """Render multiple PDF pages to PIL Images.
 
         Args:
-            dpi: Rendering resolution.
+            dpi: Target rendering resolution.
             page_indices: Optional list of zero-based page indices.
                          If None, all pages are rendered.
+            max_pixels: If > 0, reduce DPI per page to stay within this pixel
+                budget. Set to 0 to disable dynamic scaling.
 
         Returns:
             List of PIL Images in RGB mode.
@@ -93,7 +117,7 @@ class PDFProcessor:
         images: List[Image.Image] = []
         for idx in indices:
             try:
-                images.append(self.render_page_to_pil(idx, dpi))
+                images.append(self.render_page_to_pil(idx, dpi, max_pixels=max_pixels))
             except Exception as e:
                 logger.error(
                     "Error rendering page %d from %s: %s",

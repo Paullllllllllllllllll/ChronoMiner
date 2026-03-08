@@ -446,10 +446,13 @@ class FileProcessorRefactored:
                 from modules.processing.pdf_utils import PDFProcessor
 
                 target_dpi = int(image_config.get("target_dpi", 300))
+                max_pixels_per_page = int(image_config.get("max_pixels_per_page", 0))
                 with PDFProcessor(file_path) as pdf:
                     page_count = pdf.get_page_count()
                     messenger.info(f"PDF has {page_count} page(s), rendering at {target_dpi} DPI")
-                    pil_images = pdf.extract_pages_as_images(dpi=target_dpi)
+                    pil_images = pdf.extract_pages_as_images(
+                        dpi=target_dpi, max_pixels=max_pixels_per_page
+                    )
             else:
                 from PIL import Image
                 pil_images = [Image.open(file_path).convert("RGB")]
