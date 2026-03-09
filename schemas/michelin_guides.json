@@ -1,6 +1,6 @@
 {
   "name": "MichelinGuides",
-  "schema_version": "3.0",
+  "schema_version": "3.1",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -8,7 +8,7 @@
     "properties": {
       "contains_no_content_of_requested_type": {
         "type": "boolean",
-        "description": "Set to true if the input text contains no bibliographic entries. Otherwise, set to false."
+        "description": "Set to true if the page contains no restaurant or hotel entries (e.g. only maps, legends, index pages, advertisements, editorial text). Set to false if at least one establishment entry is present."
       },
       "active_city_or_town": {
         "type": ["string", "null"],
@@ -166,7 +166,7 @@
                     "boolean",
                     "null"
                   ],
-                  "description": "MICHELIN Plate recognition indicator. Set to false if the symbol is absent on a complete entry. Set to null only when entry_is_fragment is true and the award section was not visible on this page."
+                  "description": "MICHELIN Plate (2016-2021) or Selected Restaurant (2022+). Set to true if the Plate icon or Selected designation appears on a complete entry without stars or Bib Gourmand. Set to false if absent on a complete entry. Null only for fragments."
                 },
                 "green_star": {
                   "type": [
@@ -194,16 +194,9 @@
                     "integer",
                     "null"
                   ],
-                  "description": "Historic comfort class for restaurants (1-5 'covers'). Set to null if the comfort-covers symbol is absent or if entry_is_fragment is true and the symbol row was not visible.",
+                  "description": "Comfort and atmosphere rating (1-5) derived from the count of crossed fork-and-spoon glyphs on the name line, or from an explicit digit. NOT a food quality rating. Set to null only when no fork-and-spoon glyphs are visible at all (e.g., hotel-only entries with no restaurant) or when entry_is_fragment is true and the symbol row was not on this page.",
                   "minimum": 1,
                   "maximum": 5
-                },
-                "selected": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ],
-                  "description": "MICHELIN Plate (2016-2022) or Selected Restaurant (2022+) when printed without stars. Null if not applicable or not present in this edition."
                 }
               },
               "required": [
@@ -213,8 +206,7 @@
                 "green_star",
                 "new_in_guide",
                 "pleasant_marker",
-                "comfort_covers",
-                "selected"
+                "comfort_covers"
               ],
               "additionalProperties": false
             },
@@ -227,7 +219,7 @@
                     "array",
                     "null"
                   ],
-                  "description": "Cuisine types or styles (e.g., 'French', 'Italian', 'Contemporary').",
+                  "description": "Primary cuisine type label as printed (e.g. 'Cuisine traditionnelle', 'Poissons et fruits de mer', 'Italian', 'Modern British'). One or two entries per restaurant.",
                   "items": {
                     "type": "string"
                   }
@@ -242,19 +234,12 @@
                     "type": "string"
                   }
                 },
-                "chef": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "Chef name if explicitly mentioned."
-                },
                 "keywords": {
                   "type": [
                     "array",
                     "null"
                   ],
-                  "description": "Additional culinary keywords or descriptors.",
+                  "description": "Additional culinary descriptors beyond the primary style label (e.g. 'seasonal', 'regional', 'farm-to-table', 'creative'). Null if no additional keywords are printed.",
                   "items": {
                     "type": "string"
                   }
@@ -263,7 +248,6 @@
               "required": [
                 "styles",
                 "specialties",
-                "chef",
                 "keywords"
               ],
               "additionalProperties": false
@@ -272,20 +256,6 @@
               "type": "object",
               "description": "Opening hours and closure patterns as printed.",
               "properties": {
-                "lunch_hours": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "Lunch service hours or times."
-                },
-                "dinner_hours": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "Dinner service hours or times."
-                },
                 "days_closed": {
                   "type": [
                     "array",
@@ -302,21 +272,11 @@
                     "null"
                   ],
                   "description": "Annual closure periods (e.g., vacation dates)."
-                },
-                "open_for_breakfast": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ],
-                  "description": "Indicates if breakfast service is available."
                 }
               },
               "required": [
-                "lunch_hours",
-                "dinner_hours",
                 "days_closed",
-                "annual_closure",
-                "open_for_breakfast"
+                "annual_closure"
               ],
               "additionalProperties": false
             },
@@ -329,7 +289,7 @@
                     "string",
                     "null"
                   ],
-                  "description": "Currency code or symbol (e.g., 'EUR', '€', 'USD')."
+                  "description": "ISO 4217 currency code for all prices in this entry (e.g. 'EUR', 'GBP', 'CHF', 'FRF', 'DEM', 'ITL'). Use the three-letter code, not the symbol."
                 },
                 "menu_price_min": {
                   "type": [
@@ -411,13 +371,6 @@
                     "null"
                   ],
                   "description": "Additional pricing notes or clarifications."
-                },
-                "price_band_raw": {
-                  "type": [
-                    "string",
-                    "null"
-                  ],
-                  "description": "Raw price-band symbol as printed (e.g. '€', '€€', '€€€€'). Null if no band symbol appears in the entry."
                 }
               },
               "required": [
@@ -428,8 +381,7 @@
                 "a_la_carte_price_max",
                 "lunch_menu_price",
                 "set_menus",
-                "price_note",
-                "price_band_raw"
+                "price_note"
               ],
               "additionalProperties": false
             },
@@ -451,26 +403,12 @@
                   ],
                   "description": "Air conditioning available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
-                "non_smoking": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ],
-                  "description": "Non-smoking establishment or area. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
-                },
-                "dogs_allowed": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ],
-                  "description": "Dogs permitted. If 'no dogs' symbol appears, set to false and set no_dogs to true. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
-                },
                 "no_dogs": {
                   "type": [
                     "boolean",
                     "null"
                   ],
-                  "description": "Dogs explicitly not permitted. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
+                  "description": "Dogs explicitly not permitted. Set to true if the 'no dogs' pictogram (dog crossed out) appears. False if absent on a complete entry. Null only for fragments."
                 },
                 "terrace": {
                   "type": [
@@ -514,20 +452,6 @@
                   ],
                   "description": "Exceptional or extensive wine selection. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
-                "notable_cocktail_list": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ],
-                  "description": "Exceptional or extensive cocktail selection. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
-                },
-                "private_dining_room": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ],
-                  "description": "Private dining room available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
-                },
                 "conference_room": {
                   "type": [
                     "boolean",
@@ -548,13 +472,6 @@
                     "null"
                   ],
                   "description": "Garage parking available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
-                },
-                "valet_parking": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ],
-                  "description": "Valet parking service available. False if the pictogram is absent. Null only when entry_is_fragment is true and the amenity row was not on this page."
                 },
                 "mooring_or_landing": {
                   "type": [
@@ -581,8 +498,6 @@
               "required": [
                 "wheelchair_access",
                 "air_conditioning",
-                "non_smoking",
-                "dogs_allowed",
                 "no_dogs",
                 "terrace",
                 "garden_or_park",
@@ -590,12 +505,9 @@
                 "great_view",
                 "peaceful",
                 "notable_wine_list",
-                "notable_cocktail_list",
-                "private_dining_room",
                 "conference_room",
                 "parking",
                 "garage",
-                "valet_parking",
                 "mooring_or_landing",
                 "open_for_breakfast",
                 "has_rooms"
@@ -632,7 +544,7 @@
                     "string",
                     "null"
                   ],
-                  "description": "Currency for room prices."
+                  "description": "ISO 4217 currency code for room prices (e.g. 'EUR', 'GBP', 'CHF'). Use the three-letter code, not the symbol. Often identical to pricing.currency."
                 },
                 "breakfast_available": {
                   "type": [
@@ -661,13 +573,6 @@
                     "null"
                   ],
                   "description": "Credit cards accepted for payment."
-                },
-                "no_credit_cards": {
-                  "type": [
-                    "boolean",
-                    "null"
-                  ],
-                  "description": "Credit cards explicitly not accepted."
                 },
                 "accept_visa": {
                   "type": [
@@ -707,7 +612,6 @@
               },
               "required": [
                 "credit_cards_accepted",
-                "no_credit_cards",
                 "accept_visa",
                 "accept_mastercard",
                 "accept_amex",
