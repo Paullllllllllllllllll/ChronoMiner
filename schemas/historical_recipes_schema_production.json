@@ -1,6 +1,6 @@
 {
   "name": "HistoricalRecipesEntriesProduction",
-  "schema_version": "1.0",
+  "schema_version": "1.1",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -21,8 +21,8 @@
               "description": "Complete recipe text verbatim in its original language (preserve spelling, diacritics, and formatting), without page numbers or other formatting elements."
             },
             "recipe_text_modern_english": {
-              "type": ["string", "null"],
-              "description": "Modern English translation of the complete recipe text. Use null if and only if the recipe is already in modern English."
+              "type": ["string"],
+              "description": "Modern English translation of the complete recipe text. If the recipe is already in English, produce a fully modernized rendering."
             },
             "title_original": {
               "type": ["string", "null"],
