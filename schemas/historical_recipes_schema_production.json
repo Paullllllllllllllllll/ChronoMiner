@@ -21,7 +21,7 @@
               "description": "Complete recipe text verbatim in its original language (preserve spelling, diacritics, and formatting), without page numbers or other formatting elements."
             },
             "recipe_text_modern_english": {
-              "type": ["string"],
+              "type": "string",
               "description": "Modern English translation of the complete recipe text. If the recipe is already in English, produce a fully modernized rendering."
             },
             "title_original": {
