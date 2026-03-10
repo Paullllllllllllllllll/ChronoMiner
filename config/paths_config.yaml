@@ -107,6 +107,12 @@ schemas_paths:
     csv_output: True
     docx_output: True
     txt_output: True
+  HistoricalRecipesEntriesProduction:
+    input: "C:\\Users\\pagoetz\\PycharmProjects\\WhatForDinner\\jupyter_notebooks\\main\\data\\hchb_dl"
+    output: "C:\\Users\\pagoetz\\PycharmProjects\\WhatForDinner\\jupyter_notebooks\\main\\data\\hchb_dl"
+    csv_output: True
+    docx_output: True
+    txt_output: True
   HistoricalRecipesEntriesMinimal:
     input: ""
     output: ""
@@ -119,3 +125,9 @@ schemas_paths:
     csv_output: True
     docx_output: True
     txt_output: True
+  MichelinGuides:
+    input: "C:\\Users\\pagoetz\\PycharmProjects\\NetworksOfTaste\\Michelin_Guides"
+    output: "C:\\Users\\pagoetz\\PycharmProjects\\NetworksOfTaste\\Michelin_Guides"
+    csv_output: False
+    docx_output: False
+    txt_output: False
