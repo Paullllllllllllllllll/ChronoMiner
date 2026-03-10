@@ -49,7 +49,8 @@
                 "Salad",
                 "Appetizer",
                 "Dairy Production",
-                "Brewing/Winemaking",
+                "Brewing",
+                "Winemaking",
                 "Distillation",
                 "Vinegar/Oil/Essence",
                 "Household Recipe",
@@ -80,13 +81,20 @@
                   "origin_explicitly_stated": {
                     "type": ["string", "null"],
                     "description": "If the recipe text explicitly states an origin (e.g., 'Spanish oil'), record verbatim. Null if none."
+                  },
+                  "ingredient_luxury_signal_rating_1_7": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate ingredient's status/luxury connotation in the historical context given. Base rating on period-appropriate valuation, not modern standards. General conventions: 1 = everyday staple accessible to common households (e.g., bread, onions, local vegetables); 4 = moderately valued or regionally variable; 7 = high-status luxury item (e.g., exotic spices, imported delicacies, expensive cuts). Use null if insufficient evidence."
                   }
                 },
                 "required": [
                   "name_original",
                   "name_modern_english",
                   "quantity_original",
-                  "origin_explicitly_stated"
+                  "origin_explicitly_stated",
+                  "ingredient_luxury_signal_rating_1_7"
                 ],
                 "additionalProperties": false
               }
