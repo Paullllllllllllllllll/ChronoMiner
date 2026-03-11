@@ -1,6 +1,6 @@
 {
   "name": "HistoricalRecipesEntriesProduction",
-  "schema_version": "1.1",
+  "schema_version": "1.2",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -22,7 +22,7 @@
             },
             "recipe_text_modern_english": {
               "type": "string",
-              "description": "Modern English translation of the complete recipe text. If the recipe is already in English, produce a fully modernized rendering."
+              "description": "Modern English translation of the complete recipe text. If the recipe is already in English, produce a fully modernized English rendering."
             },
             "title_original": {
               "type": ["string", "null"],
@@ -30,7 +30,7 @@
             },
             "title_modern_english": {
               "type": ["string", "null"],
-              "description": "Modern English translation of the original recipe title. If the title is already in English, produce a fully modernized rendering."
+              "description": "Modern English translation of the original recipe title. If the title is already in English, produce a fully modernized English rendering."
             },
             "recipe_type": {
               "type": "string",
@@ -72,7 +72,7 @@
                   },
                   "name_modern_english": {
                     "type": ["string", "null"],
-                    "description": "Modern English translation of the ingredient. Use null if already in modern English."
+                    "description": "Modern English translation of the ingredient. If already in English, produce a fully modernized English rendering."
                   },
                   "quantity_original": {
                     "type": ["string", "null"],
@@ -87,6 +87,18 @@
                     "minimum": 1,
                     "maximum": 7,
                     "description": "Rate ingredient's status/luxury connotation in the historical context given. Base rating on period-appropriate valuation, not modern standards. General conventions: 1 = everyday staple accessible to common households (e.g., bread, onions, local vegetables); 4 = moderately valued or regionally variable; 7 = high-status luxury item (e.g., exotic spices, imported delicacies, expensive cuts). Use null if insufficient evidence."
+                  },
+                  "ingredient_trade_distance_rating_1_7": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate how far this ingredient traveled to reach the kitchen, based on its geographic origin and the period. 1 = entirely local or domestic production (local grain, domestic vegetables, game); 4 = pan-European or established long-distance European trade (Baltic herring, Levantine goods); 7 = far-flung intercontinental import (spice-route, trans-Atlantic colonial). Calibrate to the period: as trade routes matured, the effective distance of once-exotic goods declined over time. Use null if origin cannot be inferred."
+                  },
+                  "ingredient_novelty_rating_1_7": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate how recently this ingredient had been introduced or adopted in European kitchens at the time of writing. 1 = ancient European staple known for millennia (wheat, pork, onions, honey); 4 = early modern arrival, established across most European regions by the late 16th century; 7 = novelty or still contested at the time of this recipe's writing (e.g. potato or tomato in an early 17th-century source). Base the rating on the approximate date of widespread European adoption, not regional specifics. Use null if timing is ambiguous."
                   }
                 },
                 "required": [
@@ -94,7 +106,9 @@
                   "name_modern_english",
                   "quantity_original",
                   "origin_explicitly_stated",
-                  "ingredient_luxury_signal_rating_1_7"
+                  "ingredient_luxury_signal_rating_1_7",
+                  "ingredient_trade_distance_rating_1_7",
+                  "ingredient_novelty_rating_1_7"
                 ],
                 "additionalProperties": false
               }
@@ -111,10 +125,16 @@
                   },
                   "method_modern_english": {
                     "type": ["string", "null"],
-                    "description": "Modern English translation. Use null if already in modern English."
+                    "description": "Modern English translation. If already in English, produce a fully modernized English rendering."
+                  },
+                  "method_complexity_rating_1_7": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate the skill and labor intensity required to execute this technique in a period kitchen. 1 = simple common household technique requiring minimal training (boiling, basic roasting, salting); 4 = moderately skilled procedure requiring attention and practice (making a roux, clarifying stock, careful frying with temperature judgment); 7 = highly technical method requiring professional training or complex equipment (spun-sugar work, multi-stage reduction with liaison, elaborate laminated pastry). Use null if insufficient evidence."
                   }
                 },
-                "required": ["method_original", "method_modern_english"],
+                "required": ["method_original", "method_modern_english", "method_complexity_rating_1_7"],
                 "additionalProperties": false
               }
             },
@@ -130,10 +150,22 @@
                   },
                   "utensil_modern_english": {
                     "type": ["string", "null"],
-                    "description": "Modern English translation. Use null if already in modern English."
+                    "description": "Modern English translation. If already in English, produce a fully modernized rendering."
+                  },
+                  "utensil_specialization_rating_1_7": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate how specialized and costly this piece of equipment was for its period. 1 = universal household item found in virtually any kitchen (earthen pot, knife, wooden spoon); 4 = moderately specialized, requiring a degree of investment (chafing dish, strainer, pastry board); 7 = highly specialized equipment found only in affluent or commercial kitchens (clockwork spit, copper confectionary mold, distillation apparatus). Use null if insufficient evidence."
+                  },
+                  "utensil_modernity_rating_1_7": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate this piece of equipment on the culinary-historical spectrum, using the same reference frame as the recipe-level modernity_rating_1_7. 1 = equipment typical only of pre-modern kitchens (cauldron, spit, stone mortar); 4 = post-La Varenne era kitchen (c.1651+); 7 = equipment characteristic of the high classical professional kitchen (Escoffier era). Use null if ambiguous."
                   }
                 },
-                "required": ["utensil_original", "utensil_modern_english"],
+                "required": ["utensil_original", "utensil_modern_english", "utensil_specialization_rating_1_7", "utensil_modernity_rating_1_7"],
                 "additionalProperties": false
               }
             },
