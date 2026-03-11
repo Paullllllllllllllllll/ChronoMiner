@@ -30,7 +30,7 @@
             },
             "title_modern_english": {
               "type": ["string", "null"],
-              "description": "Modern English translation of the original recipe title. Use null if title_original is null or if the title is already in modern English."
+              "description": "Modern English translation of the original recipe title. If the title is already in English, produce a fully modernized rendering."
             },
             "recipe_type": {
               "type": "string",
