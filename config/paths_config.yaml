@@ -56,78 +56,66 @@ schemas_paths:
   BibliographicEntries:
     input: ""
     output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
+    csv_output: False
+    docx_output: False
+    txt_output: False
   StructuredSummaries:
     input: ""
     output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
+    csv_output: False
+    docx_output: False
+    txt_output: False
   HistoricalAddressBookEntries:
     input: ""
     output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
+    csv_output: False
+    docx_output: False
+    txt_output: False
   BrazilianMilitaryRecords:
     input: ""
     output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
+    csv_output: False
+    docx_output: False
+    txt_output: False
   CulinaryWorksEntries:
     input: ""
     output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
+    csv_output: False
+    docx_output: False
+    txt_output: False
   CulinaryPersonsEntries:
     input: ""
     output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
+    csv_output: False
+    docx_output: False
+    txt_output: False
   CulinaryPlacesEntries:
     input: ""
     output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
-  HistoricalRecipesEntries:
-    input: ""
-    output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
-  HistoricalRecipesEntriesLight:
-    input: ""
-    output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
+    csv_output: False
+    docx_output: False
+    txt_output: False
   HistoricalRecipesEntriesProduction:
-    input: "C:\\Users\\pagoetz\\PycharmProjects\\WhatForDinner\\jupyter_notebooks\\main\\data\\hchb_dl"
-    output: "C:\\Users\\pagoetz\\PycharmProjects\\WhatForDinner\\jupyter_notebooks\\main\\data\\hchb_dl"
-    csv_output: True
-    docx_output: True
-    txt_output: True
-  HistoricalRecipesEntriesMinimal:
     input: ""
     output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
-  HistoricalRecipesSemanticAdditions:
-    input: ""
-    output: ""
-    csv_output: True
-    docx_output: True
-    txt_output: True
+    csv_output: False
+    docx_output: False
+    txt_output: False
   MichelinGuides:
-    input: "C:\\Users\\pagoetz\\PycharmProjects\\NetworksOfTaste\\Michelin_Guides"
-    output: "C:\\Users\\pagoetz\\PycharmProjects\\NetworksOfTaste\\Michelin_Guides"
+    input: ""
+    output: ""
+    csv_output: False
+    docx_output: False
+    txt_output: False
+  CookbookMetadataEntries:
+    input: ""
+    output: ""
+    csv_output: False
+    docx_output: False
+    txt_output: False
+  CulinaryEntitiesEntries:
+    input: ""
+    output: ""
     csv_output: False
     docx_output: False
     txt_output: False

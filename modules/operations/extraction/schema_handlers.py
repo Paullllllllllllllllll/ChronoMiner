@@ -76,7 +76,9 @@ for schema in [
     "CulinaryPersonsEntries",
     "CulinaryPlacesEntries",
     "CulinaryWorksEntries",
-    "HistoricalRecipesEntries",
-    "MilitaryRecordEntries",
+    "CulinaryEntitiesEntries",
+    "HistoricalRecipesEntriesProduction",
+    "MichelinGuides",
+    "CookbookMetadataEntries",
 ]:
     register_schema_handler(schema, BaseSchemaHandler)

@@ -56,14 +56,14 @@ class CSVConverter(BaseConverter):
             "bibliographicentries": self._convert_bibliographic_entries_to_df,
             "structuredsummaries": self._convert_structured_summaries_to_df,
             "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_df,
-            "brazilianoccupationrecords": self._convert_brazilianoccupationrecords_to_df,
             "brazilianmilitaryrecords": self._convert_brazilianoccupationrecords_to_df,
             "culinarypersonsentries": self._convert_culinary_persons_to_df,
             "culinaryplacesentries": self._convert_culinary_places_to_df,
             "culinaryworksentries": self._convert_culinary_works_to_df,
             "culinaryentitiesentries": self._convert_culinary_entities_to_df,
-            "historicalrecipesentries": self._convert_historical_recipes_to_df,
-            "michelinguides": self._convert_michelin_guides_to_df
+            "historicalrecipesentriesproduction": self._convert_historical_recipes_production_to_df,
+            "michelinguides": self._convert_michelin_guides_to_df,
+            "cookbookmetadataentries": self._convert_cookbook_metadata_to_df,
         }
         converter = self.get_converter(converters)
         if converter:
@@ -799,3 +799,171 @@ class CSVConverter(BaseConverter):
 
         df = pd.DataFrame(rows)
         return df
+
+    # ------------------------------------------------------------------
+    # HistoricalRecipesEntriesProduction (schema v1.2)
+    # ------------------------------------------------------------------
+
+    def _convert_historical_recipes_production_to_df(
+        self, entries: List[Any]
+    ) -> pd.DataFrame:
+        """
+        Converts HistoricalRecipesEntriesProduction entries to DataFrame (schema v1.2).
+
+        Extends the base recipe converter with per-ingredient rating columns
+        (luxury signal, trade distance, novelty) and per-method complexity rating,
+        each serialised as a semicolon-separated list in ingredient order.
+        Also exposes culinary_style and intertextuality analytical fields.
+        """
+        entries = self._normalize_entries(entries)
+        rows: List[Dict[str, Any]] = []
+
+        for entry in entries:
+            # Base textual fields
+            recipe_text_orig = entry.get("recipe_text_original")
+            recipe_text_modern = entry.get("recipe_text_modern_english")
+            title_orig = entry.get("title_original")
+            title_modern = entry.get("title_modern_english")
+            recipe_type = entry.get("recipe_type")
+
+            # Ingredients — production schema uses quantity_original (no standardized fields)
+            ingredients = entry.get("ingredients", [])
+            ingredients_list: List[str] = []
+            luxury_ratings: List[str] = []
+            trade_distance_ratings: List[str] = []
+            novelty_ratings: List[str] = []
+            for ing in ingredients:
+                if not isinstance(ing, dict):
+                    continue
+                name = ing.get("name_modern_english") or ing.get("name_original") or ""
+                qty = ing.get("quantity_original") or ""
+                ing_str = f"{name} ({qty})".strip() if qty else name
+                ingredients_list.append(ing_str)
+                luxury_ratings.append(str(ing.get("ingredient_luxury_signal_rating_1_7") or ""))
+                trade_distance_ratings.append(
+                    str(ing.get("ingredient_trade_distance_rating_1_7") or "")
+                )
+                novelty_ratings.append(str(ing.get("ingredient_novelty_rating_1_7") or ""))
+
+            ingredients_str = "; ".join(ingredients_list)
+            luxury_ratings_str = "; ".join(luxury_ratings)
+            trade_distance_ratings_str = "; ".join(trade_distance_ratings)
+            novelty_ratings_str = "; ".join(novelty_ratings)
+
+            # Cooking methods
+            methods = entry.get("cooking_methods", [])
+            methods_list: List[str] = []
+            complexity_ratings: List[str] = []
+            for m in methods:
+                if not isinstance(m, dict):
+                    continue
+                methods_list.append(
+                    m.get("method_modern_english") or m.get("method_original") or ""
+                )
+                complexity_ratings.append(str(m.get("method_complexity_rating_1_7") or ""))
+            methods_str = ", ".join(methods_list)
+            complexity_ratings_str = "; ".join(complexity_ratings)
+
+            # Utensils
+            utensils = entry.get("utensils_equipment", [])
+            utensils_str = ", ".join(
+                u.get("utensil_modern_english") or u.get("utensil_original") or ""
+                for u in utensils
+                if isinstance(u, dict)
+            )
+
+            # Timing/yield — production schema stores these in a nested object
+            timing_yield = entry.get("timing_yield", {}) or {}
+            yield_str = timing_yield.get("yield_original") or ""
+            prep_time_str = timing_yield.get("preparation_time_original") or ""
+            cook_time_str = timing_yield.get("cooking_time_original") or ""
+
+            # Ingredient category boolean flags
+            categories = entry.get("ingredient_categories", {})
+            if not isinstance(categories, dict):
+                categories = {}
+
+            # Culinary style analytical fields
+            culinary_style = entry.get("culinary_style", {}) or {}
+            modernity_rating = culinary_style.get("modernity_rating_1_7")
+            innovation_markers = self.join_list(
+                culinary_style.get("innovation_markers_observed"), "; "
+            )
+            archaism_markers = self.join_list(
+                culinary_style.get("archaism_markers_observed"), "; "
+            )
+
+            # Intertextuality analytical fields
+            inter = entry.get("intertextuality", {}) or {}
+
+            row: Dict[str, Any] = {
+                "recipe_text_original": recipe_text_orig,
+                "recipe_text_modern_english": recipe_text_modern,
+                "title_original": title_orig,
+                "title_modern_english": title_modern,
+                "recipe_type": recipe_type,
+                "ingredients": ingredients_str,
+                "ingredient_luxury_signal_ratings": luxury_ratings_str,
+                "ingredient_trade_distance_ratings": trade_distance_ratings_str,
+                "ingredient_novelty_ratings": novelty_ratings_str,
+                "cooking_methods": methods_str,
+                "method_complexity_ratings": complexity_ratings_str,
+                "utensils_equipment": utensils_str,
+                "yield": yield_str,
+                "preparation_time": prep_time_str,
+                "cooking_time": cook_time_str,
+                "contains_meat": categories.get("contains_meat", False),
+                "contains_poultry": categories.get("contains_poultry", False),
+                "contains_fish_seafood": categories.get("contains_fish_seafood", False),
+                "contains_dairy": categories.get("contains_dairy", False),
+                "contains_eggs": categories.get("contains_eggs", False),
+                "contains_butter": categories.get("contains_butter", False),
+                "contains_olive_oil": categories.get("contains_olive_oil", False),
+                "contains_lard_animal_fat": categories.get("contains_lard_animal_fat", False),
+                "contains_alcohol": categories.get("contains_alcohol", False),
+                "contains_refined_sugar": categories.get("contains_refined_sugar", False),
+                "contains_honey": categories.get("contains_honey", False),
+                "contains_other_sweeteners": categories.get("contains_other_sweeteners", False),
+                "contains_foreign_spices": categories.get("contains_foreign_spices", False),
+                "contains_luxury_ingredients": categories.get(
+                    "contains_luxury_ingredients", False
+                ),
+                "modernity_rating_1_7": modernity_rating,
+                "innovation_markers_observed": innovation_markers,
+                "archaism_markers_observed": archaism_markers,
+                "explicit_source_attribution": inter.get("explicit_source_attribution"),
+                "explicit_foreign_style_reference": inter.get(
+                    "explicit_foreign_style_reference"
+                ),
+                "self_positioning_temporal": inter.get("self_positioning_temporal"),
+                "tradition_claim_present": inter.get("tradition_claim_present"),
+                "authenticity_claim_present": inter.get("authenticity_claim_present"),
+                "national_identity_claim_present": inter.get(
+                    "national_identity_claim_present"
+                ),
+                "anti_foreign_sentiment_present": inter.get("anti_foreign_sentiment_present"),
+            }
+            rows.append(row)
+
+        return pd.DataFrame(rows)
+
+    # ------------------------------------------------------------------
+    # CookbookMetadataEntries (schema v1.0)
+    # ------------------------------------------------------------------
+
+    _COOKBOOK_METADATA_CSV_FIELDS: List[tuple] = [
+        ("title", "title", None),
+        ("author", "author", None),
+        ("year", "year", None),
+        ("edition", "edition", None),
+        ("content", "content", None),
+        ("notes", "notes", None),
+        ("library", "library", None),
+        ("digitizer", "digitizer", None),
+        ("misc", "misc", None),
+    ]
+
+    def _convert_cookbook_metadata_to_df(
+        self, entries: List[Any]
+    ) -> pd.DataFrame:
+        return self._spec_to_df(entries, self._COOKBOOK_METADATA_CSV_FIELDS)

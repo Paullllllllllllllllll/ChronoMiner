@@ -86,14 +86,14 @@ class DocumentConverter(BaseConverter):
             "structuredsummaries": self._convert_structured_summaries_to_docx,
             "bibliographicentries": self._convert_bibliographic_entries_to_docx,
             "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_docx,
-            "brazilianoccupationrecords": self._convert_brazilianoccupationrecords_to_docx,
             "brazilianmilitaryrecords": self._convert_brazilianoccupationrecords_to_docx,
             "culinarypersonsentries": self._convert_culinary_persons_to_docx,
             "culinaryplacesentries": self._convert_culinary_places_to_docx,
             "culinaryworksentries": self._convert_culinary_works_to_docx,
             "culinaryentitiesentries": self._convert_culinary_entities_to_docx,
-            "historicalrecipesentries": self._convert_historical_recipes_to_docx,
-            "michelinguides": self._convert_michelin_guides_to_docx
+            "historicalrecipesentriesproduction": self._convert_historical_recipes_production_to_docx,
+            "michelinguides": self._convert_michelin_guides_to_docx,
+            "cookbookmetadataentries": self._convert_cookbook_metadata_to_docx,
         }
         converter = self.get_converter(converters)
         if converter:
@@ -122,14 +122,13 @@ class DocumentConverter(BaseConverter):
             "bibliographicentries": self._convert_bibliographic_entries_to_txt,
             "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_txt,
             "brazilianmilitaryrecords": self._convert_brazilianoccupationrecords_to_txt,
-            "brazilianoccupationrecords": self._convert_brazilianoccupationrecords_to_txt,
             "culinarypersonsentries": self._convert_culinary_persons_to_txt,
             "culinaryplacesentries": self._convert_culinary_places_to_txt,
             "culinaryworksentries": self._convert_culinary_works_to_txt,
             "culinaryentitiesentries": self._convert_culinary_entities_to_txt,
-            "historicalrecipesentries": self._convert_historical_recipes_to_txt,
+            "historicalrecipesentriesproduction": self._convert_historical_recipes_production_to_txt,
             "michelinguides": self._convert_michelin_guides_to_txt,
-            "cookbookmetadataentries": self._convert_cookbook_metadata_to_txt
+            "cookbookmetadataentries": self._convert_cookbook_metadata_to_txt,
         }
 
         try:
@@ -1334,4 +1333,231 @@ class DocumentConverter(BaseConverter):
             lines.append(f"library: {self.safe_str(entry.get('library', 'unknown'))}")
             lines.append(f"digitizer: {self.safe_str(entry.get('digitizer', 'unknown'))}")
             lines.append(f"misc: {self.safe_str(entry.get('misc', ''))}")
+        return lines
+
+    # --- CookbookMetadataEntries DOCX Converter ---
+
+    _COOKBOOK_METADATA_FIELDS: List[tuple] = [
+        ("Author", "author", "anonymous"),
+        ("Year", "year", "unknown"),
+        ("Edition", "edition", "unknown"),
+        ("Content", "content", ""),
+        ("Notes", "notes", ""),
+        ("Library", "library", "unknown"),
+        ("Digitizer", "digitizer", "unknown"),
+        ("Misc", "misc", ""),
+    ]
+
+    @staticmethod
+    def _cookbook_metadata_header(entry: dict) -> str:
+        return entry.get("title") or "Unknown Title"
+
+    def _convert_cookbook_metadata_to_docx(
+        self, entries: List[Any], document: Document
+    ) -> None:
+        """Converts cookbook metadata entries to DOCX format."""
+        _fields_to_docx(
+            entries,
+            document,
+            self._cookbook_metadata_header,
+            self._COOKBOOK_METADATA_FIELDS,
+        )
+
+    # --- HistoricalRecipesEntriesProduction Converters ---
+
+    def _convert_historical_recipes_production_to_docx(
+        self, entries: List[Any], document: Document
+    ) -> None:
+        """Converts HistoricalRecipesEntriesProduction entries to DOCX (schema v1.2)."""
+        entries = self._normalize_entries(entries)
+        for entry in entries:
+            title = entry.get("title_original", "Unknown Recipe")
+            document.add_heading(title, level=1)
+
+            modern_title = entry.get("title_modern_english")
+            if modern_title and modern_title != title:
+                document.add_paragraph(f"Modern Title: {modern_title}")
+
+            recipe_type = entry.get("recipe_type")
+            if recipe_type:
+                document.add_paragraph(f"Type: {recipe_type}")
+
+            # Timing/yield — stored in a nested timing_yield object
+            timing_yield = entry.get("timing_yield", {}) or {}
+            yield_str = timing_yield.get("yield_original") or ""
+            prep_str = timing_yield.get("preparation_time_original") or ""
+            cook_str = timing_yield.get("cooking_time_original") or ""
+            if yield_str:
+                document.add_paragraph(f"Yield: {yield_str}")
+            if prep_str:
+                document.add_paragraph(f"Preparation Time: {prep_str}")
+            if cook_str:
+                document.add_paragraph(f"Cooking Time: {cook_str}")
+
+            # Ingredients with per-ingredient ratings
+            ingredients = entry.get("ingredients", [])
+            if ingredients:
+                document.add_heading("Ingredients", level=2)
+                for ing in ingredients:
+                    name = (
+                        ing.get("name_modern_english") or ing.get("name_original") or ""
+                    )
+                    qty = ing.get("quantity_original") or ""
+                    ing_text = f"{name} ({qty})" if qty else name
+                    luxury = ing.get("ingredient_luxury_signal_rating_1_7")
+                    trade = ing.get("ingredient_trade_distance_rating_1_7")
+                    novelty = ing.get("ingredient_novelty_rating_1_7")
+                    ratings = ", ".join(
+                        f"{label}: {val}"
+                        for label, val in [
+                            ("Luxury", luxury),
+                            ("Trade dist.", trade),
+                            ("Novelty", novelty),
+                        ]
+                        if val is not None
+                    )
+                    if ratings:
+                        ing_text += f" [{ratings}]"
+                    document.add_paragraph(ing_text, style="List Bullet")
+
+            # Cooking methods with per-method complexity rating
+            methods = entry.get("cooking_methods", [])
+            if methods:
+                document.add_heading("Cooking Methods", level=2)
+                for m in methods:
+                    method_name = (
+                        m.get("method_modern_english") or m.get("method_original") or ""
+                    )
+                    complexity = m.get("method_complexity_rating_1_7")
+                    method_text = method_name
+                    if complexity is not None:
+                        method_text += f" [Complexity: {complexity}]"
+                    document.add_paragraph(method_text, style="List Bullet")
+
+            # Culinary style
+            culinary_style = entry.get("culinary_style", {}) or {}
+            modernity = culinary_style.get("modernity_rating_1_7")
+            if modernity is not None:
+                document.add_paragraph(f"Modernity Rating: {modernity}/7")
+            innovation = culinary_style.get("innovation_markers_observed", [])
+            if innovation:
+                document.add_paragraph(
+                    f"Innovation Markers: {', '.join(innovation)}"
+                )
+            archaism = culinary_style.get("archaism_markers_observed", [])
+            if archaism:
+                document.add_paragraph(
+                    f"Archaism Markers: {', '.join(archaism)}"
+                )
+
+            # Original recipe text
+            recipe_text = entry.get("recipe_text_original")
+            if recipe_text:
+                document.add_heading("Original Recipe Text", level=2)
+                document.add_paragraph(recipe_text)
+
+            # Modern translation
+            recipe_text_modern = entry.get("recipe_text_modern_english")
+            if recipe_text_modern and recipe_text_modern != recipe_text:
+                document.add_heading("Modern English Translation", level=2)
+                document.add_paragraph(recipe_text_modern)
+
+            document.add_page_break()
+
+    def _convert_historical_recipes_production_to_txt(
+        self, entries: List[Any]
+    ) -> List[str]:
+        """Converts HistoricalRecipesEntriesProduction entries to TXT (schema v1.2)."""
+        entries = self._normalize_entries(entries)
+        lines: List[str] = []
+        for entry in entries:
+            title = entry.get("title_original", "Unknown Recipe")
+            lines.append(title)
+
+            modern_title = entry.get("title_modern_english")
+            if modern_title and modern_title != title:
+                lines.append(f"Modern Title: {modern_title}")
+
+            recipe_type = entry.get("recipe_type")
+            if recipe_type:
+                lines.append(f"Type: {recipe_type}")
+
+            # Timing/yield — stored in a nested timing_yield object
+            timing_yield = entry.get("timing_yield", {}) or {}
+            yield_str = timing_yield.get("yield_original") or ""
+            prep_str = timing_yield.get("preparation_time_original") or ""
+            cook_str = timing_yield.get("cooking_time_original") or ""
+            if yield_str:
+                lines.append(f"Yield: {yield_str}")
+            if prep_str:
+                lines.append(f"Preparation Time: {prep_str}")
+            if cook_str:
+                lines.append(f"Cooking Time: {cook_str}")
+
+            # Ingredients with per-ingredient ratings
+            ingredients = entry.get("ingredients", [])
+            if ingredients:
+                lines.append("Ingredients:")
+                for ing in ingredients:
+                    name = (
+                        ing.get("name_modern_english") or ing.get("name_original") or ""
+                    )
+                    qty = ing.get("quantity_original") or ""
+                    ing_text = f" - {name} ({qty})" if qty else f" - {name}"
+                    luxury = ing.get("ingredient_luxury_signal_rating_1_7")
+                    trade = ing.get("ingredient_trade_distance_rating_1_7")
+                    novelty = ing.get("ingredient_novelty_rating_1_7")
+                    ratings = ", ".join(
+                        f"{label}: {val}"
+                        for label, val in [
+                            ("Luxury", luxury),
+                            ("Trade dist.", trade),
+                            ("Novelty", novelty),
+                        ]
+                        if val is not None
+                    )
+                    if ratings:
+                        ing_text += f" [{ratings}]"
+                    lines.append(ing_text)
+
+            # Cooking methods with complexity rating
+            methods = entry.get("cooking_methods", [])
+            if methods:
+                method_parts: List[str] = []
+                for m in methods:
+                    method_name = (
+                        m.get("method_modern_english") or m.get("method_original") or ""
+                    )
+                    complexity = m.get("method_complexity_rating_1_7")
+                    part = method_name
+                    if complexity is not None:
+                        part += f" [Complexity: {complexity}]"
+                    method_parts.append(part)
+                lines.append(f"Cooking Methods: {', '.join(method_parts)}")
+
+            # Culinary style
+            culinary_style = entry.get("culinary_style", {}) or {}
+            modernity = culinary_style.get("modernity_rating_1_7")
+            if modernity is not None:
+                lines.append(f"Modernity Rating: {modernity}/7")
+            innovation = culinary_style.get("innovation_markers_observed", [])
+            if innovation:
+                lines.append(f"Innovation Markers: {', '.join(innovation)}")
+            archaism = culinary_style.get("archaism_markers_observed", [])
+            if archaism:
+                lines.append(f"Archaism Markers: {', '.join(archaism)}")
+
+            # Original recipe text
+            recipe_text = entry.get("recipe_text_original")
+            if recipe_text:
+                lines.append("Original Recipe Text:")
+                lines.append(recipe_text)
+
+            # Modern translation
+            recipe_text_modern = entry.get("recipe_text_modern_english")
+            if recipe_text_modern and recipe_text_modern != recipe_text:
+                lines.append("Modern English Translation:")
+                lines.append(recipe_text_modern)
+
+            lines.append("\n" + "=" * 40 + "\n")
         return lines
