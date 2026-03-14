@@ -31,7 +31,7 @@ class TestProviderConfig:
     def test_provider_config_from_config_openai(self):
         """Test creating ProviderConfig from model_config for OpenAI."""
         model_config = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "gpt-4o",
                 "max_output_tokens": 8192,
                 "temperature": 0.5,
@@ -56,7 +56,7 @@ class TestProviderConfig:
     def test_provider_config_from_config_anthropic(self):
         """Test creating ProviderConfig from model_config for Anthropic."""
         model_config = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "claude-3-5-sonnet-20241022",
                 "max_output_tokens": 4096,
                 "temperature": 0.0,
@@ -73,7 +73,7 @@ class TestProviderConfig:
     def test_provider_config_from_config_google(self):
         """Test creating ProviderConfig from model_config for Google."""
         model_config = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "gemini-2.0-flash",
                 "max_output_tokens": 4096,
             }
@@ -88,7 +88,7 @@ class TestProviderConfig:
     def test_provider_config_from_config_openrouter(self):
         """Test creating ProviderConfig from model_config for OpenRouter."""
         model_config = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "anthropic/claude-3.5-sonnet",
                 "max_output_tokens": 4096,
             }
@@ -104,7 +104,7 @@ class TestProviderConfig:
     def test_provider_config_with_explicit_provider(self):
         """Test ProviderConfig with explicit provider field."""
         model_config = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "some-model",
                 "provider": "anthropic",
                 "max_output_tokens": 4096,
@@ -120,7 +120,7 @@ class TestProviderConfig:
     def test_provider_config_with_reasoning_config(self):
         """Test ProviderConfig with reasoning configuration."""
         model_config = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "o3-mini",
                 "max_output_tokens": 16384,
                 "reasoning": {
@@ -140,7 +140,7 @@ class TestProviderConfig:
     def test_provider_config_provider_override(self):
         """Test provider override in from_config."""
         model_config = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "gpt-4o",
                 "max_output_tokens": 4096,
             }

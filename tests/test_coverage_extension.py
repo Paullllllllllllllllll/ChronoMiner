@@ -63,7 +63,7 @@ class TestPayloadBuilder:
         from modules.operations.extraction.payload_builder import PayloadBuilder
         result = PayloadBuilder("S").build_payload(
             "text", "prompt",
-            {"transcription_model": {"name": "gpt-4o", "max_output_tokens": 2048}},
+            {"extraction_model": {"name": "gpt-4o", "max_output_tokens": 2048}},
             {}
         )
         assert result["method"] == "POST"
@@ -75,7 +75,7 @@ class TestPayloadBuilder:
         schema = {"type": "object", "properties": {"title": {"type": "string"}}}
         result = PayloadBuilder("Bib").build_payload(
             "text", "prompt",
-            {"transcription_model": {"name": "gpt-4o", "max_output_tokens": 512}},
+            {"extraction_model": {"name": "gpt-4o", "max_output_tokens": 512}},
             schema
         )
         assert result["body"]["text"]["format"]["name"] == "Bib"
@@ -85,7 +85,7 @@ class TestPayloadBuilder:
         from modules.operations.extraction.payload_builder import PayloadBuilder
         result = PayloadBuilder("S").build_payload(
             "text", "prompt",
-            {"transcription_model": {
+            {"extraction_model": {
                 "name": "gpt-4o", "max_output_tokens": 512,
                 "temperature": 0.3, "top_p": 0.8,
                 "frequency_penalty": 0.5, "presence_penalty": 0.2,
@@ -101,7 +101,7 @@ class TestPayloadBuilder:
         from modules.operations.extraction.payload_builder import PayloadBuilder
         result = PayloadBuilder("S").build_payload(
             "text", "prompt",
-            {"transcription_model": {"name": "o3-mini", "max_output_tokens": 16384, "temperature": 0.0}},
+            {"extraction_model": {"name": "o3-mini", "max_output_tokens": 16384, "temperature": 0.0}},
             {}
         )
         assert "temperature" not in result["body"]
@@ -110,7 +110,7 @@ class TestPayloadBuilder:
     def test_build_json_schema_payload(self):
         from modules.operations.extraction.payload_builder import PayloadBuilder
         result = PayloadBuilder("MySchema")._build_json_schema_payload(
-            "dev", {"transcription_model": {"name": "gpt-4o"}}, {"type": "object"}
+            "dev", {"extraction_model": {"name": "gpt-4o"}}, {"type": "object"}
         )
         assert result["name"] == "MySchema"
         assert result["strict"] is True
@@ -428,7 +428,7 @@ class TestGetBatchBackend:
         clear_backend_cache()
         with patch("modules.config.loader.get_config_loader") as mock_loader:
             mock_loader.return_value.get_model_config.return_value = {
-                "transcription_model": {"name": ""}
+                "extraction_model": {"name": ""}
             }
             with pytest.raises(ValueError):
                 get_batch_backend(None)
@@ -574,7 +574,7 @@ class TestLangChainProviderAdditional:
     def test_provider_config_from_config_loads_text_config(self):
         from modules.llm.langchain_provider import ProviderConfig
         model_config = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "gpt-5",
                 "max_output_tokens": 4096,
                 "text": {"verbosity": "high"},

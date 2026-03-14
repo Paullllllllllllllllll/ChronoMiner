@@ -38,7 +38,7 @@ def _build_responses_body(
     schema_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Construct a Responses API request body for text extraction."""
-    tm = model_config.get("transcription_model", {}) or model_config
+    tm = model_config.get("extraction_model", {}) or model_config
     model_name: str = tm.get("name", "gpt-4o-2024-08-06")
     caps = detect_capabilities(model_name)
 
@@ -110,7 +110,7 @@ def _build_image_responses_body(
     schema_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Construct a Responses API request body for visual extraction."""
-    tm = model_config.get("transcription_model", {}) or model_config
+    tm = model_config.get("extraction_model", {}) or model_config
     model_name: str = tm.get("name", "gpt-4o-2024-08-06")
     caps = detect_capabilities(model_name)
 

@@ -90,7 +90,7 @@ class GenerateLineRangesScript(DualModeScript):
     def _get_model_config(self) -> tuple[str, int]:
         """Get model name and tokens per chunk from configuration."""
         chunking_config = self.chunking_and_context_config.get("chunking", {})
-        model_cfg = self.model_config.get("transcription_model", {})
+        model_cfg = self.model_config.get("extraction_model", {})
         model_name = model_cfg.get("name", "o3-mini")
         tokens_per_chunk = chunking_config.get("default_tokens_per_chunk", 7500)
         return model_name, tokens_per_chunk

@@ -213,7 +213,7 @@ class TestOpenAIBackend:
             ]
             
             model_config = {
-                "transcription_model": {
+                "extraction_model": {
                     "name": "gpt-4o",
                     "max_output_tokens": 4096,
                 }
@@ -341,7 +341,7 @@ class TestOpenAIImageResponsesBody:
         """Output body contains input_image block with correct data URL and detail."""
         from modules.llm.batch.backends.openai_backend import _build_image_responses_body
 
-        model_config = {"transcription_model": {"name": "gpt-4o", "max_output_tokens": 1024}}
+        model_config = {"extraction_model": {"name": "gpt-4o", "max_output_tokens": 1024}}
         body = _build_image_responses_body(
             model_config=model_config,
             system_prompt="Extract recipes.",
@@ -364,7 +364,7 @@ class TestOpenAIImageResponsesBody:
         """When image_detail is None, body uses 'auto'."""
         from modules.llm.batch.backends.openai_backend import _build_image_responses_body
 
-        model_config = {"transcription_model": {"name": "gpt-4o", "max_output_tokens": 1024}}
+        model_config = {"extraction_model": {"name": "gpt-4o", "max_output_tokens": 1024}}
         body = _build_image_responses_body(
             model_config=model_config,
             system_prompt="sys",
@@ -381,7 +381,7 @@ class TestOpenAIImageResponsesBody:
         from modules.llm.batch.backends.openai_backend import _build_image_responses_body
 
         model_config = {
-            "transcription_model": {"name": "gpt-4o", "max_output_tokens": 512, "service_tier": "flex"}
+            "extraction_model": {"name": "gpt-4o", "max_output_tokens": 512, "service_tier": "flex"}
         }
         body = _build_image_responses_body(
             model_config=model_config,
@@ -437,7 +437,7 @@ class TestOpenAIVisualBatchRouting:
                     order_index=1,
                 )
             ]
-            model_config = {"transcription_model": {"name": "gpt-4o", "max_output_tokens": 512}}
+            model_config = {"extraction_model": {"name": "gpt-4o", "max_output_tokens": 512}}
             backend.submit_batch(
                 requests,
                 model_config,
@@ -485,7 +485,7 @@ class TestAnthropicVisualBatchRouting:
                     order_index=1,
                 )
             ]
-            model_config = {"transcription_model": {"name": "claude-sonnet-4-20250514", "max_tokens": 512}}
+            model_config = {"extraction_model": {"name": "claude-sonnet-4-20250514", "max_tokens": 512}}
             backend.submit_batch(requests, model_config, system_prompt="sys")
 
         assert len(captured_requests) == 1
@@ -539,7 +539,7 @@ class TestGoogleVisualBatchRouting:
                         order_index=1,
                     )
                 ]
-                model_config = {"transcription_model": {"name": "gemini-2.5-flash", "max_output_tokens": 512}}
+                model_config = {"extraction_model": {"name": "gemini-2.5-flash", "max_output_tokens": 512}}
                 backend.submit_batch(requests, model_config, system_prompt="sys")
 
         assert len(captured_src) == 1

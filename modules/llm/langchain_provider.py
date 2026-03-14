@@ -209,7 +209,7 @@ class ProviderConfig:
         concurrency_config: Optional[Dict[str, Any]] = None,
     ) -> "ProviderConfig":
         """Create ProviderConfig from model_config dictionary."""
-        tm = model_config.get("transcription_model", {})
+        tm = model_config.get("extraction_model", {})
         model_name = tm.get("name", "")
         
         # Check for explicit provider field in config, then override, then auto-detect

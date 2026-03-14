@@ -32,7 +32,7 @@ ChronoMiner now supports four major LLM providers through a unified LangChain-ba
 **Configuration:**
 ```yaml
 # config/model_config.yaml
-transcription_model:
+extraction_model:
   name: "claude-sonnet-4-5-20251101"  # or gpt-4o, gemini-2.5-pro, etc.
   temperature: 0.0
   max_output_tokens: 4096
@@ -171,19 +171,19 @@ Simply change the model name in your configuration:
 
 ```yaml
 # OpenAI
-transcription_model:
+extraction_model:
   name: "gpt-4o"
 
 # Anthropic Claude
-transcription_model:
+extraction_model:
   name: "claude-sonnet-4-5-20251101"
 
 # Google Gemini
-transcription_model:
+extraction_model:
   name: "gemini-2.5-pro"
 
 # OpenRouter
-transcription_model:
+extraction_model:
   name: "openrouter/anthropic/claude-3-5-sonnet"
 ```
 
@@ -235,11 +235,11 @@ default = get_default_provider()
 
 ```yaml
 # Old (still works)
-transcription_model:
+extraction_model:
   name: "gpt-4o"
 
 # New options
-transcription_model:
+extraction_model:
   name: "claude-sonnet-4-5-20251101"  # Anthropic
   # or
   name: "gemini-2.5-pro"  # Google

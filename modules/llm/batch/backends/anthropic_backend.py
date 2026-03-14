@@ -65,7 +65,7 @@ class AnthropicBatchBackend(BatchBackend):
         client = self._get_client()
 
         # Model configuration
-        tm = model_config.get("transcription_model", {}) or model_config
+        tm = model_config.get("extraction_model", {}) or model_config
         model_name = tm.get("name", "claude-sonnet-4-20250514")
         max_tokens = int(
             tm.get("max_output_tokens")

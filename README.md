@@ -319,7 +319,7 @@ export OPENAI_API_KEY="your_key_here"
 Edit `config/model_config.yaml`:
 
 ```yaml
-transcription_model:
+extraction_model:
   provider: openai  # Options: openai, anthropic, google, openrouter
   name: gpt-5.1
   reasoning:
@@ -461,7 +461,7 @@ schemas_paths:
 ### 2. Model Configuration (`model_config.yaml`)
 
 ```yaml
-transcription_model:
+extraction_model:
   provider: openai  # Optional: openai, anthropic, google, openrouter (auto-detected)
   name: gpt-5.1
   max_output_tokens: 128000
@@ -976,7 +976,7 @@ A: Yes, select entire folder or specific files. In interactive mode, choose from
 A: Edit `config/model_config.yaml`:
 
 ```yaml
-transcription_model:
+extraction_model:
   provider: anthropic
   name: claude-opus-4-5-20251101
 ```

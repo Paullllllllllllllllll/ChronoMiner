@@ -92,20 +92,20 @@ class TestCreateSafeLogFilename:
     def test_suffix_and_length(self):
         """Test that log filename has correct suffix and length."""
         name = "y" * 500
-        safe = create_safe_log_filename(name, "transcription")
+        safe = create_safe_log_filename(name, "extraction")
 
-        assert safe.endswith("_transcription_log.json")
+        assert safe.endswith("_extraction_log.json")
         assert len(safe) <= MAX_SAFE_NAME_LENGTH
     
     @pytest.mark.unit
     def test_different_log_types(self):
         """Test different log types produce different filenames."""
         name = "test_document"
-        trans_log = create_safe_log_filename(name, "transcription")
+        trans_log = create_safe_log_filename(name, "extraction")
         summary_log = create_safe_log_filename(name, "summary")
         
         assert trans_log != summary_log
-        assert trans_log.endswith("_transcription_log.json")
+        assert trans_log.endswith("_extraction_log.json")
         assert summary_log.endswith("_summary_log.json")
     
     @pytest.mark.unit

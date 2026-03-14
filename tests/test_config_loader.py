@@ -47,7 +47,7 @@ def test_clear_config_cache_allows_reinit(tmp_config_dir, monkeypatch):
 
     loader = loader_module.get_config_loader()
     assert isinstance(loader, ConfigLoader)
-    assert loader.get_model_config()["transcription_model"]["name"] == "gpt-4o"
+    assert loader.get_model_config()["extraction_model"]["name"] == "gpt-4o"
 
 
 # ---------------------------------------------------------------------------
@@ -349,7 +349,7 @@ class TestValidateModelConfigImageSupport:
         _write_yaml(
             tmp_config_dir / "model_config.yaml",
             {
-                "transcription_model": {
+                "extraction_model": {
                     "name": "gpt-4o",
                     "expects_image_inputs": True,
                     "max_output_tokens": 256,
@@ -364,7 +364,7 @@ class TestValidateModelConfigImageSupport:
         _write_yaml(
             tmp_config_dir / "model_config.yaml",
             {
-                "transcription_model": {
+                "extraction_model": {
                     "name": "o3-mini",
                     "expects_image_inputs": True,
                     "max_output_tokens": 256,

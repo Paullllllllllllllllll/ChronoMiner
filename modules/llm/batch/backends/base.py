@@ -190,7 +190,7 @@ class BatchBackend(ABC):
         
         Args:
             requests: List of BatchRequest objects to process
-            model_config: Model configuration dict (transcription_model settings)
+            model_config: Model configuration dict (extraction_model settings)
             system_prompt: System prompt text (already rendered with schema)
             schema: JSON schema for structured output (optional)
             schema_name: Name of the schema for structured outputs

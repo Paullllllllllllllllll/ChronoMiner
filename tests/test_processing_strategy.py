@@ -48,7 +48,7 @@ async def test_batch_processing_strategy_raises_for_unsupported_provider(monkeyp
     monkeypatch.setattr(ps, "supports_batch", lambda provider: False)
 
     strat = ps.BatchProcessingStrategy()
-    model_config = {"transcription_model": {"provider": "openrouter", "name": "openrouter/some"}}
+    model_config = {"extraction_model": {"provider": "openrouter", "name": "openrouter/some"}}
 
     with pytest.raises(ValueError):
         await strat.process_chunks(
@@ -87,7 +87,7 @@ async def test_batch_processing_strategy_writes_request_and_tracking_records(mon
     temp_jsonl = tmp_path / "temp.jsonl"
     file_path = tmp_path / "input.txt"
 
-    model_config = {"transcription_model": {"provider": "openai", "name": "gpt-4o"}}
+    model_config = {"extraction_model": {"provider": "openai", "name": "gpt-4o"}}
 
     res = await strat.process_chunks(
         chunks=["c1", "c2"],
@@ -148,7 +148,7 @@ async def test_batch_processing_strategy_builds_visual_batch_requests(
         {"base64": "BBB=", "mime_type": "image/jpeg", "detail": "low"},
     ]
 
-    model_config = {"transcription_model": {"provider": "openai", "name": "gpt-4o"}}
+    model_config = {"extraction_model": {"provider": "openai", "name": "gpt-4o"}}
 
     res = await strat.process_chunks(
         chunks=[],
@@ -202,7 +202,7 @@ async def test_synchronous_processing_strategy_raises_when_api_key_missing(monke
             chunks=["c1"],
             handler=_DummyHandler(),
             dev_message="dev",
-            model_config={"transcription_model": {"name": "gpt-4o"}},
+            model_config={"extraction_model": {"name": "gpt-4o"}},
             schema={"type": "object"},
             file_path=tmp_path / "file.txt",
             temp_jsonl_path=tmp_path / "temp.jsonl",
@@ -234,7 +234,7 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
         chunks=["c1", "c2"],
         handler=_DummyHandler(),
         dev_message="dev",
-        model_config={"transcription_model": {"name": "gpt-4o"}},
+        model_config={"extraction_model": {"name": "gpt-4o"}},
         schema={"type": "object"},
         file_path=file_path,
         temp_jsonl_path=temp_jsonl,
@@ -274,7 +274,7 @@ async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_ope
         concurrency_config={"concurrency": {"extraction": {"concurrency_limit": 1}}}
     )
     model_config = {
-        "transcription_model": {
+        "extraction_model": {
             "name": "gpt-5-mini",
             "max_output_tokens": 12000,
             "reasoning": {"effort": "high"},
@@ -339,7 +339,7 @@ async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(monk
         chunks=["c1"],
         handler=_DummyHandler(),
         dev_message="dev",
-        model_config={"transcription_model": {"name": "claude"}},
+        model_config={"extraction_model": {"name": "claude"}},
         schema={"type": "object"},
         file_path=file_path,
         temp_jsonl_path=temp_jsonl,

@@ -103,7 +103,7 @@ class LLMExtractor:
             concurrency_config_override or config.get_concurrency_config()
         )
         
-        tm: Dict[str, Any] = self.model_config.get("transcription_model", {})
+        tm: Dict[str, Any] = self.model_config.get("extraction_model", {})
         
         # Model parameters
         self.max_output_tokens: int = int(tm.get("max_output_tokens", 4096))
@@ -396,7 +396,7 @@ async def process_text_chunk_with_provider(
     
     # Get model from config if not specified
     if model is None:
-        model = model_config.get("transcription_model", {}).get("name", "")
+        model = model_config.get("extraction_model", {}).get("name", "")
     
     if not model:
         raise ValueError("Model must be specified either directly or in config")

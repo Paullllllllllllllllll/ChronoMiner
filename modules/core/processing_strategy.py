@@ -100,7 +100,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
     ) -> List[Dict[str, Any]]:
         """Process chunks synchronously with concurrent API calls."""
         # Detect provider from model name
-        model_name = model_config["transcription_model"]["name"]
+        model_name = model_config["extraction_model"]["name"]
         provider = ProviderConfig._detect_provider(model_name)
         api_key = ProviderConfig._get_api_key(provider)
         
@@ -117,10 +117,10 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         ]
         if skip_indices:
             console_print(
-                f"[INFO] Resuming: {len(chunks_to_process)} new chunks to process "
+                f"[INFO] Resuming: {len(chunks_to_process)} new chunks/pages to process "
                 f"({len(skip_indices)} already done)"
             )
-        console_print(f"[INFO] Starting synchronous processing of {len(chunks_to_process)} chunks...")
+        console_print(f"[INFO] Starting synchronous processing of {len(chunks_to_process)} chunks/pages...")
         results: List[Dict[str, Any]] = []
 
         # Extract concurrency settings
@@ -163,7 +163,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         async with open_extractor(
             api_key=api_key,
             prompt_path=prompt_path,
-            model=model_config["transcription_model"]["name"],
+            model=model_config["extraction_model"]["name"],
             model_config_override=model_config,
             concurrency_config_override=self.concurrency_config,
         ) as extractor:
@@ -225,7 +225,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                     jitter = random.uniform(0.0, jitter_max_seconds) if jitter_max_seconds > 0 else 0.0
                                     wait_s = min(wait_max_seconds, base_wait + jitter)
                                     logger.warning(
-                                        "Rate-limited on chunk %s (attempt %s/%s). Waiting %.1fs and retrying.",
+                                        "Rate-limited on chunk/page %s (attempt %s/%s). Waiting %.1fs and retrying.",
                                         idx,
                                         attempt + 1,
                                         retry_attempts,
@@ -234,11 +234,11 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                     await asyncio.sleep(wait_s)
                                     continue
 
-                                logger.error(f"Error processing chunk {idx}: {e}", exc_info=e)
-                                console_print(f"[ERROR] Failed to process chunk {idx}: {e}")
+                                logger.error(f"Error processing {unit_label} {idx}: {e}", exc_info=e)
+                                console_print(f"[ERROR] Failed to process {unit_label} {idx}: {e}")
                                 return {"error": str(e)}
                         # If all retries exhausted without returning, return error
-                        return {"error": f"Max retries ({retry_attempts}) exhausted for chunk {idx}"}
+                        return {"error": f"Max retries ({retry_attempts}) exhausted for {unit_label} {idx}"}
 
                 # Process chunks (skipping already-completed ones)
                 tasks = [
@@ -247,7 +247,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                 ]
                 results = await asyncio.gather(*tasks, return_exceptions=False)
 
-        console_print(f"[SUCCESS] Completed synchronous processing of {len(chunks_to_process)} chunks")
+        console_print(f"[SUCCESS] Completed synchronous processing of {len(chunks_to_process)} chunks/pages")
         return results
 
 
@@ -284,7 +284,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
     ) -> List[Dict[str, Any]]:
         """Prepare and submit batch processing job using provider-agnostic backend."""
         # Detect provider from model config
-        tm = model_config.get("transcription_model", {})
+        tm = model_config.get("extraction_model", {})
         provider = tm.get("provider")
         if not provider:
             model_name = tm.get("name", "")
@@ -358,9 +358,9 @@ class BatchProcessingStrategy(ProcessingStrategy):
         service_tier = extraction_cfg.get("service_tier")
         effective_model_config = model_config
         if service_tier:
-            tm_copy = dict(model_config.get("transcription_model", {}))
+            tm_copy = dict(model_config.get("extraction_model", {}))
             tm_copy["service_tier"] = service_tier
-            effective_model_config = {**model_config, "transcription_model": tm_copy}
+            effective_model_config = {**model_config, "extraction_model": tm_copy}
 
         # Submit batch using the provider-agnostic backend
         try:

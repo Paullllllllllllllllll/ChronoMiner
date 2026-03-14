@@ -27,7 +27,7 @@ class ConfigLoader:
     """
     _REQUIRED_KEYS: Dict[str, list] = {
         "paths_config.yaml": ["general", "schemas_paths"],
-        "model_config.yaml": ["transcription_model"],
+        "model_config.yaml": ["extraction_model"],
         "concurrency_config.yaml": ["concurrency"],
         "chunking_and_context.yaml": ["chunking"],
     }
@@ -63,7 +63,7 @@ class ConfigLoader:
         self._resolve_paths(self.paths_config)
 
         # Validate image support if expects_image_inputs is set
-        tm = self.model_config.get("transcription_model", {})
+        tm = self.model_config.get("extraction_model", {})
         if tm.get("expects_image_inputs", False):
             self._ensure_image_support(tm.get("name", ""), True)
 

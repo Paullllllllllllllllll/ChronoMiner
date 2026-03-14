@@ -68,7 +68,7 @@ class GoogleBatchBackend(BatchBackend):
         client = self._get_client()
 
         # Model configuration
-        tm = model_config.get("transcription_model", {}) or model_config
+        tm = model_config.get("extraction_model", {}) or model_config
         model_name = tm.get("name", "gemini-2.5-flash")
         # Ensure model name has proper prefix for API
         if not model_name.startswith("models/"):

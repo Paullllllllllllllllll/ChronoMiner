@@ -154,7 +154,7 @@ Examples:
         "--model",
         type=str,
         help=(
-            "Override model_config.transcription_model.name for this run "
+            "Override model_config.extraction_model.name for this run "
             "(e.g., gpt-5-mini, claude-sonnet-4-5, google/gemini-3-pro)"
         )
     )
@@ -163,7 +163,7 @@ Examples:
         type=str,
         choices=["low", "medium", "high", "none"],
         help=(
-            "Override model_config.transcription_model.reasoning.effort for this run "
+            "Override model_config.extraction_model.reasoning.effort for this run "
             "(low|medium|high|none)"
         )
     )
@@ -172,7 +172,7 @@ Examples:
         type=str,
         choices=["low", "medium", "high"],
         help=(
-            "Override model_config.transcription_model.text.verbosity for this run "
+            "Override model_config.extraction_model.text.verbosity for this run "
             "(OpenAI GPT-5 family only: gpt-5, gpt-5-mini, gpt-5.1, gpt-5.2)"
         )
     )
@@ -180,7 +180,7 @@ Examples:
         "--max-output-tokens",
         type=_positive_int,
         metavar="N",
-        help="Override model_config.transcription_model.max_output_tokens for this run"
+        help="Override model_config.extraction_model.max_output_tokens for this run"
     )
     parser.add_argument(
         "--chunk-size",
@@ -217,13 +217,13 @@ Examples:
         "--first-n-chunks",
         type=int,
         metavar="N",
-        help="Process only the first N chunks of each input file"
+        help="Process only the first N chunks/pages of each input file"
     )
     chunk_slice_group.add_argument(
         "--last-n-chunks",
         type=int,
         metavar="N",
-        help="Process only the last N chunks of each input file"
+        help="Process only the last N chunks/pages of each input file"
     )
 
     return parser

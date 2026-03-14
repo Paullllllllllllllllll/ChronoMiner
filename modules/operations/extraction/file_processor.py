@@ -116,7 +116,7 @@ class FileProcessor:
         # Initialize chunking service
         chunking_settings = chunking_config.get("chunking", {})
         self.chunking_service = ChunkingService(
-            model_name=model_config["transcription_model"]["name"],
+            model_name=model_config["extraction_model"]["name"],
             default_tokens_per_chunk=chunking_settings.get("default_tokens_per_chunk", 7500),
             text_processor=self.text_processor
         )
@@ -408,7 +408,7 @@ class FileProcessor:
         logger.info(f"Starting visual processing for file: {file_path}")
 
         # 1. Validate vision support
-        model_name = self.model_config["transcription_model"]["name"]
+        model_name = self.model_config["extraction_model"]["name"]
         caps = detect_capabilities(model_name)
         if not caps.supports_image_input:
             messenger.error(
@@ -754,7 +754,7 @@ class FileProcessor:
             
             # Build output structure with metadata
             chunking_method = "unknown"
-            model_name = self.model_config.get("transcription_model", {}).get("name", "unknown")
+            model_name = self.model_config.get("extraction_model", {}).get("name", "unknown")
             schema_name_for_meta = getattr(handler, "schema_name", "unknown")
             output_data = {
                 _METADATA_KEY: build_extraction_metadata(

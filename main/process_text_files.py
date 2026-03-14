@@ -101,7 +101,7 @@ async def _adjust_line_ranges_workflow(
             
             try:
                 # Get model configuration
-                model_name = model_config.get("transcription_model", {}).get("name", "o3-mini")
+                model_name = model_config.get("extraction_model", {}).get("name", "o3-mini")
                 tokens_per_chunk = chunking_config.get("chunking", {}).get("default_tokens_per_chunk", 7500)
                 
                 # Generate line ranges
@@ -175,23 +175,23 @@ def _count_existing_outputs(
 def _build_effective_model_config(model_config: Dict[str, Any], args: Any) -> Dict[str, Any]:
     """Build a per-run model config with CLI overrides applied."""
     effective_model_config = deepcopy(model_config or {})
-    transcription_model = effective_model_config.setdefault("transcription_model", {})
+    extraction_model = effective_model_config.setdefault("extraction_model", {})
 
     if getattr(args, "model", None):
-        transcription_model["name"] = args.model
+        extraction_model["name"] = args.model
 
     if getattr(args, "max_output_tokens", None) is not None:
-        transcription_model["max_output_tokens"] = int(args.max_output_tokens)
+        extraction_model["max_output_tokens"] = int(args.max_output_tokens)
 
     if getattr(args, "reasoning_effort", None):
-        reasoning = dict(transcription_model.get("reasoning", {}) or {})
+        reasoning = dict(extraction_model.get("reasoning", {}) or {})
         reasoning["effort"] = args.reasoning_effort
-        transcription_model["reasoning"] = reasoning
+        extraction_model["reasoning"] = reasoning
 
     if getattr(args, "verbosity", None):
-        text_config = dict(transcription_model.get("text", {}) or {})
+        text_config = dict(extraction_model.get("text", {}) or {})
         text_config["verbosity"] = args.verbosity
-        transcription_model["text"] = text_config
+        extraction_model["text"] = text_config
 
     return effective_model_config
 
@@ -479,7 +479,7 @@ async def _run_interactive_mode(
     assert prompt_template is not None, "prompt_template must be set before processing"
     # Process files sequentially if token limiting is enabled (for better control)
     # Otherwise process concurrently for speed
-    inject_schema = model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
+    inject_schema = model_config.get("extraction_model", {}).get("inject_schema_into_prompt", True)
     token_limit_enabled = check_token_limit_enabled()
     
     if token_limit_enabled and not state["use_batch"]:
@@ -615,7 +615,7 @@ async def _run_cli_mode(
     effective_model_config = _build_effective_model_config(model_config, args)
     effective_paths_config = _build_effective_paths_config(paths_config, args)
 
-    effective_model_name = effective_model_config.get("transcription_model", {}).get("name", "")
+    effective_model_name = effective_model_config.get("extraction_model", {}).get("name", "")
     if getattr(args, "verbosity", None) and "gpt-5" not in str(effective_model_name).lower():
         logger.warning(
             "--verbosity was provided, but model '%s' is not GPT-5 family. "
@@ -757,7 +757,7 @@ async def _run_cli_mode(
     
     # Process files sequentially if token limiting is enabled (for better control)
     # Otherwise process concurrently for speed
-    inject_schema = effective_model_config.get("transcription_model", {}).get("inject_schema_into_prompt", True)
+    inject_schema = effective_model_config.get("extraction_model", {}).get("inject_schema_into_prompt", True)
     token_limit_enabled = check_token_limit_enabled()
     
     # Allow overriding output directory per invocation (useful for smoke tests)

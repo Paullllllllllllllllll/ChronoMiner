@@ -89,10 +89,10 @@ class LineRangeReadjuster:
         matching_config: Optional[Dict[str, Any]] = None,
         retry_config: Optional[Dict[str, Any]] = None,
     ) -> None:
-        transcription_cfg = model_config.get("transcription_model", {})
+        transcription_cfg = model_config.get("extraction_model", {})
         model_name: str = transcription_cfg.get("name", "")
         if not model_name:
-            raise ValueError("transcription_model.name must be configured to use LineRangeReadjuster")
+            raise ValueError("extraction_model.name must be configured to use LineRangeReadjuster")
 
         self.model_name = model_name
         self.context_window = max(1, int(context_window))

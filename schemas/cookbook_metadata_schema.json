@@ -67,7 +67,7 @@
         },
         "minItems": 1,
         "maxItems": 1,
-        "description": "Exactly one metadata entry per transcription file."
+        "description": "Exactly one metadata entry per input file."
       }
     },
     "required": ["contains_no_content_of_requested_type", "entries"],

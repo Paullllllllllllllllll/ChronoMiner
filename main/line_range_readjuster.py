@@ -48,7 +48,7 @@ logger = setup_logger(__name__)
 def _model_config_with_verbosity(model_config: Dict[str, Any], verbosity: str) -> Dict[str, Any]:
     """Return a copied model config with transcription verbosity overridden."""
     updated = deepcopy(model_config or {})
-    transcription_cfg = updated.setdefault("transcription_model", {})
+    transcription_cfg = updated.setdefault("extraction_model", {})
     text_cfg = transcription_cfg.setdefault("text", {})
     text_cfg["verbosity"] = verbosity
     return updated
@@ -196,7 +196,7 @@ async def _adjust_files(
             continue
 
         # Resume: skip files already adjusted with the same settings
-        model_name = line_range_model_config.get("transcription_model", {}).get("name", "")
+        model_name = line_range_model_config.get("extraction_model", {}).get("name", "")
         if resume and is_adjustment_current(
             line_ranges_file,
             boundary_type=boundary_type,

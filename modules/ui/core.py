@@ -304,16 +304,16 @@ class UserInterface:
         """
         from modules.core.chunking_service import ChunkSlice
 
-        self.print_section_header("Chunk Range")
+        self.print_section_header("Chunk/Page Range")
 
         range_options = [
-            ("all", "Process all chunks (default)"),
-            ("first", "Process only the first N chunks"),
-            ("last", "Process only the last N chunks"),
+            ("all", "Process all chunks/pages (default)"),
+            ("first", "Process only the first N chunks/pages"),
+            ("last", "Process only the last N chunks/pages"),
         ]
 
         choice = self.select_option(
-            "Would you like to limit which chunks are processed?",
+            "Would you like to limit which chunks/pages are processed?",
             range_options,
             allow_back=allow_back,
             allow_quit=True,
@@ -328,7 +328,7 @@ class UserInterface:
         label = "first" if choice == "first" else "last"
         while True:
             n_input = self.get_input(
-                f"How many {label} chunks should be processed?",
+                f"How many {label} chunks/pages should be processed?",
                 allow_back=True,
                 allow_quit=True,
             )
@@ -685,9 +685,9 @@ class UserInterface:
             first_n = getattr(chunk_slice, "first_n", None)
             last_n = getattr(chunk_slice, "last_n", None)
             if first_n is not None:
-                self.console_print(f"    - Chunk range: First {first_n} chunks only")
+                self.console_print(f"    - Chunk/page range: First {first_n} chunks/pages only")
             elif last_n is not None:
-                self.console_print(f"    - Chunk range: Last {last_n} chunks only")
+                self.console_print(f"    - Chunk/page range: Last {last_n} chunks/pages only")
 
         # Context display (CM-8)
         if context_mode is None or context_mode == "auto":
@@ -705,7 +705,7 @@ class UserInterface:
         self.console_print(self.HORIZONTAL_LINE)
         
         if model_config:
-            tm = model_config.get("transcription_model", {})
+            tm = model_config.get("extraction_model", {})
             provider = tm.get("provider", "auto-detect")
             model_name = tm.get("name", "unknown")
             self.console_print(f"    - Provider: {provider.upper() if provider != 'auto-detect' else 'Auto-detect'}")

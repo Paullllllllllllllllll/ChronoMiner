@@ -68,14 +68,14 @@ def create_safe_log_filename(base_name: str, log_type: str) -> str:
     
     Args:
         base_name: The base name (e.g., document stem)
-        log_type: Type of log (e.g., "transcription", "summary")
+        log_type: Type of log (e.g., "extraction", "summary")
     
     Returns:
         A shortened, safe log filename
         
     Example:
-        Input:  "Very long document name...", "transcription"
-        Output: "Very long document name...-a3f8d9e2_transcription_log.json"
+        Input:  "Very long document name...", "extraction"
+        Output: "Very long document name...-a3f8d9e2_extraction_log.json"
     """
     suffix = f"_{log_type}_log.json"
     

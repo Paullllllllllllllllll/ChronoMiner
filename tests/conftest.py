@@ -55,7 +55,7 @@ def tmp_config_dir(tmp_path: Path) -> Path:
     _write_yaml(
         config_dir / "model_config.yaml",
         {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "gpt-4o",
                 "max_output_tokens": 256,
                 "temperature": 0.0,

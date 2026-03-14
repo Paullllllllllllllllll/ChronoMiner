@@ -24,7 +24,7 @@ class TestBaseSchemaHandler:
         payload = handler.prepare_payload(
             text_chunk="Hello world",
             dev_message="Extract data",
-            model_config={"transcription_model": {"name": "gpt-4o"}},
+            model_config={"extraction_model": {"name": "gpt-4o"}},
             schema={"name": "TestSchema", "schema": {"type": "object"}},
         )
         assert isinstance(payload, dict)

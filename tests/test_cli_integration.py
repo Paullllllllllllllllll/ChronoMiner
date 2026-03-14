@@ -82,7 +82,7 @@ class TestProcessTextFilesCLI:
         from main.process_text_files import _build_effective_model_config
 
         base = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "gpt-4o",
                 "max_output_tokens": 4096,
                 "reasoning": {"effort": "medium"},
@@ -98,13 +98,13 @@ class TestProcessTextFilesCLI:
 
         effective = _build_effective_model_config(base, args)
 
-        assert effective["transcription_model"]["name"] == "gpt-5-mini"
-        assert effective["transcription_model"]["max_output_tokens"] == 20000
-        assert effective["transcription_model"]["reasoning"]["effort"] == "low"
-        assert effective["transcription_model"]["text"]["verbosity"] == "low"
+        assert effective["extraction_model"]["name"] == "gpt-5-mini"
+        assert effective["extraction_model"]["max_output_tokens"] == 20000
+        assert effective["extraction_model"]["reasoning"]["effort"] == "low"
+        assert effective["extraction_model"]["text"]["verbosity"] == "low"
         # Ensure original config was not mutated
-        assert base["transcription_model"]["name"] == "gpt-4o"
-        assert base["transcription_model"]["max_output_tokens"] == 4096
+        assert base["extraction_model"]["name"] == "gpt-4o"
+        assert base["extraction_model"]["max_output_tokens"] == 4096
 
     def test_build_effective_paths_config_output_disables_input_as_output(self):
         """When --output is provided, output path mode should be enabled."""

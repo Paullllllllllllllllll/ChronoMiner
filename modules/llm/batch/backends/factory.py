@@ -35,7 +35,7 @@ def get_batch_backend(provider: Optional[str] = None) -> BatchBackend:
         try:
             from modules.config.loader import get_config_loader
             mc = get_config_loader().get_model_config()
-            tm = mc.get("transcription_model", {})
+            tm = mc.get("extraction_model", {})
             provider = tm.get("provider")
             if not provider:
                 # Auto-detect from model name
@@ -48,7 +48,7 @@ def get_batch_backend(provider: Optional[str] = None) -> BatchBackend:
     if provider is None:
         raise ValueError(
             "Provider not specified and could not be detected from config. "
-            "Set 'provider' in transcription_model config or pass it explicitly."
+            "Set 'provider' in extraction_model config or pass it explicitly."
         )
 
     provider = provider.lower().strip()

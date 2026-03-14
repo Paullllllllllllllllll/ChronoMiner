@@ -30,7 +30,7 @@ class TestCM1ServiceTierSyncMode:
 
         with patch("modules.llm.openai_utils.get_config_loader") as mock_loader:
             mock_loader.return_value.get_model_config.return_value = {
-                "transcription_model": {
+                "extraction_model": {
                     "name": "gpt-4o",
                     "max_output_tokens": 4096,
                     "temperature": 0.0,
@@ -114,11 +114,11 @@ class TestCM2ServiceTierBatchMode:
 
     @pytest.mark.unit
     def test_build_responses_body_uses_injected_service_tier(self):
-        """_build_responses_body uses service_tier when it is in model_config.transcription_model."""
+        """_build_responses_body uses service_tier when it is in model_config.extraction_model."""
         from modules.llm.batch.backends.openai_backend import _build_responses_body
 
         model_config = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "gpt-4o",
                 "max_output_tokens": 4096,
                 "service_tier": "auto",
@@ -137,7 +137,7 @@ class TestCM2ServiceTierBatchMode:
         from modules.llm.batch.backends.openai_backend import _build_responses_body
 
         model_config = {
-            "transcription_model": {
+            "extraction_model": {
                 "name": "gpt-4o",
                 "max_output_tokens": 4096,
                 "service_tier": "flex",
@@ -163,7 +163,7 @@ class TestCM3ReasoningEffortSyncMode:
         """LLMExtractor._initialize_llm puts reasoning_effort in extra_params."""
         with patch("modules.llm.openai_utils.get_config_loader") as mock_loader:
             mock_loader.return_value.get_model_config.return_value = {
-                "transcription_model": {
+                "extraction_model": {
                     "name": "gpt-4o",
                     "max_output_tokens": 4096,
                     "temperature": 0.0,
@@ -187,7 +187,7 @@ class TestCM3ReasoningEffortSyncMode:
         """When reasoning is absent, reasoning_effort defaults to 'medium'."""
         with patch("modules.llm.openai_utils.get_config_loader") as mock_loader:
             mock_loader.return_value.get_model_config.return_value = {
-                "transcription_model": {
+                "extraction_model": {
                     "name": "gpt-4o",
                     "max_output_tokens": 4096,
                     "temperature": 0.0,
@@ -421,7 +421,7 @@ class TestCM7EmptyOutputPath:
         }
         fp = FileProcessor(
             paths_config=paths_config,
-            model_config={"transcription_model": {"name": "gpt-4o"}},
+            model_config={"extraction_model": {"name": "gpt-4o"}},
             chunking_config={"chunking": {}},
         )
 
@@ -447,7 +447,7 @@ class TestCM7EmptyOutputPath:
         }
         fp = FileProcessor(
             paths_config=paths_config,
-            model_config={"transcription_model": {"name": "gpt-4o"}},
+            model_config={"extraction_model": {"name": "gpt-4o"}},
             chunking_config={"chunking": {}},
         )
 
@@ -472,7 +472,7 @@ class TestCM7EmptyOutputPath:
         }
         fp = FileProcessor(
             paths_config=paths_config,
-            model_config={"transcription_model": {"name": "gpt-4o"}},
+            model_config={"extraction_model": {"name": "gpt-4o"}},
             chunking_config={"chunking": {}},
         )
 
@@ -534,7 +534,7 @@ class TestCM8ContextSelection:
         }
         fp = FileProcessor(
             paths_config=paths_config,
-            model_config={"transcription_model": {"name": "gpt-4o"}},
+            model_config={"extraction_model": {"name": "gpt-4o"}},
             chunking_config={"chunking": {"default_tokens_per_chunk": 500}},
         )
 

@@ -47,7 +47,7 @@ class PayloadBuilder:
             dev_message, model_config, schema
         )
         
-        model_cfg = model_config.get("transcription_model", {})
+        model_cfg = model_config.get("extraction_model", {})
         model_name = model_cfg.get("name")
         
         # Detect model capabilities
