@@ -73,21 +73,21 @@ def _load_concurrency_config() -> Dict[str, Any]:
     """Load concurrency config for retry and rate limiting settings."""
     try:
         return get_config_loader().get_concurrency_config() or {}
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
         return {}
 
 
-def _compute_openrouter_reasoning_max_tokens(max_tokens: int, effort: str) -> int:
+def _compute_reasoning_budget(max_tokens: int, effort: str) -> int:
     """
-    Compute reasoning token budget for OpenRouter models based on effort level.
-    
-    For Anthropic and Gemini thinking models via OpenRouter, we map effort levels
-    to a reasoning.max_tokens budget. This mirrors ChronoTranscriber's approach.
-    
+    Compute reasoning token budget based on effort level.
+
+    Used by all providers (Anthropic, Google, OpenRouter) that support
+    reasoning/thinking modes. Maps effort levels to a token budget.
+
     Args:
         max_tokens: The max_output_tokens from config
         effort: Reasoning effort level (low, medium, high)
-        
+
     Returns:
         Token budget for reasoning, or 0 to skip
     """
@@ -114,22 +114,22 @@ def _compute_openrouter_reasoning_max_tokens(max_tokens: int, effort: str) -> in
     return max(1024, min(budget, 32768))
 
 
-def _build_openrouter_reasoning_payload(
+def _build_reasoning_payload(
     model_name: str,
     reasoning_config: Dict[str, Any],
     max_tokens: int,
 ) -> Optional[Dict[str, Any]]:
     """
-    Build OpenRouter-compatible reasoning payload based on model type.
-    
-    OpenRouter accepts a top-level `reasoning` object and routes/translates
-    it when supported by the selected model/provider.
-    
+    Build provider-compatible reasoning payload based on model type.
+
+    Routes reasoning configuration to the appropriate format for the
+    target provider (OpenRouter, Anthropic, Google, DeepSeek).
+
     Args:
         model_name: The model identifier
         reasoning_config: Reasoning config from model_config.yaml
         max_tokens: Max output tokens for budget computation
-        
+
     Returns:
         Reasoning payload dict, or None if not applicable
     """
@@ -169,7 +169,7 @@ def _build_openrouter_reasoning_payload(
     # For Anthropic and Gemini thinking models, map effort -> max_tokens budget
     if ("anthropic/" in m or "claude" in m or "gemini" in m) and "max_tokens" not in reasoning_payload:
         eff = reasoning_payload.get("effort", "medium")
-        budget = _compute_openrouter_reasoning_max_tokens(max_tokens=max_tokens, effort=str(eff))
+        budget = _compute_reasoning_budget(max_tokens=max_tokens, effort=str(eff))
         if budget > 0:
             # Remove effort and use max_tokens instead for these providers
             reasoning_payload.pop("effort", None)
@@ -457,7 +457,7 @@ class LangChainLLM:
             reasoning_config = self.config.extra_params.get("reasoning_config", {})
             if reasoning_config and reasoning_config.get("effort") and reasoning_config.get("effort") != "none":
                 effort = reasoning_config.get("effort", "medium")
-                budget = _compute_openrouter_reasoning_max_tokens(
+                budget = _compute_reasoning_budget(
                     max_tokens=self.config.max_tokens, effort=str(effort)
                 )
                 if budget > 0:
@@ -486,7 +486,7 @@ class LangChainLLM:
             reasoning_config = self.config.extra_params.get("reasoning_config", {})
             if reasoning_config and reasoning_config.get("effort") and reasoning_config.get("effort") != "none":
                 effort = reasoning_config.get("effort", "medium")
-                budget = _compute_openrouter_reasoning_max_tokens(
+                budget = _compute_reasoning_budget(
                     max_tokens=self.config.max_tokens, effort=str(effort)
                 )
                 if budget > 0:
@@ -530,7 +530,7 @@ class LangChainLLM:
             # Build OpenRouter reasoning payload if supported
             if caps.supports_reasoning_effort:
                 reasoning_config = self.config.extra_params.get("reasoning_config", {})
-                reasoning_payload = _build_openrouter_reasoning_payload(
+                reasoning_payload = _build_reasoning_payload(
                     model_name=model_name,
                     reasoning_config=reasoning_config,
                     max_tokens=self.config.max_tokens,

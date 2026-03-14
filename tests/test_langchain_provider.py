@@ -5,8 +5,8 @@ from unittest.mock import patch, MagicMock
 from modules.llm.langchain_provider import (
     ProviderConfig,
     _normalize_schema_for_anthropic,
-    _compute_openrouter_reasoning_max_tokens,
-    _build_openrouter_reasoning_payload,
+    _compute_reasoning_budget,
+    _build_reasoning_payload,
 )
 
 
@@ -243,71 +243,71 @@ class TestNormalizeSchemaForAnthropic:
         assert _normalize_schema_for_anthropic(True) is True
 
 
-class TestComputeOpenRouterReasoningMaxTokens:
+class TestComputeReasoningBudget:
     """Test reasoning token budget computation."""
     
     @pytest.mark.unit
     def test_low_effort(self):
         """Test low effort reasoning budget."""
-        result = _compute_openrouter_reasoning_max_tokens(10000, "low")
+        result = _compute_reasoning_budget(10000, "low")
         assert result == 1024  # Minimum bound
     
     @pytest.mark.unit
     def test_medium_effort(self):
         """Test medium effort reasoning budget."""
-        result = _compute_openrouter_reasoning_max_tokens(10000, "medium")
+        result = _compute_reasoning_budget(10000, "medium")
         assert result == 2500  # 10000 * 0.25
     
     @pytest.mark.unit
     def test_high_effort(self):
         """Test high effort reasoning budget."""
-        result = _compute_openrouter_reasoning_max_tokens(10000, "high")
+        result = _compute_reasoning_budget(10000, "high")
         assert result == 5000  # 10000 * 0.5
     
     @pytest.mark.unit
     def test_none_effort(self):
         """Test none effort disables reasoning."""
-        result = _compute_openrouter_reasoning_max_tokens(10000, "none")
+        result = _compute_reasoning_budget(10000, "none")
         assert result == 0
     
     @pytest.mark.unit
     def test_default_to_medium(self):
         """Test unknown effort defaults to medium."""
-        result = _compute_openrouter_reasoning_max_tokens(10000, "unknown")
+        result = _compute_reasoning_budget(10000, "unknown")
         assert result == 2500
     
     @pytest.mark.unit
     def test_minimum_bound(self):
         """Test minimum token bound of 1024."""
-        result = _compute_openrouter_reasoning_max_tokens(100, "low")
+        result = _compute_reasoning_budget(100, "low")
         assert result == 1024
     
     @pytest.mark.unit
     def test_maximum_bound(self):
         """Test maximum token bound of 32768."""
-        result = _compute_openrouter_reasoning_max_tokens(1000000, "high")
+        result = _compute_reasoning_budget(1000000, "high")
         assert result == 32768
 
 
-class TestBuildOpenRouterReasoningPayload:
-    """Test OpenRouter reasoning payload building."""
+class TestBuildReasoningPayload:
+    """Test reasoning payload building."""
     
     @pytest.mark.unit
     def test_empty_config_returns_none(self):
         """Test empty reasoning config returns None."""
-        result = _build_openrouter_reasoning_payload("gpt-4o", {}, 10000)
+        result = _build_reasoning_payload("gpt-4o", {}, 10000)
         assert result is None
     
     @pytest.mark.unit
     def test_none_config_returns_none(self):
         """Test None reasoning config returns None."""
-        result = _build_openrouter_reasoning_payload("gpt-4o", None, 10000)
+        result = _build_reasoning_payload("gpt-4o", None, 10000)
         assert result is None
     
     @pytest.mark.unit
     def test_with_effort(self):
         """Test payload with effort level."""
-        result = _build_openrouter_reasoning_payload(
+        result = _build_reasoning_payload(
             "gpt-4o",
             {"effort": "high"},
             10000
@@ -318,7 +318,7 @@ class TestBuildOpenRouterReasoningPayload:
     @pytest.mark.unit
     def test_with_explicit_max_tokens(self):
         """Test payload with explicit max_tokens."""
-        result = _build_openrouter_reasoning_payload(
+        result = _build_reasoning_payload(
             "gpt-4o",
             {"max_tokens": 5000},
             10000
@@ -329,7 +329,7 @@ class TestBuildOpenRouterReasoningPayload:
     @pytest.mark.unit
     def test_with_exclude_flag(self):
         """Test payload with exclude flag."""
-        result = _build_openrouter_reasoning_payload(
+        result = _build_reasoning_payload(
             "gpt-4o",
             {"exclude": True},
             10000
@@ -340,7 +340,7 @@ class TestBuildOpenRouterReasoningPayload:
     @pytest.mark.unit
     def test_with_enabled_flag(self):
         """Test payload with enabled flag."""
-        result = _build_openrouter_reasoning_payload(
+        result = _build_reasoning_payload(
             "gpt-4o",
             {"enabled": False},
             10000
@@ -351,7 +351,7 @@ class TestBuildOpenRouterReasoningPayload:
     @pytest.mark.unit
     def test_anthropic_model_converts_effort_to_max_tokens(self):
         """Test Anthropic model converts effort to max_tokens."""
-        result = _build_openrouter_reasoning_payload(
+        result = _build_reasoning_payload(
             "anthropic/claude-3.5-sonnet",
             {"effort": "high"},
             10000
@@ -363,7 +363,7 @@ class TestBuildOpenRouterReasoningPayload:
     @pytest.mark.unit
     def test_deepseek_model_converts_effort_to_enabled(self):
         """Test DeepSeek model converts effort to enabled flag."""
-        result = _build_openrouter_reasoning_payload(
+        result = _build_reasoning_payload(
             "deepseek/deepseek-chat",
             {"effort": "high"},
             10000
@@ -375,7 +375,7 @@ class TestBuildOpenRouterReasoningPayload:
     @pytest.mark.unit
     def test_deepseek_none_effort_disables(self):
         """Test DeepSeek with none effort sets enabled=False."""
-        result = _build_openrouter_reasoning_payload(
+        result = _build_reasoning_payload(
             "deepseek/deepseek-chat",
             {"effort": "none"},
             10000

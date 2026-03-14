@@ -17,6 +17,7 @@ from modules.cli.mode_detector import detect_execution_mode
 from modules.config.loader import ConfigLoader
 from modules.core.logger import setup_logger
 from modules.core.workflow_utils import load_core_resources
+from modules.ui import print_info, print_success, print_warning, print_error
 from modules.ui.core import UserInterface
 
 
@@ -67,7 +68,7 @@ class _DualModeBase:
         if self.ui:
             self.ui.print_info("\nOperation cancelled by user.")
         else:
-            print("\n[INFO] Operation cancelled by user.")
+            print_info("\nOperation cancelled by user.")
         self.logger.info(f"{self.script_name} cancelled by user")
         sys.exit(0)
 
@@ -82,7 +83,7 @@ class _DualModeBase:
         if self.ui:
             self.ui.print_error(error_msg)
         else:
-            print(f"[ERROR] {error_msg}")
+            print_error(error_msg)
         self.logger.error(f"{self.script_name} failed", exc_info=error)
         sys.exit(1)
 
@@ -104,8 +105,14 @@ class _DualModeBase:
             else:
                 self.ui.print_info(message)
         else:
-            prefix = f"[{level.upper()}]"
-            print(f"{prefix} {message}")
+            if level == "error":
+                print_error(message)
+            elif level == "warning":
+                print_warning(message)
+            elif level == "success":
+                print_success(message)
+            else:
+                print_info(message)
 
         # Always log
         log_method = getattr(self.logger, level.lower(), self.logger.info)

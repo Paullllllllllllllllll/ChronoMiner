@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Optional
 
 from modules.core.logger import setup_logger
+from modules.ui import print_info, print_success, print_warning
 
 logger = setup_logger(__name__)
 
@@ -376,14 +377,14 @@ def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> bool:
         )
         ui.print_info("Press Ctrl+C to cancel and exit.")
     else:
-        print(
-            f"[WARNING] Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+        print_warning(
+            f"Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
         )
-        print(
-            f"[INFO] Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
+        print_info(
+            f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
             f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m remaining)"
         )
-        print("[INFO] Press Ctrl+C to cancel and exit.")
+        print_info("Press Ctrl+C to cancel and exit.")
     
     try:
         # Sleep in smaller intervals to allow for interruption
@@ -402,15 +403,15 @@ def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> bool:
                 if ui:
                     ui.print_success("Token limit has been reset. Resuming processing.")
                 else:
-                    print("[SUCCESS] Token limit has been reset. Resuming processing.")
+                    print_success("Token limit has been reset. Resuming processing.")
                 return True
-        
+
         if _logger:
             _logger.info("Token limit has been reset. Resuming processing.")
         if ui:
             ui.print_success("\nToken limit has been reset. Resuming processing.")
         else:
-            print("[SUCCESS] Token limit has been reset. Resuming processing.")
+            print_success("Token limit has been reset. Resuming processing.")
         return True
         
     except KeyboardInterrupt:
@@ -419,7 +420,7 @@ def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> bool:
         if ui:
             ui.print_warning("\nWait cancelled by user.")
         else:
-            print("\n[INFO] Wait cancelled by user.")
+            print_info("\nWait cancelled by user.")
         return False
 
 

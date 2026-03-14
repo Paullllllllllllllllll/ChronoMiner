@@ -10,7 +10,7 @@ from modules.core.chunking_service import ChunkingService
 class DummyTextProcessor:
     """Test double for TextProcessor that counts characters as tokens."""
     
-    def estimate_tokens(self, text: str, model_name: str = "") -> int:
+    def estimate_tokens(self, text: str) -> int:
         return len(text)
 
 

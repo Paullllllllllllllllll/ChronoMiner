@@ -27,62 +27,43 @@ from modules.core.text_utils import TextProcessor
 from modules.core.path_utils import ensure_path_safe
 from modules.llm.prompt_utils import render_prompt_with_schema, load_prompt_template
 from modules.operations.extraction.schema_handlers import get_schema_handler
-from modules.ui import print_info, print_success, print_warning, print_error, ui_print
+from modules.ui import print_info, print_success, print_warning, print_error, ui_print, ui_input
 
 logger = logging.getLogger(__name__)
 
 
 class _MessagingAdapter:
-    """Simple messaging adapter for file processor output."""
-    
-    def __init__(self, ui: Any = None) -> None:
-        self.ui = ui
-    
+    """Simple messaging adapter for file processor output.
+
+    Always uses the module-level UI functions (print_info, print_success, etc.)
+    for console output and the module-level logger for logging.
+    """
+
     def info(self, message: str, log: bool = True) -> None:
-        if self.ui:
-            self.ui.print_info(message)
-        else:
-            print_info(message)
+        print_info(message)
         if log:
             logger.info(message)
-    
+
     def success(self, message: str, log: bool = True) -> None:
-        if self.ui:
-            self.ui.print_success(message)
-        else:
-            print_success(message)
+        print_success(message)
         if log:
             logger.info(f"SUCCESS: {message}")
-    
+
     def warning(self, message: str, log: bool = True) -> None:
-        if self.ui:
-            self.ui.print_warning(message)
-        else:
-            print_warning(message)
+        print_warning(message)
         if log:
             logger.warning(message)
-    
+
     def error(self, message: str, log: bool = True, exc_info: Any = None) -> None:
-        if self.ui:
-            self.ui.print_error(message)
-        else:
-            print_error(message)
+        print_error(message)
         if log:
             if exc_info:
                 logger.error(message, exc_info=exc_info)
             else:
                 logger.error(message)
-    
+
     def console_print(self, message: str) -> None:
-        if self.ui and hasattr(self.ui, 'console_print'):
-            self.ui.console_print(message)
-        else:
-            ui_print(message)
-
-
-def _create_messaging_adapter(ui: Any = None) -> _MessagingAdapter:
-    """Factory function to create messaging adapter."""
-    return _MessagingAdapter(ui)
+        ui_print(message)
 
 
 class FileProcessor:
@@ -185,7 +166,7 @@ class FileProcessor:
             )
 
         # Create messaging adapter
-        messenger = _create_messaging_adapter(ui)
+        messenger = _MessagingAdapter()
 
         messenger.info(f"Processing file: {file_path.name}")
         logger.info(f"Starting processing for file: {file_path}")
@@ -240,145 +221,21 @@ class FileProcessor:
                 f"Chunk slice applied: processing {len(chunks)}/{original_count} chunks"
             )
 
-        # Resolve context — honour context_override if provided (CM-8)
-        context: Optional[str]
-        context_path: Optional[Path]
-        override_mode = (context_override or {}).get("mode", "auto")
-        if override_mode == "none":
-            context, context_path = None, None
-            logger.debug(f"Context disabled for '{file_path.name}'")
-        elif override_mode == "manual" and (context_override or {}).get("path"):
-            manual_path = Path(context_override["path"])  # type: ignore[index]
-            if manual_path.exists():
-                context = manual_path.read_text(encoding="utf-8").strip()
-                context_path = manual_path
-                logger.info(f"Using manual context from: {manual_path}")
-                messenger.info(f"Using context from: {manual_path.name}")
-            else:
-                logger.warning(f"Manual context path not found: {manual_path}; falling back to auto")
-                context, context_path = resolve_context_for_extraction(text_file=file_path)
-        else:
-            context, context_path = resolve_context_for_extraction(text_file=file_path)
-
-        if context_path and override_mode == "auto":
-            logger.info(f"Using extraction context from: {context_path}")
-            messenger.info(f"Using context from: {context_path.name}")
-        elif not context_path and override_mode == "auto":
-            logger.debug(f"No extraction context found for '{file_path.name}'")
-
-        # Render system prompt
-        schema_definition = selected_schema.get("schema", {})
-        effective_dev_message = render_prompt_with_schema(
-            prompt_template,
-            schema_definition,
+        # Delegate shared orchestration to _execute_extraction
+        await self._execute_extraction(
+            file_path=file_path,
+            chunks=chunks,
+            prompt_template=prompt_template,
+            selected_schema=selected_schema,
             schema_name=schema_name,
             inject_schema=inject_schema,
-            context=context,
+            schema_paths=schema_paths,
+            use_batch=use_batch,
+            messenger=messenger,
+            resume=resume,
+            chunk_slice=chunk_slice,
+            context_override=context_override,
         )
-
-        # Get schema handler
-        try:
-            handler = get_schema_handler(schema_name)
-        except Exception as e:
-            messenger.error(f"Failed to get schema handler: {e}", exc_info=e)
-            return
-
-        # Determine output paths
-        try:
-            working_folder, output_json_path, temp_jsonl_path = self._setup_output_paths(
-                file_path, schema_paths
-            )
-            messenger.info(f"Output will be saved to: {output_json_path}")
-        except Exception as e:
-            messenger.error(f"Failed to set up output paths: {e}", exc_info=e)
-            return
-
-        # Resume: detect already-completed chunks
-        completed_chunk_indices: set[int] = set()
-        if resume and not use_batch:
-            status, completed_chunk_indices = detect_extraction_status(
-                output_json_path, expected_chunks=len(chunks)
-            )
-            if status == FileStatus.COMPLETE:
-                messenger.info(f"Skipping {file_path.name}: already fully processed ({len(completed_chunk_indices)} chunks)")
-                return
-            if status == FileStatus.PARTIAL:
-                messenger.info(
-                    f"Resuming {file_path.name}: {len(completed_chunk_indices)}/{len(chunks)} chunks already done"
-                )
-
-        # Create processing strategy and execute
-        strategy = create_processing_strategy(use_batch, self.concurrency_config)
-
-        processing_cancelled = False
-        processing_exception: Optional[Exception] = None
-
-        try:
-            await strategy.process_chunks(
-                chunks=chunks,
-                handler=handler,
-                dev_message=effective_dev_message,
-                model_config=self.model_config,
-                schema=selected_schema["schema"],
-                file_path=file_path,
-                temp_jsonl_path=temp_jsonl_path,
-                console_print=messenger.console_print,
-                completed_chunk_indices=completed_chunk_indices,
-            )
-        except asyncio.CancelledError:
-            processing_cancelled = True
-            messenger.warning(
-                "Processing interrupted by user. Attempting to persist completed chunks before exit..."
-            )
-            raise
-        except Exception as e:
-            processing_exception = e
-            messenger.error(f"Error during processing: {e}", exc_info=e)
-        finally:
-            wrote_output = False
-            if not use_batch:
-                try:
-                    if temp_jsonl_path.exists() and temp_jsonl_path.stat().st_size > 0:
-                        # Build chunk slice metadata if a slice was applied
-                        _cs_info: Optional[dict] = None
-                        if chunk_slice is not None and (chunk_slice.first_n is not None or chunk_slice.last_n is not None):
-                            _cs_info = {}
-                            if chunk_slice.first_n is not None:
-                                _cs_info["first_n"] = chunk_slice.first_n
-                            if chunk_slice.last_n is not None:
-                                _cs_info["last_n"] = chunk_slice.last_n
-                        await asyncio.shield(
-                            self._generate_output_files(
-                                temp_jsonl_path,
-                                output_json_path,
-                                handler,
-                                schema_paths,
-                                messenger,
-                                partial=processing_cancelled or processing_exception is not None,
-                                chunk_slice_info=_cs_info,
-                            )
-                        )
-                        wrote_output = True
-                    elif processing_cancelled:
-                        messenger.warning(
-                            "Processing was interrupted before any chunks completed; no output file generated."
-                        )
-                except Exception as gen_exc:
-                    messenger.error(f"Failed to write final output: {gen_exc}", exc_info=gen_exc)
-
-            self._cleanup_temp_files(use_batch, temp_jsonl_path, messenger)
-
-            if processing_cancelled:
-                if wrote_output:
-                    messenger.warning(
-                        f"Processing cancelled. Partial results saved to {output_json_path}"
-                    )
-                # Allow cancellation to propagate after cleanup and messaging
-            elif processing_exception is None:
-                messenger.success(f"Completed processing of file: {file_path.name}")
-
-        if processing_exception is not None:
-            return
 
     async def _process_visual_file(
         self,
@@ -403,7 +260,7 @@ class FileProcessor:
             get_image_config_section_name,
         )
 
-        messenger = _create_messaging_adapter(ui)
+        messenger = _MessagingAdapter()
         messenger.info(f"Processing visual file: {file_path.name}")
         logger.info(f"Starting visual processing for file: {file_path}")
 
@@ -502,17 +359,74 @@ class FileProcessor:
             messenger.error(f"Failed to load/preprocess images from {file_path.name}: {e}", exc_info=e)
             return
 
-        # 5. Resolve context (same as text path)
+        # Load visual extraction prompt
+        visual_prompt_path = Path("prompts/image_extraction_prompt.txt")
+        try:
+            visual_prompt_template = load_prompt_template(visual_prompt_path)
+        except FileNotFoundError:
+            messenger.error(f"Visual extraction prompt not found: {visual_prompt_path}")
+            return
+
+        # Placeholder chunks for index-based resume logic
+        chunks = [""] * len(image_chunks)
+
+        # Delegate shared orchestration to _execute_extraction
+        await self._execute_extraction(
+            file_path=file_path,
+            chunks=chunks,
+            prompt_template=visual_prompt_template,
+            selected_schema=selected_schema,
+            schema_name=schema_name,
+            inject_schema=inject_schema,
+            schema_paths=schema_paths,
+            use_batch=use_batch,
+            messenger=messenger,
+            resume=resume,
+            chunk_slice=chunk_slice,
+            context_override=context_override,
+            image_chunks=image_chunks,
+            temp_image_dir=temp_dir,
+            unit_label="page",
+        )
+
+    async def _execute_extraction(
+        self,
+        *,
+        file_path: Path,
+        chunks: List[str],
+        prompt_template: str,
+        selected_schema: Dict[str, Any],
+        schema_name: str,
+        inject_schema: bool,
+        schema_paths: Dict[str, Any],
+        use_batch: bool,
+        messenger: _MessagingAdapter,
+        resume: bool,
+        chunk_slice: Optional[ChunkSlice],
+        context_override: Optional[Dict[str, Any]],
+        image_chunks: Optional[List[Dict[str, Any]]] = None,
+        temp_image_dir: Optional[Path] = None,
+        unit_label: str = "chunk",
+    ) -> None:
+        """Shared extraction orchestration for both text and visual pipelines.
+
+        Handles context resolution, prompt rendering, schema handler lookup,
+        output path setup, resume detection, strategy execution, output
+        generation, and cleanup.
+        """
+        # Resolve context — honour context_override if provided (CM-8)
         context: Optional[str]
         context_path: Optional[Path]
         override_mode = (context_override or {}).get("mode", "auto")
         if override_mode == "none":
             context, context_path = None, None
+            logger.debug(f"Context disabled for '{file_path.name}'")
         elif override_mode == "manual" and (context_override or {}).get("path"):
             manual_path = Path(context_override["path"])  # type: ignore[index]
             if manual_path.exists():
                 context = manual_path.read_text(encoding="utf-8").strip()
                 context_path = manual_path
+                logger.info(f"Using manual context from: {manual_path}")
                 messenger.info(f"Using context from: {manual_path.name}")
             else:
                 logger.warning(f"Manual context path not found: {manual_path}; falling back to auto")
@@ -521,33 +435,29 @@ class FileProcessor:
             context, context_path = resolve_context_for_extraction(text_file=file_path)
 
         if context_path and override_mode == "auto":
+            logger.info(f"Using extraction context from: {context_path}")
             messenger.info(f"Using context from: {context_path.name}")
+        elif not context_path and override_mode == "auto":
+            logger.debug(f"No extraction context found for '{file_path.name}'")
 
-        # 6. Render system prompt using visual extraction prompt
-        visual_prompt_path = Path("prompts/image_extraction_prompt.txt")
-        try:
-            visual_prompt_template = load_prompt_template(visual_prompt_path)
-        except FileNotFoundError:
-            messenger.error(f"Visual extraction prompt not found: {visual_prompt_path}")
-            return
-
+        # Render system prompt
         schema_definition = selected_schema.get("schema", {})
         effective_dev_message = render_prompt_with_schema(
-            visual_prompt_template,
+            prompt_template,
             schema_definition,
             schema_name=schema_name,
             inject_schema=inject_schema,
             context=context,
         )
 
-        # 7. Get schema handler
+        # Get schema handler
         try:
             handler = get_schema_handler(schema_name)
         except Exception as e:
             messenger.error(f"Failed to get schema handler: {e}", exc_info=e)
             return
 
-        # 8. Set up output paths
+        # Determine output paths
         try:
             working_folder, output_json_path, temp_jsonl_path = self._setup_output_paths(
                 file_path, schema_paths
@@ -557,48 +467,50 @@ class FileProcessor:
             messenger.error(f"Failed to set up output paths: {e}", exc_info=e)
             return
 
-        # 9. Resume detection
-        num_pages = len(image_chunks)
-        chunks = [""] * num_pages  # Placeholder strings for index-based resume logic
-
+        # Resume: detect already-completed chunks/pages
         completed_chunk_indices: set[int] = set()
         if resume and not use_batch:
             status, completed_chunk_indices = detect_extraction_status(
-                output_json_path, expected_chunks=num_pages
+                output_json_path, expected_chunks=len(chunks)
             )
             if status == FileStatus.COMPLETE:
                 messenger.info(
-                    f"Skipping {file_path.name}: already fully processed ({len(completed_chunk_indices)} pages)"
+                    f"Skipping {file_path.name}: already fully processed "
+                    f"({len(completed_chunk_indices)} {unit_label}s)"
                 )
                 return
             if status == FileStatus.PARTIAL:
                 messenger.info(
-                    f"Resuming {file_path.name}: {len(completed_chunk_indices)}/{num_pages} pages already done"
+                    f"Resuming {file_path.name}: {len(completed_chunk_indices)}/{len(chunks)} "
+                    f"{unit_label}s already done"
                 )
 
-        # 10. Create strategy and process
+        # Create processing strategy and execute
         strategy = create_processing_strategy(use_batch, self.concurrency_config)
 
         processing_cancelled = False
         processing_exception: Optional[Exception] = None
 
         try:
-            await strategy.process_chunks(
-                chunks=chunks,
-                handler=handler,
-                dev_message=effective_dev_message,
-                model_config=self.model_config,
-                schema=selected_schema["schema"],
-                file_path=file_path,
-                temp_jsonl_path=temp_jsonl_path,
-                console_print=messenger.console_print,
-                completed_chunk_indices=completed_chunk_indices,
-                image_chunks=image_chunks,
-            )
+            process_kwargs: Dict[str, Any] = {
+                "chunks": chunks,
+                "handler": handler,
+                "dev_message": effective_dev_message,
+                "model_config": self.model_config,
+                "schema": selected_schema["schema"],
+                "file_path": file_path,
+                "temp_jsonl_path": temp_jsonl_path,
+                "console_print": messenger.console_print,
+                "completed_chunk_indices": completed_chunk_indices,
+            }
+            if image_chunks is not None:
+                process_kwargs["image_chunks"] = image_chunks
+
+            await strategy.process_chunks(**process_kwargs)
         except asyncio.CancelledError:
             processing_cancelled = True
             messenger.warning(
-                "Processing interrupted by user. Attempting to persist completed pages before exit..."
+                f"Processing interrupted by user. Attempting to persist completed {unit_label}s before exit..."
             )
             raise
         except Exception as e:
@@ -609,6 +521,7 @@ class FileProcessor:
             if not use_batch:
                 try:
                     if temp_jsonl_path.exists() and temp_jsonl_path.stat().st_size > 0:
+                        # Build chunk slice metadata if a slice was applied
                         _cs_info: Optional[dict] = None
                         if chunk_slice is not None and (chunk_slice.first_n is not None or chunk_slice.last_n is not None):
                             _cs_info = {}
@@ -630,7 +543,8 @@ class FileProcessor:
                         wrote_output = True
                     elif processing_cancelled:
                         messenger.warning(
-                            "Processing was interrupted before any pages completed; no output file generated."
+                            f"Processing was interrupted before any {unit_label}s completed; "
+                            "no output file generated."
                         )
                 except Exception as gen_exc:
                     messenger.error(f"Failed to write final output: {gen_exc}", exc_info=gen_exc)
@@ -638,11 +552,11 @@ class FileProcessor:
             self._cleanup_temp_files(use_batch, temp_jsonl_path, messenger)
 
             # Clean up temporary preprocessed images
-            if temp_dir and temp_dir.exists():
+            if temp_image_dir and temp_image_dir.exists():
                 import shutil
                 try:
-                    shutil.rmtree(temp_dir)
-                    logger.debug("Cleaned up temp image directory: %s", temp_dir)
+                    shutil.rmtree(temp_image_dir)
+                    logger.debug("Cleaned up temp image directory: %s", temp_image_dir)
                 except Exception as cleanup_err:
                     logger.warning("Failed to clean temp images: %s", cleanup_err)
 
@@ -837,12 +751,12 @@ class FileProcessor:
 
     def _default_ask_file_chunking_method(self, file_name: str) -> str:
         """Default implementation if UI not provided."""
-        print(f"\nSelect chunking method for file '{file_name}':")
-        print("  1. Automatic chunking - Split text based on token limits with no intervention")
-        print("  2. Interactive chunking - View default chunks and manually adjust boundaries")
-        print("  3. Predefined chunks - Use saved boundaries from {file}_line_ranges.txt file")
+        ui_print(f"\nSelect chunking method for file '{file_name}':")
+        ui_print("  1. Automatic chunking - Split text based on token limits with no intervention")
+        ui_print("  2. Interactive chunking - View default chunks and manually adjust boundaries")
+        ui_print("  3. Predefined chunks - Use saved boundaries from {file}_line_ranges.txt file")
 
-        choice = input("Enter option (1-3): ").strip()
+        choice = ui_input("Enter option (1-3): ").strip()
         if choice == "1":
             return "auto"
         elif choice == "2":
@@ -850,5 +764,5 @@ class FileProcessor:
         elif choice == "3":
             return "line_ranges.txt"
         else:
-            print("Invalid selection, defaulting to automatic chunking.")
+            print_warning("Invalid selection, defaulting to automatic chunking.")
             return "auto"

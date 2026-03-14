@@ -131,14 +131,14 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         total_chunks = len(chunks)
         try:
             configured_limit = int(extraction_cfg.get("concurrency_limit", total_chunks or 1))
-        except Exception:
+        except (ValueError, TypeError):
             configured_limit = total_chunks or 1
         concurrency_limit = max(1, min(configured_limit, total_chunks or 1))
         delay_between_tasks = float(extraction_cfg.get("delay_between_tasks", 0.0) or 0.0)
 
         try:
             retry_attempts = int(retry_cfg.get("attempts", 1))
-        except Exception:
+        except (ValueError, TypeError):
             retry_attempts = 1
         retry_attempts = max(1, retry_attempts)
         wait_min_seconds = float(retry_cfg.get("wait_min_seconds", 1.0) or 1.0)
@@ -217,7 +217,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 unit_label = "page" if is_visual else "chunk"
                                 console_print(f"[INFO] Processed {unit_label} {idx}/{total_chunks}")
                                 return result
-                            except Exception as e:
+                            except Exception as e:  # Intentionally broad: LangChain/API errors are diverse and unpredictable
                                 msg = str(e)
                                 is_429 = "429" in msg or "rate_limit" in msg.lower()
                                 if provider == "anthropic" and is_429 and attempt < (retry_attempts - 1):
@@ -411,7 +411,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 temp_jsonl_path
             )
             
-        except Exception as e:
+        except Exception as e:  # Intentionally broad: batch backends can raise diverse provider-specific errors
             logger.error(f"Error during batch submission: {e}", exc_info=True)
             console_print(f"[ERROR] Failed to submit batch: {e}")
             raise

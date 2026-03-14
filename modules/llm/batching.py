@@ -53,7 +53,7 @@ def _get_extraction_config() -> Dict[str, Any]:
         loader = get_config_loader()
         concurrency_cfg = loader.get_concurrency_config() or {}
         return (concurrency_cfg.get("concurrency", {}) or {}).get("extraction", {}) or {}
-    except Exception:
+    except (OSError, ValueError, TypeError, KeyError, AttributeError):
         return {}
 
 
@@ -62,7 +62,7 @@ def get_batch_chunk_size() -> int:
     try:
         value = int(cfg.get("batch_chunk_size", DEFAULT_BATCH_CHUNK_SIZE))
         return value if value > 0 else DEFAULT_BATCH_CHUNK_SIZE
-    except Exception:
+    except (ValueError, TypeError):
         return DEFAULT_BATCH_CHUNK_SIZE
 
 
@@ -71,7 +71,7 @@ def get_max_batch_bytes() -> int:
     try:
         value = int(cfg.get("max_batch_bytes", DEFAULT_MAX_BATCH_BYTES))
         return value if value > 0 else DEFAULT_MAX_BATCH_BYTES
-    except Exception:
+    except (ValueError, TypeError):
         return DEFAULT_MAX_BATCH_BYTES
 
 

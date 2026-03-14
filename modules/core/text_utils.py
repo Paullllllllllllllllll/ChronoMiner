@@ -52,12 +52,11 @@ class TextProcessor:
         return text.strip()
 
     @staticmethod
-    def estimate_tokens(text: str, model_name: str = "o3-mini") -> int:
+    def estimate_tokens(text: str) -> int:
         """
         Estimate the number of tokens in the text using cl100k_base encoding.
 
         :param text: Input text.
-        :param model_name: Model name (currently unused, reserved for future model-specific tokenization).
         :return: Estimated token count.
         """
         if not text:

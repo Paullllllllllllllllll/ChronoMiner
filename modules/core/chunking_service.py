@@ -16,6 +16,7 @@ from modules.core.text_utils import (
     ChunkHandler,
     load_line_ranges
 )
+from modules.ui import ui_print
 
 logger = logging.getLogger(__name__)
 
@@ -181,13 +182,13 @@ class ChunkingService:
         )
         token_ranges = self.chunk_handler.get_line_ranges(strategy, lines)
 
-        print("\nThe following default token-based chunks were created:")
+        ui_print("\nThe following default token-based chunks were created:")
         for i, (start, end) in enumerate(token_ranges, 1):
             actual_start = original_start_line + start - 1
             actual_end = original_start_line + end - 1
-            print(f"  Chunk {i}: Lines {actual_start} - {actual_end}")
-        
-        print("\nYou can now adjust the chunk boundaries if you wish. Press Enter to keep the default for each chunk.")
+            ui_print(f"  Chunk {i}: Lines {actual_start} - {actual_end}")
+
+        ui_print("\nYou can now adjust the chunk boundaries if you wish. Press Enter to keep the default for each chunk.")
         
         final_ranges = self.chunk_handler.adjust_line_ranges(
             token_ranges,
