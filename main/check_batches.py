@@ -617,7 +617,7 @@ def process_all_batches(
             num_batches = len(completed_batches)
             _safe_print(
                 ui, 
-                f"✓ Successfully processed {num_responses} chunk(s) from {num_batches} batch(es) for '{final_identifier}'",
+                f"✓ Successfully processed {num_responses} chunk(s)/page(s) from {num_batches} batch(es) for '{final_identifier}'",
                 "success"
             )
 

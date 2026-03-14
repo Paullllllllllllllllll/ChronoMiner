@@ -22,7 +22,7 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class ChunkSlice:
-    """Specifies which subset of chunks to process.
+    """Specifies which subset of chunks/pages to process.
 
     Exactly one of *first_n* or *last_n* may be set (they are mutually
     exclusive).  When both are ``None`` the full chunk list is used.
@@ -44,7 +44,7 @@ def apply_chunk_slice(
     ranges: List[Tuple[int, int]],
     chunk_slice: Optional[ChunkSlice],
 ) -> Tuple[List[str], List[Tuple[int, int]]]:
-    """Return the subset of *chunks* and *ranges* selected by *chunk_slice*.
+    """Return the subset of *chunks* (or pages) and *ranges* selected by *chunk_slice*.
 
     If *chunk_slice* is ``None`` or requests more chunks than available the
     full lists are returned (with a warning in the latter case).
@@ -58,7 +58,7 @@ def apply_chunk_slice(
         n = chunk_slice.first_n
         if n >= total:
             logger.warning(
-                "Requested first %d chunks but only %d available; processing all",
+                "Requested first %d chunks/pages but only %d available; processing all",
                 n, total,
             )
             return chunks, ranges
@@ -68,7 +68,7 @@ def apply_chunk_slice(
         n = chunk_slice.last_n
         if n >= total:
             logger.warning(
-                "Requested last %d chunks but only %d available; processing all",
+                "Requested last %d chunks/pages but only %d available; processing all",
                 n, total,
             )
             return chunks, ranges
