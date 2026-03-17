@@ -11,20 +11,21 @@ Supports multiple LLM providers via LangChain:
 """
 
 import asyncio
+import hashlib
 import json
 import logging
-import os
 import re
 import unicodedata
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 from modules.core.context_resolver import resolve_context_for_readjustment
+from modules.core.jsonl_utils import JsonlWriter, extract_completed_ids
 from modules.core.resume import write_adjustment_marker
 from modules.core.text_utils import TextProcessor, load_line_ranges
 from modules.llm.openai_utils import open_extractor, process_text_chunk
-from modules.llm.langchain_provider import ProviderConfig, ProviderType
+from modules.llm.langchain_provider import ProviderConfig
 from modules.llm.model_capabilities import detect_capabilities
 from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
 from modules.core.path_utils import ensure_path_safe
@@ -75,6 +76,44 @@ class BoundaryDecision:
             certainty=int(payload.get("certainty", 0)),
             semantic_marker=payload.get("semantic_marker") or None,
         )
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize to a plain dict for JSONL storage."""
+        return {
+            "contains_no_semantic_boundary": self.contains_no_semantic_boundary,
+            "needs_more_context": self.needs_more_context,
+            "certainty": self.certainty,
+            "semantic_marker": self.semantic_marker,
+        }
+
+
+@dataclass
+class RangeResult:
+    """Result of processing a single line range, including an audit trail."""
+
+    range_index: int
+    original_range: Tuple[int, int]
+    adjusted_range: Tuple[int, int]
+    should_delete: bool
+    decision: BoundaryDecision
+    attempts: List[Dict[str, Any]] = field(default_factory=list)
+    total_llm_calls: int = 0
+
+    def to_jsonl_record(self, stem: str) -> Dict[str, Any]:
+        """Convert to a JSONL record using the shared envelope format."""
+        return {
+            "custom_id": f"{stem}-range-{self.range_index}",
+            "response": {
+                "body": {
+                    "original_range": list(self.original_range),
+                    "adjusted_range": list(self.adjusted_range),
+                    "should_delete": self.should_delete,
+                    "decision": self.decision.to_dict(),
+                    "attempts": self.attempts,
+                    "total_llm_calls": self.total_llm_calls,
+                },
+            },
+        }
 
 
 class LineRangeReadjuster:
@@ -139,6 +178,7 @@ class LineRangeReadjuster:
         line_ranges_file: Optional[Path] = None,
         dry_run: bool = False,
         boundary_type: Optional[str] = None,
+        retain_temp_jsonl: bool = True,
     ) -> List[Tuple[int, int]]:
         """Ensure the provided line ranges align with semantic boundaries."""
         text_file = text_file.resolve()
@@ -171,52 +211,95 @@ class LineRangeReadjuster:
         context, context_path = resolve_context_for_readjustment(
             text_file=text_file,
         )
-        
+
         if context_path:
             logger.info(f"Using line ranges context from: {context_path}")
         else:
             logger.debug(f"No adjust_context found for '{text_file.name}'")
 
+        # Temp JSONL for per-range persistence and resume
+        stem = line_ranges_file.stem
+        temp_jsonl_path = ensure_path_safe(
+            line_ranges_file.parent / f"{stem}_adjust_temp.jsonl"
+        )
+        _RANGE_ID_PATTERN = re.compile(r"-range-(\d+)$")
+        completed_ids = extract_completed_ids(
+            temp_jsonl_path, id_pattern=_RANGE_ID_PATTERN
+        )
+        file_mode = "a" if completed_ids else "w"
+        if completed_ids:
+            logger.info(
+                "Resuming adjustment: %d range(s) already processed",
+                len(completed_ids),
+            )
+
         adjusted_ranges: List[Tuple[int, int]] = []
         ranges_to_delete: List[int] = []  # Track indices of ranges with no content
-        
+        total_llm_calls = 0
+        ranges_adjusted_count = 0
+        ranges_kept_original_count = 0
+
         async with open_extractor(
             api_key=api_key,
             prompt_path=self.prompt_path,
             model=self.model_name,
         ) as extractor:
-            for index, original_range in enumerate(ranges, start=1):
-                decision, updated_range, should_delete = await self._process_single_range(
-                    extractor=extractor,
-                    raw_lines=raw_lines,
-                    original_range=original_range,
-                    range_index=index,
-                    boundary_type=boundary_type,
-                    context=context,
-                )
-                
-                if should_delete:
-                    logger.warning(
-                        "[Range %d] Confirmed no semantic content of type '%s' exists; marking for deletion",
-                        index,
-                        boundary_type,
+            with JsonlWriter(temp_jsonl_path, mode=file_mode) as writer:
+                for index, original_range in enumerate(ranges, start=1):
+                    if index in completed_ids:
+                        # Range already processed in a previous run -- keep
+                        # its original_range as placeholder; the final line
+                        # ranges are re-derived from the full result set
+                        # after overlap removal anyway.
+                        adjusted_ranges.append(original_range)
+                        continue
+
+                    result = await self._process_single_range(
+                        extractor=extractor,
+                        raw_lines=raw_lines,
+                        original_range=original_range,
+                        range_index=index,
+                        boundary_type=boundary_type,
+                        context=context,
                     )
-                    ranges_to_delete.append(index - 1)  # Store 0-based index for deletion
-                else:
-                    adjusted_ranges.append(updated_range)
-                    if decision.contains_no_semantic_boundary:
-                        logger.info(
-                            "[Range %d] No semantic boundary detected in context; kept original %s",
+                    total_llm_calls += result.total_llm_calls
+
+                    # Persist to temp JSONL immediately
+                    writer.write_record(result.to_jsonl_record(stem))
+
+                    if result.should_delete:
+                        logger.warning(
+                            "[Range %d] Confirmed no semantic content of type '%s' exists; marking for deletion",
                             index,
-                            updated_range,
+                            boundary_type,
                         )
+                        ranges_to_delete.append(index - 1)
                     else:
-                        logger.info(
-                            "[Range %d] Adjusted to %s via boundary '%s'",
-                            index,
-                            updated_range,
-                            decision.semantic_marker,
-                        )
+                        adjusted_ranges.append(result.adjusted_range)
+                        if result.decision.contains_no_semantic_boundary:
+                            ranges_kept_original_count += 1
+                            logger.info(
+                                "[Range %d] No semantic boundary detected in context; kept original %s",
+                                index,
+                                result.adjusted_range,
+                            )
+                        elif result.adjusted_range != result.original_range:
+                            ranges_adjusted_count += 1
+                            logger.info(
+                                "[Range %d] Adjusted to %s via boundary '%s'",
+                                index,
+                                result.adjusted_range,
+                                result.decision.semantic_marker,
+                            )
+                        else:
+                            ranges_kept_original_count += 1
+
+        # If we resumed, re-read the full temp JSONL to reconstruct
+        # accurate adjusted_ranges (the placeholders above are stale).
+        if completed_ids:
+            adjusted_ranges, ranges_to_delete = self._rebuild_ranges_from_jsonl(
+                temp_jsonl_path, ranges
+            )
 
         adjusted_ranges = self._remove_overlaps(adjusted_ranges)
 
@@ -227,19 +310,74 @@ class LineRangeReadjuster:
             logger.info(
                 "Deleted %d range(s) with no semantic content: %s",
                 len(ranges_to_delete),
-                [i + 1 for i in ranges_to_delete],  # Convert back to 1-based for display
+                [i + 1 for i in ranges_to_delete],
             )
 
         if not dry_run:
             self._write_line_ranges(line_ranges_file, adjusted_ranges)
+
+            # Compute prompt hash for reproducibility
+            prompt_hash = hashlib.sha256(
+                self.prompt_template.encode("utf-8")
+            ).hexdigest()
+
             write_adjustment_marker(
                 line_ranges_file,
                 boundary_type=boundary_type,
                 context_window=self.context_window,
                 model_name=self.model_name,
+                matching_config=self.matching_config or None,
+                retry_config=self.retry_config or None,
+                prompt_hash=prompt_hash,
+                context_path=str(context_path) if context_path else None,
+                total_ranges=len(ranges),
+                ranges_adjusted=ranges_adjusted_count,
+                ranges_deleted=len(ranges_to_delete),
+                ranges_kept_original=ranges_kept_original_count,
+                total_llm_calls=total_llm_calls,
             )
 
+            # Clean up temp JSONL unless retention requested
+            if not retain_temp_jsonl and temp_jsonl_path.exists():
+                temp_jsonl_path.unlink()
+                logger.info("Removed temp JSONL: %s", temp_jsonl_path)
+
         return adjusted_ranges
+
+    @staticmethod
+    def _rebuild_ranges_from_jsonl(
+        temp_jsonl_path: Path,
+        original_ranges: Sequence[Tuple[int, int]],
+    ) -> Tuple[List[Tuple[int, int]], List[int]]:
+        """Rebuild adjusted ranges and deletion list from a complete temp JSONL."""
+        from modules.core.jsonl_utils import read_jsonl_records
+
+        results_by_index: Dict[int, Dict[str, Any]] = {}
+        for record in read_jsonl_records(temp_jsonl_path):
+            custom_id = record.get("custom_id", "")
+            match = re.search(r"-range-(\d+)$", str(custom_id))
+            if match:
+                idx = int(match.group(1))
+                body = record.get("response", {}).get("body", {})
+                results_by_index[idx] = body
+
+        adjusted: List[Tuple[int, int]] = []
+        deleted: List[int] = []
+        for index, original_range in enumerate(original_ranges, start=1):
+            body = results_by_index.get(index)
+            if body is None:
+                # Not in JSONL (shouldn't happen if run completed)
+                adjusted.append(original_range)
+                continue
+            if body.get("should_delete", False):
+                deleted.append(index - 1)
+            else:
+                adj = body.get("adjusted_range")
+                if adj and len(adj) == 2:
+                    adjusted.append((int(adj[0]), int(adj[1])))
+                else:
+                    adjusted.append(original_range)
+        return adjusted, deleted
 
     async def _process_single_range(
         self,
@@ -250,22 +388,20 @@ class LineRangeReadjuster:
         range_index: int,
         boundary_type: str,
         context: Optional[str],
-    ) -> Tuple[BoundaryDecision, Tuple[int, int], bool]:
+    ) -> RangeResult:
         """
         Process a single range to find semantic boundaries.
-        
+
         Strategy (certainty-based routing):
         1. Check certainty first - if below threshold, retry with different window
         2. Route by high-certainty decision:
            - needs_more_context: Expand window progressively
-           - contains_no_semantic_boundary: Verify with broad scan → delete if confirmed
+           - contains_no_semantic_boundary: Verify with broad scan -> delete if confirmed
            - Success (marker found): Validate and apply
-        
+
         Returns:
-            Tuple of (decision, adjusted_range, should_delete)
-            - decision: The final boundary decision
-            - adjusted_range: The adjusted line range
-            - should_delete: True if this range should be deleted (no content confirmed)
+            A ``RangeResult`` capturing the final decision, adjusted range,
+            deletion flag, and a full audit trail of every LLM call.
         """
         total_lines = len(raw_lines)
         windows = list(self._generate_windows(original_range, total_lines))
@@ -278,6 +414,8 @@ class LineRangeReadjuster:
         stop_processing = False
 
         failed_marker_history: List[str] = []
+        attempts: List[Dict[str, Any]] = []
+        llm_calls = 0
 
         for window_idx, window in enumerate(windows):
             marker_mismatch_retries = 0
@@ -294,11 +432,20 @@ class LineRangeReadjuster:
                     failed_markers=failed_marker_history,
                 )
                 decision = BoundaryDecision.from_payload(payload)
+                llm_calls += 1
 
                 # ====================================================================
                 # PRIORITY 1: Check certainty threshold (applies to all responses)
                 # ====================================================================
                 if decision.certainty < self.certainty_threshold:
+                    attempts.append({
+                        "window": list(window),
+                        "window_index": window_idx,
+                        "decision_type": "low_certainty",
+                        "certainty": decision.certainty,
+                        "semantic_marker": decision.semantic_marker,
+                        "marker_matched": False,
+                    })
                     low_certainty_retries += 1
                     if low_certainty_retries <= self.max_low_certainty_retries:
                         logger.info(
@@ -325,8 +472,16 @@ class LineRangeReadjuster:
                 # High certainty response - route by decision type
                 # ====================================================================
 
-                # ROUTE 1: Model requests more context → Expand window
+                # ROUTE 1: Model requests more context -> Expand window
                 if decision.needs_more_context:
+                    attempts.append({
+                        "window": list(window),
+                        "window_index": window_idx,
+                        "decision_type": "needs_more_context",
+                        "certainty": decision.certainty,
+                        "semantic_marker": decision.semantic_marker,
+                        "marker_matched": False,
+                    })
                     context_expansion_attempts += 1
                     if context_expansion_attempts <= self.max_context_expansion_attempts:
                         logger.info(
@@ -347,8 +502,16 @@ class LineRangeReadjuster:
                         stop_processing = True
                         break
 
-                # ROUTE 2: Model confident no content exists → Verify immediately with broad scan
+                # ROUTE 2: Model confident no content exists -> Verify with broad scan
                 elif decision.contains_no_semantic_boundary:
+                    attempts.append({
+                        "window": list(window),
+                        "window_index": window_idx,
+                        "decision_type": "no_semantic_boundary",
+                        "certainty": decision.certainty,
+                        "semantic_marker": decision.semantic_marker,
+                        "marker_matched": False,
+                    })
                     logger.info(
                         "[Range %d, Window %d] High-certainty no-content response (certainty: %d); triggering verification",
                         range_index,
@@ -357,7 +520,7 @@ class LineRangeReadjuster:
                     )
 
                     if self.delete_ranges_with_no_content:
-                        should_delete = await self._verify_no_content(
+                        should_delete, verify_attempts = await self._verify_no_content(
                             extractor=extractor,
                             raw_lines=raw_lines,
                             original_range=original_range,
@@ -365,8 +528,18 @@ class LineRangeReadjuster:
                             boundary_type=boundary_type,
                             context=context,
                         )
+                        llm_calls += len(verify_attempts)
+                        attempts.extend(verify_attempts)
                         if should_delete:
-                            return decision, original_range, True
+                            return RangeResult(
+                                range_index=range_index,
+                                original_range=original_range,
+                                adjusted_range=original_range,
+                                should_delete=True,
+                                decision=decision,
+                                attempts=attempts,
+                                total_llm_calls=llm_calls,
+                            )
                         logger.info(
                             "[Range %d] Verification scan found content in broader area; keeping range",
                             range_index,
@@ -381,7 +554,7 @@ class LineRangeReadjuster:
                         stop_processing = True
                         break
 
-                # ROUTE 3: Success → Marker found with high certainty, validate and apply
+                # ROUTE 3: Success -> Marker found with high certainty, validate and apply
                 else:
                     candidate_range = self._validate_and_apply_decision(
                         decision=decision,
@@ -391,6 +564,14 @@ class LineRangeReadjuster:
                     )
                     if candidate_range:
                         adjusted_range = candidate_range
+                        attempts.append({
+                            "window": list(window),
+                            "window_index": window_idx,
+                            "decision_type": "marker_found",
+                            "certainty": decision.certainty,
+                            "semantic_marker": decision.semantic_marker,
+                            "marker_matched": True,
+                        })
                         logger.info(
                             "[Range %d] Successfully adjusted to %s using marker '%s' (certainty: %d)",
                             range_index,
@@ -402,6 +583,14 @@ class LineRangeReadjuster:
                         break
 
                     marker_text = (decision.semantic_marker or "").strip()
+                    attempts.append({
+                        "window": list(window),
+                        "window_index": window_idx,
+                        "decision_type": "marker_mismatch",
+                        "certainty": decision.certainty,
+                        "semantic_marker": decision.semantic_marker,
+                        "marker_matched": False,
+                    })
                     if marker_text and marker_text not in failed_marker_history:
                         failed_marker_history.append(marker_text)
                     marker_mismatch_retries += 1
@@ -440,8 +629,16 @@ class LineRangeReadjuster:
                 range_index,
                 original_range,
             )
-        
-        return decision, adjusted_range, False  # Default: keep range
+
+        return RangeResult(
+            range_index=range_index,
+            original_range=original_range,
+            adjusted_range=adjusted_range,
+            should_delete=False,
+            decision=decision,
+            attempts=attempts,
+            total_llm_calls=llm_calls,
+        )
 
     async def _verify_no_content(
         self,
@@ -452,32 +649,32 @@ class LineRangeReadjuster:
         range_index: int,
         boundary_type: str,
         context: Optional[str],
-    ) -> bool:
+    ) -> Tuple[bool, List[Dict[str, Any]]]:
         """
         Verify that no semantic content of the required type exists in a broader scan.
-        
+
         This is called after the model has returned contains_no_semantic_boundary twice.
         We scan both upward and downward from the original range to confirm.
-        
+
         Returns:
-            True if deletion is confirmed (no content found in broader scan)
-            False if content is potentially found (keep the range)
+            Tuple of (should_delete, verification_attempts).
         """
         start, end = original_range
         total_lines = len(raw_lines)
         range_size = end - start + 1
-        
+        verification_attempts: List[Dict[str, Any]] = []
+
         # Create broader scan windows (both up and down)
         scan_radius = range_size * self.scan_range_multiplier
-        
+
         # Scan upward
         scan_up_start = max(1, start - scan_radius)
         scan_up_end = max(1, start - 1)
-        
+
         # Scan downward
         scan_down_start = min(total_lines, end + 1)
         scan_down_end = min(total_lines, end + scan_radius)
-        
+
         logger.info(
             "[Range %d] Verifying no content: scanning up [%d-%d] and down [%d-%d]",
             range_index,
@@ -486,7 +683,7 @@ class LineRangeReadjuster:
             scan_down_start,
             scan_down_end,
         )
-        
+
         # Scan upward first
         if scan_up_end >= scan_up_start:
             payload_up = await self._run_model(
@@ -499,15 +696,26 @@ class LineRangeReadjuster:
                 context=context,
             )
             decision_up = BoundaryDecision.from_payload(payload_up)
-            
+            verification_attempts.append({
+                "window": [scan_up_start, scan_up_end],
+                "window_index": -1,
+                "decision_type": "verify_up",
+                "certainty": decision_up.certainty,
+                "semantic_marker": decision_up.semantic_marker,
+                "found_content": (
+                    not decision_up.contains_no_semantic_boundary
+                    and bool(decision_up.semantic_marker)
+                ),
+            })
+
             # If we found content upward, don't delete
             if not decision_up.contains_no_semantic_boundary and decision_up.semantic_marker:
                 logger.info(
                     "[Range %d] Found potential content in upward scan; preserving range",
                     range_index,
                 )
-                return False
-        
+                return False, verification_attempts
+
         # Scan downward
         if scan_down_end >= scan_down_start:
             payload_down = await self._run_model(
@@ -520,21 +728,32 @@ class LineRangeReadjuster:
                 context=context,
             )
             decision_down = BoundaryDecision.from_payload(payload_down)
-            
+            verification_attempts.append({
+                "window": [scan_down_start, scan_down_end],
+                "window_index": -2,
+                "decision_type": "verify_down",
+                "certainty": decision_down.certainty,
+                "semantic_marker": decision_down.semantic_marker,
+                "found_content": (
+                    not decision_down.contains_no_semantic_boundary
+                    and bool(decision_down.semantic_marker)
+                ),
+            })
+
             # If we found content downward, don't delete
             if not decision_down.contains_no_semantic_boundary and decision_down.semantic_marker:
                 logger.info(
                     "[Range %d] Found potential content in downward scan; preserving range",
                     range_index,
                 )
-                return False
-        
+                return False, verification_attempts
+
         # Both scans confirmed no content - safe to delete
         logger.warning(
             "[Range %d] Verified no semantic content in broader scan; confirming deletion",
             range_index,
         )
-        return True
+        return True, verification_attempts
 
     async def _run_model(
         self,

@@ -202,6 +202,8 @@ async def _adjust_files(
             boundary_type=boundary_type,
             context_window=context_window,
             model_name=model_name,
+            matching_config=matching_config or None,
+            retry_config=retry_config or None,
         ):
             notifier(f"Skipping {text_file.name}: line ranges already adjusted with current settings.", "info")
             logger.info(f"Resume: skipping {text_file.name} (adjustment marker matches current settings)")

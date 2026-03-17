@@ -155,17 +155,57 @@ def write_adjustment_marker(
     boundary_type: str,
     context_window: int,
     model_name: str,
+    matching_config: Optional[Dict[str, Any]] = None,
+    retry_config: Optional[Dict[str, Any]] = None,
+    prompt_hash: Optional[str] = None,
+    context_path: Optional[str] = None,
+    total_ranges: Optional[int] = None,
+    ranges_adjusted: Optional[int] = None,
+    ranges_deleted: Optional[int] = None,
+    ranges_kept_original: Optional[int] = None,
+    total_llm_calls: Optional[int] = None,
 ) -> None:
-    """Write a sidecar marker indicating that line ranges have been adjusted."""
+    """Write a sidecar marker indicating that line ranges have been adjusted.
+
+    When any of the new optional fields are provided the marker version is
+    bumped to ``2``.  Old callers that omit these fields still produce a
+    version-1 marker, keeping full backward compatibility.
+    """
+    has_extended = any(
+        v is not None
+        for v in (
+            matching_config, retry_config, prompt_hash, context_path,
+            total_ranges, ranges_adjusted, ranges_deleted,
+            ranges_kept_original, total_llm_calls,
+        )
+    )
+
     marker = _adjusted_marker_path(line_ranges_file)
-    payload = {
+    payload: Dict[str, Any] = {
         "adjusted_at": datetime.now(timezone.utc).isoformat(),
         "boundary_type": boundary_type,
         "context_window": context_window,
         "model_name": model_name,
         "source_file": line_ranges_file.name,
-        "version": 1,
+        "version": 2 if has_extended else 1,
     }
+
+    # Append extended fields only when provided
+    _optional: Dict[str, Any] = {
+        "matching_config": matching_config,
+        "retry_config": retry_config,
+        "prompt_hash": prompt_hash,
+        "context_path": context_path,
+        "total_ranges": total_ranges,
+        "ranges_adjusted": ranges_adjusted,
+        "ranges_deleted": ranges_deleted,
+        "ranges_kept_original": ranges_kept_original,
+        "total_llm_calls": total_llm_calls,
+    }
+    for key, value in _optional.items():
+        if value is not None:
+            payload[key] = value
+
     safe_marker = ensure_path_safe(marker)
     with safe_marker.open("w", encoding="utf-8") as fh:
         json.dump(payload, fh, indent=2)
@@ -190,13 +230,26 @@ def is_adjustment_current(
     boundary_type: str,
     context_window: int,
     model_name: str,
+    matching_config: Optional[Dict[str, Any]] = None,
+    retry_config: Optional[Dict[str, Any]] = None,
 ) -> bool:
-    """Check whether the adjustment marker matches the current settings."""
+    """Check whether the adjustment marker matches the current settings.
+
+    The *matching_config* and *retry_config* parameters are only compared
+    when they are not ``None``.  Passing ``None`` preserves the original
+    three-field check for backward compatibility.
+    """
     meta = read_adjustment_marker(line_ranges_file)
     if meta is None:
         return False
-    return (
+    if not (
         meta.get("boundary_type") == boundary_type
         and meta.get("context_window") == context_window
         and meta.get("model_name") == model_name
-    )
+    ):
+        return False
+    if matching_config is not None and meta.get("matching_config") != matching_config:
+        return False
+    if retry_config is not None and meta.get("retry_config") != retry_config:
+        return False
+    return True
