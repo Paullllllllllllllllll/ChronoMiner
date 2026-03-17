@@ -552,7 +552,7 @@ daily_token_limit:
 - `daily_token_limit.enabled`: Enable/disable enforcement
 - `daily_token_limit.daily_tokens`: Daily budget (resets at midnight)
 
-### 5. Line Range Adjustment Configuration (`chunking_and_context.yaml`)
+### 6. Line Range Adjustment Configuration (`chunking_and_context.yaml`)
 
 ```yaml
 matching:
@@ -673,7 +673,7 @@ Creates `{filename}_line_ranges.txt` files specifying exact line ranges.
 
 ### Line Range Adjustment
 
-Optimize chunk boundaries using LLM-detected semantic sections:
+Optimize chunk boundaries using LLM-detected semantic sections. Each LLM decision is persisted to a temporary JSONL file (`{stem}_adjust_temp.jsonl`) as it completes, enabling range-level resume if the run is interrupted.
 
 ```bash
 # Adjust for specific file
@@ -681,6 +681,12 @@ python main/line_range_readjuster.py --path data/file.txt --schema Bibliographic
 
 # Adjust with custom context window
 python main/line_range_readjuster.py --path data/ --schema CulinaryWorksEntries --context-window 10
+
+# Resume a previously interrupted adjustment run
+python main/line_range_readjuster.py --path data/ --schema BibliographicEntries --resume
+
+# Force re-adjustment (ignore existing markers)
+python main/line_range_readjuster.py --path data/ --schema BibliographicEntries --force
 ```
 
 **Options**:
@@ -688,6 +694,9 @@ python main/line_range_readjuster.py --path data/ --schema CulinaryWorksEntries 
 - `--schema`: Schema name (required with `--path`)
 - `--context-window`: Surrounding lines to send
 - `--prompt-path`: Override prompt template
+- `--resume`: Skip files already adjusted with the same settings (checks model, boundary type, context window, matching config, and retry config)
+- `--force`: Re-adjust all files, ignoring existing adjustment markers
+- `--first-n-chunks N` / `--last-n-chunks N`: Adjust only the first or last N ranges per file (mutually exclusive)
 
 **Certainty-Driven Workflow**:
 - Model sets `contains_no_semantic_boundary` or `needs_more_context`
@@ -696,6 +705,13 @@ python main/line_range_readjuster.py --path data/ --schema CulinaryWorksEntries 
 - Low-certainty responses automatically retried with broader context
 - High-certainty markers validated before adjusting range
 - High-certainty "no content" triggers verification scan; removes range if confirmed
+
+**JSONL Persistence and Resume**:
+- Each processed range is immediately written to `{stem}_adjust_temp.jsonl` in the same directory as the line ranges file
+- Records use the same envelope format as the extraction pipeline (`custom_id`, `response.body`) with a `-range-{idx}` separator
+- Each record includes a full audit trail: every LLM call's window, decision type, certainty, semantic marker, and match status
+- If interrupted, re-running automatically detects completed ranges and processes only the remaining ones
+- The enriched `.adjusted_meta` sidecar records matching config, retry config, prompt hash, context path, and outcome statistics for full reproducibility
 
 ### Batch Status Checking
 
@@ -747,6 +763,7 @@ Saved to configured output directories:
 - `<filename>.txt`: Plain text report (if enabled)
 - `<filename>_temporary.jsonl`: Batch tracking (deleted after completion unless `retain_temporary_jsonl: true`)
 - `<filename>_batch_submission_debug.json`: Batch metadata
+- `<filename>_adjust_temp.jsonl`: Per-range readjustment decisions with audit trail (kept by default for reproducibility)
 
 ## Batch Processing
 
@@ -920,7 +937,7 @@ ChronoMiner/
 ### Module Overview
 
 - **modules/config/**: Configuration loading and validation with cached access via `get_config_loader()`
-- **modules/core/**: Core utilities (text processing, JSON manipulation, context management, workflow helpers, centralized token tracking with daily limit enforcement)
+- **modules/core/**: Core utilities (text processing, JSON/JSONL manipulation, context management, workflow helpers, centralized token tracking with daily limit enforcement)
 - **modules/cli/**: CLI utilities (argument parsing, mode detection, `DualModeScript` framework)
 - **modules/llm/**: LLM interaction layer (LangChain multi-provider support, model capability detection, multi-provider batch processing, prompt management, structured output parsing)
 - **modules/operations/**: High-level operations (extraction, line ranges, cost analysis, repair workflows)
@@ -1006,10 +1023,10 @@ For most historical documents, low or medium is sufficient.
 
 **Q: How do I add a custom schema?**
 
-A: 
+A:
 1. Create JSON schema in `schemas/`
-2. Add extraction context in `context/extraction/{SchemaName}.txt`
-3. Add line ranges context in `context/line_ranges/{SchemaName}.txt`
+2. Add extraction context as a folder-specific file (e.g., `{foldername}_extract_context.txt` next to your input folder) or as the general fallback (`context/extract_context.txt`)
+3. Optionally add adjustment context (`{foldername}_adjust_context.txt` or `context/adjust_context.txt`)
 4. Register in `modules/operations/extraction/schema_handlers.py`
 5. Configure paths in `paths_config.yaml`
 6. Test with sample files
@@ -1042,11 +1059,12 @@ A: Use batch processing with pre-defined line ranges. Generate ranges once, adju
 
 **Q: Can I use different contexts for different files?**
 
-A: Yes, hierarchical context resolution automatically selects most specific:
-- File-specific: `{filename}_extraction.txt` next to file
-- Folder-specific: `{foldername}_extraction.txt` in parent
-- Schema-specific: `context/extraction/{SchemaName}.txt`
-- Global: `context/extraction/general.txt`
+A: Yes, hierarchical context resolution automatically selects the most specific match:
+- File-specific: `{filename}_extract_context.txt` next to the input file
+- Folder-specific: `{foldername}_extract_context.txt` next to the input's parent folder
+- General fallback: `context/extract_context.txt` in the project root
+
+The same hierarchy applies for line-range adjustment using `_adjust_context.txt` suffixes.
 
 ### Batch Processing Questions
 
@@ -1207,7 +1225,7 @@ python -m pytest --cov=. --cov-report=term-missing --cov-report=html
 
 For complete release history, see GitHub releases.
 
-**Latest**: Multi-provider LangChain integration, batch processing across OpenAI/Anthropic/Google, daily token budgeting, enhanced context system, certainty-based line range adjustment.
+**Latest**: JSONL persistence and range-level resume for line range readjustment, enriched adjustment markers for full reproducibility, shared JSONL utilities across extraction and readjustment pipelines. Multi-provider LangChain integration, batch processing across OpenAI/Anthropic/Google, daily token budgeting, enhanced context system, certainty-based line range adjustment.
 
 ## License
 
