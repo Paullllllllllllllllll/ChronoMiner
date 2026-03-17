@@ -292,6 +292,64 @@ class TestReadjusterResume:
         assert len(records) == 3
 
 
+class TestReadjusterForceFresh:
+    """Verify that force_fresh discards stale temp JSONL."""
+
+    @pytest.mark.asyncio
+    async def test_force_fresh_discards_stale_jsonl(self, tmp_path: Path) -> None:
+        """With force_fresh=True, a pre-existing temp JSONL is deleted and all ranges are reprocessed."""
+        text_file = tmp_path / "sample.txt"
+        text_file.write_text(
+            "\n".join(f"Line {i}" for i in range(1, 21)) + "\n",
+            encoding="utf-8",
+        )
+        lr_file = tmp_path / "sample_line_ranges.txt"
+        lr_file.write_text("(1, 10)\n(11, 20)\n", encoding="utf-8")
+
+        # Pre-populate temp JSONL with both ranges (simulating a completed prior run)
+        temp_jsonl = tmp_path / "sample_line_ranges_adjust_temp.jsonl"
+        stale_records = [
+            _fake_range_result(1, (1, 10), (3, 10)).to_jsonl_record("sample_line_ranges"),
+            _fake_range_result(2, (11, 20), (13, 20)).to_jsonl_record("sample_line_ranges"),
+        ]
+        temp_jsonl.write_text(
+            "\n".join(json.dumps(r) for r in stale_records) + "\n",
+            encoding="utf-8",
+        )
+
+        readjuster = _make_readjuster()
+        processed_indices: List[int] = []
+
+        async def mock_process_range(**kwargs: Any) -> RangeResult:
+            idx = kwargs["range_index"]
+            processed_indices.append(idx)
+            return _fake_range_result(idx, kwargs["original_range"], kwargs["original_range"])
+
+        with patch.object(
+            readjuster, "_process_single_range", side_effect=mock_process_range
+        ), patch(
+            "modules.operations.line_ranges.readjuster.ProviderConfig"
+        ) as mock_provider, patch(
+            "modules.operations.line_ranges.readjuster.open_extractor",
+            new_callable=lambda: _async_noop_context,
+        ), patch(
+            "modules.operations.line_ranges.readjuster.resolve_context_for_readjustment",
+            return_value=(None, None),
+        ):
+            mock_provider._detect_provider.return_value = "openai"
+            mock_provider._get_api_key.return_value = "fake-key"
+
+            await readjuster.ensure_adjusted_line_ranges(
+                text_file=text_file,
+                line_ranges_file=lr_file,
+                boundary_type="TestSchema",
+                force_fresh=True,
+            )
+
+        # Both ranges should have been reprocessed despite the stale temp JSONL
+        assert processed_indices == [1, 2]
+
+
 class TestReadjusterCleanup:
     """Verify temp JSONL removal when retain_temp_jsonl=False."""
 

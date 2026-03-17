@@ -219,6 +219,7 @@ async def _adjust_files(
                 line_ranges_file=line_ranges_file,
                 dry_run=False,
                 boundary_type=boundary_type,
+                force_fresh=not resume,
             )
             notifier(f"Successfully adjusted line ranges for {text_file.name}", "success")
             logger.info(f"Line ranges for {text_file.name} adjusted using {line_ranges_file.name}")

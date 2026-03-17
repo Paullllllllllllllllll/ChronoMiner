@@ -179,6 +179,7 @@ class LineRangeReadjuster:
         dry_run: bool = False,
         boundary_type: Optional[str] = None,
         retain_temp_jsonl: bool = True,
+        force_fresh: bool = False,
     ) -> List[Tuple[int, int]]:
         """Ensure the provided line ranges align with semantic boundaries."""
         text_file = text_file.resolve()
@@ -222,6 +223,13 @@ class LineRangeReadjuster:
         temp_jsonl_path = ensure_path_safe(
             line_ranges_file.parent / f"{stem}_adjust_temp.jsonl"
         )
+
+        # When force_fresh is set, discard any stale temp JSONL from a
+        # previous run so we don't accidentally reuse outdated results.
+        if force_fresh and temp_jsonl_path.exists():
+            temp_jsonl_path.unlink()
+            logger.info("Removed stale temp JSONL (force_fresh): %s", temp_jsonl_path)
+
         _RANGE_ID_PATTERN = re.compile(r"-range-(\d+)$")
         completed_ids = extract_completed_ids(
             temp_jsonl_path, id_pattern=_RANGE_ID_PATTERN
