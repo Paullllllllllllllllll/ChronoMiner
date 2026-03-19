@@ -180,6 +180,8 @@ class LineRangeReadjuster:
         boundary_type: Optional[str] = None,
         retain_temp_jsonl: bool = True,
         force_fresh: bool = False,
+        first_n_chunks: Optional[int] = None,
+        last_n_chunks: Optional[int] = None,
     ) -> List[Tuple[int, int]]:
         """Ensure the provided line ranges align with semantic boundaries."""
         text_file = text_file.resolve()
@@ -197,6 +199,14 @@ class LineRangeReadjuster:
         if not ranges:
             logger.warning("No ranges found in %s", line_ranges_file)
             return []
+
+        # Apply chunk slicing if requested
+        if first_n_chunks is not None:
+            logger.info("Slicing to first %d range(s) of %d total", first_n_chunks, len(ranges))
+            ranges = ranges[:first_n_chunks]
+        elif last_n_chunks is not None:
+            logger.info("Slicing to last %d range(s) of %d total", last_n_chunks, len(ranges))
+            ranges = ranges[-last_n_chunks:]
 
         safe_text_file = ensure_path_safe(text_file)
         with safe_text_file.open("r", encoding="utf-8") as handle:
@@ -659,106 +669,74 @@ class LineRangeReadjuster:
         context: Optional[str],
     ) -> Tuple[bool, List[Dict[str, Any]]]:
         """
-        Verify that no semantic content of the required type exists in a broader scan.
+        Verify that no semantic content of the required type exists within the range.
 
-        This is called after the model has returned contains_no_semantic_boundary twice.
-        We scan both upward and downward from the original range to confirm.
+        Called after the initial model assessment returned contains_no_semantic_boundary.
+        Scans the range interior to confirm the absence of content before deletion.
 
         Returns:
             Tuple of (should_delete, verification_attempts).
         """
         start, end = original_range
-        total_lines = len(raw_lines)
         range_size = end - start + 1
         verification_attempts: List[Dict[str, Any]] = []
 
-        # Create broader scan windows (both up and down)
         scan_radius = range_size * self.scan_range_multiplier
 
-        # Scan upward
-        scan_up_start = max(1, start - scan_radius)
-        scan_up_end = max(1, start - 1)
-
-        # Scan downward
-        scan_down_start = min(total_lines, end + 1)
-        scan_down_end = min(total_lines, end + scan_radius)
+        # Build scan windows WITHIN the range (not adjacent areas)
+        if range_size <= 2 * scan_radius:
+            # Range is short enough to scan entirely in one call
+            scan_windows = [(start, end)]
+        else:
+            # Long range: sample first and last portions
+            scan_windows = [
+                (start, min(end, start + scan_radius - 1)),
+                (max(start, end - scan_radius + 1), end),
+            ]
 
         logger.info(
-            "[Range %d] Verifying no content: scanning up [%d-%d] and down [%d-%d]",
+            "[Range %d] Verifying no content: scanning %d interior window(s) within [%d-%d]",
             range_index,
-            scan_up_start,
-            scan_up_end,
-            scan_down_start,
-            scan_down_end,
+            len(scan_windows),
+            start,
+            end,
         )
 
-        # Scan upward first
-        if scan_up_end >= scan_up_start:
-            payload_up = await self._run_model(
+        for idx, (scan_start, scan_end) in enumerate(scan_windows):
+            payload = await self._run_model(
                 extractor=extractor,
                 raw_lines=raw_lines,
                 original_range=original_range,
-                context_window=(scan_up_start, scan_up_end),
-                window_index=-1,  # Special index for verification scan
+                context_window=(scan_start, scan_end),
+                window_index=-(idx + 1),
                 boundary_type=boundary_type,
                 context=context,
             )
-            decision_up = BoundaryDecision.from_payload(payload_up)
+            decision = BoundaryDecision.from_payload(payload)
             verification_attempts.append({
-                "window": [scan_up_start, scan_up_end],
-                "window_index": -1,
-                "decision_type": "verify_up",
-                "certainty": decision_up.certainty,
-                "semantic_marker": decision_up.semantic_marker,
+                "window": [scan_start, scan_end],
+                "window_index": -(idx + 1),
+                "decision_type": f"verify_interior_{idx + 1}",
+                "certainty": decision.certainty,
+                "semantic_marker": decision.semantic_marker,
                 "found_content": (
-                    not decision_up.contains_no_semantic_boundary
-                    and bool(decision_up.semantic_marker)
+                    not decision.contains_no_semantic_boundary
+                    and bool(decision.semantic_marker)
                 ),
             })
 
-            # If we found content upward, don't delete
-            if not decision_up.contains_no_semantic_boundary and decision_up.semantic_marker:
+            # If we found content inside the range, don't delete
+            if not decision.contains_no_semantic_boundary and decision.semantic_marker:
                 logger.info(
-                    "[Range %d] Found potential content in upward scan; preserving range",
+                    "[Range %d] Found recipe content in interior scan window %d; preserving range",
                     range_index,
+                    idx + 1,
                 )
                 return False, verification_attempts
 
-        # Scan downward
-        if scan_down_end >= scan_down_start:
-            payload_down = await self._run_model(
-                extractor=extractor,
-                raw_lines=raw_lines,
-                original_range=original_range,
-                context_window=(scan_down_start, scan_down_end),
-                window_index=-2,  # Special index for verification scan
-                boundary_type=boundary_type,
-                context=context,
-            )
-            decision_down = BoundaryDecision.from_payload(payload_down)
-            verification_attempts.append({
-                "window": [scan_down_start, scan_down_end],
-                "window_index": -2,
-                "decision_type": "verify_down",
-                "certainty": decision_down.certainty,
-                "semantic_marker": decision_down.semantic_marker,
-                "found_content": (
-                    not decision_down.contains_no_semantic_boundary
-                    and bool(decision_down.semantic_marker)
-                ),
-            })
-
-            # If we found content downward, don't delete
-            if not decision_down.contains_no_semantic_boundary and decision_down.semantic_marker:
-                logger.info(
-                    "[Range %d] Found potential content in downward scan; preserving range",
-                    range_index,
-                )
-                return False, verification_attempts
-
-        # Both scans confirmed no content - safe to delete
+        # All interior scans confirmed no content — safe to delete
         logger.warning(
-            "[Range %d] Verified no semantic content in broader scan; confirming deletion",
+            "[Range %d] Verified no recipe content in range interior; confirming deletion",
             range_index,
         )
         return True, verification_attempts

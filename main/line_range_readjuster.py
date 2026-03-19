@@ -165,6 +165,8 @@ async def _adjust_files(
     notifier: Any,
     ui: Optional[UserInterface] = None,
     resume: bool = False,
+    first_n_chunks: Optional[int] = None,
+    last_n_chunks: Optional[int] = None,
 ) -> Tuple[List[Tuple[Path, Path]], List[Path], List[Tuple[Path, Exception]]]:
     line_range_model_config = _model_config_with_verbosity(model_config, "low")
 
@@ -220,6 +222,8 @@ async def _adjust_files(
                 dry_run=False,
                 boundary_type=boundary_type,
                 force_fresh=not resume,
+                first_n_chunks=first_n_chunks,
+                last_n_chunks=last_n_chunks,
             )
             notifier(f"Successfully adjusted line ranges for {text_file.name}", "success")
             logger.info(f"Line ranges for {text_file.name} adjusted using {line_ranges_file.name}")
@@ -567,6 +571,8 @@ async def _run_cli_mode(
         notifier=cli_notifier,
         ui=None,
         resume=use_resume,
+        first_n_chunks=getattr(args, 'first_n_chunks', None),
+        last_n_chunks=getattr(args, 'last_n_chunks', None),
     )
     
     # Display summary
