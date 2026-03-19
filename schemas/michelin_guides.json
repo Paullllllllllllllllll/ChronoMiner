@@ -1,6 +1,6 @@
 {
   "name": "MichelinGuides",
-  "schema_version": "3.3",
+  "schema_version": "3.4",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -8,7 +8,7 @@
     "properties": {
       "contains_no_content_of_requested_type": {
         "type": "boolean",
-        "description": "True if page has no entries (maps, index, ads)."
+        "description": "True if page has no restaurant entries (maps, legends, index, ads). False if at least one entry present."
       },
       "active_city_or_town": {
         "type": ["string", "null"],
@@ -23,7 +23,7 @@
           "properties": {
             "establishment_name": {
               "type": "string",
-              "description": "Name as printed."
+              "description": "Restaurant or establishment name exactly as printed."
             },
             "location": {
               "type": "object",
@@ -63,7 +63,7 @@
             },
             "awards": {
               "type": "object",
-              "description": "Distinctions as printed.",
+              "description": "Distinctions exactly as printed.",
               "properties": {
                 "stars": {
                   "type": ["integer", "null"],
@@ -73,7 +73,7 @@
                 },
                 "bib_gourmand": {
                   "type": ["boolean", "null"],
-                  "description": "Bib Gourmand."
+                  "description": "Bib Gourmand (Bibendum face symbol)."
                 },
                 "michelin_plate": {
                   "type": ["boolean", "null"],
@@ -81,7 +81,7 @@
                 },
                 "green_star": {
                   "type": ["boolean", "null"],
-                  "description": "Green Star (2020+)."
+                  "description": "Green Star for sustainability (2020+)."
                 },
                 "pleasant_marker": {
                   "type": ["boolean", "null"],
@@ -89,9 +89,13 @@
                 },
                 "comfort_covers": {
                   "type": ["integer", "null"],
-                  "description": "Comfort rating (1-5) from fork-and-spoon glyph count.",
+                  "description": "Comfort rating (1-5) from crossed fork-and-spoon glyphs. Not a food quality rating.",
                   "minimum": 1,
                   "maximum": 5
+                },
+                "new_in_guide": {
+                  "type": ["boolean", "null"],
+                  "description": "Newly listed in this edition."
                 }
               },
               "required": [
@@ -100,7 +104,8 @@
                 "michelin_plate",
                 "green_star",
                 "pleasant_marker",
-                "comfort_covers"
+                "comfort_covers",
+                "new_in_guide"
               ],
               "additionalProperties": false
             },
@@ -171,7 +176,7 @@
                 },
                 "has_rooms": {
                   "type": ["boolean", "null"],
-                  "description": "Has letting rooms."
+                  "description": "Restaurant or inn with letting rooms."
                 }
               },
               "required": [
@@ -187,15 +192,15 @@
             },
             "accepts_credit_cards": {
               "type": ["boolean", "null"],
-              "description": "Credit card symbols visible near entry."
+              "description": "True if any credit card symbols visible near entry."
             },
             "inspector_note": {
               "type": ["string", "null"],
-              "description": "Verbatim inspector prose (2003+). Null for pre-2003."
+              "description": "Verbatim inspector prose (2-3 lines, post-2003). Null for pre-2003 editions."
             },
             "entry_is_fragment": {
               "type": "boolean",
-              "description": "True if entry spans a page break."
+              "description": "True if entry is incomplete because it spans a page boundary. Fill only visible fields."
             }
           },
           "required": [
