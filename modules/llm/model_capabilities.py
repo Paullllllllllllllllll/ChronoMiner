@@ -216,6 +216,12 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         supports_chat_completions=False, max_context_tokens=1050000,
         supports_structured_outputs=False,
     )),
+    (("gpt-5.4-mini",), "gpt-5.4-mini", _OPENAI_REASONING_BASE, dict(
+        max_context_tokens=400000,
+    )),
+    (("gpt-5.4-nano",), "gpt-5.4-nano", _OPENAI_REASONING_BASE, dict(
+        max_context_tokens=400000,
+    )),
     (("gpt-5.4",), "gpt-5.4", _OPENAI_REASONING_BASE, dict(
         supports_chat_completions=False, max_context_tokens=1050000,
     )),
