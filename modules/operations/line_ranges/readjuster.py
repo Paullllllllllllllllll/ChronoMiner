@@ -735,7 +735,7 @@ class LineRangeReadjuster:
                 return False, verification_attempts
 
         # All interior scans confirmed no content — safe to delete
-        logger.warning(
+        logger.info(
             "[Range %d] Verified no recipe content in range interior; confirming deletion",
             range_index,
         )
