@@ -84,7 +84,7 @@ class TestVerifyNoContentDeletesEmpty:
         mock_run = AsyncMock(return_value=_no_content_payload())
         readjuster._run_model = mock_run
 
-        should_delete, attempts = await readjuster._verify_no_content(
+        should_delete, _, attempts = await readjuster._verify_no_content(
             extractor=MagicMock(),
             raw_lines=raw_lines,
             original_range=(50, 60),
@@ -140,7 +140,7 @@ class TestVerifyNoContentPreserves:
         )
         readjuster._run_model = mock_run
 
-        should_delete, attempts = await readjuster._verify_no_content(
+        should_delete, _, attempts = await readjuster._verify_no_content(
             extractor=MagicMock(),
             raw_lines=raw_lines,
             original_range=(30, 40),
@@ -156,7 +156,8 @@ class TestVerifyNoContentPreserves:
 
     @pytest.mark.asyncio
     async def test_no_boundary_but_no_marker_still_deletes(self) -> None:
-        """contains_no_semantic_boundary=False but empty marker → not counted as found content."""
+        """contains_no_semantic_boundary=False but empty marker → still deleted
+        (no marker to anchor), but found_content reflects the model's assertion."""
         readjuster = _make_readjuster()
         raw_lines = _make_raw_lines(100)
 
@@ -169,7 +170,7 @@ class TestVerifyNoContentPreserves:
         mock_run = AsyncMock(return_value=payload)
         readjuster._run_model = mock_run
 
-        should_delete, attempts = await readjuster._verify_no_content(
+        should_delete, _, attempts = await readjuster._verify_no_content(
             extractor=MagicMock(),
             raw_lines=raw_lines,
             original_range=(10, 20),
@@ -178,9 +179,10 @@ class TestVerifyNoContentPreserves:
             context=None,
         )
 
-        # No marker means found_content is False, so we proceed to delete
+        # No marker to anchor with, so deletion proceeds
         assert should_delete is True
-        assert attempts[0]["found_content"] is False
+        # found_content reflects the model's assertion (cnb=False means content detected)
+        assert attempts[0]["found_content"] is True
 
 
 # ---------------------------------------------------------------------------
@@ -294,7 +296,7 @@ class TestTwoWindowBranch:
         )
         readjuster._run_model = mock_run
 
-        should_delete, attempts = await readjuster._verify_no_content(
+        should_delete, _, attempts = await readjuster._verify_no_content(
             extractor=MagicMock(),
             raw_lines=raw_lines,
             original_range=original_range,
@@ -319,7 +321,7 @@ class TestTwoWindowBranch:
         mock_run = AsyncMock(return_value=_no_content_payload())
         readjuster._run_model = mock_run
 
-        should_delete, attempts = await readjuster._verify_no_content(
+        should_delete, _, attempts = await readjuster._verify_no_content(
             extractor=MagicMock(),
             raw_lines=raw_lines,
             original_range=original_range,
@@ -351,7 +353,7 @@ class TestTwoWindowBranch:
         )
         readjuster._run_model = mock_run
 
-        should_delete, attempts = await readjuster._verify_no_content(
+        should_delete, _, attempts = await readjuster._verify_no_content(
             extractor=MagicMock(),
             raw_lines=raw_lines,
             original_range=original_range,
@@ -408,7 +410,7 @@ class TestAuditTrail:
         mock_run = AsyncMock(return_value=_no_content_payload(certainty=88))
         readjuster._run_model = mock_run
 
-        _, attempts = await readjuster._verify_no_content(
+        _, _, attempts = await readjuster._verify_no_content(
             extractor=MagicMock(),
             raw_lines=raw_lines,
             original_range=(10, 30),
@@ -432,7 +434,7 @@ class TestAuditTrail:
         mock_run = AsyncMock(return_value=_no_content_payload(certainty=73))
         readjuster._run_model = mock_run
 
-        _, attempts = await readjuster._verify_no_content(
+        _, _, attempts = await readjuster._verify_no_content(
             extractor=MagicMock(),
             raw_lines=raw_lines,
             original_range=(1, 20),
@@ -494,3 +496,247 @@ class TestRunModelForwarding:
         )
 
         assert mock_run.call_args.kwargs["raw_lines"] is raw_lines
+
+
+# ---------------------------------------------------------------------------
+# Re-anchoring on verify-interior content (Fix A)
+# ---------------------------------------------------------------------------
+
+def _make_raw_lines_with_marker(
+    n: int = 100, marker: str = "Recipe Title", marker_line: int = 55
+) -> List[str]:
+    """Create raw_lines with a known marker at a specific 1-indexed line.
+
+    The readjuster uses raw_lines[line_number - 1] to access content, so
+    the marker is placed at index marker_line - 1 in the underlying list
+    (which has a padding element at index 0).
+    """
+    lines = [""] + [f"Line {i}" for i in range(1, n + 1)]
+    # raw_lines[marker_line - 1] is read when line_number == marker_line
+    lines[marker_line - 1] = marker
+    return lines
+
+
+class TestVerifyReanchor:
+    """When verify-interior finds content with a resolvable marker,
+    the method returns a re-anchored range."""
+
+    @pytest.mark.asyncio
+    async def test_reanchor_on_verify_content(self) -> None:
+        """Interior scan finds marker that resolves to a unique line → re-anchored range returned."""
+        readjuster = _make_readjuster()
+        marker_text = "Soupe à l'oignon."
+        raw_lines = _make_raw_lines_with_marker(100, marker_text, 55)
+
+        mock_run = AsyncMock(
+            return_value=_content_found_payload(marker_text),
+        )
+        readjuster._run_model = mock_run
+
+        should_delete, reanchored, attempts = await readjuster._verify_no_content(
+            extractor=MagicMock(),
+            raw_lines=raw_lines,
+            original_range=(30, 80),
+            range_index=1,
+            boundary_type="TestSchema",
+            context=None,
+        )
+
+        assert should_delete is False
+        assert reanchored is not None
+        assert reanchored[0] == 55  # marker line
+        assert reanchored[1] == 80  # original end preserved
+
+    @pytest.mark.asyncio
+    async def test_reanchor_marker_not_resolved(self) -> None:
+        """Interior scan finds content with marker that doesn't match source → reanchored is None."""
+        readjuster = _make_readjuster()
+        raw_lines = _make_raw_lines(100)  # no matching marker in source
+
+        mock_run = AsyncMock(
+            return_value=_content_found_payload("Nonexistent Marker Text"),
+        )
+        readjuster._run_model = mock_run
+
+        should_delete, reanchored, attempts = await readjuster._verify_no_content(
+            extractor=MagicMock(),
+            raw_lines=raw_lines,
+            original_range=(30, 80),
+            range_index=1,
+            boundary_type="TestSchema",
+            context=None,
+        )
+
+        assert should_delete is False
+        assert reanchored is None
+        assert attempts[0]["found_content"] is True
+
+
+# ---------------------------------------------------------------------------
+# Exhaustion fallback verification (Fix B)
+# ---------------------------------------------------------------------------
+
+class TestExhaustionFallback:
+    """When all boundary windows exhaust at low certainty, the exhaustion
+    fallback triggers _verify_no_content before keeping the range."""
+
+    @pytest.mark.asyncio
+    async def test_exhaustion_fallback_triggers_verify(self) -> None:
+        """_process_single_range calls _verify_no_content when all windows exhaust."""
+        readjuster = _make_readjuster()
+        readjuster.certainty_threshold = 70
+        readjuster.max_low_certainty_retries = 1
+        readjuster.max_context_expansion_attempts = 1
+        readjuster.max_marker_mismatch_retries = 1
+
+        raw_lines = _make_raw_lines(100)
+
+        # All boundary window calls return low certainty
+        low_cert = {
+            "contains_no_semantic_boundary": False,
+            "needs_more_context": False,
+            "certainty": 40,
+            "semantic_marker": "",
+        }
+        # Verify scan returns no content
+        no_content = _no_content_payload(certainty=90)
+
+        call_count = 0
+
+        async def side_effect(**kwargs):
+            nonlocal call_count
+            call_count += 1
+            # First calls are boundary windows (low certainty)
+            # Last call(s) are verify-interior (no content)
+            if kwargs.get("window_index", 0) < 0:
+                return no_content
+            return low_cert
+
+        readjuster._run_model = AsyncMock(side_effect=side_effect)
+
+        result = await readjuster._process_single_range(
+            extractor=MagicMock(),
+            raw_lines=raw_lines,
+            original_range=(10, 50),
+            range_index=1,
+            boundary_type="TestSchema",
+            context=None,
+        )
+
+        # Verify that the fallback ran and deleted the range
+        assert result.should_delete is True
+        verify_attempts = [
+            a for a in result.attempts
+            if a.get("decision_type", "").startswith("verify_interior")
+        ]
+        assert len(verify_attempts) >= 1
+
+    @pytest.mark.asyncio
+    async def test_exhaustion_fallback_deletes_empty(self) -> None:
+        """Exhaustion fallback verify scan confirms no content → should_delete=True."""
+        readjuster = _make_readjuster()
+        readjuster.certainty_threshold = 70
+        readjuster.max_low_certainty_retries = 1
+        readjuster.max_context_expansion_attempts = 1
+        readjuster.max_marker_mismatch_retries = 1
+
+        raw_lines = _make_raw_lines(100)
+
+        low_cert = {
+            "contains_no_semantic_boundary": False,
+            "needs_more_context": False,
+            "certainty": 40,
+            "semantic_marker": "",
+        }
+        no_content = _no_content_payload(certainty=95)
+
+        async def side_effect(**kwargs):
+            if kwargs.get("window_index", 0) < 0:
+                return no_content
+            return low_cert
+
+        readjuster._run_model = AsyncMock(side_effect=side_effect)
+
+        result = await readjuster._process_single_range(
+            extractor=MagicMock(),
+            raw_lines=raw_lines,
+            original_range=(10, 50),
+            range_index=1,
+            boundary_type="TestSchema",
+            context=None,
+        )
+
+        assert result.should_delete is True
+
+    @pytest.mark.asyncio
+    async def test_exhaustion_fallback_reanchors(self) -> None:
+        """Exhaustion fallback verify scan finds content with resolvable marker → re-anchored."""
+        readjuster = _make_readjuster()
+        readjuster.certainty_threshold = 70
+        readjuster.max_low_certainty_retries = 1
+        readjuster.max_context_expansion_attempts = 1
+        readjuster.max_marker_mismatch_retries = 1
+
+        marker_text = "Gefüllte Kalbsbrust."
+        raw_lines = _make_raw_lines_with_marker(100, marker_text, 35)
+
+        low_cert = {
+            "contains_no_semantic_boundary": False,
+            "needs_more_context": False,
+            "certainty": 40,
+            "semantic_marker": "",
+        }
+        content_found = _content_found_payload(marker_text, certainty=85)
+
+        async def side_effect(**kwargs):
+            if kwargs.get("window_index", 0) < 0:
+                return content_found
+            return low_cert
+
+        readjuster._run_model = AsyncMock(side_effect=side_effect)
+
+        result = await readjuster._process_single_range(
+            extractor=MagicMock(),
+            raw_lines=raw_lines,
+            original_range=(10, 50),
+            range_index=1,
+            boundary_type="TestSchema",
+            context=None,
+        )
+
+        assert result.should_delete is False
+        assert result.adjusted_range[0] == 35  # marker line
+        assert result.adjusted_range[1] == 50  # original end
+
+
+# ---------------------------------------------------------------------------
+# found_content audit field accuracy (Fix C)
+# ---------------------------------------------------------------------------
+
+class TestFoundContentField:
+    """Verify found_content reflects contains_no_semantic_boundary alone."""
+
+    @pytest.mark.asyncio
+    async def test_found_content_true_without_marker(self) -> None:
+        """contains_no_semantic_boundary=False with empty marker → found_content=True."""
+        readjuster = _make_readjuster()
+        raw_lines = _make_raw_lines(100)
+
+        payload = {
+            "contains_no_semantic_boundary": False,
+            "needs_more_context": False,
+            "certainty": 65,
+            "semantic_marker": "",
+        }
+        readjuster._run_model = AsyncMock(return_value=payload)
+
+        _, _, attempts = await readjuster._verify_no_content(
+            extractor=MagicMock(),
+            raw_lines=raw_lines,
+            original_range=(10, 20),
+            range_index=1,
+            boundary_type="TestSchema",
+            context=None,
+        )
+
+        assert attempts[0]["found_content"] is True

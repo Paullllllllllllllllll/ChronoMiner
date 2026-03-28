@@ -430,6 +430,7 @@ class LineRangeReadjuster:
         context_expansion_attempts = 0
 
         stop_processing = False
+        exhausted_at_low_certainty = False
 
         failed_marker_history: List[str] = []
         attempts: List[Dict[str, Any]] = []
@@ -478,11 +479,12 @@ class LineRangeReadjuster:
                         break  # Move to next window
                     else:
                         logger.warning(
-                            "[Range %d] Certainty remains low after %d retries (best: %d); keeping original range",
+                            "[Range %d] Certainty remains low after %d retries (best: %d)",
                             range_index,
                             self.max_low_certainty_retries,
                             decision.certainty,
                         )
+                        exhausted_at_low_certainty = True
                         stop_processing = True
                         break
 
@@ -538,7 +540,7 @@ class LineRangeReadjuster:
                     )
 
                     if self.delete_ranges_with_no_content:
-                        should_delete, verify_attempts = await self._verify_no_content(
+                        should_delete, reanchored_range, verify_attempts = await self._verify_no_content(
                             extractor=extractor,
                             raw_lines=raw_lines,
                             original_range=original_range,
@@ -558,10 +560,18 @@ class LineRangeReadjuster:
                                 attempts=attempts,
                                 total_llm_calls=llm_calls,
                             )
-                        logger.info(
-                            "[Range %d] Verification scan found content in broader area; keeping range",
-                            range_index,
-                        )
+                        if reanchored_range:
+                            adjusted_range = reanchored_range
+                            logger.info(
+                                "[Range %d] Re-anchored to %s using verify-interior marker",
+                                range_index,
+                                reanchored_range,
+                            )
+                        else:
+                            logger.info(
+                                "[Range %d] Verification found content but could not resolve marker; keeping range",
+                                range_index,
+                            )
                         stop_processing = True
                         break
                     else:
@@ -648,6 +658,40 @@ class LineRangeReadjuster:
                 original_range,
             )
 
+        # Exhaustion fallback: verify interior before keeping unchanged
+        if (not stop_processing or exhausted_at_low_certainty) and self.delete_ranges_with_no_content:
+            logger.info(
+                "[Range %d] All boundary windows exhausted; running fallback interior verification",
+                range_index,
+            )
+            fb_delete, fb_reanchored, fb_attempts = await self._verify_no_content(
+                extractor=extractor,
+                raw_lines=raw_lines,
+                original_range=original_range,
+                range_index=range_index,
+                boundary_type=boundary_type,
+                context=context,
+            )
+            llm_calls += len(fb_attempts)
+            attempts.extend(fb_attempts)
+            if fb_delete:
+                return RangeResult(
+                    range_index=range_index,
+                    original_range=original_range,
+                    adjusted_range=original_range,
+                    should_delete=True,
+                    decision=decision,
+                    attempts=attempts,
+                    total_llm_calls=llm_calls,
+                )
+            if fb_reanchored:
+                adjusted_range = fb_reanchored
+                logger.info(
+                    "[Range %d] Exhaustion fallback re-anchored to %s",
+                    range_index,
+                    fb_reanchored,
+                )
+
         return RangeResult(
             range_index=range_index,
             original_range=original_range,
@@ -667,21 +711,23 @@ class LineRangeReadjuster:
         range_index: int,
         boundary_type: str,
         context: Optional[str],
-    ) -> Tuple[bool, List[Dict[str, Any]]]:
+    ) -> Tuple[bool, Optional[Tuple[int, int]], List[Dict[str, Any]]]:
         """
         Verify that no semantic content of the required type exists within the range.
 
         Called after the initial model assessment returned contains_no_semantic_boundary.
         Scans the range interior to confirm the absence of content before deletion.
+        When content is found with a resolvable marker, returns a re-anchored range
+        so the caller can adjust the boundary to where the content actually is.
 
         Returns:
-            Tuple of (should_delete, verification_attempts).
+            Tuple of (should_delete, reanchored_range_or_None, verification_attempts).
         """
         start, end = original_range
         range_size = end - start + 1
         verification_attempts: List[Dict[str, Any]] = []
 
-        scan_radius = range_size * self.scan_range_multiplier
+        scan_radius = int(range_size * self.scan_range_multiplier)
 
         # Build scan windows WITHIN the range (not adjacent areas)
         if range_size <= 2 * scan_radius:
@@ -719,27 +765,42 @@ class LineRangeReadjuster:
                 "decision_type": f"verify_interior_{idx + 1}",
                 "certainty": decision.certainty,
                 "semantic_marker": decision.semantic_marker,
-                "found_content": (
-                    not decision.contains_no_semantic_boundary
-                    and bool(decision.semantic_marker)
-                ),
+                "found_content": not decision.contains_no_semantic_boundary,
             })
 
             # If we found content inside the range, don't delete
             if not decision.contains_no_semantic_boundary and decision.semantic_marker:
-                logger.info(
-                    "[Range %d] Found recipe content in interior scan window %d; preserving range",
-                    range_index,
-                    idx + 1,
+                # Try to resolve the marker to a line number for re-anchoring
+                matched_line = self._match_boundary_text(
+                    boundary_text=decision.semantic_marker,
+                    raw_lines=raw_lines,
+                    search_start=scan_start,
+                    search_end=scan_end,
+                    substring_match=decision.semantic_marker,
                 )
-                return False, verification_attempts
+                reanchored = None
+                if matched_line is not None:
+                    reanchored = (matched_line, original_range[1])
+                    logger.info(
+                        "[Range %d] Interior scan found content at line %d via marker '%s'; re-anchoring",
+                        range_index,
+                        matched_line,
+                        decision.semantic_marker,
+                    )
+                else:
+                    logger.info(
+                        "[Range %d] Interior scan found content but marker '%s' could not be resolved; preserving range unchanged",
+                        range_index,
+                        decision.semantic_marker,
+                    )
+                return False, reanchored, verification_attempts
 
         # All interior scans confirmed no content — safe to delete
         logger.info(
             "[Range %d] Verified no recipe content in range interior; confirming deletion",
             range_index,
         )
-        return True, verification_attempts
+        return True, None, verification_attempts
 
     async def _run_model(
         self,
