@@ -1,0 +1,4 @@
+The input text consists of excerpts from secondary literature (e.g., culinary history works, food magazines, gastronomic studies) discussing historical culinary works, publications, and written sources.
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+-

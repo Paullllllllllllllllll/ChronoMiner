@@ -1,0 +1,402 @@
+{
+  "name": "CulinaryPersonsEntries",
+  "schema_version": "3.0",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no culinary persons. Otherwise, set to false."
+      },
+      "entries": {
+        "description": "List of persons of culinary importance. If no persons are found, return an empty array.",
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "names": {
+                  "description": "Canonical identifiers for the person in original language and modern English form.",
+                  "type": "object",
+                  "properties": {
+                    "original": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Person's canonical name as it appears in the source (preserve spelling and diacritics)."
+                    },
+                    "modern_english": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Modern English or standardized form of the name for linkage. If no standardized form exists, repeat the original."
+                    }
+                  },
+                  "required": ["original", "modern_english"],
+                  "additionalProperties": false
+                },
+                "short_notes": {
+                  "description": "1–5 sentences summarizing the person's significance or context. Null if not enough information is given.",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "null" }
+                  ]
+                },
+                "timeframe": {
+                  "description": "Timeframe when the person held importance in culinary history context according to the input text. Null if no timeframe is given or deducible.",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "start_year": {
+                          "type": ["integer", "null"],
+                          "description": "Earliest relevant year (four-digit Gregorian). Use null if unknown."
+                        },
+                        "end_year": {
+                          "type": ["integer", "null"],
+                          "description": "Latest relevant year (four-digit Gregorian). Use null if unknown."
+                        },
+                        "notation": {
+                          "type": ["string", "null"],
+                          "description": "Human-readable note about the timeframe. Example: 'fl. 1465–1475' or 'early 17th c.'."
+                        }
+                      },
+                      "required": ["start_year", "end_year", "notation"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "lifespan": {
+                  "description": "Birth and death years of the person.",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "birth_year": {
+                          "type": ["integer", "null"],
+                          "description": "Year of birth. Use null if unknown"
+                        },
+                        "death_year": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ],
+                          "description": "Year of death. Use null if unknown"
+                        }
+                      },
+                      "required": ["birth_year", "death_year"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "historical_importance": {
+                  "description": "Standardized measure of historical importance on a scale from 1 (lowest) to 7 (highest). If not explicitly discussed, deduce from the length of the discussion of the person in the text - if person is only mentioned very briefly, set to 1; if discussed extensively, set to 7.",
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "gender": {
+                  "description": "Person's gender. Use Unknown if not stated or obvious; use Other when not covered by listed values.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "Female",
+                        "Male",
+                        "Other",
+                        "Unknown"
+                      ]
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "roles": {
+                  "description": "Occupational or social roles relevant to culinary history. Select all that apply.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "Cook",
+                          "ChefDeCuisine",
+                          "PastryChef",
+                          "Confectioner",
+                          "Baker",
+                          "Restaurateur",
+                          "Innkeeper",
+                          "Caterer",
+                          "Steward",
+                          "Butler",
+                          "Carver",
+                          "HouseholdManager",
+                          "Author",
+                          "Editor",
+                          "Translator",
+                          "Publisher",
+                          "Printer",
+                          "Painter",
+                          "FoodWriter",
+                          "FoodCritic",
+                          "Gastronome",
+                          "Historian",
+                          "Scientist",
+                          "Physician",
+                          "Industrialist",
+                          "Manufacturer",
+                          "Merchant",
+                          "Monk",
+                          "Nun",
+                          "Cardinal",
+                          "Pope",
+                          "Noble",
+                          "Educator",
+                          "Collector",
+                          "Other",
+                          "Unknown"
+                        ],
+                        "description": "One role value from the controlled list."
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "geography": {
+                  "description": "Standardized geographical context for the person.",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "city_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "City or locality as recorded in the source."
+                        },
+                        "city_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern English name for the city or locality."
+                        },
+                        "country_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Country name as written in the source."
+                        },
+                        "country_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern English country name."
+                        }
+                      },
+                      "required": ["city_original", "city_modern", "country_original", "country_modern"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "associations": {
+                  "description": "Unified list of related entities (people, places, works, products, establishments, organizations, etc.) connected to this person.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "entity_type": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Person",
+                                  "Place",
+                                  "Work",
+                                  "Product",
+                                  "Establishment",
+                                  "Event",
+                                  "Organization",
+                                  "Other"
+                                ]
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Type of associated entity."
+                          },
+                          "entity_label_original": {
+                            "description": "Name or label of the associated entity as it appears in the source.",
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ]
+                          },
+                          "entity_label_modern": {
+                            "description": "Modern English or standardized label for the associated entity, if applicable.",
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ]
+                          },
+                          "relationship": {
+                            "description": "Nature of the connection between the person and the associated entity.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "AssociatedWith",
+                                  "LocatedIn",
+                                  "CreatedBy",
+                                  "Created",
+                                  "Mentions",
+                                  "MentionedBy",
+                                  "References",
+                                  "ReferencedBy",
+                                  "Cites",
+                                  "CitedBy",
+                                  "PartOf",
+                                  "Contains",
+                                  "OwnedBy",
+                                  "OperatedBy",
+                                  "PatronOf",
+                                  "SupportedBy",
+                                  "CollaboratedWith",
+                                  "SucceededBy",
+                                  "PrecededBy",
+                                  "TeacherOf",
+                                  "StudentOf",
+                                  "ApprenticeOf",
+                                  "MasterOf",
+                                  "Mentored",
+                                  "MentoredBy",
+                                  "Inspired",
+                                  "InspiredBy",
+                                  "DocumentedIn",
+                                  "DocumentedBy",
+                                  "AdaptedFrom",
+                                  "AdaptedInto",
+                                  "Influenced",
+                                  "InfluencedBy",
+                                  "Birthplace",
+                                  "Residence",
+                                  "Court",
+                                  "Workplace",
+                                  "Apprenticeship",
+                                  "Education",
+                                  "Travel",
+                                  "BurialPlace",
+                                  "Patronage",
+                                  "PublicationPlace",
+                                  "RecipeOrigin",
+                                  "DistributionArea",
+                                  "Setting",
+                                  "ReferencedLocation",
+                                  "SubjectLocation",
+                                  "EventLocation",
+                                  "Founded",
+                                  "WorkedAt",
+                                  "Owned",
+                                  "Visited",
+                                  "Patron",
+                                  "Resident",
+                                  "Contributor",
+                                  "Dedicatee",
+                                  "Sponsor",
+                                  "Collector",
+                                  "Mentioned",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "role": {
+                            "description": "Specific role played by the associated entity in relation to the person, when applicable.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Author",
+                                  "CoAuthor",
+                                  "Editor",
+                                  "Translator",
+                                  "Commentator",
+                                  "Annotator",
+                                  "Compiler",
+                                  "Contributor",
+                                  "Publisher",
+                                  "Printer",
+                                  "Illustrator",
+                                  "Cartographer",
+                                  "Engraver",
+                                  "Woodcutter",
+                                  "Lithographer",
+                                  "PrefaceWriter",
+                                  "IndexMaker",
+                                  "Dedicatee",
+                                  "Patron",
+                                  "Sponsor",
+                                  "Owner",
+                                  "Collector",
+                                  "Subject",
+                                  "Mentioned",
+                                  "Inspired",
+                                  "InspiredBy",
+                                  "DocumentedBy",
+                                  "Painter",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          }
+                        },
+                        "required": ["entity_type", "entity_label_original", "entity_label_modern", "relationship", "role"],
+                        "additionalProperties": false
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "names",
+                "short_notes",
+                "timeframe",
+                "lifespan",
+                "geography",
+                "historical_importance",
+                "gender",
+                "roles",
+                "associations"
+              ],
+              "additionalProperties": false
+            }
+          },
+          { "type": "null" }
+        ]
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

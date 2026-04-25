@@ -1,0 +1,44 @@
+The input text consists of a snippet from secondary literature (e.g., culinary history works, food magazines, gastronomic studies) discussing historical cooks, gastronomes, and culinary instructors.
+
+Extraction task rules (use when extracting data)
+- Set `entry_type` to `Person`, `Place`, or `Work` before filling the corresponding profile object (`person_entry`, `place_entry`, or `work_entry`).
+- Populate only the profile matching the selected type; do not include other profile objects. Within each profile, supply all shared metadata (`names`, `entity_summary`, `timeframe`, `topical_focus`, `language_contexts`, `associations`, `notes`) and type-specific fields, using null when information is absent.
+- Capture cross-references in the `associations` array and set `contains_no_content_of_requested_type` to true only when the text has no valid entries.
+
+Treat the start of a focused discussion about a new culinary person, place, or work as a boundary, even when multiple entities appear in a single paragraph.
+
+This schema unifies culinary persons, places, and works into a single extraction task. Use the guidance below to decide which entry type to select and how to populate each profile object.
+
+1. PERSON PROFILES (`entry_type` = "Person", `person_entry`)
+   - Focus on historical or modern culinary figures: cooks, restaurateurs, gastronomes, authors, educators, manufacturers, or culinary patrons.
+   - Collect biographical framing (active period, regions, institutional affiliations) along with culinary roles, training, notable contributions, and cross-cultural influences.
+   - Use `language_contexts` to record publication or operating languages; capture networks and collaborations in `associations` (e.g., authored a work, worked at a place, mentored another figure).
+
+2. PLACE PROFILES (`entry_type` = "Place", `place_entry`)
+   - Use for geographic entities tied to food culture: cities, regions, markets, courts, inns, monastic centers, restaurants, production zones, etc.
+   - Summaries should describe culinary functions, specialties, and historical evolution. Populate `roles_in_culinary_ecosystem` with roles like ProductionArea or DistributionHub.
+   - `associated_products` captures signature dishes or goods; `notable_establishments` lists restaurants, hotels, schools, or markets. Relate people, works, or products through `associations`.
+
+3. WORK PROFILES (`entry_type` = "Work", `work_entry`)
+   - Cover cookbooks, culinary manuals, periodicals, websites, bibliographies, or other textual/media works about food culture.
+   - Provide concise descriptions (scope, audience, distinguishing features) and genre classification. Record `edition_years`, translators or contributors, and material notes (format, illustrations, pagination) when available.
+   - Use `associations` to link authors, editors, publication places, or related works.
+
+4. SHARED FIELDS
+   - `names` always includes the source spelling and a normalized English form; repeat the original when no modernization exists.
+   - `timeframe` captures start/end years and a textual notation (e.g., "fl. 1784–1833", "published 1903"). Use null components if not stated.
+   - `topical_focus` and `language_contexts` rely on controlled vocabularies; choose multiple values when the source text justifies them.
+   - `associations` unify cross-references to persons, places, works, products, or events. Preserve the original label when the modern English label is uncertain.
+   - `notes` flag ambiguities, disputed attributions, or extraction caveats.
+
+5. SOURCE CHARACTERISTICS
+   - Inputs are secondary literature snippets discussing Belgian and broader European food culture (restaurant histories, gastronomic studies, biographies, social histories).
+   - Language may mix scholarly analysis with popular narrative; citations often condense multiple entities. Split entries whenever a new person, place, or work receives focused discussion.
+   - Secondary sources may aggregate long chronological spans—use `timeframe.notation` to capture ranges like "1920s–1970s" or "active mid-20th century" when precise years are absent.
+
+6. QUALITY CHECKS
+   - Ensure only the profile matching `entry_type` is populated; leave other profile objects absent.
+   - Respect nullability: prefer null arrays/fields to inferred content when the text is silent.
+   - When multiple entities share a paragraph, create separate entries linked through `associations`.
+
+This context is designed to help the model interpret mixed-type culinary discussions while preserving rich connections across persons, places, and works.

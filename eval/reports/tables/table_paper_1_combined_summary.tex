@@ -1,0 +1,18 @@
+\begin{table}
+\caption{Models evaluated in this study. CER and WER are content-only transcription error rates aggregated across all three benchmark categories. F1 is the micro-averaged extraction score at c2500 chunk size, averaged across categories. Costs are computed from actual token usage at standard API rates (February 2026).}
+\label{tab:paper_table_1}
+\begin{tabular}{llllllll}
+\toprule
+Model & Provider & CER (%) & WER (%) & F1 (%) & $/page & $/chunk & Total ($) \\
+\midrule
+Tesseract OCR & Local & 57.25 & 86.47 & — & 0.0000 & — & 0.00 \\
+GPT-5.2 & OpenAI & 5.98 & 19.49 & 50.05 & 0.0377 & 0.14164 & 6.71 \\
+GPT-5 Mini & OpenAI & 19.86 & 39.24 & 31.44 & 0.0067 & 0.01698 & 0.97 \\
+Gemini 3 Pro Preview & Google & 5.15 & 15.74 & — & 0.0893 & — & 6.52 \\
+Gemini 3 Flash Preview & Google & 6.93 & 16.23 & — & 0.0201 & — & 1.47 \\
+Claude Sonnet 4.5 & Anthropic & 6.13 & 16.90 & 48.42 & 0.0382 & 0.14409 & 6.82 \\
+Claude Haiku 4.5 & Anthropic & 7.98 & 25.33 & 43.85 & 0.0151 & 0.04743 & 2.43 \\
+GPT-OSS-120b & OpenRouter & — & — & 33.80 & — & 0.00122 & 0.03 \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,541 @@
+{
+  "name": "HistoricalRecipesEntriesProduction",
+  "schema_version": "1.3",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no recipes. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "description": "List of historical recipes extracted from text. If no recipes are found, return an empty array. Each object in this list has to be one individual recipe; and you may need to divide the input text into individual recipes.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "recipe_text_original": {
+              "type": "string",
+              "description": "Complete recipe text verbatim in its original language (preserve spelling, diacritics, and formatting), without page numbers or other formatting elements."
+            },
+            "recipe_text_modern_english": {
+              "type": "string",
+              "description": "Modern English translation of the complete recipe text. If the recipe is already in English, produce a fully modernized English rendering."
+            },
+            "title_original": {
+              "type": ["string", "null"],
+              "description": "Recipe title exactly as it appears in the source (preserve spelling and diacritics). Use null if no title is given."
+            },
+            "title_modern_english": {
+              "type": ["string", "null"],
+              "description": "Modern English translation of the original recipe title. If the title is already in English, produce a fully modernized English rendering."
+            },
+            "recipe_type": {
+              "type": "string",
+              "enum": [
+                "Main Dish",
+                "Side Dish",
+                "Soup",
+                "Sauce",
+                "Dessert",
+                "Pastry",
+                "Bread",
+                "Beverage",
+                "Preserve",
+                "Condiment",
+                "Confection",
+                "Salad",
+                "Appetizer",
+                "Dairy Production",
+                "Brewing",
+                "Winemaking",
+                "Distillation",
+                "Vinegar/Oil/Essence",
+                "Household Recipe",
+                "Preparation Technique",
+                "Other",
+                "Unknown"
+              ],
+              "description": "Primary category based on the recipe's main purpose. 'Brewing/Winemaking' and 'Distillation' for production processes; 'Beverage' for drink-serving preparations. 'Dairy Production' for cheesemaking, butter churning, etc. 'Vinegar/Oil/Essence' for vinegar, oil pressing, rosewater, herb essences. 'Household Recipe' for non-food items; 'Preparation Technique' for base preparations (stocks, pastry doughs). 'Other' if identifiable but not listed; 'Unknown' if classification is impossible."
+            },
+            "ingredients": {
+              "type": "array",
+              "description": "Ingredients with original names, translations, and quantities. Empty array if no ingredients can be reliably separated.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name_original": {
+                    "type": "string",
+                    "description": "Ingredient name as it appears in source (preserve spelling and diacritics)."
+                  },
+                  "name_modern_english": {
+                    "type": ["string", "null"],
+                    "description": "Modern English translation of the ingredient. If already in English, produce a fully modernized English rendering."
+                  },
+                  "quantity_original": {
+                    "type": ["string", "null"],
+                    "description": "Quantity as recorded in source. Use null if not specified."
+                  },
+                  "origin_explicitly_stated": {
+                    "type": ["string", "null"],
+                    "description": "If the recipe text explicitly states an origin (e.g., 'Spanish oil'), record verbatim. Null if none."
+                  },
+                  "ingredient_luxury_signal_rating_1_7": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate ingredient's status/luxury connotation in the historical context given. Base rating on period-appropriate valuation, not modern standards. General conventions: 1 = everyday staple accessible to common households (e.g., bread, onions, local vegetables); 4 = moderately valued or regionally variable; 7 = high-status luxury item (e.g., exotic spices, imported delicacies, expensive cuts). Use null if insufficient evidence."
+                  },
+                  "ingredient_trade_distance_rating_1_7": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate how far this ingredient traveled to reach the kitchen, based on its geographic origin and the period. 1 = entirely local or domestic production (local grain, domestic vegetables, game); 4 = pan-European or established long-distance European trade (Baltic herring, Levantine goods); 7 = far-flung intercontinental import (spice-route, trans-Atlantic colonial). Calibrate to the period: as trade routes matured, the effective distance of once-exotic goods declined over time."
+                  },
+                  "ingredient_novelty_rating_1_7": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate how recently this ingredient had been introduced or adopted in European kitchens at the time of writing. 1 = ancient European staple known for millennia (wheat, pork, onions, honey); 4 = early modern arrival, established across most European regions by the late 16th century; 7 = novelty or still contested at the time of this recipe's writing (e.g. potato or tomato in an early 17th-century source). Base the rating on the approximate date of widespread European adoption, not regional specifics."
+                  }
+                },
+                "required": [
+                  "name_original",
+                  "name_modern_english",
+                  "quantity_original",
+                  "origin_explicitly_stated",
+                  "ingredient_luxury_signal_rating_1_7",
+                  "ingredient_trade_distance_rating_1_7",
+                  "ingredient_novelty_rating_1_7"
+                ],
+                "additionalProperties": false
+              }
+            },
+            "cooking_methods": {
+              "type": "array",
+              "description": "Cooking techniques used in this recipe with original terms and translations. Return empty array if none are mentioned.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "method_original": {
+                    "type": "string",
+                    "description": "Cooking method as it appears in source (preserve spelling)."
+                  },
+                  "method_modern_english": {
+                    "type": ["string", "null"],
+                    "description": "Modern English translation. If already in English, produce a fully modernized English rendering."
+                  },
+                  "method_complexity_rating_1_7": {
+                    "type": ["integer", "null"],
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate the skill and labor intensity required to execute this technique in a period kitchen. 1 = simple common household technique requiring minimal training (boiling, basic roasting, salting); 4 = moderately skilled procedure requiring attention and practice (making a roux, clarifying stock, careful frying with temperature judgment); 7 = highly technical method requiring professional training or complex equipment (spun-sugar work, multi-stage reduction with liaison, elaborate laminated pastry). Use null if insufficient evidence."
+                  }
+                },
+                "required": ["method_original", "method_modern_english", "method_complexity_rating_1_7"],
+                "additionalProperties": false
+              }
+            },
+            "utensils_equipment": {
+              "type": "array",
+              "description": "Cooking tools and equipment mentioned in the recipe. Return empty array if none are mentioned.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "utensil_original": {
+                    "type": "string",
+                    "description": "Utensil as it appears in source (preserve spelling)."
+                  },
+                  "utensil_modern_english": {
+                    "type": ["string", "null"],
+                    "description": "Modern English translation. If already in English, produce a fully modernized rendering."
+                  },
+                  "utensil_specialization_rating_1_7": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate how specialized and costly this piece of equipment was for its period. 1 = universal household item found in virtually any kitchen (earthen pot, knife, wooden spoon); 4 = moderately specialized, requiring a degree of investment (chafing dish, strainer, pastry board); 7 = highly specialized equipment found only in affluent or commercial kitchens (clockwork spit, copper confectionary mold, distillation apparatus)."
+                  },
+                  "utensil_modernity_rating_1_7": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 7,
+                    "description": "Rate this piece of equipment on the culinary-historical spectrum, using the same reference frame as the recipe-level modernity_rating_1_7. 1 = equipment typical only of pre-modern kitchens (cauldron, spit, stone mortar); 4 = post-La Varenne era kitchen (c.1651+); 7 = equipment characteristic of the high classical professional kitchen (Escoffier era)."
+                  }
+                },
+                "required": ["utensil_original", "utensil_modern_english", "utensil_specialization_rating_1_7", "utensil_modernity_rating_1_7"],
+                "additionalProperties": false
+              }
+            },
+            "timing_yield": {
+              "type": "object",
+              "description": "Yield, preparation time, and cooking time as stated in the source. Historical recipes rarely specify these; use null for unstated fields.",
+              "properties": {
+                "yield_original": {
+                  "type": ["string", "null"],
+                  "description": "Yield as stated verbatim in the source (e.g., 'pour six personnes', 'for a large table'). Use null if not specified."
+                },
+                "preparation_time_original": {
+                  "type": ["string", "null"],
+                  "description": "Preparation time as stated verbatim in the source. Use null if not specified."
+                },
+                "cooking_time_original": {
+                  "type": ["string", "null"],
+                  "description": "Cooking time as stated verbatim in the source. Use null if not specified."
+                }
+              },
+              "required": [
+                "yield_original",
+                "preparation_time_original",
+                "cooking_time_original"
+              ],
+              "additionalProperties": false
+            },
+            "ingredient_categories": {
+              "type": "object",
+              "description": "Boolean flags for ingredient categories relevant to historical culinary analysis.",
+              "properties": {
+                "contains_meat": {
+                  "type": "boolean",
+                  "description": "True if recipe contains red meat from mammals (beef, pork, lamb, veal, venison, rabbit, etc.). False otherwise. Exclude poultry and fish."
+                },
+                "contains_poultry": {
+                  "type": "boolean",
+                  "description": "True if recipe contains domestic or wild birds (chicken, duck, goose, turkey, pigeon, pheasant, etc.). False otherwise."
+                },
+                "contains_fish_seafood": {
+                  "type": "boolean",
+                  "description": "True if recipe contains any fish, shellfish, crustaceans, or other aquatic creatures. False otherwise."
+                },
+                "contains_dairy": {
+                  "type": "boolean",
+                  "description": "True if recipe contains milk, cream, cheese, or other dairy products. False otherwise. Note: butter has its own separate flag."
+                },
+                "contains_eggs": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains eggs. False otherwise."
+                },
+                "contains_butter": {
+                  "type": "boolean",
+                  "description": "True if the recipe specifically contains butter. False otherwise."
+                },
+                "contains_olive_oil": {
+                  "type": "boolean",
+                  "description": "True if the recipe specifically contains olive oil. False otherwise."
+                },
+                "contains_lard_animal_fat": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains lard or other animal fats that are not butter. False otherwise."
+                },
+                "contains_alcohol": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains alcoholic beverages (wine, beer, spirits, etc.). False otherwise."
+                },
+                "contains_refined_sugar": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains refined sugar. False otherwise."
+                },
+                "contains_honey": {
+                  "type": "boolean",
+                  "description": "True if the recipe contains honey. False otherwise."
+                },
+                "contains_other_sweeteners": {
+                  "type": "boolean",
+                  "description": "True if recipe contains sweeteners other than honey or refined sugar (molasses, maple, fruit syrups, dried fruits as sweeteners). False otherwise."
+                },
+                "contains_foreign_spices": {
+                  "type": "boolean",
+                  "description": "True if recipe contains spices imported to Europe via long-distance trade (pepper, cinnamon, cloves, nutmeg, mace, ginger, saffron, cardamom, etc.). False otherwise. Exclude local herbs."
+                },
+                "contains_luxury_ingredients": {
+                  "type": "boolean",
+                  "description": "True if recipe contains ingredients that signaled high status in the historical period (truffles, caviar, ortolans, elaborate pastry work, expensive cuts, imported delicacies). False otherwise."
+                }
+              },
+              "required": [
+                "contains_meat",
+                "contains_poultry",
+                "contains_fish_seafood",
+                "contains_dairy",
+                "contains_eggs",
+                "contains_butter",
+                "contains_olive_oil",
+                "contains_lard_animal_fat",
+                "contains_alcohol",
+                "contains_refined_sugar",
+                "contains_honey",
+                "contains_other_sweeteners",
+                "contains_foreign_spices",
+                "contains_luxury_ingredients"
+              ],
+              "additionalProperties": false
+            },
+            "culinary_style": {
+              "type": "object",
+              "description": "Culinary-historical style classification based on technique, ingredient use, and structural features.",
+              "properties": {
+                "modernity_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Position on the culinary-historical spectrum. 1 = late-medieval style; 4 = transitional; 7 = mature 18th/19th-c. haute cuisine. Use null if ambiguous or absent."
+                },
+                "innovation_markers_observed": {
+                  "type": "array",
+                  "description": "Innovation markers detected in the text. Empty if none.",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Measured quantities with units",
+                      "Explicit cooking times",
+                      "Temperature or heat control language",
+                      "Roux or flour-fat liaison",
+                      "Stock/bouillon/consomme base",
+                      "Reduction or concentration logic",
+                      "Egg or cream liaison for finishing",
+                      "Separate sauce preparation",
+                      "Taste-correction language (adjust salt/acid/sweet)",
+                      "Plating or presentation instructions",
+                      "Garnish as distinct step",
+                      "Mise en place or advance prep mentioned",
+                      "New World ingredients central",
+                      "Refined sugar as primary sweetener",
+                      "Fermentation/aging duration specified",
+                      "None detected"
+                    ]
+                  }
+                },
+                "archaism_markers_observed": {
+                  "type": "array",
+                  "description": "Markers suggesting older culinary style. Empty if none.",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Heavy mixed spicing (cinnamon + pepper + ginger etc.)",
+                      "Sweet-sour combinations prominent",
+                      "Honey as primary sweetener",
+                      "Verjuice prominent",
+                      "Color as explicit goal (saffron, etc.)",
+                      "Whole roast or spit-based method dominant",
+                      "Minimal sauce separation",
+                      "Quantities absent or vague throughout",
+                      "Strong humoral or medical framing",
+                      "None detected"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "modernity_rating_1_7",
+                "innovation_markers_observed",
+                "archaism_markers_observed"
+              ],
+              "additionalProperties": false
+            },
+            "intertextuality": {
+              "type": "object",
+              "description": "Textual signals of attribution, borrowing, cross-referencing, and rhetorical claims about tradition, authenticity, or national identity.",
+              "properties": {
+                "explicit_source_attribution": {
+                  "type": ["string", "null"],
+                  "description": "If the text explicitly names a source/authority, record verbatim. Null if none."
+                },
+                "explicit_foreign_style_reference": {
+                  "type": ["string", "null"],
+                  "description": "If the text explicitly names a foreign style or national manner, record verbatim. Null if none."
+                },
+                "self_positioning_temporal": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Claims modernity/novelty",
+                    "Claims tradition/old custom",
+                    "Contrasts old and new",
+                    "Neutral/no positioning",
+                    null
+                  ],
+                  "description": "How the recipe text positions itself relative to culinary tradition and innovation."
+                },
+                "tradition_claim_present": {
+                  "type": "boolean",
+                  "description": "True if the recipe text claims tradition/old custom. False if not explicitly present."
+                },
+                "authenticity_claim_present": {
+                  "type": "boolean",
+                  "description": "True if the recipe text claims authenticity/genuineness/originality. False if not explicitly present."
+                },
+                "national_identity_claim_present": {
+                  "type": "boolean",
+                  "description": "True if the recipe text invokes national identity explicitly. False if not explicitly present."
+                },
+                "anti_foreign_sentiment_present": {
+                  "type": "boolean",
+                  "description": "True if the recipe text disparages foreign cuisine or asserts native superiority. False if not explicitly present."
+                }
+              },
+              "required": [
+                "explicit_source_attribution",
+                "explicit_foreign_style_reference",
+                "self_positioning_temporal",
+                "tradition_claim_present",
+                "authenticity_claim_present",
+                "national_identity_claim_present",
+                "anti_foreign_sentiment_present"
+              ],
+              "additionalProperties": false
+            },
+            "geographic_signals": {
+              "type": "object",
+              "description": "Geographic references explicitly present in the recipe text.",
+              "properties": {
+                "place_references": {
+                  "type": "array",
+                  "description": "Places explicitly named in recipe text. Empty if none.",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "place_name_original": {
+                        "type": "string",
+                        "description": "Place name exactly as in the text."
+                      },
+                      "reference_function": {
+                        "type": "string",
+                        "enum": [
+                          "Style label (alla/a la/nach Art)",
+                          "Ingredient origin",
+                          "Regional custom reference",
+                          "Audience location",
+                          "Production terroir",
+                          "Other"
+                        ]
+                      }
+                    },
+                    "required": ["place_name_original", "reference_function"],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "place_references"
+              ],
+              "additionalProperties": false
+            },
+            "economic_signals": {
+              "type": "object",
+              "description": "Economic signals, occasion context, and luxury/prestige indicators.",
+              "properties": {
+                "economic_framing_detected": {
+                  "type": "array",
+                  "description": "Types of economic framing detected in the recipe text. Empty array if none.",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Cost/expense mention",
+                      "Scarcity/availability mention",
+                      "Leftover/reuse mention",
+                      "Economy/thrift framing",
+                      "Luxury/refinement framing",
+                      "None detected"
+                    ]
+                  }
+                },
+                "luxury_intensity_rating_1_7": {
+                  "type": ["integer", "null"],
+                  "minimum": 1,
+                  "maximum": 7,
+                  "description": "Overall luxury/prestige signaling of the entire recipe. 1 = no luxury signaling; 4 = moderate status markers; 7 = maximal prestige display. Use null if ambiguous."
+                },
+                "occasion_type": {
+                  "type": "array",
+                  "description": "Occasion signals detected. Empty array if none.",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "Everyday/ordinary",
+                      "Feast/banquet",
+                      "Religious fast/Lent",
+                      "Holiday/celebration",
+                      "Invalid/sick cookery",
+                      "Childcare",
+                      "Preservation/seasonal",
+                      "Household provisioning",
+                      "Travel/field",
+                      "Unclear"
+                    ]
+                  }
+                }
+              },
+              "required": [
+                "economic_framing_detected",
+                "luxury_intensity_rating_1_7",
+                "occasion_type"
+              ],
+              "additionalProperties": false
+            },
+            "religious_signals": {
+              "type": "object",
+              "description": "Religious, liturgical calendar, and moral-virtue signals.",
+              "properties": {
+                "fasting_context_indicated": {
+                  "type": "boolean",
+                  "description": "True if marked for fasting days/Lent/vigils. False if not explicitly indicated."
+                },
+                "meat_day_context_indicated": {
+                  "type": "boolean",
+                  "description": "True if marked for meat days or explicitly non-fasting. False if not explicitly indicated."
+                },
+                "confessional_hint": {
+                  "type": ["string", "null"],
+                  "enum": [
+                    "Explicitly Catholic markers",
+                    "Explicitly Protestant markers",
+                    "Explicitly Jewish markers",
+                    "No confessional signal",
+                    "Ambiguous",
+                    null
+                  ],
+                  "description": "Only classify if text contains explicit markers."
+                },
+                "moral_virtue_framing_present": {
+                  "type": "boolean",
+                  "description": "True if recipe framing includes moral language (virtue of frugality, temperance, avoiding excess). False if not explicitly indicated."
+                }
+              },
+              "required": [
+                "fasting_context_indicated",
+                "meat_day_context_indicated",
+                "confessional_hint",
+                "moral_virtue_framing_present"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "recipe_text_original",
+            "recipe_text_modern_english",
+            "title_original",
+            "title_modern_english",
+            "recipe_type",
+            "ingredients",
+            "cooking_methods",
+            "utensils_equipment",
+            "timing_yield",
+            "ingredient_categories",
+            "culinary_style",
+            "intertextuality",
+            "geographic_signals",
+            "economic_signals",
+            "religious_signals"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "contains_no_content_of_requested_type",
+      "entries"
+    ],
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,48 @@
+The input text consists of bibliographic records describing historical culinary and household literature (e.g., cookbooks, household manuals, foodstuff guides, food production regulations, etc.) dated from approximately 1470 to 1950.
+
+EXTRACTION RULES:
+- Take the title and main author from the first edition for `full_title`, `short_title`, and `main_author`.
+- Put every edition, including the first, into `edition_info` as its own object.
+- When multiple editions describe the same work, keep them together under the same root entry.
+
+BIBLIOGRAPHIC CONVENTIONS AND EVOLUTION:
+- Pre-1800 bibliographies often follow Short Title Catalogue conventions
+- Modern bibliographic standards (e.g., Chicago, MLA) emerged in late 19th/early 20th century
+- Title pages may contain extensive subtitles describing contents and intended audience
+- Printer and publisher information varied significantly across periods and regions
+- Place of publication often indicated by city name in Latin or vernacular languages
+
+EDITION TRACKING AND IDENTIFICATION:
+- First editions are bibliographically distinct from reprints and revised editions
+- Edition statements may appear in various forms: "tweede druk," "2nd edition," "revised and enlarged"
+- Later editions often indicate changes: "with additions," "corrected edition," "newly revised"
+- Posthumous editions may include editorial notes or additional material
+- Translation editions require careful tracking of both original and translated publication details
+
+HISTORICAL COOKBOOK CHARACTERISTICS:
+- Early cookbooks (1470-1700) were often compiled from manuscript sources
+- 18th-century works frequently claimed noble or aristocratic authorship for prestige
+- 19th-century domestic manuals combined recipes with household management advice
+- Commercial promotional cookbooks emerged with industrial food production
+- Regional and ethnic cookbooks became distinct categories in late 19th/early 20th century
+
+LANGUAGE AND ORTHOGRAPHY:
+- Historical spelling varies significantly (e.g., Dutch "kookboek" vs. "cock-boeck")
+- Multilingual regions produced works in multiple languages (Dutch, French, German, Latin)
+- Diacritics and special characters must be preserved for accurate identification
+- Title capitalization conventions changed over time and across languages
+- Abbreviations in titles and imprint information follow period-specific patterns
+
+SPECIAL CATEGORIES:
+- Household manuals (combining cookery with medicine, household management)
+- Confectionery and pastry-specific works (banketbakkers-boeken)
+- Commercial recipe pamphlets and promotional booklets
+- Regional compilations (e.g., Dutch East Indies cookbooks)
+- Professional vs. domestic audience works (guild cookbooks vs. family manuals)
+
+COMMON CHALLENGES:
+- Cookbooks as "use books" often lost or damaged, making surviving copies rare
+- Anonymous or pseudonymous authorship (e.g., "by a Lady," "by an experienced cook")
+- Undated editions, especially in commercial promotional materials
+- Variant issues within same edition with different title pages or bindings
+- Series publications that spanned multiple years or volumes

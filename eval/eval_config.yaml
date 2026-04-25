@@ -1,0 +1,200 @@
+# Evaluation Configuration for ChronoMiner
+# This file defines models to evaluate and dataset paths for extraction quality assessment
+#
+# Evaluation Method: Chunk-level (using temporary JSONL files from extractor)
+# Ground Truth Format: JSONL with one chunk per line (legacy JSON also supported)
+
+# =============================================================================
+# Dataset Configuration
+# =============================================================================
+dataset:
+  base_path: "test_data"
+  
+  input_path: "test_data/input"
+  output_path: "test_data/output"
+  ground_truth_path: "test_data/ground_truth"
+  
+  categories:
+    - name: "address_books"
+      description: "Swiss address book pages (Basel 1900)"
+      schema: "HistoricalAddressBookEntries"
+      
+    - name: "bibliography"
+      description: "European culinary bibliographies"
+      schema: "BibliographicEntries"
+      
+    - name: "military_records"
+      description: "Brazilian military enlistment cards"
+      schema: "BrazilianMilitaryRecords"
+
+# =============================================================================
+# Models to Evaluate
+# =============================================================================
+models:
+  # OpenAI Models — 2,500-token chunks
+  - name: "gpt_5.2_medium_c2500"
+    provider: "openai"
+    model_id: "gpt-5.2"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 2500
+    description: "GPT-5.2 medium reasoning, 2500-token chunks"
+
+  - name: "gpt_5_mini_medium_c2500"
+    provider: "openai"
+    model_id: "gpt-5-mini"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 2500
+    description: "GPT-5 Mini medium reasoning, 2500-token chunks"
+
+  # OpenAI Models — 5,000-token chunks
+  - name: "gpt_5.2_medium_c5000"
+    provider: "openai"
+    model_id: "gpt-5.2"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 5000
+    description: "GPT-5.2 medium reasoning, 5000-token chunks"
+
+  - name: "gpt_5_mini_medium_c5000"
+    provider: "openai"
+    model_id: "gpt-5-mini"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 5000
+    description: "GPT-5 Mini medium reasoning, 5000-token chunks"
+  
+  # Google Models
+  # EXCLUDED FROM BENCHMARK — Hard API limit: Gemini enforces a maximum schema
+  # nesting depth of ~5 levels (tightened Aug 2025, documented in official Gemini
+  # Structured Outputs docs under "Limitations").  All three evaluation schemas
+  # (BibliographicEntries, BrazilianMilitaryRecords, HistoricalAddressBookEntries)
+  # exceed this limit.  Requests fail with HTTP 400 "A schema in GenerationConfig
+  # in the request exceeds the maximum allowed nesting depth."  This cannot be
+  # resolved through model-parameter tuning; schema simplification would invalidate
+  # the evaluation framework.  Results cells will be left blank in the error-rate
+  # table with an explanatory footnote.
+  #
+  # - name: "gemini_3.0_pro_medium"
+  #   provider: "google"
+  #   model_id: "gemini-3-pro-preview"
+  #   reasoning_effort: "medium"
+  #   description: "Gemini 3 Pro Preview with medium reasoning"
+  #
+  # - name: "gemini_3.0_flash"
+  #   provider: "google"
+  #   model_id: "gemini-3-flash-preview"
+  #   reasoning_effort: "medium"
+  #   description: "Gemini 3 Flash Preview"
+
+  # Anthropic Models — 2,500-token chunks
+  - name: "claude_sonnet_4.5_medium_c2500"
+    provider: "anthropic"
+    model_id: "claude-sonnet-4-5-20250929"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 2500
+    description: "Claude Sonnet 4.5 medium reasoning, 2500-token chunks"
+
+  - name: "claude_haiku_4.5_medium_c2500"
+    provider: "anthropic"
+    model_id: "claude-haiku-4-5"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 2500
+    description: "Claude Haiku 4.5 medium reasoning, 2500-token chunks"
+
+  # Anthropic Models — 5,000-token chunks
+  - name: "claude_sonnet_4.5_medium_c5000"
+    provider: "anthropic"
+    model_id: "claude-sonnet-4-5-20250929"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 5000
+    description: "Claude Sonnet 4.5 medium reasoning, 5000-token chunks"
+
+  - name: "claude_haiku_4.5_medium_c5000"
+    provider: "anthropic"
+    model_id: "claude-haiku-4-5"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 5000
+    description: "Claude Haiku 4.5 medium reasoning, 5000-token chunks"
+
+  # OpenRouter / DeepInfra Models — 2,500-token chunks
+  # GPT-OSS-120b: open-weight 117B MoE model from OpenAI, accessed via DeepInfra fp4
+  # quantization on OpenRouter (endpoint: openai/gpt-oss-120b).
+  # Pricing: $0.039/M input, $0.19/M output (DeepInfra fp4, Feb 2026).
+  # Used here as the open-source/open-weight extraction baseline.
+  - name: "gpt_oss_120b_c2500"
+    provider: "openrouter"
+    model_id: "openai/gpt-oss-120b"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 2500
+    description: "GPT-OSS-120b via OpenRouter/DeepInfra fp4, 2500-token chunks"
+
+  # OpenRouter / DeepInfra Models — 5,000-token chunks
+  - name: "gpt_oss_120b_c5000"
+    provider: "openrouter"
+    model_id: "openai/gpt-oss-120b"
+    reasoning_effort: "medium"
+    tokens_per_chunk: 5000
+    description: "GPT-OSS-120b via OpenRouter/DeepInfra fp4, 5000-token chunks"
+
+# =============================================================================
+# Evaluation Settings
+# =============================================================================
+evaluation:
+  # Matching settings for field comparison
+  string_similarity_threshold: 0.85  # Levenshtein ratio threshold for fuzzy matching
+  case_sensitive: false  # Whether to use case-sensitive comparison
+  normalize_whitespace: true  # Normalize whitespace before comparison
+  
+  # Fields to evaluate per schema (if empty, evaluate all fields)
+  schema_fields:
+    BibliographicEntries:
+      - "full_title"
+      - "short_title"
+      - "authors"
+      - "edition_info.year"
+      - "edition_info.language"
+      - "culinary_focus"
+    HistoricalAddressBookEntries:
+      - "last_name"
+      - "first_name"
+      - "occupation"
+      - "address.street"
+      - "address.street_number"
+    BrazilianMilitaryRecords:
+      - "surname"
+      - "first_name"
+      - "profession"
+      - "birth_date"
+      - "birth_place"
+      - "height"
+      - "civil_status"
+  
+  # Output settings
+  save_per_file_metrics: true
+  save_per_entry_metrics: true
+  save_aggregated_metrics: true
+  output_formats:
+    - "json"
+    - "csv"
+    - "markdown"
+  
+  # Report path
+  reports_path: "reports"
+
+# =============================================================================
+# Runtime Settings
+# =============================================================================
+runtime:
+  # Concurrency for API calls
+  max_concurrent_requests: 3
+  delay_between_requests_ms: 500
+  
+  # Retry settings
+  max_retries: 3
+  retry_delay_seconds: 2
+  
+  # Cost tracking
+  track_costs: true
+  track_latency: true
+  
+  # Chunking settings for evaluation runs
+  chunking_method: "auto"
+  tokens_per_chunk: 7500

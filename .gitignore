@@ -1,0 +1,62 @@
+# Token tracker state file
+.chronominer_token_state.json
+.chronominer_token_state.tmp
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.windsurf
+.claude
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Config files
+config/
+
+# Environment variables
+.env
+.env.local
+
+# Caches
+.mypy_cache/
+.pytest_cache/
+.coverage
+
+/eval/docs/

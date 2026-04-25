@@ -1,0 +1,4 @@
+The input text consists of historical address book entries from Swiss cities dating from approximately 1800 to 1960. Entries typically contain personal names, street addresses, occupations, honorifics, and supplementary notes rendered in period spelling. The text will appear mostly in Swiss German, although many names will be of foreign origin (French, Italian, etc.). Natural semantic markers for this type of text are the beginnings of individual address book entries.
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+-

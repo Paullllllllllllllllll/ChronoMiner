@@ -1,0 +1,80 @@
+The input text consists of excerpts from academic papers and scholarly literature across the humanities and social sciences. Passages typically include section headings, thesis statements, methodological notes, and substantive semantic content. The text may appear in different languages and uses a formal scholarly tone with citations and footnote markers. Natural semantic markers for this type of text are the beginnings of new pages.
+
+Extraction task rules (use when extracting data)
+- Record `page_number.page_number_integer` as the printed page number and set `page_number.contains_no_page_number` to true only when the source page lacks a visible number.
+- Set `contains_no_semantic_content` to true when the page has no textual discussion (e.g., bibliographies, blank pages); otherwise, ensure it is false.
+- Populate `bullet_points` with concise statements summarizing the core arguments or findings for the page, maintaining an empty array when no semantic content exists.
+- Transcribe each citation appearing on the page into `references`, formatting in APA style when possible; use an empty array if the page has no references.
+
+Treat each new page in the source document as a boundary.
+
+When extracting structured data from academic papers and scholarly literature, please consider:
+
+1. Academic document structure and conventions:
+   - Standard sections: Abstract, Introduction, Literature Review, Methodology, Results, Discussion, Conclusion
+   - Humanities papers often use thematic sections rather than rigid scientific structure
+   - Page numbers may appear in headers, footers, or margins; format varies by journal/publisher
+   - Footnotes vs. endnotes systems vary by discipline (humanities prefer footnotes, sciences endnotes)
+   - Section numbering schemes vary: some use decimal (1.1, 1.2), others use outline format
+   - Appendices, supplementary materials, and data tables may contain critical information
+
+2. Citation practices and reference systems:
+   - Citation styles vary by discipline: APA (psychology, education), Chicago (history, humanities), 
+     MLA (literature), Harvard (sciences), Vancouver (medicine)
+   - Author-date systems (Smith 2020) vs. numbered references [1] vs. footnote citations
+   - Abbreviated journal names follow field-specific conventions (e.g., "J. Am. Hist." for 
+     Journal of American History)
+   - "Ibid.," "op. cit.," and other Latin abbreviations in older or humanities scholarship
+   - Digital Object Identifiers (DOIs) increasingly standard in recent publications
+   - Archive citations in history papers require special attention to location and collection names
+
+3. Discipline-specific content patterns:
+   - Sciences: hypothesis-driven, statistical methods, quantitative results, replicability emphasis
+   - Social sciences: theoretical frameworks, empirical data, qualitative or mixed methods
+   - Humanities: interpretive analysis, primary source engagement, theoretical perspectives
+   - Historical papers: chronological narratives, archival sources, historiographic debates
+   - Interdisciplinary work combines methodologies and citation practices from multiple fields
+
+4. Significance and argument indicators:
+   - Key claims often signaled by phrases: "we argue that," "this demonstrates," "significantly"
+   - Limitations acknowledged: "however," "despite," "it should be noted that"
+   - Future research directions: "further study," "remains to be investigated," "warrants examination"
+   - Theoretical contributions: "we propose," "our framework," "this model suggests"
+   - Empirical findings: "our results show," "we found that," "data indicate"
+   - Hedging language indicates uncertainty: "may," "might," "possibly," "suggests"
+
+5. Methodological details:
+   - Quantitative: sample sizes, statistical tests, confidence intervals, p-values, effect sizes
+   - Qualitative: interview methods, coding schemes, thematic analysis, case selection
+   - Mixed methods: integration points, triangulation, complementary data sources
+   - Archival research: repositories visited, document types, selection criteria
+   - Experimental: control groups, randomization, variables, instruments
+   - Computational: algorithms, datasets, preprocessing, validation methods
+
+6. Visual elements and data presentation:
+   - Tables contain concentrated quantitative or comparative information with row/column headers
+   - Figures include graphs, charts, diagrams, photographs with descriptive captions
+   - Equations and formulas use specialized mathematical notation to be preserved exactly
+   - Maps and geographic visualizations in historical, geographical, or social science work
+   - Conceptual diagrams represent theoretical models, frameworks, or relationships
+   - Captions often contain essential context, definitions, or interpretive guidance
+
+7. Contextual and temporal markers:
+   - Publication date indicates scholarly conversation context and methodological currency
+   - Acknowledgments may reveal funding sources, collaborations, institutional affiliations
+   - Author affiliations indicate disciplinary home and methodological traditions
+   - Journal prestige and peer review processes affect credibility assessment
+   - Conference vs. journal publication indicates stage of research development
+   - Preprint vs. published version may have significant content differences
+
+8. Critical reading considerations:
+   - Distinguish between authors' claims and cited sources' claims
+   - Note when authors critique, support, or extend previous scholarship
+   - Identify gaps or limitations acknowledged by authors
+   - Recognize disciplinary debates and positioning within scholarly conversations
+   - Track definitions of key terms, which may differ across papers
+   - Notice when findings contradict or support previous research
+
+This additional context should help you extract structured summaries that accurately represent academic
+content, capture methodological specifics, and preserve the scholarly argumentation and significance of the
+work.

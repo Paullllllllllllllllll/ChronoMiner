@@ -1,0 +1,4 @@
+The input text consists of a snippet from secondary literature (e.g., culinary history works, food magazines, gastronomic studies) discussing historical cooks, gastronomes, and culinary instructors.
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+-

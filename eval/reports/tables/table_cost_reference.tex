@@ -1,0 +1,20 @@
+\begin{table}
+\caption{API cost reference for all extraction models (February 2026). Per-chunk costs are computed from the actual input and output token counts recorded in the JSONL extraction files. All LLM providers offer a 50\% discount for batch-processed requests (not available through OpenRouter). GPT-OSS-120b pricing reflects the DeepInfra fp4 endpoint.}
+\label{tab:cost_reference}
+\begin{tabular}{lllllllr}
+\toprule
+Model & Input ($/M tok) & Output ($/M tok) & Avg input tok & Avg output tok & $/chunk (std) & $/chunk (batch) & Chunks \\
+\midrule
+GPT-5.2 & 1.750 & 14.000 & 4,051 & 9,610 & 0.14164 & 0.07082 & 28 \\
+GPT-5.2 (c5000) & 1.750 & 14.000 & 5,646 & 14,467 & 0.21242 & 0.10621 & 16 \\
+GPT-5 Mini & 0.250 & 2.000 & 4,051 & 7,983 & 0.01698 & 0.00849 & 28 \\
+GPT-5 Mini (c5000) & 0.250 & 2.000 & 5,646 & 7,414 & 0.01624 & 0.00812 & 16 \\
+Claude Sonnet 4.5 & 3.000 & 15.000 & 6,272 & 8,352 & 0.14409 & 0.07205 & 28 \\
+Claude Sonnet 4.5 (c5000) & 3.000 & 15.000 & 8,906 & 11,271 & 0.19578 & 0.09789 & 10 \\
+Claude Haiku 4.5 & 1.000 & 5.000 & 6,272 & 8,232 & 0.04743 & 0.02371 & 28 \\
+Claude Haiku 4.5 (c5000) & 1.000 & 5.000 & 8,406 & 13,883 & 0.07782 & 0.03891 & 16 \\
+GPT-OSS-120b & 0.039 & 0.190 & 3,342 & 5,714 & 0.00122 & 0.00122 & 28 \\
+GPT-OSS-120b (c5000) & 0.039 & 0.190 & 4,871 & 3,152 & 0.00079 & 0.00079 & 16 \\
+\bottomrule
+\end{tabular}
+\end{table}

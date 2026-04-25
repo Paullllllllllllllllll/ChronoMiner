@@ -1,0 +1,38 @@
+Schmidt, Carlos - Official aposentado do Exército Alemão, 1º Tenente Cavallaria
+Record Header: Batalhão Limeirense
+Location: LIMEIRA — Estado de São Paulo
+Height: 1.76
+Skin Color: branca
+Hair Color: castanhos
+Hair Texture: liso
+Beard: feita
+Mustache: não uso
+Assignatura: None
+Reservista: não
+Eyes: azues
+Mouth: regular
+Face: alongado
+Nose: afilado
+Marks: None
+Father: Adolpho Schmidte
+Mother: Helena Schmidt
+Birth Date: 18-1-1890
+Birth Place: Bremen - Alemanha
+Municipality: None
+Civil Status: casado
+Vaccinated: Yes
+Can Read: Yes
+Can Write: Yes
+Can Count: Yes
+Swimming: Yes
+Cyclist: Yes
+Motorcyclist: No
+Driver: No
+Chauffeur: No
+Telegraphist: No
+Telephonist: No
+Residence: Largo Estação, 7, Livraria
+Observations: Alistado em 11/9/1932 para o Esquadrão de Cavallaria.
+Officials: Presidente da Commissão: Assinatura; Vice Presidente: Assinatura; Secretario: Assinatura; Prefeito: Assinatura; Delegado de Policia: Assinatura; Instructor: Assinatura
+
+========================================

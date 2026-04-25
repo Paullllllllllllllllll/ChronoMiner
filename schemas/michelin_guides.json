@@ -1,0 +1,299 @@
+{
+  "name": "MichelinGuides",
+  "schema_version": "3.2",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "True if the page contains no restaurant or hotel entries (maps, legends, index, ads). False if at least one entry is present."
+      },
+      "active_city_or_town": {
+        "type": ["string", "null"],
+        "description": "Last bold all-caps town heading visible on this page. Null only if no heading appears (e.g. pure map page)."
+      },
+      "entries": {
+        "type": "array",
+        "description": "Michelin Guide establishments extracted from this page. NULL SEMANTICS: For COMPLETE entries (entry_is_fragment = false), every boolean field MUST be true or false, never null. awards.stars MUST be 0 (not null) if no star glyph is visible. For FRAGMENT entries (entry_is_fragment = true), fields not visible on this page may be null.",
+        "items": {
+          "type": "object",
+          "description": "One establishment entry from a Michelin Guide page.",
+          "properties": {
+            "establishment_name": {
+              "type": "string",
+              "description": "Restaurant name exactly as printed."
+            },
+            "location": {
+              "type": "object",
+              "description": "Locality from the guide heading.",
+              "properties": {
+                "city_or_town": {
+                  "type": ["string", "null"],
+                  "description": "City or town name."
+                },
+                "neighbourhood_or_area": {
+                  "type": ["string", "null"],
+                  "description": "Neighbourhood or area within the city."
+                }
+              },
+              "required": ["city_or_town", "neighbourhood_or_area"],
+              "additionalProperties": false
+            },
+            "address": {
+              "type": "object",
+              "description": "Postal address details if printed.",
+              "properties": {
+                "street": {
+                  "type": ["string", "null"],
+                  "description": "Street name."
+                },
+                "house_number": {
+                  "type": ["string", "null"],
+                  "description": "House or building number."
+                },
+                "postal_code": {
+                  "type": ["string", "null"],
+                  "description": "Postal or ZIP code."
+                }
+              },
+              "required": ["street", "house_number", "postal_code"],
+              "additionalProperties": false
+            },
+            "telephone": {
+              "type": ["string", "null"],
+              "description": "Telephone number as printed."
+            },
+            "awards": {
+              "type": "object",
+              "description": "Distinctions exactly as printed.",
+              "properties": {
+                "stars": {
+                  "type": ["integer", "null"],
+                  "description": "Michelin Stars (0-3). Use 0 if no star glyph is visible on a complete entry.",
+                  "minimum": 0,
+                  "maximum": 3
+                },
+                "bib_gourmand": {
+                  "type": ["boolean", "null"],
+                  "description": "Bib Gourmand award (Bibendum face symbol)."
+                },
+                "michelin_plate": {
+                  "type": ["boolean", "null"],
+                  "description": "Michelin Plate (2016-2021) or Selected Restaurant (2022+)."
+                },
+                "green_star": {
+                  "type": ["boolean", "null"],
+                  "description": "Green Star for sustainable gastronomy (2020+)."
+                },
+                "new_in_guide": {
+                  "type": ["boolean", "null"],
+                  "description": "Newly listed in this edition."
+                },
+                "pleasant_marker": {
+                  "type": ["boolean", "null"],
+                  "description": "Pleasant or charming establishment marker."
+                },
+                "comfort_covers": {
+                  "type": ["integer", "null"],
+                  "description": "Comfort rating (1-5) from crossed fork-and-spoon glyph count. Not a food quality rating.",
+                  "minimum": 1,
+                  "maximum": 5
+                }
+              },
+              "required": [
+                "stars",
+                "bib_gourmand",
+                "michelin_plate",
+                "green_star",
+                "new_in_guide",
+                "pleasant_marker",
+                "comfort_covers"
+              ],
+              "additionalProperties": false
+            },
+            "cuisine": {
+              "type": "object",
+              "description": "Culinary style and specialty information.",
+              "properties": {
+                "styles": {
+                  "type": ["array", "null"],
+                  "description": "Primary cuisine type label as printed (e.g. 'Cuisine traditionnelle', 'Italian').",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "specialties": {
+                  "type": ["array", "null"],
+                  "description": "Signature dishes or specialties mentioned in the guide.",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": ["styles", "specialties"],
+              "additionalProperties": false
+            },
+            "opening": {
+              "type": "object",
+              "description": "Opening hours and closure patterns.",
+              "properties": {
+                "days_closed": {
+                  "type": ["array", "null"],
+                  "description": "Days of the week when closed.",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                "annual_closure": {
+                  "type": ["string", "null"],
+                  "description": "Annual closure periods (e.g. vacation dates)."
+                }
+              },
+              "required": ["days_closed", "annual_closure"],
+              "additionalProperties": false
+            },
+            "pricing": {
+              "type": "object",
+              "description": "Menu and a-la-carte price ranges.",
+              "properties": {
+                "currency": {
+                  "type": ["string", "null"],
+                  "description": "ISO 4217 currency code (e.g. 'EUR', 'GBP', 'CHF', 'FRF', 'DEM')."
+                },
+                "menu_price_min": {
+                  "type": ["number", "null"],
+                  "description": "Minimum set menu price."
+                },
+                "menu_price_max": {
+                  "type": ["number", "null"],
+                  "description": "Maximum set menu price."
+                },
+                "a_la_carte_price_min": {
+                  "type": ["number", "null"],
+                  "description": "Minimum a la carte price."
+                },
+                "a_la_carte_price_max": {
+                  "type": ["number", "null"],
+                  "description": "Maximum a la carte price."
+                },
+                "lunch_menu_price": {
+                  "type": ["number", "null"],
+                  "description": "Fixed lunch menu price if specified separately."
+                }
+              },
+              "required": [
+                "currency",
+                "menu_price_min",
+                "menu_price_max",
+                "a_la_carte_price_min",
+                "a_la_carte_price_max",
+                "lunch_menu_price"
+              ],
+              "additionalProperties": false
+            },
+            "amenities": {
+              "type": "object",
+              "description": "Boolean flags from printed pictograms.",
+              "properties": {
+                "wheelchair_access": {
+                  "type": ["boolean", "null"],
+                  "description": "Wheelchair accessibility available."
+                },
+                "air_conditioning": {
+                  "type": ["boolean", "null"],
+                  "description": "Air conditioning available."
+                },
+                "terrace": {
+                  "type": ["boolean", "null"],
+                  "description": "Terrace seating available."
+                },
+                "garden_or_park": {
+                  "type": ["boolean", "null"],
+                  "description": "Garden or park on premises."
+                },
+                "great_view": {
+                  "type": ["boolean", "null"],
+                  "description": "Notable or scenic view."
+                },
+                "parking": {
+                  "type": ["boolean", "null"],
+                  "description": "Parking available on-site or nearby."
+                },
+                "has_rooms": {
+                  "type": ["boolean", "null"],
+                  "description": "Restaurant or inn with letting rooms."
+                }
+              },
+              "required": [
+                "wheelchair_access",
+                "air_conditioning",
+                "terrace",
+                "garden_or_park",
+                "great_view",
+                "parking",
+                "has_rooms"
+              ],
+              "additionalProperties": false
+            },
+            "rooms": {
+              "type": "object",
+              "description": "Room details if has_rooms is true.",
+              "properties": {
+                "room_count": {
+                  "type": ["integer", "null"],
+                  "description": "Number of guest rooms."
+                },
+                "room_price_min": {
+                  "type": ["number", "null"],
+                  "description": "Minimum room price per night."
+                },
+                "room_price_max": {
+                  "type": ["number", "null"],
+                  "description": "Maximum room price per night."
+                }
+              },
+              "required": ["room_count", "room_price_min", "room_price_max"],
+              "additionalProperties": false
+            },
+            "accepts_credit_cards": {
+              "type": ["boolean", "null"],
+              "description": "Any credit card payment symbols visible near the entry."
+            },
+            "inspector_note": {
+              "type": ["string", "null"],
+              "description": "Verbatim inspector prose note (2-3 lines, introduced 2003). Null for pre-2003 editions."
+            },
+            "entry_is_fragment": {
+              "type": "boolean",
+              "description": "True if entry is incomplete because it spans a page boundary."
+            }
+          },
+          "required": [
+            "establishment_name",
+            "location",
+            "address",
+            "telephone",
+            "awards",
+            "cuisine",
+            "opening",
+            "pricing",
+            "amenities",
+            "rooms",
+            "accepts_credit_cards",
+            "inspector_note",
+            "entry_is_fragment"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "contains_no_content_of_requested_type",
+      "active_city_or_town",
+      "entries"
+    ],
+    "additionalProperties": false
+  }
+}

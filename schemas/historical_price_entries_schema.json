@@ -1,0 +1,97 @@
+{
+  "name": "HistoricalPriceEntries",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no price data (e.g., only prose, front matter, bibliography, or index pages). Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "description": "Array of individual price observations extracted from the text. Each entry is ONE price observation for ONE commodity in ONE year (or sub-year period). If a table row has values in 5 commodity columns, produce 5 separate entries.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "year": {
+              "type": "integer",
+              "description": "The year of the observation. For harvest years (H.Yr.), use the starting calendar year (e.g., H.Yr. 1630 = 1630)."
+            },
+            "quarter": {
+              "type": ["string", "null"],
+              "description": "Sub-annual period if given: '1st Qr', '2nd Qr', '3rd Qr', '4th Qr', 'Year' (annual average), or a specific term/season. Use null if the observation is annual or undifferentiated."
+            },
+            "commodity": {
+              "type": "string",
+              "description": "Commodity name exactly as it appears in the table header or series note. Examples: 'Wheat', 'Oats', 'Beef and Mutton', 'Candles', 'Cloth A', 'Hops'."
+            },
+            "value": {
+              "type": ["number", "null"],
+              "description": "The numeric price value, in the units specified in the column header. Preserve full decimal precision. Use null if the cell is empty, contains only a dash, or contains a non-numeric symbol."
+            },
+            "value_text": {
+              "type": ["string", "null"],
+              "description": "The raw text of the value cell if it contains special characters, annotations, or is non-numeric. Examples: '(29.94)', '36.67*', '<3.33>', 'ca 12.50'. Use null if the value is a clean number with no annotations."
+            },
+            "currency_unit": {
+              "type": "string",
+              "description": "The price unit exactly as stated in the table header. Examples: 's. per qr.', 's. per stone', 's. per doz. lb.', 's. per cwt.', 's. per piece', 's. per load', 's. per bushel', 's. per ream', 's. per biga', 's. per doz. gals.', 's. per ell'."
+            },
+            "section": {
+              "type": "string",
+              "description": "The institutional section of the book. Examples: 'Winchester College', 'Eton College', 'Westminster', 'Charterhouse', 'Sandwich', 'Greenwich Hospital', 'Chelsea Hospital', 'Lord Steward', 'Lord Chamberlain', 'Office of Works', 'Navy Victualling', 'Naval Stores', 'Price-Relatives'."
+            },
+            "is_estimated": {
+              "type": "boolean",
+              "description": "True if the value appears in parentheses () indicating an estimated or interpolated price."
+            },
+            "is_flagged": {
+              "type": "boolean",
+              "description": "True if the value has an asterisk (*), dagger, or other special annotation mark."
+            },
+            "is_estate_price": {
+              "type": "boolean",
+              "description": "True if the value appears in angular brackets <> indicating a price from college estates or contracted supply."
+            },
+            "includes_carriage": {
+              "type": "boolean",
+              "description": "True if the price is noted as including carriage costs (marked 'ca' in the source)."
+            },
+            "page_number": {
+              "type": ["integer", "null"],
+              "description": "The book page number where this observation appears, if identifiable from page headers or markers. Use null if not determinable."
+            },
+            "notes": {
+              "type": ["string", "null"],
+              "description": "Any additional annotations, qualifications, or contextual notes visible in or near the data cell. Use null if none."
+            }
+          },
+          "required": [
+            "year",
+            "quarter",
+            "commodity",
+            "value",
+            "value_text",
+            "currency_unit",
+            "section",
+            "is_estimated",
+            "is_flagged",
+            "is_estate_price",
+            "includes_carriage",
+            "page_number",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "contains_no_content_of_requested_type",
+      "entries"
+    ],
+    "additionalProperties": false
+  }
+}
