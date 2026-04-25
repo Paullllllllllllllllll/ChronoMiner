@@ -1,4 +1,4 @@
-# ChronoMiner v1.0.0
+# ChronoMiner v1.0.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
