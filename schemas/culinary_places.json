@@ -1,0 +1,408 @@
+{
+  "name": "CulinaryPlacesEntries",
+  "schema_version": "3.0",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no culinary places. Otherwise, set to false."
+      },
+      "entries": {
+        "description": "List of places of culinary importance. If no places are found, return an empty array.",
+        "anyOf": [
+          {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "names": {
+                  "description": "Canonical identifiers for the place in original and modern English form.",
+                  "type": "object",
+                  "properties": {
+                    "original": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Place name exactly as found in the source (preserve spelling, capitalization, and diacritics)."
+                    },
+                    "modern_english": {
+                      "anyOf": [
+                        { "type": "string" },
+                        { "type": "null" }
+                      ],
+                      "description": "Modern English equivalent of the place name. Example: 'Firenze' → 'Florence'. If no change is customary, repeat the original."
+                    }
+                  },
+                  "required": ["original", "modern_english"],
+                  "additionalProperties": false
+                },
+                "short_notes": {
+                  "description": "1–5 sentences summarizing the place's culinary relevance or key context. Null if not enough information is given.",
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "null" }
+                  ]
+                },
+                "timeframe": {
+                  "description": "Timeframe when the place held importance in culinary history context according to the input text. Null if no timeframe is given or deducible.",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "start_year": {
+                          "type": ["integer", "null"],
+                          "description": "Earliest relevant year (four-digit Gregorian). Use null if unknown."
+                        },
+                        "end_year": {
+                          "type": ["integer", "null"],
+                          "description": "Latest relevant year (four-digit Gregorian). Use null if unknown."
+                        },
+                        "notation": {
+                          "type": ["string", "null"],
+                          "description": "Human-readable note about timing. Example: '18th c.' or 'opened 1896'."
+                        }
+                      },
+                      "required": ["start_year", "end_year", "notation"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "events": {
+                  "description": "Key historical events associated with the place (e.g., establishment, destruction, major renovations).",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "event_type": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Establishment",
+                                  "Destruction",
+                                  "Renovation",
+                                  "Expansion",
+                                  "Closure",
+                                  "Ownership Change",
+                                  "Major Event",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Type of event."
+                          },
+                          "year": {
+                            "type": ["integer", "null"],
+                            "description": "Year of the event (four-digit Gregorian). Use null if unknown."
+                          },
+                          "description": {
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ],
+                            "description": "Brief description of the event."
+                          }
+                        },
+                        "required": ["event_type", "year", "description"],
+                        "additionalProperties": false
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "geography": {
+                  "description": "Standardized geographical context for the place, capturing key city and country names.",
+                  "anyOf": [
+                    {
+                      "type": "object",
+                      "properties": {
+                        "city_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "City or locality as recorded in the source."
+                        },
+                        "city_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern English name for the city or locality."
+                        },
+                        "country_original": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Country name as written in the source."
+                        },
+                        "country_modern": {
+                          "anyOf": [
+                            { "type": "string" },
+                            { "type": "null" }
+                          ],
+                          "description": "Modern English country name."
+                        }
+                      },
+                      "required": ["city_original", "city_modern", "country_original", "country_modern"],
+                      "additionalProperties": false
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "historical_importance": {
+                  "description": "Standardized measure of historical importance on a scale from 1 (lowest) to 7 (highest). If not explicitly discussed, deduce from the length of the discussion of the place in the text - if place is only mentioned very briefly, set to 1; if discussed extensively, set to 7.",
+                  "anyOf": [
+                    {
+                      "type": "integer",
+                      "minimum": 1,
+                      "maximum": 7
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "place_type": {
+                  "description": "Best-fitting category for the place.",
+                  "anyOf": [
+                    {
+                      "type": "string",
+                      "enum": [
+                        "City",
+                        "Region",
+                        "Country",
+                        "Market",
+                        "Harbor",
+                        "Restaurant",
+                        "CulinarySchool",
+                        "Court",
+                        "MonasticCenter",
+                        "Inn",
+                        "Other",
+                        "Unknown"
+                      ]
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "roles_in_culinary_ecosystem": {
+                  "description": "Functional roles this place played in food systems and culture. Select one or more.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "string",
+                        "enum": [
+                          "MarketCenter",
+                          "ProductionArea",
+                          "Harbor/Gateway",
+                          "DistributionHub",
+                          "Restaurant",
+                          "CourtKitchen",
+                          "MonasticKitchen",
+                          "CulinarySchool",
+                          "Inn",
+                          "Other",
+                          "Unknown"
+                        ],
+                        "description": "One role value from the controlled list."
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                },
+                "associations": {
+                  "description": "Unified list of related entities such as people, products, works, establishments, organizations, or other places connected to this location.",
+                  "anyOf": [
+                    {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "entity_type": {
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Person",
+                                  "Place",
+                                  "Work",
+                                  "Product",
+                                  "Establishment",
+                                  "Event",
+                                  "Organization",
+                                  "Other"
+                                ]
+                              },
+                              { "type": "null" }
+                            ],
+                            "description": "Type of associated entity."
+                          },
+                          "entity_label_original": {
+                            "description": "Name or label of the associated entity as it appears in the source.",
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ]
+                          },
+                          "entity_label_modern": {
+                            "description": "Modern English or standardized label for the associated entity, if applicable.",
+                            "anyOf": [
+                              { "type": "string" },
+                              { "type": "null" }
+                            ]
+                          },
+                          "relationship": {
+                            "description": "Nature of the connection between the place and the associated entity.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "AssociatedWith",
+                                  "LocatedIn",
+                                  "CreatedBy",
+                                  "Created",
+                                  "Mentions",
+                                  "MentionedBy",
+                                  "References",
+                                  "ReferencedBy",
+                                  "Cites",
+                                  "CitedBy",
+                                  "PartOf",
+                                  "Contains",
+                                  "OwnedBy",
+                                  "OperatedBy",
+                                  "PatronOf",
+                                  "SupportedBy",
+                                  "CollaboratedWith",
+                                  "SucceededBy",
+                                  "PrecededBy",
+                                  "TeacherOf",
+                                  "StudentOf",
+                                  "ApprenticeOf",
+                                  "MasterOf",
+                                  "Mentored",
+                                  "MentoredBy",
+                                  "Inspired",
+                                  "InspiredBy",
+                                  "DocumentedIn",
+                                  "DocumentedBy",
+                                  "AdaptedFrom",
+                                  "AdaptedInto",
+                                  "Influenced",
+                                  "InfluencedBy",
+                                  "Birthplace",
+                                  "Residence",
+                                  "Court",
+                                  "Workplace",
+                                  "Apprenticeship",
+                                  "Education",
+                                  "Travel",
+                                  "BurialPlace",
+                                  "Patronage",
+                                  "PublicationPlace",
+                                  "RecipeOrigin",
+                                  "DistributionArea",
+                                  "Setting",
+                                  "ReferencedLocation",
+                                  "SubjectLocation",
+                                  "EventLocation",
+                                  "Founded",
+                                  "WorkedAt",
+                                  "Owned",
+                                  "Visited",
+                                  "Patron",
+                                  "Resident",
+                                  "Contributor",
+                                  "Dedicatee",
+                                  "Sponsor",
+                                  "Collector",
+                                  "Mentioned",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          },
+                          "role": {
+                            "description": "Specific role played by the associated entity in relation to this place, when applicable.",
+                            "anyOf": [
+                              {
+                                "type": "string",
+                                "enum": [
+                                  "Author",
+                                  "CoAuthor",
+                                  "Editor",
+                                  "Translator",
+                                  "Commentator",
+                                  "Annotator",
+                                  "Compiler",
+                                  "Contributor",
+                                  "Publisher",
+                                  "Printer",
+                                  "Illustrator",
+                                  "Cartographer",
+                                  "Engraver",
+                                  "Woodcutter",
+                                  "Lithographer",
+                                  "PrefaceWriter",
+                                  "IndexMaker",
+                                  "Dedicatee",
+                                  "Patron",
+                                  "Sponsor",
+                                  "Owner",
+                                  "Collector",
+                                  "Subject",
+                                  "Mentioned",
+                                  "Inspired",
+                                  "InspiredBy",
+                                  "DocumentedBy",
+                                  "Painter",
+                                  "Other",
+                                  "Unknown"
+                                ]
+                              },
+                              { "type": "null" }
+                            ]
+                          }
+                        },
+                        "required": ["entity_type", "entity_label_original", "entity_label_modern", "relationship", "role"],
+                        "additionalProperties": false
+                      }
+                    },
+                    { "type": "null" }
+                  ]
+                }
+              },
+              "required": [
+                "names",
+                "short_notes",
+                "timeframe",
+                "events",
+                "geography",
+                "historical_importance",
+                "place_type",
+                "roles_in_culinary_ecosystem",
+                "associations"
+              ],
+              "additionalProperties": false
+            }
+          },
+          { "type": "null" }
+        ]
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

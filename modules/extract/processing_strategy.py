@@ -1,0 +1,453 @@
+# modules/extract/processing_strategy.py
+
+"""
+Processing strategy abstraction for synchronous vs batch execution.
+Separates execution logic from file processing orchestration.
+
+Supports multiple LLM providers via LangChain:
+- OpenAI (default)
+- Anthropic (Claude)
+- Google (Gemini)
+- OpenRouter (multi-provider access)
+
+Batch processing supports OpenAI, Anthropic, and Google providers.
+OpenRouter does not support batch processing.
+"""
+
+import asyncio
+import json
+import logging
+import os
+import time
+import random
+from pathlib import Path
+from abc import ABC, abstractmethod
+from typing import Any
+
+from modules.batch.backends import (
+    BatchHandle,
+    BatchRequest,
+    get_batch_backend,
+    supports_batch,
+)
+from modules.config.capabilities import detect_capabilities
+from modules.llm.langchain_provider import ProviderConfig
+from modules.llm.openai_utils import (
+    open_extractor,
+    process_image_chunk,
+    process_text_chunk,
+)
+
+logger = logging.getLogger(__name__)
+
+
+class ProcessingStrategy(ABC):
+    """Abstract base class for processing strategies."""
+
+    @abstractmethod
+    async def process_chunks(
+        self,
+        chunks: list[str],
+        handler: Any,
+        dev_message: str,
+        model_config: dict[str, Any],
+        schema: dict[str, Any],
+        file_path: Path,
+        temp_jsonl_path: Path,
+        console_print: Any,
+        completed_chunk_indices: set | None = None,
+        image_chunks: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """
+        Process text chunks using the strategy.
+
+        :param chunks: List of text chunks to process
+        :param handler: Schema handler instance
+        :param dev_message: Developer/system message
+        :param model_config: Model configuration
+        :param schema: JSON schema
+        :param file_path: Source file path
+        :param temp_jsonl_path: Temporary JSONL file path
+        :param console_print: Console print function
+        :param completed_chunk_indices: 1-based indices of chunks already processed (for resume)
+        :param image_chunks: Optional list of image chunk dicts with 'base64', 'mime_type', 'detail' keys.
+            When provided, process_image_chunk() is used instead of process_text_chunk().
+        :return: List of processing results
+        """
+        pass
+
+
+class SynchronousProcessingStrategy(ProcessingStrategy):
+    """Synchronous (real-time) processing strategy."""
+
+    def __init__(self, concurrency_config: dict[str, Any] | None = None) -> None:
+        """
+        Initialize synchronous processing strategy.
+
+        :param concurrency_config: Concurrency configuration
+        """
+        self.concurrency_config = concurrency_config or {}
+
+    async def process_chunks(
+        self,
+        chunks: list[str],
+        handler: Any,
+        dev_message: str,
+        model_config: dict[str, Any],
+        schema: dict[str, Any],
+        file_path: Path,
+        temp_jsonl_path: Path,
+        console_print: Any,
+        completed_chunk_indices: set | None = None,
+        image_chunks: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Process chunks synchronously with concurrent API calls."""
+        # Detect provider: prefer explicit config, fall back to auto-detection
+        model_name = model_config["extraction_model"]["name"]
+        config_provider = model_config["extraction_model"].get("provider")
+        valid_providers = ("openai", "anthropic", "google", "openrouter", "custom")
+        if config_provider and config_provider in valid_providers:
+            provider = config_provider
+        else:
+            provider = ProviderConfig._detect_provider(model_name)
+        api_key = ProviderConfig._get_api_key(provider)
+        
+        if not api_key:
+            error_msg = f"API key not found for provider {provider}. Set the appropriate environment variable."
+            logger.error(error_msg)
+            console_print(f"[ERROR] {error_msg}")
+            raise ValueError(error_msg)
+
+        skip_indices = completed_chunk_indices or set()
+        chunks_to_process = [
+            (idx, chunk) for idx, chunk in enumerate(chunks, 1)
+            if idx not in skip_indices
+        ]
+        if skip_indices:
+            console_print(
+                f"[INFO] Resuming: {len(chunks_to_process)} new chunks/pages to process "
+                f"({len(skip_indices)} already done)"
+            )
+        console_print(f"[INFO] Starting synchronous processing of {len(chunks_to_process)} chunks/pages...")
+        results: list[dict[str, Any]] = []
+
+        # Extract concurrency settings
+        extraction_cfg = (
+            (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
+        )
+        retry_cfg = (extraction_cfg.get("retry", {}) or {})
+        total_chunks = len(chunks)
+        try:
+            configured_limit = int(extraction_cfg.get("concurrency_limit", total_chunks or 1))
+        except (ValueError, TypeError):
+            configured_limit = total_chunks or 1
+        concurrency_limit = max(1, min(configured_limit, total_chunks or 1))
+        delay_between_tasks = float(extraction_cfg.get("delay_between_tasks", 0.0) or 0.0)
+
+        try:
+            retry_attempts = int(retry_cfg.get("attempts", 1))
+        except (ValueError, TypeError):
+            retry_attempts = 1
+        retry_attempts = max(1, retry_attempts)
+        wait_min_seconds = float(retry_cfg.get("wait_min_seconds", 1.0) or 1.0)
+        wait_max_seconds = float(retry_cfg.get("wait_max_seconds", 60.0) or 60.0)
+        jitter_max_seconds = float(retry_cfg.get("jitter_max_seconds", 0.0) or 0.0)
+
+        if provider == "anthropic":
+            concurrency_limit = 1
+
+        # Detect prompt caching capability for Anthropic models
+        caps = detect_capabilities(model_name, provider=provider)
+        enable_cache = caps.supports_prompt_caching
+
+        is_visual = image_chunks is not None and len(image_chunks) > 0
+        prompt_path = (
+            Path("prompts/image_extraction_prompt.txt")
+            if is_visual
+            else Path("prompts/text_extraction_prompt.txt")
+        )
+
+        file_mode = "a" if skip_indices else "w"
+        async with open_extractor(
+            api_key=api_key,
+            prompt_path=prompt_path,
+            model=model_config["extraction_model"]["name"],
+            provider=provider,
+            model_config_override=model_config,
+            concurrency_config_override=self.concurrency_config,
+        ) as extractor:
+            with temp_jsonl_path.open(file_mode, encoding="utf-8") as tempf:
+                semaphore = asyncio.Semaphore(concurrency_limit)
+
+                async def process_single_chunk(idx: int, chunk: str) -> dict[str, Any]:
+                    """Process a single chunk with semaphore control."""
+                    # Pre-compute unit_label so it is available to exception
+                    # branches that fire before the success path has defined it.
+                    unit_label = "page" if is_visual else "chunk"
+                    if delay_between_tasks > 0:
+                        await asyncio.sleep(delay_between_tasks)
+                    async with semaphore:
+
+                        for attempt in range(retry_attempts):
+                            try:
+                                # Route to image or text processing
+                                if is_visual and image_chunks is not None:
+                                    img_data = image_chunks[idx - 1]
+                                    result = await process_image_chunk(
+                                        image_base64=img_data["base64"],
+                                        mime_type=img_data["mime_type"],
+                                        extractor=extractor,
+                                        system_message=dev_message,
+                                        json_schema=schema,
+                                        image_detail=img_data.get("detail"),
+                                        enable_cache_control=enable_cache,
+                                    )
+                                else:
+                                    result = await process_text_chunk(
+                                        text_chunk=chunk,
+                                        extractor=extractor,
+                                        system_message=dev_message,
+                                        json_schema=schema,
+                                        enable_cache_control=enable_cache,
+                                    )
+
+                                # Write to temp file
+                                request_obj = handler.prepare_payload(
+                                    chunk, dev_message, model_config, schema
+                                )
+                                request_obj["custom_id"] = f"{file_path.stem}-chunk-{idx}"
+
+                                response_obj = {
+                                    "custom_id": request_obj["custom_id"],
+                                    "response": {
+                                        "body": result
+                                    }
+                                }
+                                tempf.write(json.dumps(response_obj) + "\n")
+                                tempf.flush()
+
+                                console_print(f"[INFO] Processed {unit_label} {idx}/{total_chunks}")
+                                return result
+                            except Exception as e:  # Intentionally broad: LangChain/API errors are diverse and unpredictable
+                                msg = str(e)
+                                is_429 = "429" in msg or "rate_limit" in msg.lower()
+                                if provider == "anthropic" and is_429 and attempt < (retry_attempts - 1):
+                                    base_wait = min(wait_max_seconds, wait_min_seconds * (2 ** attempt))
+                                    jitter = random.uniform(0.0, jitter_max_seconds) if jitter_max_seconds > 0 else 0.0
+                                    wait_s = min(wait_max_seconds, base_wait + jitter)
+                                    logger.warning(
+                                        "Rate-limited on chunk/page %s (attempt %s/%s). Waiting %.1fs and retrying.",
+                                        idx,
+                                        attempt + 1,
+                                        retry_attempts,
+                                        wait_s,
+                                    )
+                                    await asyncio.sleep(wait_s)
+                                    continue
+
+                                logger.error(f"Error processing {unit_label} {idx}: {e}", exc_info=e)
+                                console_print(f"[ERROR] Failed to process {unit_label} {idx}: {e}")
+                                return {"error": str(e)}
+                        # If all retries exhausted without returning, return error
+                        return {"error": f"Max retries ({retry_attempts}) exhausted for {unit_label} {idx}"}
+
+                # Process chunks (skipping already-completed ones)
+                tasks = [
+                    process_single_chunk(idx, chunk)
+                    for idx, chunk in chunks_to_process
+                ]
+                results = await asyncio.gather(*tasks, return_exceptions=False)
+
+        console_print(f"[SUCCESS] Completed synchronous processing of {len(chunks_to_process)} chunks/pages")
+        return results
+
+
+class BatchProcessingStrategy(ProcessingStrategy):
+    """Batch (deferred) processing strategy.
+    
+    Supports multiple providers:
+    - OpenAI: Uses OpenAI Batch API with /v1/responses endpoint
+    - Anthropic: Uses Anthropic Message Batches API
+    - Google: Uses Google Gemini Batch API
+    - OpenRouter: Not supported (falls back to sync or raises error)
+    """
+
+    def __init__(self, concurrency_config: dict[str, Any] | None = None) -> None:
+        """
+        Initialize batch processing strategy.
+
+        :param concurrency_config: Concurrency configuration (used for service_tier, etc.)
+        """
+        self.concurrency_config = concurrency_config or {}
+
+    async def process_chunks(
+        self,
+        chunks: list[str],
+        handler: Any,
+        dev_message: str,
+        model_config: dict[str, Any],
+        schema: dict[str, Any],
+        file_path: Path,
+        temp_jsonl_path: Path,
+        console_print: Any,
+        completed_chunk_indices: set | None = None,
+        image_chunks: list[dict[str, Any]] | None = None,
+    ) -> list[dict[str, Any]]:
+        """Prepare and submit batch processing job using provider-agnostic backend."""
+        # Detect provider from model config
+        tm = model_config.get("extraction_model", {})
+        provider = tm.get("provider")
+        if not provider:
+            model_name = tm.get("name", "")
+            provider = ProviderConfig._detect_provider(model_name)
+
+        # Check if provider supports batch processing
+        if not supports_batch(provider):
+            error_msg = (
+                f"Provider '{provider}' does not support batch processing. "
+                f"Use synchronous mode or switch to openai, anthropic, or google."
+            )
+            console_print(f"[ERROR] {error_msg}")
+            raise ValueError(error_msg)
+
+        # Build BatchRequest objects for the provider-agnostic backend
+        is_visual_batch = image_chunks is not None and len(image_chunks) > 0
+        batch_requests: list[BatchRequest] = []
+
+        if is_visual_batch:
+            assert image_chunks is not None
+            console_print(
+                f"[INFO] Preparing visual batch processing for {len(image_chunks)} "
+                f"page(s) (provider: {provider})..."
+            )
+            for idx, img in enumerate(image_chunks, 1):
+                custom_id = f"{file_path.stem}-page-{idx}"
+                batch_requests.append(BatchRequest(
+                    custom_id=custom_id,
+                    image_base64=img["base64"],
+                    mime_type=img["mime_type"],
+                    image_detail=img.get("detail"),
+                    order_index=idx,
+                    metadata={
+                        "file_path": str(file_path),
+                        "page_index": idx,
+                        "total_pages": len(image_chunks),
+                    },
+                ))
+        else:
+            console_print(
+                f"[INFO] Preparing batch processing for {len(chunks)} "
+                f"chunks (provider: {provider})..."
+            )
+            for idx, chunk in enumerate(chunks, 1):
+                custom_id = f"{file_path.stem}-chunk-{idx}"
+                batch_requests.append(BatchRequest(
+                    custom_id=custom_id,
+                    text=chunk,
+                    order_index=idx,
+                    metadata={
+                        "file_path": str(file_path),
+                        "chunk_index": idx,
+                        "total_chunks": len(chunks),
+                    },
+                ))
+        
+        # Get the appropriate batch backend
+        try:
+            backend = get_batch_backend(provider)
+        except ValueError as e:
+            console_print(f"[ERROR] {e}")
+            raise
+
+        # Extract schema name from handler if available
+        schema_name = getattr(handler, "schema_name", None) or "ExtractionSchema"
+
+        # Inject service_tier from concurrency_config into model_config for the backend (CM-2)
+        extraction_cfg = (
+            (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
+        )
+        service_tier = extraction_cfg.get("service_tier")
+        effective_model_config = model_config
+        if service_tier:
+            tm_copy = dict(model_config.get("extraction_model", {}))
+            tm_copy["service_tier"] = service_tier
+            effective_model_config = {**model_config, "extraction_model": tm_copy}
+
+        # Submit batch using the provider-agnostic backend
+        try:
+            console_print(f"[INFO] Submitting batch to {provider}...")
+            handle: BatchHandle = await asyncio.to_thread(
+                backend.submit_batch,
+                batch_requests,
+                effective_model_config,
+                system_prompt=dev_message,
+                schema=schema,
+                schema_name=schema_name,
+            )
+            
+            # Write tracking record to temp JSONL file
+            tracking_record = {
+                "batch_tracking": {
+                    "batch_id": handle.batch_id,
+                    "provider": handle.provider,
+                    "timestamp": int(time.time()),
+                    "request_count": len(batch_requests),
+                    "metadata": handle.metadata,
+                }
+            }
+            
+            # Also write batch request metadata for result correlation
+            with temp_jsonl_path.open("w", encoding="utf-8") as tempf:
+                # Write request metadata lines first
+                for req in batch_requests:
+                    request_meta = {
+                        "batch_request": {
+                            "custom_id": req.custom_id,
+                            "order_index": req.order_index,
+                            "metadata": req.metadata,
+                        }
+                    }
+                    tempf.write(json.dumps(request_meta) + "\n")
+                # Write tracking record at the end
+                tempf.write(json.dumps(tracking_record) + "\n")
+            
+            console_print(
+                f"[SUCCESS] Batch submitted successfully. Batch ID: {handle.batch_id}"
+            )
+            logger.info(
+                "Batch submitted to %s. ID: %s, Requests: %d, File: %s",
+                provider,
+                handle.batch_id,
+                len(batch_requests),
+                temp_jsonl_path
+            )
+            
+        except Exception as e:  # Intentionally broad: batch backends can raise diverse provider-specific errors
+            logger.error(f"Error during batch submission: {e}", exc_info=True)
+            console_print(f"[ERROR] Failed to submit batch: {e}")
+            raise
+        
+        console_print(
+            f"[SUCCESS] Submitted batch to {provider}. "
+            f"Use check_batches.py to monitor progress."
+        )
+        
+        # Return empty list since results will be retrieved later
+        return []
+
+
+def create_processing_strategy(
+    use_batch: bool,
+    concurrency_config: dict[str, Any] | None = None
+) -> ProcessingStrategy:
+    """
+    Factory function to create appropriate processing strategy.
+
+    :param use_batch: Whether to use batch processing
+    :param concurrency_config: Concurrency configuration
+    :return: ProcessingStrategy instance
+    """
+    if use_batch:
+        return BatchProcessingStrategy(concurrency_config)
+    else:
+        return SynchronousProcessingStrategy(concurrency_config)

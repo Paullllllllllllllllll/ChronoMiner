@@ -1,0 +1,4 @@
+The input text consists of excerpts from academic papers and scholarly literature across the humanities and social sciences. Passages typically include section headings, thesis statements, methodological notes, and substantive semantic content. The text may appear in different languages and uses a formal scholarly tone with citations and footnote markers. Natural semantic markers for this type of text are the beginnings of new pages.
+
+Semantic Boundary task rules (use when identifying semantic boundaries)
+-

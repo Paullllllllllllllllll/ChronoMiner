@@ -1,0 +1,11 @@
+**Table 6.** Micro-averaged F1 scores (%) for structured data extraction by model, document category, and chunk size. Higher values indicate better extraction quality.
+
+| Model | Addr. Books (c2500) | Addr. Books (c5000) | Bibliography (c2500) | Bibliography (c5000) | Mil. Records (c2500) | Mil. Records (c5000) |
+|-------|----:|----:|----:|----:|----:|----:|
+| GPT-5.2 | 51.15 | 40.64 | 67.91 | 63.00 | 31.11 | 31.11 |
+| GPT-5 Mini | 21.84 | 11.09 | 54.71 | 44.87 | 17.78 | 17.78 |
+| Claude Sonnet 4.5 | 54.64 | 40.84 | 50.61 | 76.62 | 40.00 | 40.00 |
+| Claude Haiku 4.5 | 42.97 | 48.81 | 58.15 | 63.73 | 30.43 | 30.43 |
+| GPT-OSS-120b | 13.95 | 5.32 | 47.44 | 40.00 | 40.00 | 42.86 |
+
+*Notes:* Micro-averaged F1 is computed over all evaluated schema fields using Levenshtein fuzzy matching (similarity threshold = 0.85). Gemini models are excluded because all three evaluation schemas exceed the Gemini structured outputs API nesting depth limit (≤5 levels). GPT-OSS-120b is an open-weight 117B MoE model accessed via DeepInfra on OpenRouter (fp4 quantization). c2500 and c5000 denote the target chunk size in tokens.

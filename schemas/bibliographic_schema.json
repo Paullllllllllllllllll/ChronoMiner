@@ -1,0 +1,308 @@
+{
+  "name": "BibliographicEntries",
+  "schema_version": "4.4",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no bibliographic entries. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "full_title": {
+              "type": "string",
+              "description": "Complete official title in plain text, preserving archaic spelling, but without formatting elements such as brackets (e.g. []) or markdown symbols."
+            },
+            "short_title": {
+              "type": "string",
+              "description": "A concise title or reference name in plain text, without formatting elements such as brackets (e.g. []) or markdown symbols. Example: 'Art of Cooking'."
+            },
+            "main_author": {
+              "type": "string",
+              "description": "Primary author name as: First Name Middle Name(s) Last Name. Use 'Anonymous' if no author is attributed. Example: 'François Pierre de la Varenne'."
+            },
+            "institutional_main_author": {
+              "type": "boolean",
+              "description": "True if the main author is institutional (e.g. a comune, a chamber of commerce, etc .); false if not."
+            },
+            "short_note": {
+              "type": ["string", "null"],
+              "description": "A concise 3-10 sentence note with additional historiographical information (content, authors, historical context, etc.) about this work in modern english. Set to null if no such information is given in the input text."
+                  },
+            "library_abbreviation": {
+              "type": ["string", "null"],
+              "description": "Abbreviation of the holding library or archive of the first known/surviving edition of the work. Use null if not mentioned. Example: 'UBA = Universiteitsbibliotheek Amsterdam'"
+            },
+            "volumes_overview": {
+              "type": ["string", "null"],
+              "description": "Brief summary of the work's volume structure (e.g., 'Three volumes: Vol. 1 (1645) original recipes; Vol. 2 (1783) expanded regional dishes; Vol. 3 (1978) facsimile reprint with modern annotations.'). Use null when the work is single-volume."
+            },
+            "volume_numbers": {
+              "type": ["array", "null"],
+              "items": {
+                "type": ["integer", "null"]
+              },
+              "description": "Explicit enumeration of volume numbers if the source lists them; use null for confirmed single-volume works."
+            },
+            "edition_info": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "year": {
+                    "type": ["integer", "null"],
+                    "description": "The year of publication. Use an integer or null if unknown. Example: 1751."
+                  },
+                  "edition_number": {
+                    "type": ["integer", "null"],
+                    "description": "Edition number (1,2,3...) or null if unknown."
+                  },
+                  "volume_numbers": {
+                    "type": ["array", "null"],
+                    "items": {
+                      "type": "integer"
+                    },
+                    "description": "Ordered list of volume numbers covered by this edition. Use null if the edition pertains to a single-volume work or volumes are not indicated."
+                  },
+                  "publication_locations": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "original_place": {
+                          "type": ["string", "null"],
+                          "description": "Place of publication exactly as given in the input text, preserving original spelling and language. Examples: 'Potsdam', 'Londini', or 'Venedig'. Use null if not provided."
+                        },
+                        "original_region": {
+                          "type": ["string", "null"],
+                          "description": "Region, territory, or country of publication exactly as given in the input text, preserving original spelling and language. If explicitly stated, copy it as-is; otherwise, infer the most likely original_region from context when you are highly confident; otherwise use null. Examples: 'Preußen', 'England', or 'Regno di Napoli'. Use null if original_place is null."
+                        },
+                        "modern_place": {
+                          "type": ["string", "null"],
+                          "description": "Place of publication as its modern English equivalent with modern English spelling, based on 2019 borders, suitable for programmatic matching. Examples: 'Potsdam', 'London', or 'Venice'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent; use null if original_place is null."
+                        },
+                        "modern_region": {
+                          "type": ["string", "null"],
+                          "description": "Country of publication as its modern English equivalent with modern English spelling, based on 2019 borders, referring to the largest country-level geographic polity (e.g., 'United Kingdom' not 'England', 'Germany' not 'Bavaria'), suitable for programmatic matching. Examples: 'Germany', 'United Kingdom', or 'Italy'. Can be deduced from context; use 'Unknown' if you cannot determine the modern equivalent; use null if original_place is null."
+                        }
+                      },
+                      "required": ["original_place", "original_region", "modern_place", "modern_region"],
+                      "additionalProperties": false
+                    },
+                    "description": "Array of publication locations for this edition. Multiple entries indicate co-publication. Each entry captures the place and region as given in the source (original_place, original_region) alongside their modern English equivalents (modern_place, modern_region). The original_place field is the anchor: when it is null, all other fields (original_region, modern_place, modern_region) must also be null. If a region/country is not explicitly stated, original_region may be inferred from context when highly confident; otherwise it should be null."
+                  },
+                  "contributors": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "name": {
+                          "type": ["string", "null"],
+                          "description": "Contributor name as: First Name Middle Name(s) Last Name. Use 'Anonymous' if contributor is anonymous."
+                        },
+                        "role": {
+                          "type": ["string", "null"],
+                          "enum": [
+                            "Author",
+                            "CoAuthor",
+                            "Editor",
+                            "Translator",
+                            "Commentator",
+                            "Annotator",
+                            "Compiler",
+                            "Contributor",
+                            "Publisher",
+                            "Printer",
+                            "Illustrator",
+                            "Cartographer",
+                            "Engraver",
+                            "Woodcutter",
+                            "Lithographer",
+                            "PrefaceWriter",
+                            "IndexMaker",
+                            "Dedicatee",
+                            "Patron",
+                            "Sponsor",
+                            "Unknown",
+                            "Other"
+                          ],
+                          "description": "Role of the contributor for this edition. Use null if unknown."
+                        }
+                      },
+                      "required": ["name", "role"],
+                      "additionalProperties": false
+                    },
+                    "description": "Contributors for this specific edition (editors, translators, etc.), including the main author. Use empty array if none."
+                  },
+                  "edition_category": {
+                    "type": ["string", "null"],
+                    "enum": [
+                      "Original",
+                      "Reprint",
+                      "Translation",
+                      "Plagiarism",
+                      "Modified Edition",
+                      "Revised Edition",
+                      "Enlarged Edition",
+                      "Compilation",
+                      "Facsimile",
+                      "Critical Edition",
+                      "Abridged Edition",
+                      "Unknown",
+                      "Other"
+                    ],
+                    "description": "The category of the edition. Use a listed value, or null if the source omits it. Example: 'Original'."
+                  },
+                  "language": {
+                    "type": ["string", "null"],
+                    "enum": [
+                      "German",
+                      "Spanish",
+                      "English",
+                      "French",
+                      "Italian",
+                      "Dutch",
+                      "Latin",
+                      "Portuguese",
+                      "Danish",
+                      "Swedish",
+                      "Norwegian",
+                      "Finnish",
+                      "Icelandic",
+                      "Czech",
+                      "Polish",
+                      "Hungarian",
+                      "Catalan",
+                      "Greek",
+                      "Russian",
+                      "Ukrainian",
+                      "Turkish",
+                      "Arabic",
+                      "Chinese",
+                      "Japanese",
+                      "Unknown",
+                      "Other"
+                    ],
+                    "description": "Language of this edition. Use a listed value, can be deduced from context. Example: 'Italian'."
+                  },
+                  "translated_from": {
+                    "type": ["string", "null"],
+                    "enum": [
+                      "German",
+                      "Spanish",
+                      "English",
+                      "French",
+                      "Italian",
+                      "Dutch",
+                      "Latin",
+                      "Portuguese",
+                      "Danish",
+                      "Swedish",
+                      "Norwegian",
+                      "Finnish",
+                      "Icelandic",
+                      "Czech",
+                      "Polish",
+                      "Hungarian",
+                      "Catalan",
+                      "Greek",
+                      "Russian",
+                      "Ukrainian",
+                      "Turkish",
+                      "Arabic",
+                      "Chinese",
+                      "Japanese",
+                      "Unknown",
+                      "Other"
+                    ],
+                    "description": "The source language from which this edition was translated. Use a listed value, can be deduced from context. Use null if not translated. Example: 'French'."
+                  },
+                  "format": {
+                    "type": ["string", "null"],
+                    "enum": [
+                      "Folio",
+                      "Quarto",
+                      "Octavo",
+                      "Duodecimo",
+                      "Sextodecimo",
+                      "Pocket-Sized",
+                      "Miniature",
+                      "Unknown",
+                      "Other"
+                    ],
+                    "description": "Physical format of this edition. Use a listed value, or null if not provided."
+                  },
+                  "pages": {
+                    "type": ["integer", "null"],
+                    "description": "Total number of pages or leaf count for this edition, or null if unknown."
+                  },
+                  "has_illustrations": {
+                    "type": ["boolean", "null"],
+                    "description": "True if this edition contains illustrations, plates, or engravings; false if it does not; null if unknown."
+                  },
+                  "is_manuscript": {
+                    "type": ["boolean", "null"],
+                    "description": "True if this edition is handwritten (not printed); false if it is not; null if unknown."
+                  },
+                  "price_information": {
+                    "type": ["object", "null"],
+                    "properties": {
+                      "price": {
+                        "type": ["number", "null"],
+                        "description": "Numeric price value. Example: 3.50. Use null if unknown."
+                      },
+                      "currency": {
+                        "type": ["string", "null"],
+                        "description": "Currency abbreviation. Example: 'fr.' or '£'. Use null if unknown."
+                      }
+                    },
+                    "required": ["price", "currency"],
+                    "additionalProperties": false,
+                    "description": "Historical or catalog price for this edition. Use null if not mentioned."
+                  }
+                },
+                "required": [
+                  "year",
+                  "edition_number",
+                  "volume_numbers",
+                  "publication_locations",
+                  "contributors",
+                  "edition_category",
+                  "language",
+                  "translated_from",
+                  "format",
+                  "pages",
+                  "has_illustrations",
+                  "is_manuscript",
+                  "price_information"
+                ],
+                "additionalProperties": false
+              },
+              "description": "Detailed information about each edition, including the first."
+            }
+          },
+          "required": [
+            "full_title",
+            "short_title",
+            "main_author",
+            "institutional_main_author",
+            "short_note",
+            "library_abbreviation",
+            "volumes_overview",
+            "volume_numbers",
+            "edition_info"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

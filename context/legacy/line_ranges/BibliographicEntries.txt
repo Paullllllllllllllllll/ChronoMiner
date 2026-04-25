@@ -1,0 +1,4 @@
+The input text consists of bibliographic records describing historical culinary and household literature (e.g., cookbooks, household manuals, foodstuff guides, food production regulations, etc.) dated from approximately 1470 to 1950.
+
+SEMANTIC BOUNDARY IDENTIFICATION:
+Treat the start of a **full bibliographic entry (with all its editions and volumes)** as one boundary. Each boundary marks the beginning of a complete bibliographic record.

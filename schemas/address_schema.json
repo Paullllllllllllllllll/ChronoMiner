@@ -1,0 +1,92 @@
+{
+  "name": "HistoricalAddressBookEntries",
+  "schema_version": "2.0",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no address book entries. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "last_name": {
+              "type": "string",
+              "description": "The last name of the person. Example: 'Müller'."
+            },
+            "first_name": {
+              "type": "string",
+              "description": "The first name of the person. Example: 'Hans'."
+            },
+            "honorific": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Any honorific or title. Example: 'Dr.' or 'Prof.'. Use null if not applicable."
+            },
+            "address": {
+              "type": "object",
+              "properties": {
+                "street": {
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "null" }
+                  ],
+                  "description": "The street name. Use null if unknown."
+                },
+                "street_number": {
+                  "anyOf": [
+                    { "type": "string" },
+                    { "type": "null" }
+                  ],
+                  "description": "The street number. Use null if unknown."
+                }
+              },
+              "required": ["street", "street_number"],
+              "additionalProperties": false
+            },
+            "occupation": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The occupation of the person. Example: 'Bäcker' or 'Lehrer'. Use null if not specified."
+            },
+            "section": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The section or group the person belongs to. Use null if not applicable."
+            },
+            "additional_notes": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Any additional notes about the person. Example: 'Witwe' or 'Waise'. Use null if no notes are available."
+            }
+          },
+          "required": [
+            "last_name",
+            "first_name",
+            "honorific",
+            "address",
+            "occupation",
+            "section",
+            "additional_notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}
