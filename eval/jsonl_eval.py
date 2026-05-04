@@ -13,7 +13,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 
 @dataclass
@@ -22,20 +22,20 @@ class ChunkExtraction:
 
     chunk_index: int
     custom_id: str
-    extraction_data: Dict[str, Any] = field(default_factory=dict)
-    chunk_text: Optional[str] = None
-    chunk_range: Optional[Tuple[int, int]] = None
+    extraction_data: dict[str, Any] = field(default_factory=dict)
+    chunk_text: str | None = None
+    chunk_range: tuple[int, int] | None = None
 
     def has_entries(self) -> bool:
         """Check if this chunk has extracted entries."""
         entries = self.extraction_data.get("entries", [])
         return bool(entries)
 
-    def get_entries(self) -> List[Dict[str, Any]]:
+    def get_entries(self) -> list[dict[str, Any]]:
         """Get the entries list from extraction data."""
         return self.extraction_data.get("entries", [])
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "chunk_index": self.chunk_index,
@@ -51,35 +51,35 @@ class DocumentExtractions:
     """Container for all chunk extractions from a single document."""
 
     source_name: str
-    chunks: List[ChunkExtraction] = field(default_factory=list)
-    metadata: Dict[str, Any] = field(default_factory=dict)
+    chunks: list[ChunkExtraction] = field(default_factory=list)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
     def chunk_count(self) -> int:
         """Return number of chunks."""
         return len(self.chunks)
 
-    def get_chunk_by_index(self, index: int) -> Optional[ChunkExtraction]:
+    def get_chunk_by_index(self, index: int) -> ChunkExtraction | None:
         """Get chunk by its index."""
         for chunk in self.chunks:
             if chunk.chunk_index == index:
                 return chunk
         return None
 
-    def get_chunk_by_custom_id(self, custom_id: str) -> Optional[ChunkExtraction]:
+    def get_chunk_by_custom_id(self, custom_id: str) -> ChunkExtraction | None:
         """Get chunk by custom_id."""
         for chunk in self.chunks:
             if chunk.custom_id == custom_id:
                 return chunk
         return None
 
-    def get_all_entries(self) -> List[Dict[str, Any]]:
+    def get_all_entries(self) -> list[dict[str, Any]]:
         """Get all entries from all chunks, preserving order."""
         all_entries = []
         for chunk in sorted(self.chunks, key=lambda c: c.chunk_index):
             all_entries.extend(chunk.get_entries())
         return all_entries
 
-    def to_dict(self) -> Dict[str, Any]:
+    def to_dict(self) -> dict[str, Any]:
         """Convert to dictionary for serialization."""
         return {
             "source_name": self.source_name,
@@ -132,8 +132,8 @@ def parse_extraction_jsonl(jsonl_path: Path) -> DocumentExtractions:
 
 
 def _parse_chunk_record(
-    record: Dict[str, Any], line_num: int
-) -> Optional[ChunkExtraction]:
+    record: dict[str, Any], line_num: int
+) -> ChunkExtraction | None:
     """
     Parse a single JSONL record into a ChunkExtraction.
 
@@ -237,7 +237,7 @@ def find_jsonl_file(
     category: str,
     model_name: str,
     source_name: str,
-) -> Optional[Path]:
+) -> Path | None:
     """
     Find a JSONL file for a specific source/model combination.
 
@@ -278,7 +278,7 @@ def load_chunk_extractions(
     category: str,
     model_name: str,
     source_name: str,
-) -> Optional[DocumentExtractions]:
+) -> DocumentExtractions | None:
     """
     Load chunk extractions for a specific source/model combination.
 
@@ -302,8 +302,8 @@ def load_ground_truth_chunks(
     ground_truth_path: Path,
     category: str,
     source_name: str,
-    chunk_size: Optional[int] = None,
-) -> Optional[DocumentExtractions]:
+    chunk_size: int | None = None,
+) -> DocumentExtractions | None:
     """
     Load ground truth chunk extractions.
 
@@ -357,7 +357,7 @@ def _load_legacy_json_as_chunks(
             extraction_data=data if isinstance(data, dict) else {"entries": data},
         )
         doc.chunks.append(chunk)
-    except (json.JSONDecodeError, IOError):
+    except (OSError, json.JSONDecodeError):
         pass
 
     return doc
@@ -366,7 +366,7 @@ def _load_legacy_json_as_chunks(
 def align_chunks(
     hyp_doc: DocumentExtractions,
     gt_doc: DocumentExtractions,
-) -> List[Tuple[Optional[ChunkExtraction], Optional[ChunkExtraction]]]:
+) -> list[tuple[ChunkExtraction | None, ChunkExtraction | None]]:
     """
     Align hypothesis chunks with ground truth chunks.
 
@@ -444,7 +444,7 @@ def export_chunks_to_editable_txt(
 
 def import_chunks_from_editable_txt(
     txt_path: Path,
-    original_doc: Optional[DocumentExtractions] = None,
+    original_doc: DocumentExtractions | None = None,
 ) -> DocumentExtractions:
     """
     Import corrected chunk extractions from an edited text file.
@@ -558,7 +558,7 @@ def write_ground_truth_jsonl(
 def convert_legacy_json_to_jsonl(
     json_path: Path,
     jsonl_path: Path,
-    source_name: Optional[str] = None,
+    source_name: str | None = None,
 ) -> DocumentExtractions:
     """
     Convert a legacy merged JSON file to chunk-based JSONL format.

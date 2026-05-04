@@ -17,7 +17,6 @@ Supports two execution modes:
 
 import datetime
 import json
-import os
 import re
 import sys
 from argparse import ArgumentParser, Namespace
@@ -28,39 +27,26 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from openai import OpenAI
 
 from main.cli_args import create_check_batches_parser, resolve_path
 from main.dual_mode import DualModeScript
 from modules.batch import (
     BatchHandle,
-    BatchResultItem,
     BatchStatus,
     BatchStatusInfo,
-    diagnose_batch_failure,
     extract_custom_id_mapping,
     get_batch_backend,
-    supports_batch,
 )
 from modules.batch.ops import (
-    ERROR_FILE_KEYS,
-    OUTPUT_FILE_KEYS,
-    _download_error_file,
-    _extract_chunk_index,
-    _normalize_response_entry,
     _order_responses,
     _recover_missing_batch_ids,
-    _resolve_file_id_by_keys,
-    _response_to_text,
-    is_batch_finished,
     load_config,
     process_batch_output_file,
     retrieve_responses_from_batch,
 )
-from modules.config.loader import ConfigLoader, get_config_loader
+from modules.config.loader import get_config_loader
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.logger import setup_logger
-from modules.llm.openai_sdk_utils import coerce_file_id
 from modules.ui.core import UserInterface
 
 logger = setup_logger(__name__)
@@ -400,9 +386,7 @@ def process_all_batches(
                 "tracking": tracking,
                 "processing_metadata": {
                     "fully_completed": all_finished,
-                    "processed_at": datetime.datetime.now(
-                        datetime.timezone.utc
-                    ).isoformat(),
+                    "processed_at": datetime.datetime.now(datetime.UTC).isoformat(),
                     "completed_batches": len(completed_batches),
                     "failed_batches": len(failed_batches),
                     "ordered_by_custom_id": True,

@@ -1,6 +1,8 @@
 import sys
-import pytest
 from unittest.mock import Mock, patch
+
+import pytest
+
 from main.mode_detector import detect_execution_mode, get_mode_description
 
 

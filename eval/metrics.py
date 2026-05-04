@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any
 
 
 @dataclass
@@ -66,7 +66,7 @@ class EntryMetrics:
 
     entry_index: int
     matched: bool
-    field_scores: Dict[str, float] = field(default_factory=dict)
+    field_scores: dict[str, float] = field(default_factory=dict)
     overall_score: float = 0.0
 
     def to_dict(self) -> dict:
@@ -89,10 +89,10 @@ class ExtractionMetrics:
     matched_entries: int = 0
 
     # Field-level metrics
-    field_metrics: Dict[str, FieldMetrics] = field(default_factory=dict)
+    field_metrics: dict[str, FieldMetrics] = field(default_factory=dict)
 
     # Per-entry details
-    entry_details: List[EntryMetrics] = field(default_factory=list)
+    entry_details: list[EntryMetrics] = field(default_factory=list)
 
     @property
     def entry_precision(self) -> float:
@@ -273,7 +273,7 @@ def compare_values(
     threshold: float = 0.85,
     case_sensitive: bool = False,
     normalize_ws: bool = True,
-) -> Tuple[bool, float]:
+) -> tuple[bool, float]:
     """
     Compare two values with fuzzy matching support.
 
@@ -329,12 +329,12 @@ def compare_values(
 
 
 def compare_lists(
-    gt_list: List[Any],
-    hyp_list: List[Any],
+    gt_list: list[Any],
+    hyp_list: list[Any],
     threshold: float = 0.85,
     case_sensitive: bool = False,
     normalize_ws: bool = True,
-) -> Tuple[bool, float]:
+) -> tuple[bool, float]:
     """
     Compare two lists, finding best matches for each element.
 
@@ -378,12 +378,12 @@ def compare_lists(
 
 
 def compare_dicts(
-    gt_dict: Dict[str, Any],
-    hyp_dict: Dict[str, Any],
+    gt_dict: dict[str, Any],
+    hyp_dict: dict[str, Any],
     threshold: float = 0.85,
     case_sensitive: bool = False,
     normalize_ws: bool = True,
-) -> Tuple[bool, float]:
+) -> tuple[bool, float]:
     """
     Compare two dictionaries field by field.
 
@@ -416,7 +416,7 @@ def compare_dicts(
     return all_matched, avg_score
 
 
-def get_nested_value(obj: Dict[str, Any], path: str) -> Any:
+def get_nested_value(obj: dict[str, Any], path: str) -> Any:
     """
     Get a value from a nested dictionary using dot notation.
 
@@ -446,13 +446,13 @@ def get_nested_value(obj: Dict[str, Any], path: str) -> Any:
 
 
 def match_entries(
-    gt_entries: List[Dict[str, Any]],
-    hyp_entries: List[Dict[str, Any]],
-    key_fields: List[str],
+    gt_entries: list[dict[str, Any]],
+    hyp_entries: list[dict[str, Any]],
+    key_fields: list[str],
     threshold: float = 0.85,
     case_sensitive: bool = False,
     normalize_ws: bool = True,
-) -> List[Tuple[int, int, float]]:
+) -> list[tuple[int, int, float]]:
     """
     Match hypothesis entries to ground truth entries using key fields.
 
@@ -493,11 +493,11 @@ def match_entries(
 
 
 def compute_extraction_metrics(
-    ground_truth: Dict[str, Any],
-    hypothesis: Dict[str, Any],
+    ground_truth: dict[str, Any],
+    hypothesis: dict[str, Any],
     entries_key: str = "entries",
-    fields_to_evaluate: Optional[List[str]] = None,
-    key_fields: Optional[List[str]] = None,
+    fields_to_evaluate: list[str] | None = None,
+    key_fields: list[str] | None = None,
     threshold: float = 0.85,
     case_sensitive: bool = False,
     normalize_ws: bool = True,
@@ -618,7 +618,7 @@ def compute_extraction_metrics(
     return metrics
 
 
-def aggregate_metrics(metrics_list: List[ExtractionMetrics]) -> ExtractionMetrics:
+def aggregate_metrics(metrics_list: list[ExtractionMetrics]) -> ExtractionMetrics:
     """
     Aggregate metrics across multiple files/documents.
 
@@ -674,8 +674,8 @@ def aggregate_metrics(metrics_list: List[ExtractionMetrics]) -> ExtractionMetric
 
 
 def format_metrics_table(
-    model_metrics: Dict[str, Dict[str, ExtractionMetrics]],
-    categories: Optional[List[str]] = None,
+    model_metrics: dict[str, dict[str, ExtractionMetrics]],
+    categories: list[str] | None = None,
 ) -> str:
     """
     Format metrics as a Markdown table.

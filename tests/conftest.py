@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import pytest
 import yaml
@@ -20,7 +20,7 @@ def _ensure_repo_on_syspath(repo_root: Path) -> None:
         sys.path.insert(0, str(repo_root))
 
 
-def _write_yaml(path: Path, data: Dict[str, Any]) -> None:
+def _write_yaml(path: Path, data: dict[str, Any]) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
 
@@ -138,7 +138,7 @@ class MockUI:
         self.logger = logger or logging.getLogger("test.mock_ui")
         self.use_colors = use_colors
         self.banner_shown = False
-        self.messages: List[tuple[str, str]] = []
+        self.messages: list[tuple[str, str]] = []
 
     def display_banner(self) -> None:
         self.banner_shown = True

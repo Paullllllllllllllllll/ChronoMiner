@@ -2,8 +2,7 @@
 prompt_utils, and chunking_service uncovered paths."""
 
 import json
-from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -98,9 +97,9 @@ class TestSchemaHandlerRegistry:
 # json_utils — uncovered extraction paths
 # ---------------------------------------------------------------------------
 from modules.conversion.json_utils import (
+    _extract_entries_from_record,
     _extract_text_from_api_body,
     _parse_entries_from_text,
-    _extract_entries_from_record,
     extract_entries_from_json,
 )
 
@@ -379,7 +378,7 @@ class TestLoadLineRangesExtended:
 # ---------------------------------------------------------------------------
 # prompt_utils — uncovered marker/context paths
 # ---------------------------------------------------------------------------
-from modules.llm.prompt_utils import render_prompt_with_schema, load_prompt_template
+from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
 
 
 class TestRenderPromptExtended:

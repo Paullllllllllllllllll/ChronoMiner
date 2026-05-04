@@ -5,10 +5,9 @@ Tests for CM-1 through CM-11 bug fixes.
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 
 # ---------------------------------------------------------------------------
 # CM-1: service_tier passed to ChatOpenAI in sync mode
@@ -21,7 +20,6 @@ class TestCM1ServiceTierSyncMode:
     @pytest.mark.unit
     def test_service_tier_added_to_extra_params(self):
         """LLMExtractor._initialize_llm puts service_tier in extra_params."""
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
 
         concurrency_config = {"concurrency": {"extraction": {"service_tier": "flex"}}}
 
@@ -50,7 +48,7 @@ class TestCM1ServiceTierSyncMode:
     @pytest.mark.unit
     def test_service_tier_passed_to_chat_openai(self):
         """ChatOpenAI is instantiated with service_tier when configured."""
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="openai",
@@ -69,7 +67,7 @@ class TestCM1ServiceTierSyncMode:
     @pytest.mark.unit
     def test_no_service_tier_when_not_configured(self):
         """ChatOpenAI is not called with service_tier when absent from config."""
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="openai",
@@ -107,8 +105,8 @@ class TestCM2ServiceTierBatchMode:
     def test_create_processing_strategy_passes_concurrency_to_batch(self):
         """create_processing_strategy passes concurrency_config to BatchProcessingStrategy."""
         from modules.extract.processing_strategy import (
-            create_processing_strategy,
             BatchProcessingStrategy,
+            create_processing_strategy,
         )
 
         cc = {"concurrency": {"extraction": {"service_tier": "priority"}}}
@@ -222,7 +220,7 @@ class TestCM4ReasoningAnthropicGoogle:
     @pytest.mark.unit
     def test_anthropic_extended_thinking_passed(self):
         """ChatAnthropic gets thinking param and betas when reasoning is configured."""
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="anthropic",
@@ -249,7 +247,7 @@ class TestCM4ReasoningAnthropicGoogle:
     @pytest.mark.unit
     def test_anthropic_no_thinking_when_effort_none(self):
         """ChatAnthropic does NOT get thinking when effort is 'none'."""
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="anthropic",
@@ -272,7 +270,7 @@ class TestCM4ReasoningAnthropicGoogle:
     @pytest.mark.unit
     def test_google_thinking_config_passed(self):
         """ChatGoogleGenerativeAI gets thinking_config when reasoning is configured."""
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="google",
@@ -306,7 +304,7 @@ class TestCM5TextVerbosity:
     @pytest.mark.unit
     def test_text_verbosity_passed_for_gpt5(self):
         """ChatOpenAI receives text={"verbosity": ...} via model_kwargs for gpt-5 model."""
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="openai",
@@ -331,7 +329,7 @@ class TestCM5TextVerbosity:
     @pytest.mark.unit
     def test_text_verbosity_not_passed_for_non_gpt5(self):
         """ChatOpenAI does NOT receive text param for gpt-4o model."""
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="openai",
@@ -352,7 +350,7 @@ class TestCM5TextVerbosity:
     @pytest.mark.unit
     def test_text_verbosity_passed_for_gpt52(self):
         """ChatOpenAI receives text verbosity for gpt-5.2 models as well."""
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="openai",
@@ -399,17 +397,19 @@ class TestCM6ProcessingSummaryKeys:
         }
 
         printed_lines = []
-        with patch.object(
-            ui, "console_print", side_effect=lambda msg: printed_lines.append(msg)
+        with (
+            patch.object(
+                ui, "console_print", side_effect=lambda msg: printed_lines.append(msg)
+            ),
+            patch.object(ui, "confirm", return_value=False),
         ):
-            with patch.object(ui, "confirm", return_value=False):
-                ui.display_processing_summary(
-                    files=[Path("a.txt")],
-                    selected_schema_name="TestSchema",
-                    global_chunking_method="auto",
-                    use_batch=False,
-                    concurrency_config=concurrency_config,
-                )
+            ui.display_processing_summary(
+                files=[Path("a.txt")],
+                selected_schema_name="TestSchema",
+                global_chunking_method="auto",
+                use_batch=False,
+                concurrency_config=concurrency_config,
+            )
 
         output = "\n".join(printed_lines)
         assert "42" in output, "concurrency_limit 42 must appear in summary"
@@ -451,7 +451,6 @@ class TestCM7EmptyOutputPath:
     @pytest.mark.unit
     def test_cwd_output_path_raises(self, tmp_path, monkeypatch):
         """ValueError raised when output path resolves to CWD."""
-        import os
         from modules.extract.file_processor import FileProcessor
 
         monkeypatch.chdir(tmp_path)
@@ -717,17 +716,19 @@ class TestCM10ExistingOutputPreCheck:
 
         ui = UserInterface(use_colors=False)
         printed_lines = []
-        with patch.object(
-            ui, "console_print", side_effect=lambda msg: printed_lines.append(msg)
+        with (
+            patch.object(
+                ui, "console_print", side_effect=lambda msg: printed_lines.append(msg)
+            ),
+            patch.object(ui, "confirm", return_value=False),
         ):
-            with patch.object(ui, "confirm", return_value=False):
-                ui.display_processing_summary(
-                    files=[Path("a.txt"), Path("b.txt")],
-                    selected_schema_name="TestSchema",
-                    global_chunking_method="auto",
-                    use_batch=False,
-                    existing_output_count=2,
-                )
+            ui.display_processing_summary(
+                files=[Path("a.txt"), Path("b.txt")],
+                selected_schema_name="TestSchema",
+                global_chunking_method="auto",
+                use_batch=False,
+                existing_output_count=2,
+            )
         output = "\n".join(printed_lines)
         assert "2" in output and ("already exist" in output or "overwritten" in output)
 

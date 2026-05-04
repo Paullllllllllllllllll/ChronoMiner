@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from main.cli_args import (
-    create_process_parser,
     create_generate_ranges_parser,
+    create_process_parser,
     get_files_from_path,
     resolve_path,
 )

@@ -3,11 +3,10 @@
 """Tests for ChunkSlice dataclass and apply_chunk_slice() helper."""
 
 import logging
+
 import pytest
-from typing import List, Tuple
 
 from modules.infra.chunking import ChunkSlice, apply_chunk_slice
-
 
 # ---------------------------------------------------------------------------
 # ChunkSlice validation
@@ -66,7 +65,7 @@ class TestChunkSliceValidation:
 # ---------------------------------------------------------------------------
 
 
-def _make_chunks(n: int) -> Tuple[List[str], List[Tuple[int, int]]]:
+def _make_chunks(n: int) -> tuple[list[str], list[tuple[int, int]]]:
     """Create n dummy chunks and ranges for testing."""
     chunks = [f"chunk_{i}" for i in range(1, n + 1)]
     ranges = [(i * 10, i * 10 + 9) for i in range(1, n + 1)]

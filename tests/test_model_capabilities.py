@@ -1,10 +1,11 @@
 """Tests for model capabilities detection and gating."""
 
 import pytest
+
 from modules.config.capabilities import (
     Capabilities,
-    detect_provider,
     detect_capabilities,
+    detect_provider,
 )
 
 

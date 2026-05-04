@@ -8,15 +8,14 @@ Tests the 3-level hierarchy:
 Suffixes: extract_context (extraction), adjust_context (line-range readjustment)
 """
 
-from pathlib import Path
 import pytest
+
 from modules.config.context import (
+    _read_and_validate_context,
     _resolve_context,
     resolve_context_for_extraction,
     resolve_context_for_readjustment,
-    _read_and_validate_context,
 )
-
 
 # ---------------------------------------------------------------------------
 # _resolve_context (generic)

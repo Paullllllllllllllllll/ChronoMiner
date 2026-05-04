@@ -8,27 +8,24 @@ Synchronized with ChronoTranscriber's UI system for consistent UX across project
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 from typing import Any
 
+from modules.infra.logger import setup_logger
 from modules.ui.prompts import (
     NavigationAction,
-    PromptResult,
-    prompt_select,
-    prompt_yes_no,
-    prompt_multiselect,
-    prompt_text,
+    PromptStyle,
+    print_error,
     print_header,
     print_separator,
-    print_info,
     print_success,
     print_warning,
-    print_error,
+    prompt_multiselect,
+    prompt_select,
+    prompt_text,
+    prompt_yes_no,
     ui_print,
-    PromptStyle,
 )
-from modules.infra.logger import setup_logger
 
 logger = setup_logger(__name__)
 

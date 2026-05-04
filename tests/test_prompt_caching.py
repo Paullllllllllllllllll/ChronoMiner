@@ -11,14 +11,12 @@ Covers:
 
 from __future__ import annotations
 
-import json
-from typing import Any, Dict
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
-from modules.config.capabilities import Capabilities, detect_capabilities
-
+from modules.config.capabilities import detect_capabilities
 
 # ---------------------------------------------------------------------------
 # 1. supports_prompt_caching capability flag
@@ -86,7 +84,7 @@ class TestCacheControlAnnotation:
         system_message = "You are an expert."
         enable_cache_control = True
 
-        system_content: list[Dict[str, Any]] = [
+        system_content: list[dict[str, Any]] = [
             {"type": "input_text", "text": system_message}
         ]
         if enable_cache_control:
@@ -102,7 +100,7 @@ class TestCacheControlAnnotation:
         system_message = "You are an expert."
         enable_cache_control = False
 
-        system_content: list[Dict[str, Any]] = [
+        system_content: list[dict[str, Any]] = [
             {"type": "input_text", "text": system_message}
         ]
         if enable_cache_control:
@@ -116,7 +114,7 @@ class TestCacheControlAnnotation:
         system_message = "Extract data."
         enable_cache_control = True
 
-        system_content: list[Dict[str, Any]] = [
+        system_content: list[dict[str, Any]] = [
             {"type": "input_text", "text": system_message}
         ]
         if enable_cache_control:

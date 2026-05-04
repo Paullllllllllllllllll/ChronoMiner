@@ -32,8 +32,6 @@ import shutil
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
-
 
 # Add project root to path
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -41,13 +39,11 @@ PROJECT_ROOT = SCRIPT_DIR.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from eval.jsonl_eval import (
-    DocumentExtractions,
+    convert_legacy_json_to_jsonl,
     export_chunks_to_editable_txt,
-    find_jsonl_file,
     import_chunks_from_editable_txt,
     parse_extraction_jsonl,
     write_ground_truth_jsonl,
-    convert_legacy_json_to_jsonl,
 )
 
 
@@ -73,7 +69,7 @@ def print_warning(msg: str) -> None:
 
 def extract_for_editing(
     input_path: Path,
-    output_dir: Optional[Path] = None,
+    output_dir: Path | None = None,
     include_text: bool = False,
 ) -> int:
     """
@@ -152,8 +148,8 @@ def extract_for_editing(
 
 def apply_corrections(
     input_path: Path,
-    output_dir: Optional[Path] = None,
-    category: Optional[str] = None,
+    output_dir: Path | None = None,
+    category: str | None = None,
     backup: bool = True,
     dry_run: bool = False,
 ) -> int:
@@ -278,8 +274,8 @@ def apply_corrections(
 
 def convert_legacy(
     input_path: Path,
-    output_dir: Optional[Path] = None,
-    category: Optional[str] = None,
+    output_dir: Path | None = None,
+    category: str | None = None,
 ) -> int:
     """
     Convert legacy JSON ground truth files to JSONL format.

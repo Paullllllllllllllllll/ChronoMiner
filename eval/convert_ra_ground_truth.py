@@ -20,7 +20,6 @@ import re
 import sys
 import zipfile
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 PROJECT_ROOT = SCRIPT_DIR.parent
@@ -39,7 +38,7 @@ ZIP_PATH = Path(
 
 GT_OUTPUT_DIR = SCRIPT_DIR / "test_data" / "ground_truth"
 
-RA_FILE_MAP: Dict[str, Tuple[str, str, int]] = {
+RA_FILE_MAP: dict[str, tuple[str, str, int]] = {
     "address_book_2500_edited_fertig.txt": ("address_books", "address_books", 2500),
     "address_book_5000_edited_fertig.txt": ("address_books", "address_books", 5000),
     "bibliography_2500_edited_fertig.txt": (
@@ -202,7 +201,7 @@ def repair_json(text: str) -> str:
     return text
 
 
-def parse_chunks_from_text(content: str) -> List[Tuple[int, str]]:
+def parse_chunks_from_text(content: str) -> list[tuple[int, str]]:
     """
     Parse chunk markers and their JSON content from editable text format.
 
@@ -237,7 +236,7 @@ def convert_file(
     category: str,
     source_name: str,
     chunk_size: int,
-) -> Optional[DocumentExtractions]:
+) -> DocumentExtractions | None:
     """
     Convert a single RA editable text file to a DocumentExtractions object.
 
@@ -328,7 +327,7 @@ def main() -> int:
         has_errors = any("parse_error" in c.extraction_data for c in doc.chunks)
         if has_errors:
             total_errors += 1
-            print(f"  [FAIL] Skipping write due to parse errors")
+            print("  [FAIL] Skipping write due to parse errors")
             continue
 
         # Write ground truth JSONL

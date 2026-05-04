@@ -1,9 +1,5 @@
 """Tests for visual input routing in file_processor.py."""
 
-from pathlib import Path
-
-import pytest
-
 from modules.extract.file_processor import FileProcessor
 
 

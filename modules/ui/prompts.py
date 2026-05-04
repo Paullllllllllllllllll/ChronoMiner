@@ -10,9 +10,9 @@ from __future__ import annotations
 
 import sys
 from collections.abc import Callable
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
-from dataclasses import dataclass
 
 # Initialize colorama for Windows color support
 try:
@@ -406,7 +406,7 @@ def prompt_multiselect(
             description = description[:72] + "..."
         ui_print(f"  {idx}. {description}")
 
-    ui_print(f"\n  Selection options:", PromptStyle.INFO)
+    ui_print("\n  Selection options:", PromptStyle.INFO)
     ui_print("    - Enter numbers separated by commas (e.g., '1,3,5')", PromptStyle.DIM)
     ui_print("    - Enter a range with a dash (e.g., '1-5')", PromptStyle.DIM)
     ui_print("    - Enter a filename or part of it to search", PromptStyle.DIM)
@@ -485,7 +485,7 @@ def prompt_multiselect(
                             selected_indices.clear()
                             break
                         selected_indices.add(idx - 1)
-            except ValueError as e:
+            except ValueError:
                 print_error(
                     f"Invalid input: '{choice}'. Use numbers, ranges (e.g., 1-3), 'all', or a filename."
                 )

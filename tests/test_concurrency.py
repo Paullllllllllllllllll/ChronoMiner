@@ -1,5 +1,7 @@
 import asyncio
+
 import pytest
+
 from modules.infra.concurrency import run_concurrent_tasks
 
 

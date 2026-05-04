@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 import yaml
@@ -27,7 +27,6 @@ def test_config_loader_resolves_relative_paths(config_loader):
 
 @pytest.mark.unit
 def test_get_config_loader_returns_cached_instance(config_loader):
-    from modules.config.loader import get_config_loader
 
     # conftest patches the module-level cache to this instance
     assert get_config_loader() is config_loader

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import argparse
 import logging
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import pytest
 
@@ -14,7 +14,7 @@ class _DummyUI:
         self.logger = logger
         self.use_colors = use_colors
         self.banner_shown = False
-        self.messages: List[tuple[str, str]] = []
+        self.messages: list[tuple[str, str]] = []
 
     def display_banner(self) -> None:
         self.banner_shown = True
@@ -96,7 +96,7 @@ def test_dualmodescript_execute_cli_calls_run_cli(
     class _Script(ef.DualModeScript):
         def __init__(self) -> None:
             super().__init__("test")
-            self.received_args: Optional[argparse.Namespace] = None
+            self.received_args: argparse.Namespace | None = None
 
         def create_argument_parser(self) -> argparse.ArgumentParser:
             parser = argparse.ArgumentParser(add_help=False)
@@ -142,19 +142,19 @@ def test_dualmodescript_keyboardinterrupt_exits_0(
 def test_create_simple_dual_mode_executor_passes_config_to_runners(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    seen: Dict[str, Any] = {}
+    seen: dict[str, Any] = {}
 
     def parser_factory() -> argparse.ArgumentParser:
         parser = argparse.ArgumentParser(add_help=False)
         parser.parse_args = lambda: argparse.Namespace(x=1)
         return parser
 
-    def interactive_runner(ui: _DummyUI, config: Dict[str, Any]) -> None:
+    def interactive_runner(ui: _DummyUI, config: dict[str, Any]) -> None:
         seen["mode"] = "interactive"
         seen["ui"] = ui
         seen["config"] = config
 
-    def cli_runner(args: argparse.Namespace, config: Dict[str, Any]) -> None:
+    def cli_runner(args: argparse.Namespace, config: dict[str, Any]) -> None:
         seen["mode"] = "cli"
         seen["args"] = args
         seen["config"] = config
@@ -183,7 +183,7 @@ async def test_async_dual_mode_script_execute_async_cli(
     class _Script(ef.AsyncDualModeScript):
         def __init__(self) -> None:
             super().__init__("test")
-            self.received_args: Optional[argparse.Namespace] = None
+            self.received_args: argparse.Namespace | None = None
 
         def create_argument_parser(self) -> argparse.ArgumentParser:
             parser = argparse.ArgumentParser(add_help=False)

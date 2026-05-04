@@ -1,19 +1,18 @@
 """Tests for multi-provider batch backends."""
 
+from unittest.mock import MagicMock, patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
 
 from modules.batch import (
-    BatchBackend,
     BatchHandle,
     BatchRequest,
     BatchResultItem,
     BatchStatus,
     BatchStatusInfo,
+    clear_backend_cache,
     get_batch_backend,
     supports_batch,
-    clear_backend_cache,
 )
 
 
@@ -543,26 +542,28 @@ class TestGoogleVisualBatchRouting:
         mock_google = MagicMock()
         mock_google.genai = mock_genai
 
-        with patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}):
-            with patch.dict(
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}),
+            patch.dict(
                 sys.modules, {"google": mock_google, "google.genai": mock_genai}
-            ):
-                backend = get_batch_backend("google")
-                requests = [
-                    BatchRequest(
-                        custom_id="stem-page-1",
-                        image_base64="GOOGLEIMG",
-                        mime_type="image/png",
-                        order_index=1,
-                    )
-                ]
-                model_config = {
-                    "extraction_model": {
-                        "name": "gemini-2.5-flash",
-                        "max_output_tokens": 512,
-                    }
+            ),
+        ):
+            backend = get_batch_backend("google")
+            requests = [
+                BatchRequest(
+                    custom_id="stem-page-1",
+                    image_base64="GOOGLEIMG",
+                    mime_type="image/png",
+                    order_index=1,
+                )
+            ]
+            model_config = {
+                "extraction_model": {
+                    "name": "gemini-2.5-flash",
+                    "max_output_tokens": 512,
                 }
-                backend.submit_batch(requests, model_config, system_prompt="sys")
+            }
+            backend.submit_batch(requests, model_config, system_prompt="sys")
 
         assert len(captured_src) == 1
         src = captured_src[0]

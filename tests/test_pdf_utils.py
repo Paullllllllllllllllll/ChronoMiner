@@ -1,8 +1,8 @@
 """Tests for modules/processing/pdf_utils.py."""
 
+from unittest.mock import patch
+
 import pytest
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from modules.images.pdf_utils import PDFProcessor
 

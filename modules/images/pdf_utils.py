@@ -39,7 +39,7 @@ class PDFProcessor:
             self.doc.close()
             self.doc = None
 
-    def __enter__(self) -> "PDFProcessor":
+    def __enter__(self) -> PDFProcessor:
         self.open_pdf()
         return self
 

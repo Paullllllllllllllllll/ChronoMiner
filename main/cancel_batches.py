@@ -17,7 +17,6 @@ Supports two execution modes:
 """
 
 import json
-import os
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -33,7 +32,6 @@ from modules.batch import (
     BatchHandle,
     BatchStatus,
     get_batch_backend,
-    supports_batch,
 )
 from modules.config.loader import get_config_loader
 from modules.ui.core import UserInterface

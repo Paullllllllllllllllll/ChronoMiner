@@ -12,8 +12,8 @@ import hashlib
 import json
 import logging
 import re
-from pathlib import Path
 from collections.abc import Iterator
+from pathlib import Path
 from typing import IO, Any
 
 from modules.infra.paths import ensure_path_safe
@@ -37,7 +37,7 @@ class JsonlWriter:
         self._mode = mode
         self._handle: IO[Any] | None = None
 
-    def __enter__(self) -> "JsonlWriter":
+    def __enter__(self) -> JsonlWriter:
         self._handle = self._path.open(self._mode, encoding="utf-8")
         return self
 
@@ -154,7 +154,7 @@ def build_jsonl_header(
             "retry_config": retry_config,
             "prompt_hash": prompt_hash,
             "context_path": context_path,
-            "created_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+            "created_at": datetime.datetime.now(datetime.UTC).isoformat(),
         }
     }
 
@@ -252,7 +252,7 @@ def finalize_jsonl_header(
         )
         return
 
-    header["completed_at"] = datetime.datetime.now(datetime.timezone.utc).isoformat()
+    header["completed_at"] = datetime.datetime.now(datetime.UTC).isoformat()
     if source_file is not None:
         header["source_file"] = source_file
     for key, value in stats.items():
