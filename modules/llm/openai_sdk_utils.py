@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 OpenAI SDK utilities for batch operations.
 
@@ -9,6 +7,8 @@ by the LangChain-based synchronous processing pipeline.
 
 For LangChain multi-provider support, see langchain_provider.py.
 """
+
+from __future__ import annotations
 
 import json
 from typing import Any
@@ -47,7 +47,10 @@ def sdk_to_dict(obj: Any) -> dict[str, Any]:
         except Exception:
             continue
     if not data:
-        logger.warning("Unable to convert SDK object %s to dict; returning empty mapping", type(obj))
+        logger.warning(
+            "Unable to convert SDK object %s to dict; returning empty mapping",
+            type(obj),
+        )
     return data
 
 
@@ -59,7 +62,11 @@ def list_all_batches(client: Any, limit: int = 100) -> list[dict[str, Any]]:
 
     while True:
         page_index += 1
-        page = client.batches.list(limit=limit, after=after) if after else client.batches.list(limit=limit)
+        page = (
+            client.batches.list(limit=limit, after=after)
+            if after
+            else client.batches.list(limit=limit)
+        )
         data = getattr(page, "data", None) or page
         page_items = [sdk_to_dict(item) for item in data]
         batches.extend(page_items)
@@ -77,7 +84,12 @@ def list_all_batches(client: Any, limit: int = 100) -> list[dict[str, Any]]:
                 has_more = False
                 last_id = None
 
-        logger.info("Retrieved batches page %s (%s item(s)); has_more=%s", page_index, len(page_items), has_more)
+        logger.info(
+            "Retrieved batches page %s (%s item(s)); has_more=%s",
+            page_index,
+            len(page_items),
+            has_more,
+        )
         if not has_more or not last_id:
             break
         after = last_id
