@@ -3,8 +3,8 @@
 """CSV conversion utilities for JSON data transformation."""
 
 import logging
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import pandas as pd

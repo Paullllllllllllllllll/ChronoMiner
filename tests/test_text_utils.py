@@ -1,9 +1,9 @@
 import pytest
-from pathlib import Path
+
 from modules.infra.chunking import (
+    ChunkHandler,
     TextProcessor,
     TokenBasedChunking,
-    ChunkHandler,
     load_line_ranges,
 )
 

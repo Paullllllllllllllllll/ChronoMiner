@@ -16,13 +16,13 @@ from __future__ import annotations
 import functools
 import logging
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from collections.abc import Callable
 from typing import Any
 
-from charset_normalizer import detect as _charset_detect
 import tiktoken
+from charset_normalizer import detect as _charset_detect
 
 from modules.infra.paths import ensure_path_safe
 
@@ -430,7 +430,7 @@ class ChunkingService:
         return chunks, adjusted_ranges
 
     @classmethod
-    def from_config(cls, config: dict[str, Any]) -> "ChunkingService":
+    def from_config(cls, config: dict[str, Any]) -> ChunkingService:
         """Create ChunkingService from configuration dictionary."""
         model_name = config.get("model_name", "o3-mini")
         tokens_per_chunk = config.get("default_tokens_per_chunk", 7500)

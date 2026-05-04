@@ -18,7 +18,6 @@ import hashlib
 import platform
 from pathlib import Path
 
-
 # Maximum safe length for directory/file names
 # Keep it well under 255 (NTFS limit) to leave room for subdirs and files
 MAX_SAFE_NAME_LENGTH = 80

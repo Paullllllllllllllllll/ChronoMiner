@@ -1,7 +1,6 @@
 """Tests for multimodal content passthrough in langchain_provider.py."""
 
 import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 
 class TestMultimodalContentPassthrough:
@@ -10,7 +9,6 @@ class TestMultimodalContentPassthrough:
     @pytest.mark.asyncio
     async def test_image_url_content_preserved_as_list(self):
         """When content contains image_url blocks, it should remain a list."""
-        from langchain_core.messages import HumanMessage, SystemMessage
 
         # Simulate what ainvoke_with_structured_output does with image content
         content = [

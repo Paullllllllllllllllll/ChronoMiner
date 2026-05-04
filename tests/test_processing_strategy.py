@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import pytest
 
@@ -27,9 +27,9 @@ class _DummyHandler:
         self,
         chunk: str,
         dev_message: str,
-        model_config: Dict[str, Any],
-        schema: Dict[str, Any],
-    ) -> Dict[str, Any]:
+        model_config: dict[str, Any],
+        schema: dict[str, Any],
+    ) -> dict[str, Any]:
         return {"input": chunk, "system": dev_message}
 
 
@@ -80,8 +80,8 @@ async def test_batch_processing_strategy_writes_request_and_tracking_records(
             model_config,
             *,
             system_prompt: str,
-            schema: Optional[Dict[str, Any]] = None,
-            schema_name: Optional[str] = None,
+            schema: dict[str, Any] | None = None,
+            schema_name: str | None = None,
         ):
             assert system_prompt == "dev"
             assert schema_name == "TestSchema"
@@ -143,8 +143,8 @@ async def test_batch_processing_strategy_builds_visual_batch_requests(
             model_config,
             *,
             system_prompt: str,
-            schema: Optional[Dict[str, Any]] = None,
-            schema_name: Optional[str] = None,
+            schema: dict[str, Any] | None = None,
+            schema_name: str | None = None,
         ):
             captured_requests.extend(requests)
             return ps.BatchHandle(
@@ -251,7 +251,7 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
         text_chunk: str,
         extractor: object,
         system_message: str,
-        json_schema: Dict[str, Any],
+        json_schema: dict[str, Any],
         **kwargs,
     ):
         assert extractor is extractor
@@ -306,7 +306,7 @@ async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_ope
         ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
     )
 
-    captured_kwargs: Dict[str, Any] = {}
+    captured_kwargs: dict[str, Any] = {}
 
     def _open_extractor_stub(**kwargs):
         captured_kwargs.update(kwargs)
@@ -319,7 +319,7 @@ async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_ope
         text_chunk: str,
         extractor: object,
         system_message: str,
-        json_schema: Dict[str, Any],
+        json_schema: dict[str, Any],
         **kwargs,
     ):
         return {
@@ -386,7 +386,7 @@ async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(
         text_chunk: str,
         extractor: object,
         system_message: str,
-        json_schema: Dict[str, Any],
+        json_schema: dict[str, Any],
         **kwargs,
     ):
         calls["n"] += 1

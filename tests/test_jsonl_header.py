@@ -3,8 +3,6 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from modules.infra.jsonl import (
     build_jsonl_header,
     compute_ranges_fingerprint,
@@ -13,7 +11,6 @@ from modules.infra.jsonl import (
     read_jsonl_header,
     validate_jsonl_header,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers

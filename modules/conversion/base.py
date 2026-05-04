@@ -10,8 +10,8 @@ entry extraction and filtering behavior.
 
 import logging
 from abc import ABC, abstractmethod
-from pathlib import Path
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 from modules.conversion.json_utils import extract_entries_from_json

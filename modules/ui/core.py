@@ -10,10 +10,10 @@ Refactored to use the modular prompts system for Windows compatibility
 and consistency with ChronoTranscriber.
 """
 
+import logging
 import sys
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
-import logging
 
 if TYPE_CHECKING:
     from modules.infra.chunking import ChunkSlice
@@ -26,21 +26,25 @@ from modules.config.constants import (
 
 # Import from modular prompts system
 from modules.ui.prompts import (
-    PromptStyle,
-    ui_print,
-    ui_input,
-    print_header,
-    print_separator,
-    print_info as _print_info,
-    print_success as _print_success,
-    print_warning as _print_warning,
-    print_error as _print_error,
-    prompt_select,
-    prompt_yes_no,
-    prompt_text,
-    prompt_multiselect,
     NavigationAction,
-    PromptResult,
+    PromptStyle,
+    print_header,
+    prompt_select,
+    prompt_text,
+    prompt_yes_no,
+    ui_print,
+)
+from modules.ui.prompts import (
+    print_error as _print_error,
+)
+from modules.ui.prompts import (
+    print_info as _print_info,
+)
+from modules.ui.prompts import (
+    print_success as _print_success,
+)
+from modules.ui.prompts import (
+    print_warning as _print_warning,
 )
 
 logger = logging.getLogger(__name__)

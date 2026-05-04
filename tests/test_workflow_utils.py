@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 import pytest
@@ -8,8 +7,6 @@ import pytest
 from main.bootstrap import (
     collect_text_files,
     filter_text_files,
-    load_core_resources,
-    load_schema_manager,
     validate_schema_paths,
 )
 

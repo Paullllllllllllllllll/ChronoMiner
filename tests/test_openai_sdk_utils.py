@@ -1,7 +1,8 @@
-import json
+from unittest.mock import MagicMock, Mock
+
 import pytest
-from unittest.mock import Mock, MagicMock
-from modules.llm.openai_sdk_utils import sdk_to_dict, list_all_batches, coerce_file_id
+
+from modules.llm.openai_sdk_utils import coerce_file_id, list_all_batches, sdk_to_dict
 
 
 @pytest.mark.unit

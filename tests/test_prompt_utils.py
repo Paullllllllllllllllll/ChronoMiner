@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from modules.llm.prompt_utils import render_prompt_with_schema, load_prompt_template
+from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
 
 
 class TestRenderPromptWithSchema:

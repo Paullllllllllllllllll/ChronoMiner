@@ -12,7 +12,6 @@ from pathlib import Path
 from modules.config.loader import get_config_loader
 from modules.infra.paths import ensure_path_safe
 
-
 PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 

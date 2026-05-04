@@ -5,11 +5,9 @@ Coverage extension tests targeting previously under-tested modules.
 from __future__ import annotations
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
-
 
 # ===========================================================================
 # payload_builder.py
@@ -469,8 +467,8 @@ class TestGetBatchBackend:
     @pytest.mark.unit
     def test_openai_returned(self):
         from modules.batch.backends.factory import (
-            get_batch_backend,
             clear_backend_cache,
+            get_batch_backend,
         )
 
         clear_backend_cache()
@@ -479,8 +477,8 @@ class TestGetBatchBackend:
     @pytest.mark.unit
     def test_anthropic_returned(self):
         from modules.batch.backends.factory import (
-            get_batch_backend,
             clear_backend_cache,
+            get_batch_backend,
         )
 
         clear_backend_cache()
@@ -489,8 +487,8 @@ class TestGetBatchBackend:
     @pytest.mark.unit
     def test_google_returned(self):
         from modules.batch.backends.factory import (
-            get_batch_backend,
             clear_backend_cache,
+            get_batch_backend,
         )
 
         clear_backend_cache()
@@ -499,8 +497,8 @@ class TestGetBatchBackend:
     @pytest.mark.unit
     def test_openrouter_raises(self):
         from modules.batch.backends.factory import (
-            get_batch_backend,
             clear_backend_cache,
+            get_batch_backend,
         )
 
         clear_backend_cache()
@@ -510,8 +508,8 @@ class TestGetBatchBackend:
     @pytest.mark.unit
     def test_unknown_raises(self):
         from modules.batch.backends.factory import (
-            get_batch_backend,
             clear_backend_cache,
+            get_batch_backend,
         )
 
         clear_backend_cache()
@@ -522,8 +520,8 @@ class TestGetBatchBackend:
     def test_none_provider_auto_detects_from_config(self):
         """When provider=None, factory auto-detects from model config and returns a backend."""
         from modules.batch.backends.factory import (
-            get_batch_backend,
             clear_backend_cache,
+            get_batch_backend,
         )
 
         clear_backend_cache()
@@ -535,8 +533,8 @@ class TestGetBatchBackend:
     def test_none_provider_raises_when_provider_unknown(self):
         """When model name resolves to unknown provider, ValueError is raised."""
         from modules.batch.backends.factory import (
-            get_batch_backend,
             clear_backend_cache,
+            get_batch_backend,
         )
 
         clear_backend_cache()
@@ -550,8 +548,8 @@ class TestGetBatchBackend:
     @pytest.mark.unit
     def test_cached_instance_reused(self):
         from modules.batch.backends.factory import (
-            get_batch_backend,
             clear_backend_cache,
+            get_batch_backend,
         )
 
         clear_backend_cache()
@@ -562,8 +560,8 @@ class TestGetBatchBackend:
     @pytest.mark.unit
     def test_clear_cache_creates_new_instance(self):
         from modules.batch.backends.factory import (
-            get_batch_backend,
             clear_backend_cache,
+            get_batch_backend,
         )
 
         clear_backend_cache()
@@ -673,7 +671,7 @@ class TestDetectCapabilitiesOpenRouter:
 class TestLangChainProviderAdditional:
     @pytest.mark.unit
     def test_openrouter_model_prefix_stripped(self):
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="openrouter",
@@ -688,7 +686,7 @@ class TestLangChainProviderAdditional:
 
     @pytest.mark.unit
     def test_openrouter_reasoning_payload_injected(self):
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="openrouter",
@@ -709,7 +707,7 @@ class TestLangChainProviderAdditional:
 
     @pytest.mark.unit
     def test_unsupported_provider_raises(self):
-        from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(provider="unknown", model="m", api_key="k")  # type: ignore[arg-type]
         with pytest.raises(ValueError, match="Unsupported provider"):

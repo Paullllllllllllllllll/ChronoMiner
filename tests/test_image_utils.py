@@ -1,8 +1,6 @@
 """Tests for modules/processing/image_utils.py."""
 
 import base64
-import tempfile
-from pathlib import Path
 
 import pytest
 from PIL import Image

@@ -1,8 +1,8 @@
 """Tests for modules/config/constants.py."""
 
 from modules.config.constants import (
-    SUPPORTED_IMAGE_FORMATS,
     SUPPORTED_IMAGE_EXTENSIONS,
+    SUPPORTED_IMAGE_FORMATS,
     SUPPORTED_PDF_EXTENSIONS,
     SUPPORTED_VISUAL_EXTENSIONS,
 )
@@ -39,7 +39,7 @@ class TestSupportedImageFormats:
 
 class TestSupportedExtensions:
     def test_image_extensions_match_formats(self):
-        assert SUPPORTED_IMAGE_EXTENSIONS == set(SUPPORTED_IMAGE_FORMATS.keys())
+        assert set(SUPPORTED_IMAGE_FORMATS.keys()) == SUPPORTED_IMAGE_EXTENSIONS
 
     def test_pdf_extensions(self):
         assert ".pdf" in SUPPORTED_PDF_EXTENSIONS

@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
 from typing import Any
@@ -59,7 +59,7 @@ def build_extraction_metadata(
         "model_name": model_name,
         "chunking_method": chunking_method,
         "total_chunks": total_chunks,
-        "timestamp": timestamp or datetime.now(timezone.utc).isoformat(),
+        "timestamp": timestamp or datetime.now(UTC).isoformat(),
         "version": 1,
     }
     if chunk_slice_info:

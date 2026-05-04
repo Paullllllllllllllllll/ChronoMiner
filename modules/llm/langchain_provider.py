@@ -14,13 +14,12 @@ from __future__ import annotations
 
 import asyncio
 import json
-import logging
 import os
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from modules.config.loader import get_config_loader
 from modules.config.capabilities import detect_provider as _canonical_detect_provider
+from modules.config.loader import get_config_loader
 from modules.infra.logger import setup_logger
 from modules.infra.token_tracker import get_token_tracker
 
@@ -211,7 +210,7 @@ class ProviderConfig:
         model_config: dict[str, Any],
         provider_override: ProviderType | None = None,
         concurrency_config: dict[str, Any] | None = None,
-    ) -> "ProviderConfig":
+    ) -> ProviderConfig:
         """Create ProviderConfig from model_config dictionary."""
         tm = model_config.get("extraction_model", {})
         model_name = tm.get("name", "")
@@ -685,10 +684,10 @@ class LangChainLLM:
         self._ensure_initialized()
 
         from langchain_core.messages import (
-            HumanMessage,
-            SystemMessage,
             AIMessage,
             BaseMessage,
+            HumanMessage,
+            SystemMessage,
         )
 
         # Convert message dicts to LangChain message objects

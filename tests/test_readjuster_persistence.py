@@ -2,8 +2,8 @@
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
-from unittest.mock import AsyncMock, MagicMock, patch
+from typing import Any
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -17,7 +17,6 @@ from modules.line_ranges.readjuster import (
     LineRangeReadjuster,
     RangeResult,
 )
-
 
 # ---------------------------------------------------------------------------
 # RangeResult
@@ -224,8 +223,8 @@ def _make_readjuster(
 
 def _fake_range_result(
     index: int,
-    original: Tuple[int, int],
-    adjusted: Tuple[int, int],
+    original: tuple[int, int],
+    adjusted: tuple[int, int],
     delete: bool = False,
 ) -> RangeResult:
     return RangeResult(
@@ -363,7 +362,7 @@ class TestReadjusterResume:
         readjuster = _make_readjuster()
 
         # Track which range indices are processed
-        processed_indices: List[int] = []
+        processed_indices: list[int] = []
 
         async def mock_process_range(**kwargs: Any) -> RangeResult:
             idx = kwargs["range_index"]
@@ -431,7 +430,7 @@ class TestReadjusterForceFresh:
         )
 
         readjuster = _make_readjuster()
-        processed_indices: List[int] = []
+        processed_indices: list[int] = []
 
         async def mock_process_range(**kwargs: Any) -> RangeResult:
             idx = kwargs["range_index"]

@@ -1,7 +1,8 @@
 import json
-import pytest
-from pathlib import Path
 from unittest.mock import Mock
+
+import pytest
+
 from modules.batch.diagnostics import diagnose_batch_failure, extract_custom_id_mapping
 
 

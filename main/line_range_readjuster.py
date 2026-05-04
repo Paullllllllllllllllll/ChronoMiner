@@ -14,9 +14,9 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import sys
 from collections.abc import Sequence
 from copy import deepcopy
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -30,10 +30,9 @@ from main.bootstrap import (
     load_schema_manager,
     validate_schema_paths,
 )
-from modules.extract.config_builder import build_effective_model_config
 from main.mode_detector import detect_execution_mode
 from modules.config.schema_manager import SchemaManager
-from modules.infra.chunking import ChunkSlice
+from modules.extract.config_builder import build_effective_model_config
 from modules.infra.jsonl import (
     compute_ranges_fingerprint,
     is_jsonl_adjustment_complete,
@@ -282,7 +281,7 @@ async def _adjust_files(
             if token_limit_enabled:
                 if not await check_and_wait_for_token_limit(ui):
                     logger.info(f"Processing stopped by user for {text_file.name}.")
-                    notifier(f"Processing stopped by user.", "warning")
+                    notifier("Processing stopped by user.", "warning")
                     return
 
             notifier(f"Adjusting line ranges for {text_file.name}...", "info")
@@ -486,7 +485,7 @@ async def _run_interactive_mode(
             if state["prompt_path"]:
                 ui.console_print(f"  Prompt override: {state['prompt_path']}")
 
-            ui.console_print(f"  Context: Automatically resolved (hierarchical)")
+            ui.console_print("  Context: Automatically resolved (hierarchical)")
 
             if not ui.confirm("\nProceed with line range adjustment?", default=True):
                 ui.print_info("Operation cancelled by user.")
@@ -642,7 +641,7 @@ async def _run_cli_mode(
         "name", "(from config)"
     )
     print("\n" + "=" * 80)
-    print(f"  LINE RANGE READJUSTMENT")
+    print("  LINE RANGE READJUSTMENT")
     print("=" * 80)
     print(f"Selected {len(selected_files)} file(s) for adjustment.")
     print(f"Model: {effective_name}")
@@ -650,7 +649,7 @@ async def _run_cli_mode(
     print(f"Boundary type: {boundary_type}")
     if prompt_path:
         print(f"Prompt override: {prompt_path}")
-    print(f"Context: Automatically resolved (hierarchical)")
+    print("Context: Automatically resolved (hierarchical)")
 
     # Display initial token usage statistics if enabled
     if check_token_limit_enabled():

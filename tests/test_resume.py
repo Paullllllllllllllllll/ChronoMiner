@@ -2,9 +2,6 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict
-
-import pytest
 
 
 class TestFileStatus:
@@ -72,9 +69,9 @@ class TestDetectExtractionStatus:
 
     def test_not_started_when_empty_records(self, tmp_path: Path):
         from modules.extract.resume import (
+            _METADATA_KEY,
             FileStatus,
             detect_extraction_status,
-            _METADATA_KEY,
         )
 
         out = tmp_path / "empty_output.json"
@@ -85,9 +82,9 @@ class TestDetectExtractionStatus:
 
     def test_complete_when_all_chunks_present(self, tmp_path: Path):
         from modules.extract.resume import (
+            _METADATA_KEY,
             FileStatus,
             detect_extraction_status,
-            _METADATA_KEY,
         )
 
         records = [
@@ -105,9 +102,9 @@ class TestDetectExtractionStatus:
 
     def test_partial_when_some_chunks_missing(self, tmp_path: Path):
         from modules.extract.resume import (
+            _METADATA_KEY,
             FileStatus,
             detect_extraction_status,
-            _METADATA_KEY,
         )
 
         records = [
@@ -137,9 +134,9 @@ class TestDetectExtractionStatus:
 
     def test_complete_with_more_chunks_than_expected(self, tmp_path: Path):
         from modules.extract.resume import (
+            _METADATA_KEY,
             FileStatus,
             detect_extraction_status,
-            _METADATA_KEY,
         )
 
         records = [
@@ -185,7 +182,7 @@ class TestReadExtractionMetadata:
     """Tests for read_extraction_metadata."""
 
     def test_reads_metadata(self, tmp_path: Path):
-        from modules.extract.resume import read_extraction_metadata, _METADATA_KEY
+        from modules.extract.resume import _METADATA_KEY, read_extraction_metadata
 
         meta = {"schema_name": "Test", "version": 1}
         out = tmp_path / "out.json"
@@ -215,10 +212,10 @@ class TestJsonlAdjustmentComplete:
 
     def test_complete_jsonl_detected(self, tmp_path: Path):
         from modules.infra.jsonl import (
+            JsonlWriter,
             build_jsonl_header,
             finalize_jsonl_header,
             is_jsonl_adjustment_complete,
-            JsonlWriter,
         )
 
         lr_file = tmp_path / "test_line_ranges.txt"
@@ -258,9 +255,9 @@ class TestJsonlAdjustmentComplete:
 
     def test_incomplete_jsonl_not_detected(self, tmp_path: Path):
         from modules.infra.jsonl import (
+            JsonlWriter,
             build_jsonl_header,
             is_jsonl_adjustment_complete,
-            JsonlWriter,
         )
 
         lr_file = tmp_path / "test_line_ranges.txt"
@@ -288,10 +285,10 @@ class TestJsonlAdjustmentComplete:
 
     def test_mismatched_settings_not_detected(self, tmp_path: Path):
         from modules.infra.jsonl import (
+            JsonlWriter,
             build_jsonl_header,
             finalize_jsonl_header,
             is_jsonl_adjustment_complete,
-            JsonlWriter,
         )
 
         lr_file = tmp_path / "test_line_ranges.txt"

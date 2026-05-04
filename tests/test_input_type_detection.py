@@ -1,7 +1,5 @@
 """Tests for input type detection in modules/cli/args_parser.py."""
 
-from pathlib import Path
-
 from main.cli_args import detect_input_type, get_files_from_path
 
 

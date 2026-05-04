@@ -13,7 +13,6 @@ from pathlib import Path
 from typing import Any
 
 from modules.config.constants import (
-    SUPPORTED_IMAGE_EXTENSIONS,
     SUPPORTED_PDF_EXTENSIONS,
     SUPPORTED_VISUAL_EXTENSIONS,
 )
@@ -24,14 +23,13 @@ from modules.extract.resume import (
     FileStatus,
     build_extraction_metadata,
     detect_extraction_status,
-    get_output_json_path,
 )
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.chunking import (
     ChunkingService,
     ChunkSlice,
-    apply_chunk_slice,
     TextProcessor,
+    apply_chunk_slice,
 )
 from modules.infra.paths import ensure_path_safe
 from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
@@ -812,7 +810,7 @@ class FileProcessor:
     ) -> None:
         """Clean up temporary files if not needed."""
         if use_batch:
-            logger.info(f"Batch processing enabled. Keeping temporary JSONL")
+            logger.info("Batch processing enabled. Keeping temporary JSONL")
             messenger.info(f"Preserving {temp_jsonl_path.name} for batch tracking")
         else:
             keep_temp = self.paths_config["general"].get("retain_temporary_jsonl", True)

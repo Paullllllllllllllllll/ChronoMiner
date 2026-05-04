@@ -18,8 +18,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Any
 
-from modules.config.loader import get_config_loader
 from modules.config.capabilities import detect_capabilities
+from modules.config.loader import get_config_loader
 from modules.infra.logger import setup_logger
 from modules.llm.langchain_provider import (
     LangChainLLM,

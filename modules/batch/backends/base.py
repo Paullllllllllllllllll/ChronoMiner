@@ -10,7 +10,6 @@ from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 from typing import Any
 
 
@@ -49,7 +48,7 @@ class BatchHandle:
         }
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any]) -> "BatchHandle":
+    def from_dict(cls, data: dict[str, Any]) -> BatchHandle:
         """Deserialize from dictionary."""
         return cls(
             provider=data.get("provider", ""),

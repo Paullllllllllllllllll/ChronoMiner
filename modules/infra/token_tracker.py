@@ -103,7 +103,7 @@ class DailyTokenTracker:
             return
 
         try:
-            with open(self.state_file, "r", encoding="utf-8") as f:
+            with open(self.state_file, encoding="utf-8") as f:
                 state = json.load(f)
 
             saved_date = state.get("date", "")

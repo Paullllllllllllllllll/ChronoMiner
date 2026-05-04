@@ -2,10 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
-import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -13,7 +12,6 @@ from modules.infra.token_tracker import (
     DailyTokenTracker,
     check_and_wait_for_token_limit,
     check_token_limit_enabled,
-    get_token_tracker,
 )
 
 

@@ -3,16 +3,14 @@
 Covers the interior-scan logic introduced to replace the old adjacent-area scan.
 """
 
-from typing import Any, Dict, List, Tuple
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from modules.line_ranges.readjuster import (
-    BoundaryDecision,
     LineRangeReadjuster,
 )
-
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -44,7 +42,7 @@ def _make_readjuster(
         )
 
 
-def _no_content_payload(certainty: int = 90) -> Dict[str, Any]:
+def _no_content_payload(certainty: int = 90) -> dict[str, Any]:
     """Payload indicating no semantic content found."""
     return {
         "contains_no_semantic_boundary": True,
@@ -57,7 +55,7 @@ def _no_content_payload(certainty: int = 90) -> Dict[str, Any]:
 def _content_found_payload(
     marker: str = "Recipe Title",
     certainty: int = 85,
-) -> Dict[str, Any]:
+) -> dict[str, Any]:
     """Payload indicating semantic content was found."""
     return {
         "contains_no_semantic_boundary": False,
@@ -67,7 +65,7 @@ def _content_found_payload(
     }
 
 
-def _make_raw_lines(n: int = 100) -> List[str]:
+def _make_raw_lines(n: int = 100) -> list[str]:
     """Create dummy raw_lines (1-indexed, so index 0 is padding)."""
     return [""] + [f"Line {i}" for i in range(1, n + 1)]
 
@@ -521,7 +519,7 @@ class TestRunModelForwarding:
 
 def _make_raw_lines_with_marker(
     n: int = 100, marker: str = "Recipe Title", marker_line: int = 55
-) -> List[str]:
+) -> list[str]:
     """Create raw_lines with a known marker at a specific 1-indexed line.
 
     The readjuster uses raw_lines[line_number - 1] to access content, so

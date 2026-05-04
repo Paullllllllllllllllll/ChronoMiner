@@ -1,11 +1,11 @@
 """Tests for the centralized logger configuration."""
 
-from pathlib import Path
 import logging
+from pathlib import Path
 
 import pytest
 
-from modules.infra.logger import setup_logger, _resolve_logs_dir
+from modules.infra.logger import _resolve_logs_dir, setup_logger
 
 
 class TestSetupLogger:

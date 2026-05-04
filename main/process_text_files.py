@@ -18,20 +18,17 @@ Workflow:
 """
 
 import asyncio
-from argparse import ArgumentParser, Namespace
-from copy import deepcopy
 import sys
 import time
+from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Any
-
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
 from main.bootstrap import (
-    load_core_resources,
     load_schema_manager,
     validate_schema_paths,
 )
@@ -480,7 +477,6 @@ async def _run_interactive_mode(
         )
 
     # Track processing time
-    import time
 
     start_time = time.time()
     processed_count = 0
