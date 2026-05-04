@@ -1,4 +1,4 @@
-# ChronoMiner v1.1.1
+# ChronoMiner v1.2.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -137,7 +137,7 @@ not support batch processing.
 - **Python** 3.12+
 - At least one API key (see provider table above)
 
-All Python dependencies are listed in `requirements.txt`.
+All Python dependencies are declared in `pyproject.toml`.
 
 ## Installation
 
@@ -145,16 +145,11 @@ All Python dependencies are listed in `requirements.txt`.
 git clone https://github.com/Paullllllllllllllllll/ChronoMiner.git
 cd ChronoMiner
 
-python -m venv .venv
-# Windows
-.venv\Scripts\activate
-# Linux/macOS
-source .venv/bin/activate
-
-pip install -r requirements.txt
+# Install runtime dependencies (creates .venv automatically)
+uv sync
 
 # For development and tests
-pip install -r requirements-dev.txt
+uv sync --all-extras
 ```
 
 **Configure API keys:**
@@ -551,10 +546,10 @@ exit codes suitable for shell scripting and CI/CD.
 
 **I'm experiencing issues not covered here.**
 Check logs in the configured `logs_dir`, validate configuration
-files, and review `requirements.txt` for version mismatches. For
+files, and review `pyproject.toml` for version mismatches. For
 persistent issues, open a
 [GitHub issue](https://github.com/Paullllllllllllllllll/ChronoMiner/issues)
-with error details and relevant config sections.
+with error details and relevant configuration sections.
 
 ## Contributing
 
@@ -568,19 +563,22 @@ follow the existing code style, add tests, and submit a pull request.
 
 ## Development
 
-Install dev dependencies:
+Install all dependencies (runtime + dev):
 
 ```bash
-pip install -r requirements-dev.txt
+uv sync --all-extras
 ```
 
-Run the test suite:
+Run the test suite, linter, and type checker:
 
 ```bash
-python -m pytest -v
+uv run pytest -v
+uv run ruff check .
+uv run ruff format --check .
+uv run mypy .
 ```
 
-The suite contains 920+ tests (unit and integration) covering all
+The suite contains 930+ tests (unit and integration) covering all
 modules, providers, batch backends, and CLI parsers.
 
 ## Versioning
