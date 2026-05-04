@@ -81,5 +81,6 @@ for schema in [
     "MichelinGuides",
     "CookbookMetadataEntries",
     "HistoricalPriceEntries",
+    "InequalityBenchmarks",
 ]:
     register_schema_handler(schema, BaseSchemaHandler)
