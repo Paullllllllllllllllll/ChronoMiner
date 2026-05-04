@@ -16,6 +16,7 @@ from typing import Any
 
 class BatchStatus(Enum):
     """Status of a batch job."""
+
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     COMPLETED = "completed"
@@ -28,12 +29,13 @@ class BatchStatus(Enum):
 @dataclass
 class BatchHandle:
     """Handle to track a submitted batch job.
-    
+
     Attributes:
         provider: The provider name (openai, anthropic, google)
         batch_id: Provider-specific batch identifier
         metadata: Additional provider-specific metadata
     """
+
     provider: str
     batch_id: str
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -72,6 +74,7 @@ class BatchRequest:
         mime_type: MIME type of the image (e.g., 'image/png', 'image/jpeg')
         image_detail: Image detail level for vision models ('low', 'high', 'auto')
     """
+
     custom_id: str
     text: str = ""
     order_index: int = 0
@@ -90,7 +93,7 @@ class BatchRequest:
 @dataclass
 class BatchResultItem:
     """Result of a single request in a batch.
-    
+
     Attributes:
         custom_id: Matches the request's custom_id
         success: Whether the request succeeded
@@ -102,6 +105,7 @@ class BatchResultItem:
         input_tokens: Number of input tokens used
         output_tokens: Number of output tokens used
     """
+
     custom_id: str
     success: bool = True
     content: str = ""
@@ -111,7 +115,7 @@ class BatchResultItem:
     raw_response: dict[str, Any] = field(default_factory=dict)
     input_tokens: int = 0
     output_tokens: int = 0
-    
+
     @property
     def has_entries(self) -> bool:
         """Check if result contains entries."""
@@ -119,19 +123,21 @@ class BatchResultItem:
             entries = self.parsed_output.get("entries", [])
             return isinstance(entries, list) and len(entries) > 0
         return False
-    
+
     @property
     def contains_no_content(self) -> bool:
         """Check if result indicates no content of requested type."""
         if self.parsed_output and isinstance(self.parsed_output, dict):
-            return self.parsed_output.get("contains_no_content_of_requested_type", False)
+            return self.parsed_output.get(
+                "contains_no_content_of_requested_type", False
+            )
         return False
 
 
 @dataclass
 class BatchStatusInfo:
     """Detailed status information for a batch job.
-    
+
     Attributes:
         status: The overall batch status
         total_requests: Total number of requests in the batch
@@ -142,6 +148,7 @@ class BatchStatusInfo:
         results_available: Whether results can be downloaded
         output_file_id: Provider-specific output file identifier (if applicable)
     """
+
     status: BatchStatus
     total_requests: int = 0
     completed_requests: int = 0
@@ -154,29 +161,29 @@ class BatchStatusInfo:
 
 class BatchBackend(ABC):
     """Abstract base class for batch processing backends.
-    
+
     Each provider (OpenAI, Anthropic, Google) implements this interface
     to provide batch processing capabilities for text extraction.
     """
-    
+
     @property
     @abstractmethod
     def provider_name(self) -> str:
         """Return the provider name (e.g., 'openai', 'anthropic', 'google')."""
         pass
-    
+
     @property
     @abstractmethod
     def max_batch_size(self) -> int:
         """Return the maximum number of requests per batch."""
         pass
-    
+
     @property
     @abstractmethod
     def max_batch_bytes(self) -> int:
         """Return the maximum batch size in bytes."""
         pass
-    
+
     @abstractmethod
     def submit_batch(
         self,
@@ -188,67 +195,67 @@ class BatchBackend(ABC):
         schema_name: str | None = None,
     ) -> BatchHandle:
         """Submit a batch of requests for processing.
-        
+
         Args:
             requests: List of BatchRequest objects to process
             model_config: Model configuration dict (extraction_model settings)
             system_prompt: System prompt text (already rendered with schema)
             schema: JSON schema for structured output (optional)
             schema_name: Name of the schema for structured outputs
-        
+
         Returns:
             BatchHandle for tracking the submitted batch
-        
+
         Raises:
             Exception: If batch submission fails
         """
         pass
-    
+
     @abstractmethod
     def get_status(self, handle: BatchHandle) -> BatchStatusInfo:
         """Get the current status of a batch job.
-        
+
         Args:
             handle: The BatchHandle returned from submit_batch
-        
+
         Returns:
             BatchStatusInfo with current status details
         """
         pass
-    
+
     @abstractmethod
     def download_results(self, handle: BatchHandle) -> Iterator[BatchResultItem]:
         """Download and iterate over batch results.
-        
+
         Args:
             handle: The BatchHandle returned from submit_batch
-        
+
         Yields:
             BatchResultItem for each request in the batch
-        
+
         Raises:
             Exception: If results cannot be downloaded
         """
         pass
-    
+
     @abstractmethod
     def cancel(self, handle: BatchHandle) -> bool:
         """Cancel a batch job.
-        
+
         Args:
             handle: The BatchHandle returned from submit_batch
-        
+
         Returns:
             True if cancellation was successful
         """
         pass
-    
+
     def diagnose_failure(self, handle: BatchHandle) -> str:
         """Get diagnostic information for a failed batch.
-        
+
         Args:
             handle: The BatchHandle of the failed batch
-        
+
         Returns:
             Human-readable diagnostic message
         """

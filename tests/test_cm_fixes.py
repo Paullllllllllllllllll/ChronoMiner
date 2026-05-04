@@ -14,6 +14,7 @@ import pytest
 # CM-1: service_tier passed to ChatOpenAI in sync mode
 # ---------------------------------------------------------------------------
 
+
 class TestCM1ServiceTierSyncMode:
     """CM-1: service_tier from concurrency_config must reach ChatOpenAI."""
 
@@ -22,11 +23,7 @@ class TestCM1ServiceTierSyncMode:
         """LLMExtractor._initialize_llm puts service_tier in extra_params."""
         from modules.llm.langchain_provider import ProviderConfig, LangChainLLM
 
-        concurrency_config = {
-            "concurrency": {
-                "extraction": {"service_tier": "flex"}
-            }
-        }
+        concurrency_config = {"concurrency": {"extraction": {"service_tier": "flex"}}}
 
         with patch("modules.llm.openai_utils.get_config_loader") as mock_loader:
             mock_loader.return_value.get_model_config.return_value = {
@@ -39,9 +36,12 @@ class TestCM1ServiceTierSyncMode:
                     "presence_penalty": 0.0,
                 }
             }
-            mock_loader.return_value.get_concurrency_config.return_value = concurrency_config
+            mock_loader.return_value.get_concurrency_config.return_value = (
+                concurrency_config
+            )
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from modules.llm.openai_utils import LLMExtractor
+
                 extractor = LLMExtractor(model="gpt-4o")
 
         assert extractor._llm is not None
@@ -90,6 +90,7 @@ class TestCM1ServiceTierSyncMode:
 # CM-2: service_tier injected into model_config for batch mode
 # ---------------------------------------------------------------------------
 
+
 class TestCM2ServiceTierBatchMode:
     """CM-2: BatchProcessingStrategy must inject service_tier from concurrency_config."""
 
@@ -105,7 +106,10 @@ class TestCM2ServiceTierBatchMode:
     @pytest.mark.unit
     def test_create_processing_strategy_passes_concurrency_to_batch(self):
         """create_processing_strategy passes concurrency_config to BatchProcessingStrategy."""
-        from modules.extract.processing_strategy import create_processing_strategy, BatchProcessingStrategy
+        from modules.extract.processing_strategy import (
+            create_processing_strategy,
+            BatchProcessingStrategy,
+        )
 
         cc = {"concurrency": {"extraction": {"service_tier": "priority"}}}
         strategy = create_processing_strategy(use_batch=True, concurrency_config=cc)
@@ -155,6 +159,7 @@ class TestCM2ServiceTierBatchMode:
 # CM-3: reasoning.effort forwarded in sync mode
 # ---------------------------------------------------------------------------
 
+
 class TestCM3ReasoningEffortSyncMode:
     """CM-3: reasoning_config and reasoning_effort must appear in extra_params."""
 
@@ -176,6 +181,7 @@ class TestCM3ReasoningEffortSyncMode:
             mock_loader.return_value.get_concurrency_config.return_value = {}
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from modules.llm.openai_utils import LLMExtractor
+
                 extractor = LLMExtractor(model="gpt-4o")
 
         ep = extractor._llm.config.extra_params
@@ -199,6 +205,7 @@ class TestCM3ReasoningEffortSyncMode:
             mock_loader.return_value.get_concurrency_config.return_value = {}
             with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
                 from modules.llm.openai_utils import LLMExtractor
+
                 extractor = LLMExtractor(model="gpt-4o")
 
         assert extractor._llm.config.extra_params.get("reasoning_effort") == "medium"
@@ -207,6 +214,7 @@ class TestCM3ReasoningEffortSyncMode:
 # ---------------------------------------------------------------------------
 # CM-4: reasoning translated for Anthropic and Google
 # ---------------------------------------------------------------------------
+
 
 class TestCM4ReasoningAnthropicGoogle:
     """CM-4: Anthropic extended thinking and Google thinking_config must be set."""
@@ -291,6 +299,7 @@ class TestCM4ReasoningAnthropicGoogle:
 # CM-5: text.verbosity passed to ChatOpenAI for GPT-5 family
 # ---------------------------------------------------------------------------
 
+
 class TestCM5TextVerbosity:
     """CM-5: text verbosity must be forwarded to ChatOpenAI for GPT-5 models."""
 
@@ -315,7 +324,9 @@ class TestCM5TextVerbosity:
             llm._create_chat_model()
             call_kwargs = MockChatOpenAI.call_args[1]
             assert call_kwargs.get("text") is None, "text must not be a top-level param"
-            assert call_kwargs.get("model_kwargs", {}).get("text") == {"verbosity": "medium"}
+            assert call_kwargs.get("model_kwargs", {}).get("text") == {
+                "verbosity": "medium"
+            }
 
     @pytest.mark.unit
     def test_text_verbosity_not_passed_for_non_gpt5(self):
@@ -358,12 +369,15 @@ class TestCM5TextVerbosity:
             MockChatOpenAI.return_value = MagicMock()
             llm._create_chat_model()
             call_kwargs = MockChatOpenAI.call_args[1]
-            assert call_kwargs.get("model_kwargs", {}).get("text") == {"verbosity": "high"}
+            assert call_kwargs.get("model_kwargs", {}).get("text") == {
+                "verbosity": "high"
+            }
 
 
 # ---------------------------------------------------------------------------
 # CM-6: Processing summary reads correct concurrency config keys
 # ---------------------------------------------------------------------------
+
 
 class TestCM6ProcessingSummaryKeys:
     """CM-6: display_processing_summary must read concurrency.extraction.*"""
@@ -385,7 +399,9 @@ class TestCM6ProcessingSummaryKeys:
         }
 
         printed_lines = []
-        with patch.object(ui, "console_print", side_effect=lambda msg: printed_lines.append(msg)):
+        with patch.object(
+            ui, "console_print", side_effect=lambda msg: printed_lines.append(msg)
+        ):
             with patch.object(ui, "confirm", return_value=False):
                 ui.display_processing_summary(
                     files=[Path("a.txt")],
@@ -404,6 +420,7 @@ class TestCM6ProcessingSummaryKeys:
 # ---------------------------------------------------------------------------
 # CM-7: Empty output path raises ValueError
 # ---------------------------------------------------------------------------
+
 
 class TestCM7EmptyOutputPath:
     """CM-7: _setup_output_paths raises ValueError for empty or CWD output."""
@@ -487,6 +504,7 @@ class TestCM7EmptyOutputPath:
 # CM-8: Context-selection step in interactive mode
 # ---------------------------------------------------------------------------
 
+
 class TestCM8ContextSelection:
     """CM-8: ask_context_selection returns correct dicts; process_file accepts context_override."""
 
@@ -541,11 +559,14 @@ class TestCM8ContextSelection:
         input_file = tmp_path / "test.txt"
         input_file.write_text("Line 1\nLine 2\n", encoding="utf-8")
 
-        with patch(
-            "modules.extract.file_processor.resolve_context_for_extraction"
-        ) as mock_resolve, patch(
-            "modules.extract.file_processor.create_processing_strategy"
-        ) as mock_strategy:
+        with (
+            patch(
+                "modules.extract.file_processor.resolve_context_for_extraction"
+            ) as mock_resolve,
+            patch(
+                "modules.extract.file_processor.create_processing_strategy"
+            ) as mock_strategy,
+        ):
             mock_strategy.return_value.process_chunks = AsyncMock(return_value=[])
             await fp.process_file(
                 file_path=input_file,
@@ -564,6 +585,7 @@ class TestCM8ContextSelection:
 # ---------------------------------------------------------------------------
 # CM-9: Resume step has back navigation
 # ---------------------------------------------------------------------------
+
 
 class TestCM9ResumeBackNavigation:
     """CM-9: Resume step must use select_option with allow_back=True.
@@ -597,7 +619,8 @@ class TestCM9ResumeBackNavigation:
                 continue
             func = node.func
             name = (
-                func.attr if isinstance(func, ast.Attribute)
+                func.attr
+                if isinstance(func, ast.Attribute)
                 else (func.id if isinstance(func, ast.Name) else None)
             )
             if name != "select_option":
@@ -629,10 +652,7 @@ class TestCM9ResumeBackNavigation:
             targets = [t for t in node.targets if isinstance(t, ast.Name)]
             if not any(t.id == "current_step" for t in targets):
                 continue
-            if (
-                isinstance(node.value, ast.Constant)
-                and node.value.value == "batch"
-            ):
+            if isinstance(node.value, ast.Constant) and node.value.value == "batch":
                 found = True
                 break
         assert found, "back navigation must set current_step = 'batch'"
@@ -641,6 +661,7 @@ class TestCM9ResumeBackNavigation:
 # ---------------------------------------------------------------------------
 # CM-10: Pre-check of existing output files
 # ---------------------------------------------------------------------------
+
 
 class TestCM10ExistingOutputPreCheck:
     """CM-10: _count_existing_outputs must correctly count pre-existing outputs."""
@@ -696,7 +717,9 @@ class TestCM10ExistingOutputPreCheck:
 
         ui = UserInterface(use_colors=False)
         printed_lines = []
-        with patch.object(ui, "console_print", side_effect=lambda msg: printed_lines.append(msg)):
+        with patch.object(
+            ui, "console_print", side_effect=lambda msg: printed_lines.append(msg)
+        ):
             with patch.object(ui, "confirm", return_value=False):
                 ui.display_processing_summary(
                     files=[Path("a.txt"), Path("b.txt")],
@@ -712,6 +735,7 @@ class TestCM10ExistingOutputPreCheck:
 # ---------------------------------------------------------------------------
 # CM-11: asyncio.gather uses return_exceptions=True
 # ---------------------------------------------------------------------------
+
 
 class TestCM11GatherReturnExceptions:
     """CM-11: concurrent file processing gather must use return_exceptions=True.
@@ -731,9 +755,9 @@ class TestCM11GatherReturnExceptions:
             if not isinstance(node, ast.Call):
                 continue
             func = node.func
-            is_gather = (
-                isinstance(func, ast.Attribute) and func.attr == "gather"
-            ) or (isinstance(func, ast.Name) and func.id == "gather")
+            is_gather = (isinstance(func, ast.Attribute) and func.attr == "gather") or (
+                isinstance(func, ast.Name) and func.id == "gather"
+            )
             if not is_gather:
                 continue
             for kw in node.keywords:
@@ -751,8 +775,7 @@ class TestCM11GatherReturnExceptions:
         from main.process_text_files import _run_interactive_mode
 
         assert self._gather_has_return_exceptions_true(_run_interactive_mode), (
-            "_run_interactive_mode must call asyncio.gather with "
-            "return_exceptions=True"
+            "_run_interactive_mode must call asyncio.gather with return_exceptions=True"
         )
 
     @pytest.mark.unit
@@ -798,5 +821,3 @@ class TestCM11GatherReturnExceptions:
             "process_text_files must type-check gather results against "
             "Exception to log rather than silently drop failures"
         )
-
-

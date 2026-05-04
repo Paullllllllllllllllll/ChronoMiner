@@ -24,38 +24,48 @@ from modules.config.capabilities import Capabilities, detect_capabilities
 # 1. supports_prompt_caching capability flag
 # ---------------------------------------------------------------------------
 
+
 class TestSupportsPromptCaching:
     """Verify the supports_prompt_caching flag is set correctly per provider."""
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("model", [
-        "claude-sonnet-4-5",
-        "claude-opus-4-6",
-        "claude-3-5-sonnet",
-        "claude-haiku-4-5",
-        "claude",
-    ])
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "claude-sonnet-4-5",
+            "claude-opus-4-6",
+            "claude-3-5-sonnet",
+            "claude-haiku-4-5",
+            "claude",
+        ],
+    )
     def test_anthropic_models_support_caching(self, model: str):
         caps = detect_capabilities(model)
         assert caps.supports_prompt_caching is True
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("model", [
-        "anthropic/claude-sonnet-4-5",
-        "openrouter/anthropic/claude-3-5-sonnet",
-    ])
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "anthropic/claude-sonnet-4-5",
+            "openrouter/anthropic/claude-3-5-sonnet",
+        ],
+    )
     def test_openrouter_claude_models_support_caching(self, model: str):
         caps = detect_capabilities(model)
         assert caps.supports_prompt_caching is True
 
     @pytest.mark.unit
-    @pytest.mark.parametrize("model", [
-        "gpt-4o",
-        "gpt-5",
-        "o3",
-        "gemini-2.5-pro",
-        "openrouter/openai/gpt-4o",
-    ])
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "gpt-4o",
+            "gpt-5",
+            "o3",
+            "gemini-2.5-pro",
+            "openrouter/openai/gpt-4o",
+        ],
+    )
     def test_non_anthropic_models_do_not_support_caching(self, model: str):
         caps = detect_capabilities(model)
         assert caps.supports_prompt_caching is False
@@ -64,6 +74,7 @@ class TestSupportsPromptCaching:
 # ---------------------------------------------------------------------------
 # 2. cache_control annotation in openai_utils message construction
 # ---------------------------------------------------------------------------
+
 
 class TestCacheControlAnnotation:
     """Verify cache_control is added/absent on system content blocks."""
@@ -119,6 +130,7 @@ class TestCacheControlAnnotation:
 # 3. Content block preservation in langchain_provider conversion
 # ---------------------------------------------------------------------------
 
+
 class TestContentBlockPreservation:
     """Verify content list handling for cache_control vs plain text."""
 
@@ -126,7 +138,11 @@ class TestContentBlockPreservation:
     def test_cache_control_content_preserved_as_list(self):
         """Content with cache_control should remain a list, not collapse."""
         content = [
-            {"type": "input_text", "text": "System prompt", "cache_control": {"type": "ephemeral"}}
+            {
+                "type": "input_text",
+                "text": "System prompt",
+                "cache_control": {"type": "ephemeral"},
+            }
         ]
 
         has_image = any(
@@ -134,8 +150,7 @@ class TestContentBlockPreservation:
             for item in content
         )
         has_cache_control = any(
-            isinstance(item, dict) and "cache_control" in item
-            for item in content
+            isinstance(item, dict) and "cache_control" in item for item in content
         )
 
         assert has_cache_control is True
@@ -171,8 +186,7 @@ class TestContentBlockPreservation:
             for item in content
         )
         has_cache_control = any(
-            isinstance(item, dict) and "cache_control" in item
-            for item in content
+            isinstance(item, dict) and "cache_control" in item for item in content
         )
 
         assert has_cache_control is False
@@ -192,7 +206,11 @@ class TestContentBlockPreservation:
     def test_multimodal_with_cache_control_preserved(self):
         """Content with both image blocks and cache_control should stay a list."""
         content = [
-            {"type": "text", "text": "Instruction", "cache_control": {"type": "ephemeral"}},
+            {
+                "type": "text",
+                "text": "Instruction",
+                "cache_control": {"type": "ephemeral"},
+            },
             {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,abc"}},
         ]
 
@@ -201,8 +219,7 @@ class TestContentBlockPreservation:
             for item in content
         )
         has_cache_control = any(
-            isinstance(item, dict) and "cache_control" in item
-            for item in content
+            isinstance(item, dict) and "cache_control" in item for item in content
         )
 
         assert has_image is True
@@ -214,6 +231,7 @@ class TestContentBlockPreservation:
 # ---------------------------------------------------------------------------
 # 4. Cache metrics extraction
 # ---------------------------------------------------------------------------
+
 
 class TestCacheMetricsExtraction:
     """Verify cache metrics are extracted from Anthropic usage metadata."""
@@ -284,6 +302,7 @@ class TestCacheMetricsExtraction:
 # 5. Anthropic batch backend structured system message
 # ---------------------------------------------------------------------------
 
+
 class TestAnthropicBatchCacheControl:
     """Verify Anthropic batch backend uses structured system message."""
 
@@ -330,27 +349,34 @@ class TestAnthropicBatchCacheControl:
 # 6. Prompt template ordering
 # ---------------------------------------------------------------------------
 
+
 class TestPromptTemplateOrdering:
     """Verify schema appears before context in prompt templates."""
 
     @pytest.mark.unit
     def test_text_prompt_schema_before_context(self):
         from pathlib import Path
+
         prompt_path = Path("prompts/text_extraction_prompt.txt")
         if not prompt_path.exists():
             pytest.skip("Prompt file not found")
         text = prompt_path.read_text(encoding="utf-8")
         schema_pos = text.find("{{TRANSCRIPTION_SCHEMA}}")
         context_pos = text.find("{{CONTEXT}}")
-        assert schema_pos < context_pos, "Schema placeholder must appear before context placeholder"
+        assert schema_pos < context_pos, (
+            "Schema placeholder must appear before context placeholder"
+        )
 
     @pytest.mark.unit
     def test_image_prompt_schema_before_context(self):
         from pathlib import Path
+
         prompt_path = Path("prompts/image_extraction_prompt.txt")
         if not prompt_path.exists():
             pytest.skip("Prompt file not found")
         text = prompt_path.read_text(encoding="utf-8")
         schema_pos = text.find("{{TRANSCRIPTION_SCHEMA}}")
         context_pos = text.find("{{CONTEXT}}")
-        assert schema_pos < context_pos, "Schema placeholder must appear before context placeholder"
+        assert schema_pos < context_pos, (
+            "Schema placeholder must appear before context placeholder"
+        )

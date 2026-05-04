@@ -46,9 +46,16 @@ def _write_line_ranges(path: Path, ranges: list[tuple[int, int]]) -> None:
     )
 
 
-def _make_range_record(stem: str, idx: int, *, original: tuple, adjusted: tuple,
-                       delete: bool = False, llm_calls: int = 2,
-                       boundary_on_target: bool = False) -> dict:
+def _make_range_record(
+    stem: str,
+    idx: int,
+    *,
+    original: tuple,
+    adjusted: tuple,
+    delete: bool = False,
+    llm_calls: int = 2,
+    boundary_on_target: bool = False,
+) -> dict:
     return {
         "custom_id": f"{stem}-range-{idx}",
         "response": {
@@ -80,6 +87,7 @@ def _write_jsonl(path: Path, records: list[dict]) -> None:
 # compute_ranges_fingerprint
 # ---------------------------------------------------------------------------
 
+
 class TestComputeRangesFingerprint:
     def test_deterministic(self, tmp_path: Path) -> None:
         lr = tmp_path / "doc_line_ranges.txt"
@@ -101,6 +109,7 @@ class TestComputeRangesFingerprint:
 # ---------------------------------------------------------------------------
 # build_jsonl_header
 # ---------------------------------------------------------------------------
+
 
 class TestBuildJsonlHeader:
     def test_structure(self) -> None:
@@ -137,6 +146,7 @@ class TestBuildJsonlHeader:
 # ---------------------------------------------------------------------------
 # read_jsonl_header
 # ---------------------------------------------------------------------------
+
 
 class TestReadJsonlHeader:
     def test_reads_first_line_only(self, tmp_path: Path) -> None:
@@ -175,6 +185,7 @@ class TestReadJsonlHeader:
 # validate_jsonl_header
 # ---------------------------------------------------------------------------
 
+
 class TestValidateJsonlHeader:
     def _sample_header(self, **overrides) -> dict:
         defaults = {
@@ -195,101 +206,151 @@ class TestValidateJsonlHeader:
 
     def test_matching_returns_true(self) -> None:
         h = self._sample_header()
-        assert validate_jsonl_header(
-            h,
-            ranges_fingerprint="abc",
-            boundary_type="B",
-            model_name="m",
-            context_window=6,
-            matching_config=_MATCHING_CONFIG,
-            retry_config=_RETRY_CONFIG,
-            prompt_hash="phash",
-        ) is True
+        assert (
+            validate_jsonl_header(
+                h,
+                ranges_fingerprint="abc",
+                boundary_type="B",
+                model_name="m",
+                context_window=6,
+                matching_config=_MATCHING_CONFIG,
+                retry_config=_RETRY_CONFIG,
+                prompt_hash="phash",
+            )
+            is True
+        )
 
     def test_fingerprint_mismatch(self) -> None:
         h = self._sample_header()
-        assert validate_jsonl_header(
-            h,
-            ranges_fingerprint="DIFFERENT",
-            boundary_type="B",
-            model_name="m",
-            context_window=6,
-        ) is False
+        assert (
+            validate_jsonl_header(
+                h,
+                ranges_fingerprint="DIFFERENT",
+                boundary_type="B",
+                model_name="m",
+                context_window=6,
+            )
+            is False
+        )
 
     def test_model_mismatch(self) -> None:
         h = self._sample_header()
-        assert validate_jsonl_header(
-            h,
-            ranges_fingerprint="abc",
-            boundary_type="B",
-            model_name="OTHER_MODEL",
-            context_window=6,
-        ) is False
+        assert (
+            validate_jsonl_header(
+                h,
+                ranges_fingerprint="abc",
+                boundary_type="B",
+                model_name="OTHER_MODEL",
+                context_window=6,
+            )
+            is False
+        )
 
     def test_context_window_mismatch(self) -> None:
         h = self._sample_header()
-        assert validate_jsonl_header(
-            h,
-            ranges_fingerprint="abc",
-            boundary_type="B",
-            model_name="m",
-            context_window=99,
-        ) is False
+        assert (
+            validate_jsonl_header(
+                h,
+                ranges_fingerprint="abc",
+                boundary_type="B",
+                model_name="m",
+                context_window=99,
+            )
+            is False
+        )
 
     def test_prompt_hash_ignored_when_caller_none(self) -> None:
         h = self._sample_header(prompt_hash="stored")
-        assert validate_jsonl_header(
-            h,
-            ranges_fingerprint="abc",
-            boundary_type="B",
-            model_name="m",
-            context_window=6,
-            prompt_hash=None,
-        ) is True
+        assert (
+            validate_jsonl_header(
+                h,
+                ranges_fingerprint="abc",
+                boundary_type="B",
+                model_name="m",
+                context_window=6,
+                prompt_hash=None,
+            )
+            is True
+        )
 
 
 # ---------------------------------------------------------------------------
 # compute_stats_from_jsonl
 # ---------------------------------------------------------------------------
 
+
 class TestComputeStatsFromJsonl:
     def test_correct_counts(self, tmp_path: Path) -> None:
         header = build_jsonl_header(
-            ranges_fingerprint="x", total_ranges=5,
-            boundary_type="B", model_name="m", context_window=6,
+            ranges_fingerprint="x",
+            total_ranges=5,
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
         )
         records = [
             header,
-            _make_range_record("d", 1, original=(1, 100), adjusted=(5, 100), llm_calls=2),
-            _make_range_record("d", 2, original=(101, 200), adjusted=(101, 200), llm_calls=1),
-            _make_range_record("d", 3, original=(201, 300), adjusted=(201, 300),
-                               delete=True, llm_calls=3),
-            _make_range_record("d", 4, original=(301, 400), adjusted=(310, 400), llm_calls=2),
-            _make_range_record("d", 5, original=(401, 500), adjusted=(401, 500), llm_calls=1),
+            _make_range_record(
+                "d", 1, original=(1, 100), adjusted=(5, 100), llm_calls=2
+            ),
+            _make_range_record(
+                "d", 2, original=(101, 200), adjusted=(101, 200), llm_calls=1
+            ),
+            _make_range_record(
+                "d",
+                3,
+                original=(201, 300),
+                adjusted=(201, 300),
+                delete=True,
+                llm_calls=3,
+            ),
+            _make_range_record(
+                "d", 4, original=(301, 400), adjusted=(310, 400), llm_calls=2
+            ),
+            _make_range_record(
+                "d", 5, original=(401, 500), adjusted=(401, 500), llm_calls=1
+            ),
         ]
         jsonl = tmp_path / "temp.jsonl"
         _write_jsonl(jsonl, records)
 
         stats = compute_stats_from_jsonl(jsonl)
         assert stats["total_ranges"] == 5
-        assert stats["ranges_adjusted"] == 2   # ranges 1 and 4
-        assert stats["ranges_deleted"] == 1    # range 3
+        assert stats["ranges_adjusted"] == 2  # ranges 1 and 4
+        assert stats["ranges_deleted"] == 1  # range 3
         assert stats["ranges_kept_original"] == 2  # ranges 2 and 5
         assert stats["ranges_already_on_target"] == 0
         assert stats["total_llm_calls"] == 9
 
     def test_counts_already_on_target(self, tmp_path: Path) -> None:
         header = build_jsonl_header(
-            ranges_fingerprint="fp", total_ranges=3,
-            boundary_type="B", model_name="m", context_window=6,
+            ranges_fingerprint="fp",
+            total_ranges=3,
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
         )
         records = [
             header,
-            _make_range_record("d", 1, original=(1, 100), adjusted=(5, 100), llm_calls=2),
-            _make_range_record("d", 2, original=(101, 200), adjusted=(101, 200),
-                               llm_calls=1, boundary_on_target=True),
-            _make_range_record("d", 3, original=(201, 300), adjusted=(201, 300),
-                               llm_calls=1, boundary_on_target=True),
+            _make_range_record(
+                "d", 1, original=(1, 100), adjusted=(5, 100), llm_calls=2
+            ),
+            _make_range_record(
+                "d",
+                2,
+                original=(101, 200),
+                adjusted=(101, 200),
+                llm_calls=1,
+                boundary_on_target=True,
+            ),
+            _make_range_record(
+                "d",
+                3,
+                original=(201, 300),
+                adjusted=(201, 300),
+                llm_calls=1,
+                boundary_on_target=True,
+            ),
         ]
         jsonl = tmp_path / "temp.jsonl"
         _write_jsonl(jsonl, records)
@@ -302,8 +363,11 @@ class TestComputeStatsFromJsonl:
 
     def test_header_not_counted(self, tmp_path: Path) -> None:
         header = build_jsonl_header(
-            ranges_fingerprint="x", total_ranges=1,
-            boundary_type="B", model_name="m", context_window=6,
+            ranges_fingerprint="x",
+            total_ranges=1,
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
         )
         jsonl = tmp_path / "temp.jsonl"
         _write_jsonl(jsonl, [header])
@@ -316,12 +380,17 @@ class TestComputeStatsFromJsonl:
 # extract_completed_ids with header
 # ---------------------------------------------------------------------------
 
+
 class TestExtractCompletedIdsSkipsHeader:
     def test_header_not_counted(self, tmp_path: Path) -> None:
         import re
+
         header = build_jsonl_header(
-            ranges_fingerprint="x", total_ranges=2,
-            boundary_type="B", model_name="m", context_window=6,
+            ranges_fingerprint="x",
+            total_ranges=2,
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
         )
         records = [
             header,

@@ -32,9 +32,7 @@ async def run_concurrent_tasks(
             try:
                 return await corofunc(*args)
             except Exception as e:
-                logger.error(
-                    f"Task failed with arguments {args}: {e}", exc_info=True
-                )
+                logger.error(f"Task failed with arguments {args}: {e}", exc_info=True)
                 return None
 
     tasks = [asyncio.create_task(worker(args)) for args in args_list]

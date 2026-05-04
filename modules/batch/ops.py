@@ -129,9 +129,7 @@ def _normalize_response_entry(entry: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _resolve_file_id_by_keys(
-    batch: dict[str, Any], keys: list[str]
-) -> str | None:
+def _resolve_file_id_by_keys(batch: dict[str, Any], keys: list[str]) -> str | None:
     for key in keys:
         if key in batch:
             file_id = coerce_file_id(batch.get(key))
@@ -148,9 +146,7 @@ def _download_error_file(
         response = client.files.content(error_file_id)
         blob = response.read()
         error_text = (
-            blob.decode("utf-8")
-            if isinstance(blob, (bytes, bytearray))
-            else str(blob)
+            blob.decode("utf-8") if isinstance(blob, (bytes, bytearray)) else str(blob)
         )
         target_dir.mkdir(parents=True, exist_ok=True)
         short_batch = batch_id.replace("batch_", "")[:16]
@@ -162,7 +158,9 @@ def _download_error_file(
     except Exception as exc:
         logger.warning(
             "Failed to download error file %s for batch %s: %s",
-            error_file_id, batch_id, exc,
+            error_file_id,
+            batch_id,
+            exc,
         )
     return None
 
@@ -203,12 +201,14 @@ def _recover_missing_batch_ids(
                     handle.write(json.dumps(record) + "\n")
             logger.info(
                 "Persisted %s recovered batch id(s) into %s",
-                len(recovered), temp_file.name,
+                len(recovered),
+                temp_file.name,
             )
         except Exception as exc:
             logger.warning(
                 "Failed to persist recovered batch ids for %s: %s",
-                temp_file.name, exc,
+                temp_file.name,
+                exc,
             )
 
     return recovered
@@ -238,9 +238,7 @@ def is_batch_finished(batch_id: str, provider: str = "openai") -> bool:
         return False
 
 
-def load_config() -> tuple[
-    list[tuple[str, Path, dict[str, Any]]], dict[str, Any]
-]:
+def load_config() -> tuple[list[tuple[str, Path, dict[str, Any]]], dict[str, Any]]:
     config_loader = get_config_loader()
     paths_config: dict[str, Any] = config_loader.get_paths_config()
     general: dict[str, Any] = paths_config["general"]

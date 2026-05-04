@@ -13,6 +13,7 @@ from modules.infra.chunking import ChunkSlice, apply_chunk_slice
 # ChunkSlice validation
 # ---------------------------------------------------------------------------
 
+
 class TestChunkSliceValidation:
     """Tests for ChunkSlice construction and validation."""
 
@@ -63,6 +64,7 @@ class TestChunkSliceValidation:
 # ---------------------------------------------------------------------------
 # apply_chunk_slice
 # ---------------------------------------------------------------------------
+
 
 def _make_chunks(n: int) -> Tuple[List[str], List[Tuple[int, int]]]:
     """Create n dummy chunks and ranges for testing."""

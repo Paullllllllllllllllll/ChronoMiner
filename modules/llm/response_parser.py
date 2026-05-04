@@ -33,7 +33,9 @@ class ResponseParser:
             logger.error(f"Failed to parse response for {self.schema_name}: {e}")
             return {"error": f"JSON decode error: {str(e)}"}
         except Exception as e:
-            logger.error(f"Unexpected error parsing response for {self.schema_name}: {e}")
+            logger.error(
+                f"Unexpected error parsing response for {self.schema_name}: {e}"
+            )
             return {"error": str(e)}
 
     def validate_response(self, response: dict[str, Any]) -> bool:
@@ -46,12 +48,12 @@ class ResponseParser:
         if "error" in response:
             logger.warning(f"Response contains error: {response['error']}")
             return False
-        
+
         # Basic validation - check for expected structure
         if not isinstance(response, dict):
             logger.warning(f"Response is not a dictionary: {type(response)}")
             return False
-        
+
         return True
 
     def extract_entries(self, response: dict[str, Any]) -> list:
@@ -63,12 +65,12 @@ class ResponseParser:
         """
         if not self.validate_response(response):
             return []
-        
+
         # Handle standard schema structure
         if "entries" in response:
             entries = response.get("entries", [])
             if isinstance(entries, list):
                 return entries
-        
+
         logger.warning(f"No entries found in response for {self.schema_name}")
         return []

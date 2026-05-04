@@ -27,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 class FileStatus(Enum):
     """Processing status for a file."""
+
     NOT_STARTED = "not_started"
     PARTIAL = "partial"
     COMPLETE = "complete"
@@ -141,5 +142,3 @@ def get_output_json_path(
         return ensure_path_safe(file_path.parent / f"{file_path.stem}_output.json")
     output_dir = schema_paths.get("output", "")
     return ensure_path_safe(Path(output_dir) / f"{file_path.stem}_output.json")
-
-

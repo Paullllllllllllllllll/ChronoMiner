@@ -19,6 +19,7 @@ logger = logging.getLogger(__name__)
 # Each takes an *entry* dict and returns a formatted value.
 # ---------------------------------------------------------------------------
 
+
 def _join_list(entry: dict, key: str, sep: str = ", ") -> str:
     """Join a simple list field into a string."""
     vals = entry.get(key, [])
@@ -27,9 +28,7 @@ def _join_list(entry: dict, key: str, sep: str = ", ") -> str:
     return ""
 
 
-def _join_dicts(
-    entry: dict, key: str, fmt: Callable, sep: str = "; "
-) -> str:
+def _join_dicts(entry: dict, key: str, fmt: Callable, sep: str = "; ") -> str:
     """Join a list-of-dicts field by applying *fmt* to each element."""
     items = entry.get(key, [])
     return sep.join(fmt(item) for item in items if isinstance(item, dict))
@@ -70,7 +69,7 @@ class CSVConverter(BaseConverter):
         if converter:
             df = converter(entries)
         else:
-            df = pd.json_normalize(entries, sep='_')
+            df = pd.json_normalize(entries, sep="_")
         try:
             df.to_csv(output_csv, index=False)
             logger.info(f"CSV file generated at {output_csv}")
@@ -127,21 +126,27 @@ class CSVConverter(BaseConverter):
     ]
 
     _STRUCTURED_SUMMARIES_CSV_FIELDS: list[tuple] = [
-        ("page_number", lambda e: (
-            (e.get("page_number") or {}).get("page_number_integer")
-            if isinstance(e.get("page_number", {}), dict) else None
-        ), None),
-        ("contains_no_page_number", lambda e: (
-            (e.get("page_number") or {}).get(
-                "contains_no_page_number", False)
-            if isinstance(e.get("page_number", {}), dict) else False
-        ), None),
-        ("contains_no_semantic_content",
-         "contains_no_semantic_content", False),
-        ("bullet_points",
-         lambda e: _join_list(e, "bullet_points", "; "), None),
-        ("references",
-         lambda e: _join_list(e, "references", "; "), None),
+        (
+            "page_number",
+            lambda e: (
+                (e.get("page_number") or {}).get("page_number_integer")
+                if isinstance(e.get("page_number", {}), dict)
+                else None
+            ),
+            None,
+        ),
+        (
+            "contains_no_page_number",
+            lambda e: (
+                (e.get("page_number") or {}).get("contains_no_page_number", False)
+                if isinstance(e.get("page_number", {}), dict)
+                else False
+            ),
+            None,
+        ),
+        ("contains_no_semantic_content", "contains_no_semantic_content", False),
+        ("bullet_points", lambda e: _join_list(e, "bullet_points", "; "), None),
+        ("references", lambda e: _join_list(e, "references", "; "), None),
     ]
 
     # Shared field keys for Brazilian occupation/military records CSV columns.
@@ -188,48 +193,57 @@ class CSVConverter(BaseConverter):
 
     _CULINARY_PERSONS_CSV_FIELDS: list[tuple] = [
         ("canonical_name_original", "canonical_name_original", None),
-        ("canonical_name_modern_english",
-         "canonical_name_modern_english", None),
+        ("canonical_name_modern_english", "canonical_name_modern_english", None),
         ("gender", "gender", None),
         ("roles", lambda e: _join_list(e, "roles"), None),
-        ("period_start_year",
-         lambda e: BaseConverter._extract_period(e)[0], None),
-        ("period_end_year",
-         lambda e: BaseConverter._extract_period(e)[1], None),
-        ("period_notation",
-         lambda e: BaseConverter._extract_period(e)[2], None),
-        ("name_variants", lambda e: _join_dicts(
-            e, "name_variants",
-            lambda v: (
-                f"{v.get('name_original', '')} "
-                f"({v.get('name_modern_english', '')})"
+        ("period_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
+        ("period_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
+        ("period_notation", lambda e: BaseConverter._extract_period(e)[2], None),
+        (
+            "name_variants",
+            lambda e: _join_dicts(
+                e,
+                "name_variants",
+                lambda v: (
+                    f"{v.get('name_original', '')} ({v.get('name_modern_english', '')})"
+                ),
             ),
-        ), None),
-        ("associated_places", lambda e: _join_dicts(
-            e, "associated_places",
-            lambda p: (
-                f"{p.get('place_original', '')} - "
-                f"{p.get('association_type', '')}"
+            None,
+        ),
+        (
+            "associated_places",
+            lambda e: _join_dicts(
+                e,
+                "associated_places",
+                lambda p: (
+                    f"{p.get('place_original', '')} - {p.get('association_type', '')}"
+                ),
             ),
-        ), None),
-        ("associated_works", lambda e: _join_dicts(
-            e, "associated_works",
-            lambda w: (
-                f"{w.get('title_original', '')} "
-                f"({w.get('role', '')})"
+            None,
+        ),
+        (
+            "associated_works",
+            lambda e: _join_dicts(
+                e,
+                "associated_works",
+                lambda w: f"{w.get('title_original', '')} ({w.get('role', '')})",
             ),
-        ), None),
+            None,
+        ),
         ("notes", "notes", None),
-        ("sources", lambda e: _join_dicts(
-            e, "sources",
-            lambda s: (
-                f"{s.get('author', '')} - "
-                f"{s.get('title', '')} ({s.get('year', '')})"
+        (
+            "sources",
+            lambda e: _join_dicts(
+                e,
+                "sources",
+                lambda s: (
+                    f"{s.get('author', '')} - "
+                    f"{s.get('title', '')} ({s.get('year', '')})"
+                ),
             ),
-        ), None),
-        ("links",
-         lambda e: BaseConverter._format_links(
-             e.get("links", [])), None),
+            None,
+        ),
+        ("links", lambda e: BaseConverter._format_links(e.get("links", [])), None),
     ]
 
     _CULINARY_PLACES_CSV_FIELDS: list[tuple] = [
@@ -237,30 +251,33 @@ class CSVConverter(BaseConverter):
         ("name_modern_english", "name_modern_english", None),
         ("place_type", "place_type", None),
         ("country_modern", "country_modern", None),
-        ("period_start_year",
-         lambda e: BaseConverter._extract_period(e)[0], None),
-        ("period_end_year",
-         lambda e: BaseConverter._extract_period(e)[1], None),
-        ("period_notation",
-         lambda e: BaseConverter._extract_period(e)[2], None),
-        ("roles_in_culinary_ecosystem",
-         lambda e: _join_list(
-             e, "roles_in_culinary_ecosystem"), None),
-        ("associated_products",
-         lambda e: _join_list(e, "associated_products"), None),
-        ("notable_establishments",
-         lambda e: _join_list(e, "notable_establishments"), None),
-        ("associated_people", lambda e: _join_dicts(
-            e, "associated_people",
-            lambda p: (
-                f"{p.get('name_original', '')} - "
-                f"{p.get('association_type', '')}"
+        ("period_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
+        ("period_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
+        ("period_notation", lambda e: BaseConverter._extract_period(e)[2], None),
+        (
+            "roles_in_culinary_ecosystem",
+            lambda e: _join_list(e, "roles_in_culinary_ecosystem"),
+            None,
+        ),
+        ("associated_products", lambda e: _join_list(e, "associated_products"), None),
+        (
+            "notable_establishments",
+            lambda e: _join_list(e, "notable_establishments"),
+            None,
+        ),
+        (
+            "associated_people",
+            lambda e: _join_dicts(
+                e,
+                "associated_people",
+                lambda p: (
+                    f"{p.get('name_original', '')} - {p.get('association_type', '')}"
+                ),
             ),
-        ), None),
+            None,
+        ),
         ("notes", "notes", None),
-        ("links",
-         lambda e: BaseConverter._format_links(
-             e.get("links", [])), None),
+        ("links", lambda e: BaseConverter._format_links(e.get("links", [])), None),
     ]
 
     _CULINARY_WORKS_CSV_FIELDS: list[tuple] = [
@@ -269,43 +286,53 @@ class CSVConverter(BaseConverter):
         ("short_title", "short_title", None),
         ("description", "description", None),
         ("genre", "genre", None),
-        ("culinary_focus",
-         lambda e: _join_list(e, "culinary_focus"), None),
+        ("culinary_focus", lambda e: _join_list(e, "culinary_focus"), None),
         ("languages", lambda e: _join_list(e, "languages"), None),
-        ("contributors", lambda e: _join_dicts(
-            e, "contributors",
-            lambda c: (
-                f"{c.get('name_original', '')} "
-                f"({c.get('role', '')})"
+        (
+            "contributors",
+            lambda e: _join_dicts(
+                e,
+                "contributors",
+                lambda c: f"{c.get('name_original', '')} ({c.get('role', '')})",
             ),
-        ), None),
-        ("edition_years",
-         lambda e: _join_list(e, "edition_years"), None),
-        ("publication_places", lambda e: _join_dicts(
-            e, "publication_places",
-            lambda p: (
-                f"{p.get('name_original', '')} "
-                f"({p.get('name_modern_english', '')})"
+            None,
+        ),
+        ("edition_years", lambda e: _join_list(e, "edition_years"), None),
+        (
+            "publication_places",
+            lambda e: _join_dicts(
+                e,
+                "publication_places",
+                lambda p: (
+                    f"{p.get('name_original', '')} ({p.get('name_modern_english', '')})"
+                ),
             ),
-        ), None),
-        ("associated_places", lambda e: _join_dicts(
-            e, "associated_places",
-            lambda p: (
-                f"{p.get('name_original', '')} - "
-                f"{p.get('association_type', '')}"
+            None,
+        ),
+        (
+            "associated_places",
+            lambda e: _join_dicts(
+                e,
+                "associated_places",
+                lambda p: (
+                    f"{p.get('name_original', '')} - {p.get('association_type', '')}"
+                ),
             ),
-        ), None),
-        ("associated_persons", lambda e: _join_dicts(
-            e, "associated_persons",
-            lambda p: (
-                f"{p.get('name_original', '')} - "
-                f"{p.get('association_type', '')}"
+            None,
+        ),
+        (
+            "associated_persons",
+            lambda e: _join_dicts(
+                e,
+                "associated_persons",
+                lambda p: (
+                    f"{p.get('name_original', '')} - {p.get('association_type', '')}"
+                ),
             ),
-        ), None),
+            None,
+        ),
         ("notes", "notes", None),
-        ("links",
-         lambda e: BaseConverter._format_links(
-             e.get("links", [])), None),
+        ("links", lambda e: BaseConverter._format_links(e.get("links", [])), None),
     ]
 
     # ------------------------------------------------------------------
@@ -317,31 +344,21 @@ class CSVConverter(BaseConverter):
     ) -> pd.DataFrame:
         return self._spec_to_df(entries, self._ADDRESSBOOK_CSV_FIELDS)
 
-    def _convert_structured_summaries_to_df(
-        self, entries: list[Any]
-    ) -> pd.DataFrame:
+    def _convert_structured_summaries_to_df(self, entries: list[Any]) -> pd.DataFrame:
         return self._spec_to_df(
-            entries, self._STRUCTURED_SUMMARIES_CSV_FIELDS,
+            entries,
+            self._STRUCTURED_SUMMARIES_CSV_FIELDS,
             normalize=False,
         )
 
-    def _convert_culinary_persons_to_df(
-        self, entries: list[Any]
-    ) -> pd.DataFrame:
-        return self._spec_to_df(
-            entries, self._CULINARY_PERSONS_CSV_FIELDS)
+    def _convert_culinary_persons_to_df(self, entries: list[Any]) -> pd.DataFrame:
+        return self._spec_to_df(entries, self._CULINARY_PERSONS_CSV_FIELDS)
 
-    def _convert_culinary_places_to_df(
-        self, entries: list[Any]
-    ) -> pd.DataFrame:
-        return self._spec_to_df(
-            entries, self._CULINARY_PLACES_CSV_FIELDS)
+    def _convert_culinary_places_to_df(self, entries: list[Any]) -> pd.DataFrame:
+        return self._spec_to_df(entries, self._CULINARY_PLACES_CSV_FIELDS)
 
-    def _convert_culinary_works_to_df(
-        self, entries: list[Any]
-    ) -> pd.DataFrame:
-        return self._spec_to_df(
-            entries, self._CULINARY_WORKS_CSV_FIELDS)
+    def _convert_culinary_works_to_df(self, entries: list[Any]) -> pd.DataFrame:
+        return self._spec_to_df(entries, self._CULINARY_WORKS_CSV_FIELDS)
 
     # ------------------------------------------------------------------
     # Brazilian records (already spec-driven)
@@ -352,8 +369,10 @@ class CSVConverter(BaseConverter):
     ) -> pd.DataFrame:
         rows: list[dict[str, Any]] = []
         for entry in entries:
-            row = {col: resolve_field(entry, key, default)
-                   for col, key, default in self._BRAZILIAN_CSV_FIELDS}
+            row = {
+                col: resolve_field(entry, key, default)
+                for col, key, default in self._BRAZILIAN_CSV_FIELDS
+            }
             row["officials"] = self._format_officials(entry)
             rows.append(row)
         return pd.DataFrame(rows)
@@ -362,9 +381,7 @@ class CSVConverter(BaseConverter):
     # Complex schema converters (kept as specialized methods)
     # ------------------------------------------------------------------
 
-    def _convert_bibliographic_entries_to_df(
-        self, entries: list[Any]
-    ) -> pd.DataFrame:
+    def _convert_bibliographic_entries_to_df(self, entries: list[Any]) -> pd.DataFrame:
         """
         Converts bibliographic entries to a pandas DataFrame according to schema version 3.3.
         Creates one row per edition with all entry-level data repeated.
@@ -389,8 +406,11 @@ class CSVConverter(BaseConverter):
                 library_city = library_location.get("library_city")
 
             culinary_focus = entry.get("culinary_focus", [])
-            culinary_focus_str = ", ".join(culinary_focus) if isinstance(
-                culinary_focus, list) else str(culinary_focus)
+            culinary_focus_str = (
+                ", ".join(culinary_focus)
+                if isinstance(culinary_focus, list)
+                else str(culinary_focus)
+            )
 
             # Process edition info
             edition_info = entry.get("edition_info", [])
@@ -399,14 +419,16 @@ class CSVConverter(BaseConverter):
 
             # If no editions, create a single row with entry data
             if not edition_info:
-                rows.append({
-                    "full_title": full_title,
-                    "short_title": short_title,
-                    "main_author": main_author,
-                    "library_name": library_name,
-                    "library_city": library_city,
-                    "culinary_focus": culinary_focus_str
-                })
+                rows.append(
+                    {
+                        "full_title": full_title,
+                        "short_title": short_title,
+                        "main_author": main_author,
+                        "library_name": library_name,
+                        "library_city": library_city,
+                        "culinary_focus": culinary_focus_str,
+                    }
+                )
                 continue
 
             # Create one row per edition
@@ -414,16 +436,23 @@ class CSVConverter(BaseConverter):
                 # Extract publication locations
                 pub_locations = edition.get("publication_locations", [])
                 cities = [loc.get("city") for loc in pub_locations if loc.get("city")]
-                countries = [loc.get("country") for loc in pub_locations if loc.get("country")]
+                countries = [
+                    loc.get("country") for loc in pub_locations if loc.get("country")
+                ]
 
                 # Extract contributors with roles
                 contributors = edition.get("contributors", [])
-                contributor_strs = [f"{c.get('name', '')} ({c.get('role', '')})"
-                                   for c in contributors if isinstance(c, dict)]
+                contributor_strs = [
+                    f"{c.get('name', '')} ({c.get('role', '')})"
+                    for c in contributors
+                    if isinstance(c, dict)
+                ]
 
                 # Extract publishers
                 publishers = edition.get("publishers", [])
-                publishers_str = ", ".join(publishers) if isinstance(publishers, list) else ""
+                publishers_str = (
+                    ", ".join(publishers) if isinstance(publishers, list) else ""
+                )
 
                 # Extract price info
                 price_info = edition.get("price_information")
@@ -439,7 +468,6 @@ class CSVConverter(BaseConverter):
                     "library_name": library_name,
                     "library_city": library_city,
                     "culinary_focus": culinary_focus_str,
-
                     # Edition-level fields
                     "edition_year": edition.get("year"),
                     "edition_number": edition.get("edition_number"),
@@ -455,7 +483,7 @@ class CSVConverter(BaseConverter):
                     "pages": edition.get("pages"),
                     "has_illustrations": edition.get("has_illustrations"),
                     "dimensions": edition.get("dimensions"),
-                    "price": price_str
+                    "price": price_str,
                 }
                 rows.append(edition_row)
 
@@ -468,7 +496,7 @@ class CSVConverter(BaseConverter):
         profile_keys = {
             "Person": "person_entry",
             "Place": "place_entry",
-            "Work": "work_entry"
+            "Work": "work_entry",
         }
 
         for entry in entries:
@@ -519,39 +547,57 @@ class CSVConverter(BaseConverter):
                 "work_material_format": None,
                 "work_material_has_illustrations": None,
                 "work_material_page_count": None,
-                "work_material_notes": None
+                "work_material_notes": None,
             }
 
             if entry_type == "Person":
-                row.update({
-                    "person_gender": profile.get("gender"),
-                    "person_roles": self.join_list(profile.get("roles")),
-                    "person_name_variants": self.format_name_variants(profile.get("name_variants")),
-                    "person_biographical_notes": profile.get("biographical_notes")
-                })
+                row.update(
+                    {
+                        "person_gender": profile.get("gender"),
+                        "person_roles": self.join_list(profile.get("roles")),
+                        "person_name_variants": self.format_name_variants(
+                            profile.get("name_variants")
+                        ),
+                        "person_biographical_notes": profile.get("biographical_notes"),
+                    }
+                )
 
             elif entry_type == "Place":
-                row.update({
-                    "place_type": profile.get("place_type"),
-                    "place_country_modern": profile.get("country_modern"),
-                    "place_roles_in_culinary_ecosystem": self.join_list(profile.get("roles_in_culinary_ecosystem")),
-                    "place_associated_products": self.join_list(profile.get("associated_products")),
-                    "place_notable_establishments": self.join_list(profile.get("notable_establishments")),
-                    "place_notes": profile.get("place_notes")
-                })
+                row.update(
+                    {
+                        "place_type": profile.get("place_type"),
+                        "place_country_modern": profile.get("country_modern"),
+                        "place_roles_in_culinary_ecosystem": self.join_list(
+                            profile.get("roles_in_culinary_ecosystem")
+                        ),
+                        "place_associated_products": self.join_list(
+                            profile.get("associated_products")
+                        ),
+                        "place_notable_establishments": self.join_list(
+                            profile.get("notable_establishments")
+                        ),
+                        "place_notes": profile.get("place_notes"),
+                    }
+                )
 
             elif entry_type == "Work":
                 material_features = profile.get("material_features", {}) or {}
-                row.update({
-                    "work_short_title": profile.get("short_title"),
-                    "work_description": profile.get("description"),
-                    "work_genre": profile.get("genre"),
-                    "work_edition_years": self.join_list(profile.get("edition_years")),
-                    "work_material_format": material_features.get("format"),
-                    "work_material_has_illustrations": material_features.get("has_illustrations"),
-                    "work_material_page_count": material_features.get("page_count"),
-                    "work_material_notes": material_features.get("notes")
-                })
+                row.update(
+                    {
+                        "work_short_title": profile.get("short_title"),
+                        "work_description": profile.get("description"),
+                        "work_genre": profile.get("genre"),
+                        "work_edition_years": self.join_list(
+                            profile.get("edition_years")
+                        ),
+                        "work_material_format": material_features.get("format"),
+                        "work_material_has_illustrations": material_features.get(
+                            "has_illustrations"
+                        ),
+                        "work_material_page_count": material_features.get("page_count"),
+                        "work_material_notes": material_features.get("notes"),
+                    }
+                )
 
             rows.append(row)
 
@@ -578,7 +624,9 @@ class CSVConverter(BaseConverter):
             ingredients_list = []
             for ing in ingredients:
                 if isinstance(ing, dict):
-                    name = ing.get("name_modern_english") or ing.get("name_original") or ""
+                    name = (
+                        ing.get("name_modern_english") or ing.get("name_original") or ""
+                    )
                     qty_val = ing.get("quantity_standardized_value")
                     qty_unit = ing.get("quantity_standardized_unit")
                     qty_str = f"{qty_val} {qty_unit}" if qty_val and qty_unit else ""
@@ -589,20 +637,28 @@ class CSVConverter(BaseConverter):
 
             # Extract cooking methods
             methods = entry.get("cooking_methods", [])
-            methods_str = ", ".join([m.get("method_modern_english") or m.get("method_original") or ""
-                                     for m in methods if isinstance(m, dict)])
+            methods_str = ", ".join(
+                [
+                    m.get("method_modern_english") or m.get("method_original") or ""
+                    for m in methods
+                    if isinstance(m, dict)
+                ]
+            )
 
             # Extract utensils
             utensils = entry.get("utensils_equipment", [])
-            utensils_str = ", ".join([u.get("utensil_modern_english") or u.get("utensil_original") or ""
-                                      for u in utensils if isinstance(u, dict)])
+            utensils_str = ", ".join(
+                [
+                    u.get("utensil_modern_english") or u.get("utensil_original") or ""
+                    for u in utensils
+                    if isinstance(u, dict)
+                ]
+            )
 
             # Extract yield and times via shared helper
             yield_str = self._extract_first_measurement(entry, "yield")
-            prep_time_str = self._extract_first_measurement(
-                entry, "preparation_time")
-            cook_time_str = self._extract_first_measurement(
-                entry, "cooking_time")
+            prep_time_str = self._extract_first_measurement(entry, "preparation_time")
+            cook_time_str = self._extract_first_measurement(entry, "cooking_time")
 
             # Extract ingredient categories
             categories = entry.get("ingredient_categories", {})
@@ -628,13 +684,23 @@ class CSVConverter(BaseConverter):
                 "contains_eggs": categories.get("contains_eggs", False),
                 "contains_butter": categories.get("contains_butter", False),
                 "contains_olive_oil": categories.get("contains_olive_oil", False),
-                "contains_lard_animal_fat": categories.get("contains_lard_animal_fat", False),
+                "contains_lard_animal_fat": categories.get(
+                    "contains_lard_animal_fat", False
+                ),
                 "contains_alcohol": categories.get("contains_alcohol", False),
-                "contains_refined_sugar": categories.get("contains_refined_sugar", False),
+                "contains_refined_sugar": categories.get(
+                    "contains_refined_sugar", False
+                ),
                 "contains_honey": categories.get("contains_honey", False),
-                "contains_other_sweeteners": categories.get("contains_other_sweeteners", False),
-                "contains_foreign_spices": categories.get("contains_foreign_spices", False),
-                "contains_luxury_ingredients": categories.get("contains_luxury_ingredients", False)
+                "contains_other_sweeteners": categories.get(
+                    "contains_other_sweeteners", False
+                ),
+                "contains_foreign_spices": categories.get(
+                    "contains_foreign_spices", False
+                ),
+                "contains_luxury_ingredients": categories.get(
+                    "contains_luxury_ingredients", False
+                ),
             }
             rows.append(row)
 
@@ -692,19 +758,31 @@ class CSVConverter(BaseConverter):
             # Cuisine
             cuisine = entry.get("cuisine", {}) or {}
             styles = cuisine.get("styles", [])
-            styles_str = ", ".join(styles) if isinstance(styles, list) and styles else ""
+            styles_str = (
+                ", ".join(styles) if isinstance(styles, list) and styles else ""
+            )
             specialties = cuisine.get("specialties", [])
-            specialties_str = ", ".join(specialties) if isinstance(specialties, list) and specialties else ""
+            specialties_str = (
+                ", ".join(specialties)
+                if isinstance(specialties, list) and specialties
+                else ""
+            )
             chef = cuisine.get("chef")
             keywords = cuisine.get("keywords", [])
-            keywords_str = ", ".join(keywords) if isinstance(keywords, list) and keywords else ""
+            keywords_str = (
+                ", ".join(keywords) if isinstance(keywords, list) and keywords else ""
+            )
 
             # Opening
             opening = entry.get("opening", {}) or {}
             lunch_hours = opening.get("lunch_hours")
             dinner_hours = opening.get("dinner_hours")
             days_closed = opening.get("days_closed", [])
-            days_closed_str = ", ".join(days_closed) if isinstance(days_closed, list) and days_closed else ""
+            days_closed_str = (
+                ", ".join(days_closed)
+                if isinstance(days_closed, list) and days_closed
+                else ""
+            )
             annual_closure = opening.get("annual_closure")
             open_for_breakfast = opening.get("open_for_breakfast")
 
@@ -718,10 +796,17 @@ class CSVConverter(BaseConverter):
             lunch_menu_price = pricing.get("lunch_menu_price")
             price_note = pricing.get("price_note")
             set_menus = pricing.get("set_menus", [])
-            set_menus_str = "; ".join([
-                f"{m.get('label', '')}: {m.get('price_min', '')}-{m.get('price_max', '')}"
-                for m in set_menus if isinstance(m, dict)
-            ]) if isinstance(set_menus, list) and set_menus else ""
+            set_menus_str = (
+                "; ".join(
+                    [
+                        f"{m.get('label', '')}: {m.get('price_min', '')}-{m.get('price_max', '')}"
+                        for m in set_menus
+                        if isinstance(m, dict)
+                    ]
+                )
+                if isinstance(set_menus, list) and set_menus
+                else ""
+            )
 
             # Amenities
             amenities = entry.get("amenities", {}) or {}
@@ -794,7 +879,7 @@ class CSVConverter(BaseConverter):
                 "accept_visa": payments.get("accept_visa"),
                 "accept_mastercard": payments.get("accept_mastercard"),
                 "accept_amex": payments.get("accept_amex"),
-                "raw_entry_text": raw_entry_text
+                "raw_entry_text": raw_entry_text,
             }
             rows.append(row)
 
@@ -840,11 +925,15 @@ class CSVConverter(BaseConverter):
                 qty = ing.get("quantity_original") or ""
                 ing_str = f"{name} ({qty})".strip() if qty else name
                 ingredients_list.append(ing_str)
-                luxury_ratings.append(str(ing.get("ingredient_luxury_signal_rating_1_7") or ""))
+                luxury_ratings.append(
+                    str(ing.get("ingredient_luxury_signal_rating_1_7") or "")
+                )
                 trade_distance_ratings.append(
                     str(ing.get("ingredient_trade_distance_rating_1_7") or "")
                 )
-                novelty_ratings.append(str(ing.get("ingredient_novelty_rating_1_7") or ""))
+                novelty_ratings.append(
+                    str(ing.get("ingredient_novelty_rating_1_7") or "")
+                )
 
             ingredients_str = "; ".join(ingredients_list)
             luxury_ratings_str = "; ".join(luxury_ratings)
@@ -861,7 +950,9 @@ class CSVConverter(BaseConverter):
                 methods_list.append(
                     m.get("method_modern_english") or m.get("method_original") or ""
                 )
-                complexity_ratings.append(str(m.get("method_complexity_rating_1_7") or ""))
+                complexity_ratings.append(
+                    str(m.get("method_complexity_rating_1_7") or "")
+                )
             methods_str = ", ".join(methods_list)
             complexity_ratings_str = "; ".join(complexity_ratings)
 
@@ -920,12 +1011,20 @@ class CSVConverter(BaseConverter):
                 "contains_eggs": categories.get("contains_eggs", False),
                 "contains_butter": categories.get("contains_butter", False),
                 "contains_olive_oil": categories.get("contains_olive_oil", False),
-                "contains_lard_animal_fat": categories.get("contains_lard_animal_fat", False),
+                "contains_lard_animal_fat": categories.get(
+                    "contains_lard_animal_fat", False
+                ),
                 "contains_alcohol": categories.get("contains_alcohol", False),
-                "contains_refined_sugar": categories.get("contains_refined_sugar", False),
+                "contains_refined_sugar": categories.get(
+                    "contains_refined_sugar", False
+                ),
                 "contains_honey": categories.get("contains_honey", False),
-                "contains_other_sweeteners": categories.get("contains_other_sweeteners", False),
-                "contains_foreign_spices": categories.get("contains_foreign_spices", False),
+                "contains_other_sweeteners": categories.get(
+                    "contains_other_sweeteners", False
+                ),
+                "contains_foreign_spices": categories.get(
+                    "contains_foreign_spices", False
+                ),
                 "contains_luxury_ingredients": categories.get(
                     "contains_luxury_ingredients", False
                 ),
@@ -942,7 +1041,9 @@ class CSVConverter(BaseConverter):
                 "national_identity_claim_present": inter.get(
                     "national_identity_claim_present"
                 ),
-                "anti_foreign_sentiment_present": inter.get("anti_foreign_sentiment_present"),
+                "anti_foreign_sentiment_present": inter.get(
+                    "anti_foreign_sentiment_present"
+                ),
             }
             rows.append(row)
 
@@ -964,7 +1065,5 @@ class CSVConverter(BaseConverter):
         ("misc", "misc", None),
     ]
 
-    def _convert_cookbook_metadata_to_df(
-        self, entries: list[Any]
-    ) -> pd.DataFrame:
+    def _convert_cookbook_metadata_to_df(self, entries: list[Any]) -> pd.DataFrame:
         return self._spec_to_df(entries, self._COOKBOOK_METADATA_CSV_FIELDS)

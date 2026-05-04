@@ -30,9 +30,7 @@ def generate_line_ranges_for_file(
     with text_file.open("r", encoding="utf-8") as f:
         lines: list[str] = f.readlines()
 
-    normalized_lines: list[str] = [
-        TextProcessor.normalize_text(line) for line in lines
-    ]
+    normalized_lines: list[str] = [TextProcessor.normalize_text(line) for line in lines]
     text_processor: TextProcessor = TextProcessor()
     strategy: TokenBasedChunking = TokenBasedChunking(
         tokens_per_chunk=default_tokens_per_chunk,
@@ -43,9 +41,7 @@ def generate_line_ranges_for_file(
     return line_ranges
 
 
-def write_line_ranges_file(
-    text_file: Path, line_ranges: list[tuple[int, int]]
-) -> Path:
+def write_line_ranges_file(text_file: Path, line_ranges: list[tuple[int, int]]) -> Path:
     """
     Write the generated line ranges to a '_line_ranges.txt' file.
 
@@ -56,9 +52,7 @@ def write_line_ranges_file(
     Returns:
         Path to the created line ranges file.
     """
-    line_ranges_file: Path = text_file.with_name(
-        f"{text_file.stem}_line_ranges.txt"
-    )
+    line_ranges_file: Path = text_file.with_name(f"{text_file.stem}_line_ranges.txt")
     with line_ranges_file.open("w", encoding="utf-8", newline="\n") as f:
         for r in line_ranges:
             f.write(f"({r[0]}, {r[1]})\n")

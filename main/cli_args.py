@@ -78,33 +78,25 @@ def detect_input_type(path: Path) -> InputType:
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     """
     Add common arguments used across multiple scripts.
-    
+
     :param parser: ArgumentParser instance to add arguments to
     """
     parser.add_argument(
         "--schema",
         type=str,
-        help="Schema name to use for extraction (e.g., BibliographicEntries)"
+        help="Schema name to use for extraction (e.g., BibliographicEntries)",
     )
     parser.add_argument(
-        "--input",
-        type=str,
-        help="Input file or directory path (relative or absolute)"
+        "--input", type=str, help="Input file or directory path (relative or absolute)"
     )
     parser.add_argument(
         "--output",
         type=str,
-        help="Output directory path (relative or absolute). If not specified, uses config or input directory."
+        help="Output directory path (relative or absolute). If not specified, uses config or input directory.",
     )
+    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Enable verbose output"
-    )
-    parser.add_argument(
-        "--quiet",
-        action="store_true",
-        help="Suppress non-essential output"
+        "--quiet", action="store_true", help="Suppress non-essential output"
     )
 
 
@@ -123,32 +115,32 @@ Examples:
   
   # Use batch processing
   python main/process_text_files.py --schema BibliographicEntries --input data/ --batch
-        """
+        """,
     )
-    
+
     add_common_arguments(parser)
-    
+
     parser.add_argument(
         "--chunking",
         type=str,
         choices=["auto", "auto-adjust", "line_ranges", "adjust-line-ranges"],
         default="auto",
-        help="Chunking strategy to use (default: auto)"
+        help="Chunking strategy to use (default: auto)",
     )
     parser.add_argument(
         "--batch",
         action="store_true",
-        help="Use batch processing (50%% cost reduction, results within 24h)"
+        help="Use batch processing (50%% cost reduction, results within 24h)",
     )
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Skip fully processed files and resume partially processed ones"
+        help="Skip fully processed files and resume partially processed ones",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force reprocessing of all files, ignoring existing outputs"
+        help="Force reprocessing of all files, ignoring existing outputs",
     )
     parser.add_argument(
         "--model",
@@ -156,7 +148,7 @@ Examples:
         help=(
             "Override model_config.extraction_model.name for this run "
             "(e.g., gpt-5-mini, claude-sonnet-4-5, google/gemini-3-pro)"
-        )
+        ),
     )
     parser.add_argument(
         "--reasoning-effort",
@@ -165,7 +157,7 @@ Examples:
         help=(
             "Override model_config.extraction_model.reasoning.effort for this run "
             "(low|medium|high|xhigh|none)"
-        )
+        ),
     )
     parser.add_argument(
         "--verbosity",
@@ -174,13 +166,13 @@ Examples:
         help=(
             "Override model_config.extraction_model.text.verbosity for this run "
             "(OpenAI GPT-5 family only: gpt-5, gpt-5-mini, gpt-5.1, gpt-5.2)"
-        )
+        ),
     )
     parser.add_argument(
         "--max-output-tokens",
         type=_positive_int,
         metavar="N",
-        help="Override model_config.extraction_model.max_output_tokens for this run"
+        help="Override model_config.extraction_model.max_output_tokens for this run",
     )
     parser.add_argument(
         "--chunk-size",
@@ -189,20 +181,20 @@ Examples:
         help=(
             "Override chunking.default_tokens_per_chunk for this run "
             "(token target per chunk)"
-        )
+        ),
     )
 
     parser.add_argument(
         "--temperature",
         type=float,
         metavar="T",
-        help="Override extraction_model.temperature for this run (0.0-2.0)"
+        help="Override extraction_model.temperature for this run (0.0-2.0)",
     )
     parser.add_argument(
         "--top-p",
         type=float,
         metavar="P",
-        help="Override extraction_model.top_p for this run (0.0-1.0)"
+        help="Override extraction_model.top_p for this run (0.0-1.0)",
     )
 
     parser.add_argument(
@@ -220,13 +212,13 @@ Examples:
         "--concurrency-limit",
         type=_positive_int,
         metavar="N",
-        help="Override concurrency.extraction.concurrency_limit for this run"
+        help="Override concurrency.extraction.concurrency_limit for this run",
     )
     parser.add_argument(
         "--delay",
         type=float,
         metavar="SECS",
-        help="Override concurrency.extraction.delay_between_tasks (seconds) for this run"
+        help="Override concurrency.extraction.delay_between_tasks (seconds) for this run",
     )
 
     parser.add_argument(
@@ -234,7 +226,7 @@ Examples:
         type=str,
         choices=["low", "high", "auto", "original"],
         default=None,
-        help="Image detail level for vision models (default: from config)"
+        help="Image detail level for vision models (default: from config)",
     )
 
     parser.add_argument(
@@ -254,13 +246,13 @@ Examples:
         "--first-n-chunks",
         type=_positive_int,
         metavar="N",
-        help="Process only the first N chunks/pages of each input file"
+        help="Process only the first N chunks/pages of each input file",
     )
     chunk_slice_group.add_argument(
         "--last-n-chunks",
         type=_positive_int,
         metavar="N",
-        help="Process only the last N chunks/pages of each input file"
+        help="Process only the last N chunks/pages of each input file",
     )
 
     return parser
@@ -281,25 +273,19 @@ Examples:
   
   # Check batches in a specific directory
   python main/check_batches.py --input data/output/
-        """
+        """,
     )
-    
-    parser.add_argument(
-        "--schema",
-        type=str,
-        help="Only check batches for this schema"
-    )
+
+    parser.add_argument("--schema", type=str, help="Only check batches for this schema")
     parser.add_argument(
         "--input",
         type=str,
-        help="Directory to scan for batch files (default: uses config paths)"
+        help="Directory to scan for batch files (default: uses config paths)",
     )
     parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Show detailed processing information"
+        "--verbose", action="store_true", help="Show detailed processing information"
     )
-    
+
     return parser
 
 
@@ -321,45 +307,38 @@ Examples:
 
   # Generate ranges and keep only the first 5
   python main/generate_line_ranges.py --input data/ --first-n-chunks 5
-        """
+        """,
     )
-    
+
     parser.add_argument(
         "--schema",
         type=str,
-        help="Schema name (used to determine input directory from config if --input not provided)"
+        help="Schema name (used to determine input directory from config if --input not provided)",
     )
     parser.add_argument(
-        "--input",
-        type=str,
-        required=True,
-        help="Input file or directory path"
+        "--input", type=str, required=True, help="Input file or directory path"
     )
     parser.add_argument(
-        "--tokens",
-        type=int,
-        help="Tokens per chunk (default: from config)"
+        "--tokens", type=int, help="Tokens per chunk (default: from config)"
     )
     parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Show detailed processing information"
+        "--verbose", action="store_true", help="Show detailed processing information"
     )
-    
+
     chunk_slice_group = parser.add_mutually_exclusive_group()
     chunk_slice_group.add_argument(
         "--first-n-chunks",
         type=int,
         metavar="N",
-        help="Write only the first N generated line ranges"
+        help="Write only the first N generated line ranges",
     )
     chunk_slice_group.add_argument(
         "--last-n-chunks",
         type=int,
         metavar="N",
-        help="Write only the last N generated line ranges"
+        help="Write only the last N generated line ranges",
     )
-    
+
     return parser
 
 
@@ -378,84 +357,66 @@ Examples:
   
   # Resume: skip files whose line ranges were already adjusted
   python main/line_range_readjuster.py --input data/ --schema BibliographicEntries --resume
-        """
+        """,
     )
-    
+
     parser.add_argument(
-        "--schema",
-        type=str,
-        required=True,
-        help="Schema name (used as boundary type)"
+        "--schema", type=str, required=True, help="Schema name (used as boundary type)"
     )
     parser.add_argument(
-        "--input",
-        type=str,
-        required=True,
-        help="Input file or directory path"
+        "--input", type=str, required=True, help="Input file or directory path"
     )
     parser.add_argument(
         "--context-window",
         type=int,
-        help="Number of lines to inspect around boundaries (default: from config)"
+        help="Number of lines to inspect around boundaries (default: from config)",
     )
     parser.add_argument(
-        "--prompt-path",
-        type=str,
-        help="Path to custom prompt template"
+        "--prompt-path", type=str, help="Path to custom prompt template"
     )
     parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Show detailed processing information"
+        "--verbose", action="store_true", help="Show detailed processing information"
     )
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Skip files whose line ranges were already adjusted with the same settings"
+        help="Skip files whose line ranges were already adjusted with the same settings",
     )
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Force re-adjustment of all files, ignoring existing adjustment markers"
+        help="Force re-adjustment of all files, ignoring existing adjustment markers",
     )
     parser.add_argument(
-        "--model",
-        type=str,
-        help="Override extraction_model.name from config"
+        "--model", type=str, help="Override extraction_model.name from config"
     )
     parser.add_argument(
         "--reasoning-effort",
         choices=["low", "medium", "high", "xhigh", "none"],
-        help="Override extraction_model.reasoning.effort"
+        help="Override extraction_model.reasoning.effort",
     )
     parser.add_argument(
         "--max-output-tokens",
         type=int,
-        help="Override extraction_model.max_output_tokens"
+        help="Override extraction_model.max_output_tokens",
     )
     parser.add_argument(
-        "--temperature",
-        type=float,
-        help="Override extraction_model.temperature"
+        "--temperature", type=float, help="Override extraction_model.temperature"
     )
-    parser.add_argument(
-        "--top-p",
-        type=float,
-        help="Override extraction_model.top_p"
-    )
+    parser.add_argument("--top-p", type=float, help="Override extraction_model.top_p")
 
     chunk_slice_group = parser.add_mutually_exclusive_group()
     chunk_slice_group.add_argument(
         "--first-n-chunks",
         type=int,
         metavar="N",
-        help="Adjust only the first N line ranges of each file"
+        help="Adjust only the first N line ranges of each file",
     )
     chunk_slice_group.add_argument(
         "--last-n-chunks",
         type=int,
         metavar="N",
-        help="Adjust only the last N line ranges of each file"
+        help="Adjust only the last N line ranges of each file",
     )
 
     return parser
@@ -473,20 +434,18 @@ Examples:
   
   # Cancel without confirmation (use with caution!)
   python main/cancel_batches.py --force
-        """
+        """,
     )
-    
+
     parser.add_argument(
         "--force",
         action="store_true",
-        help="Skip confirmation prompt (use with caution)"
+        help="Skip confirmation prompt (use with caution)",
     )
     parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Show detailed information"
+        "--verbose", action="store_true", help="Show detailed information"
     )
-    
+
     return parser
 
 
@@ -505,63 +464,55 @@ Examples:
   
   # Repair specific files
   python main/repair_extractions.py --files file1_temp.jsonl file2_temp.jsonl
-        """
+        """,
     )
-    
+
     parser.add_argument(
-        "--schema",
-        type=str,
-        help="Only repair extractions for this schema"
+        "--schema", type=str, help="Only repair extractions for this schema"
     )
     parser.add_argument(
-        "--files",
-        nargs="+",
-        help="Specific temp files to repair (filenames or paths)"
+        "--files", nargs="+", help="Specific temp files to repair (filenames or paths)"
     )
     parser.add_argument(
-        "--force",
-        action="store_true",
-        help="Skip confirmation prompts"
+        "--force", action="store_true", help="Skip confirmation prompts"
     )
     parser.add_argument(
-        "--verbose",
-        action="store_true",
-        help="Show detailed processing information"
+        "--verbose", action="store_true", help="Show detailed processing information"
     )
-    
+
     return parser
 
 
 def resolve_path(path_str: str, base_dir: Path | None = None) -> Path:
     """
     Resolve a path string to an absolute Path object.
-    
+
     :param path_str: Path string (relative or absolute)
     :param base_dir: Base directory for relative paths (default: current working directory)
     :return: Resolved absolute Path
     """
     path = Path(path_str)
-    
+
     if path.is_absolute():
         return path
-    
+
     if base_dir:
         return (base_dir / path).resolve()
-    
+
     return path.resolve()
 
 
 def validate_input_path(path: Path, must_exist: bool = True) -> None:
     """
     Validate that an input path exists and is accessible.
-    
+
     :param path: Path to validate
     :param must_exist: Whether the path must already exist
     :raises ValueError: If path is invalid
     """
     if must_exist and not path.exists():
         raise ValueError(f"Input path does not exist: {path}")
-    
+
     if must_exist and not (path.is_file() or path.is_dir()):
         raise ValueError(f"Input path is neither a file nor directory: {path}")
 
@@ -569,14 +520,14 @@ def validate_input_path(path: Path, must_exist: bool = True) -> None:
 def validate_output_path(path: Path, create_parents: bool = True) -> None:
     """
     Validate and prepare an output path.
-    
+
     :param path: Path to validate
     :param create_parents: Whether to create parent directories
     :raises ValueError: If path is invalid
     """
     if path.exists() and not path.is_dir():
         raise ValueError(f"Output path exists but is not a directory: {path}")
-    
+
     if create_parents:
         path.mkdir(parents=True, exist_ok=True)
 
@@ -584,18 +535,18 @@ def validate_output_path(path: Path, create_parents: bool = True) -> None:
 def parse_indices(indices_str: str) -> list[int]:
     """
     Parse a comma-separated string of indices or ranges.
-    
+
     :param indices_str: String like "0,5,12" or "1-5,10"
     :return: Sorted list of integer indices
     :raises ValueError: If string format is invalid
     """
     result: set[int] = set()
-    
+
     for part in indices_str.split(","):
         part = part.strip()
         if not part:
             continue
-        
+
         if "-" in part:
             # Range: "1-5"
             try:
@@ -611,7 +562,7 @@ def parse_indices(indices_str: str) -> list[int]:
                 result.add(int(part))
             except ValueError:
                 raise ValueError(f"Invalid index: {part}")
-    
+
     return sorted(result)
 
 

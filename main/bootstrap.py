@@ -50,8 +50,6 @@ def load_schema_manager(*, ensure_available: bool = True) -> SchemaManager:
     return schema_manager
 
 
-
-
 def filter_text_files(paths: Iterable[Path]) -> list[Path]:
     """Filter an iterable of paths down to eligible text files."""
     filtered: list[Path] = []
@@ -84,15 +82,16 @@ def validate_schema_paths(
 ) -> bool:
     """
     Validate that a schema has input/output paths configured in paths_config.yaml.
-    
+
     Args:
         schema_name: The selected schema name.
         schemas_paths: The schemas_paths dict from paths_config.yaml.
         ui: Optional UserInterface for formatted output (interactive mode).
-    
+
     Returns:
         True if paths are configured, False otherwise.
     """
+
     def _report_error(msg: str) -> bool:
         logger.error(msg)
         if ui:

@@ -22,10 +22,14 @@ class TestProcessTextFilesCLI:
         from main.cli_args import create_process_parser
 
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--input", "test_input.txt",
-            "--schema", "TestSchema",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_input.txt",
+                "--schema",
+                "TestSchema",
+            ]
+        )
 
         assert args.input == "test_input.txt"
         assert args.schema == "TestSchema"
@@ -35,11 +39,15 @@ class TestProcessTextFilesCLI:
         from main.cli_args import create_process_parser
 
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--input", "test_input.txt",
-            "--schema", "TestSchema",
-            "--batch",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_input.txt",
+                "--schema",
+                "TestSchema",
+                "--batch",
+            ]
+        )
 
         assert args.batch is True
 
@@ -48,11 +56,16 @@ class TestProcessTextFilesCLI:
         from main.cli_args import create_process_parser
 
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--input", "test_input.txt",
-            "--schema", "TestSchema",
-            "--chunking", "line_ranges",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_input.txt",
+                "--schema",
+                "TestSchema",
+                "--chunking",
+                "line_ranges",
+            ]
+        )
 
         assert args.chunking == "line_ranges"
 
@@ -61,15 +74,24 @@ class TestProcessTextFilesCLI:
         from main.cli_args import create_process_parser
 
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--input", "test_input.txt",
-            "--schema", "TestSchema",
-            "--model", "gpt-5.2",
-            "--reasoning-effort", "high",
-            "--verbosity", "medium",
-            "--max-output-tokens", "16384",
-            "--chunk-size", "7000",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_input.txt",
+                "--schema",
+                "TestSchema",
+                "--model",
+                "gpt-5.2",
+                "--reasoning-effort",
+                "high",
+                "--verbosity",
+                "medium",
+                "--max-output-tokens",
+                "16384",
+                "--chunk-size",
+                "7000",
+            ]
+        )
 
         assert args.model == "gpt-5.2"
         assert args.reasoning_effort == "high"
@@ -147,12 +169,18 @@ class TestProcessTextFilesCLI:
         from main.cli_args import create_process_parser
 
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--input", "test_input.txt",
-            "--schema", "TestSchema",
-            "--temperature", "0.5",
-            "--top-p", "0.9",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_input.txt",
+                "--schema",
+                "TestSchema",
+                "--temperature",
+                "0.5",
+                "--top-p",
+                "0.9",
+            ]
+        )
 
         assert args.temperature == 0.5
         assert args.top_p == 0.9
@@ -169,9 +197,12 @@ class TestProcessTextFilesCLI:
             }
         }
         args = Namespace(
-            model=None, max_output_tokens=None,
-            reasoning_effort=None, verbosity=None,
-            temperature=0.7, top_p=None,
+            model=None,
+            max_output_tokens=None,
+            reasoning_effort=None,
+            verbosity=None,
+            temperature=0.7,
+            top_p=None,
         )
 
         effective = _build_effective_model_config(base, args)
@@ -192,9 +223,12 @@ class TestProcessTextFilesCLI:
             }
         }
         args = Namespace(
-            model=None, max_output_tokens=None,
-            reasoning_effort=None, verbosity=None,
-            temperature=None, top_p=0.85,
+            model=None,
+            max_output_tokens=None,
+            reasoning_effort=None,
+            verbosity=None,
+            temperature=None,
+            top_p=0.85,
         )
 
         effective = _build_effective_model_config(base, args)
@@ -218,9 +252,12 @@ class TestProcessTextFilesCLI:
             }
         }
         args = Namespace(
-            model=None, max_output_tokens=None,
-            reasoning_effort=None, verbosity=None,
-            temperature=None, top_p=None,
+            model=None,
+            max_output_tokens=None,
+            reasoning_effort=None,
+            verbosity=None,
+            temperature=None,
+            top_p=None,
         )
 
         effective = _build_effective_model_config(base, args)
@@ -239,19 +276,40 @@ class TestProcessTextFilesCLI:
 
         parser = create_process_parser()
 
-        args_auto = parser.parse_args([
-            "--input", "test.txt", "--schema", "S", "--context", "auto",
-        ])
+        args_auto = parser.parse_args(
+            [
+                "--input",
+                "test.txt",
+                "--schema",
+                "S",
+                "--context",
+                "auto",
+            ]
+        )
         assert args_auto.context == "auto"
 
-        args_none = parser.parse_args([
-            "--input", "test.txt", "--schema", "S", "--context", "none",
-        ])
+        args_none = parser.parse_args(
+            [
+                "--input",
+                "test.txt",
+                "--schema",
+                "S",
+                "--context",
+                "none",
+            ]
+        )
         assert args_none.context == "none"
 
-        args_path = parser.parse_args([
-            "--input", "test.txt", "--schema", "S", "--context", "ctx/my_context.txt",
-        ])
+        args_path = parser.parse_args(
+            [
+                "--input",
+                "test.txt",
+                "--schema",
+                "S",
+                "--context",
+                "ctx/my_context.txt",
+            ]
+        )
         assert args_path.context == "ctx/my_context.txt"
 
     def test_cli_args_parser_concurrency_flags(self):
@@ -259,12 +317,18 @@ class TestProcessTextFilesCLI:
         from main.cli_args import create_process_parser
 
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--input", "test_input.txt",
-            "--schema", "TestSchema",
-            "--concurrency-limit", "10",
-            "--delay", "2.5",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_input.txt",
+                "--schema",
+                "TestSchema",
+                "--concurrency-limit",
+                "10",
+                "--delay",
+                "2.5",
+            ]
+        )
 
         assert args.concurrency_limit == 10
         assert args.delay == 2.5
@@ -320,7 +384,9 @@ class TestProcessTextFilesCLI:
         script = ProcessTextFilesScript()
         cli_args = Namespace(schema="TestSchema", input="test_input.txt")
 
-        with patch("main.process_text_files._run_cli_mode", new_callable=AsyncMock) as mock_run:
+        with patch(
+            "main.process_text_files._run_cli_mode", new_callable=AsyncMock
+        ) as mock_run:
             await script.run_cli(cli_args)
 
         assert mock_run.await_count == 1
@@ -355,10 +421,14 @@ class TestGenerateLineRangesCLI:
         from main.cli_args import create_generate_ranges_parser
 
         parser = create_generate_ranges_parser()
-        args = parser.parse_args([
-            "--input", "test_input.txt",
-            "--tokens", "5000",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_input.txt",
+                "--tokens",
+                "5000",
+            ]
+        )
 
         assert args.input == "test_input.txt"
         assert args.tokens == 5000
@@ -368,7 +438,9 @@ class TestGenerateLineRangesCLI:
         from main.generate_line_ranges import generate_line_ranges_for_file
 
         text_file = tmp_path / "test.txt"
-        text_file.write_text("line1\nline2\nline3\nline4\nline5\n" * 10, encoding="utf-8")
+        text_file.write_text(
+            "line1\nline2\nline3\nline4\nline5\n" * 10, encoding="utf-8"
+        )
 
         ranges = generate_line_ranges_for_file(
             text_file=text_file,
@@ -400,9 +472,12 @@ class TestCheckBatchesCLI:
         from main.cli_args import create_check_batches_parser
 
         parser = create_check_batches_parser()
-        args = parser.parse_args([
-            "--schema", "TestSchema",
-        ])
+        args = parser.parse_args(
+            [
+                "--schema",
+                "TestSchema",
+            ]
+        )
 
         assert args.schema == "TestSchema"
 
@@ -440,9 +515,12 @@ class TestRepairExtractionsCLI:
         from main.cli_args import create_repair_parser
 
         parser = create_repair_parser()
-        args = parser.parse_args([
-            "--schema", "TestSchema",
-        ])
+        args = parser.parse_args(
+            [
+                "--schema",
+                "TestSchema",
+            ]
+        )
 
         assert args.schema == "TestSchema"
 
@@ -451,9 +529,13 @@ class TestRepairExtractionsCLI:
         from main.cli_args import create_repair_parser
 
         parser = create_repair_parser()
-        args = parser.parse_args([
-            "--files", "file1.jsonl", "file2.jsonl",
-        ])
+        args = parser.parse_args(
+            [
+                "--files",
+                "file1.jsonl",
+                "file2.jsonl",
+            ]
+        )
 
         assert args.files == ["file1.jsonl", "file2.jsonl"]
 
@@ -467,10 +549,14 @@ class TestAdjustRangesCLI:
         from main.cli_args import create_adjust_ranges_parser
 
         parser = create_adjust_ranges_parser()
-        args = parser.parse_args([
-            "--input", "test_file.txt",
-            "--schema", "TestSchema",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_file.txt",
+                "--schema",
+                "TestSchema",
+            ]
+        )
 
         assert args.input == "test_file.txt"
         assert args.schema == "TestSchema"
@@ -480,11 +566,16 @@ class TestAdjustRangesCLI:
         from main.cli_args import create_adjust_ranges_parser
 
         parser = create_adjust_ranges_parser()
-        args = parser.parse_args([
-            "--input", "test_file.txt",
-            "--schema", "TestSchema",
-            "--context-window", "15",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_file.txt",
+                "--schema",
+                "TestSchema",
+                "--context-window",
+                "15",
+            ]
+        )
 
         assert args.context_window == 15
 
@@ -493,11 +584,16 @@ class TestAdjustRangesCLI:
         from main.cli_args import create_adjust_ranges_parser
 
         parser = create_adjust_ranges_parser()
-        args = parser.parse_args([
-            "--input", "test_file.txt",
-            "--schema", "TestSchema",
-            "--model", "claude-haiku-4-5",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_file.txt",
+                "--schema",
+                "TestSchema",
+                "--model",
+                "claude-haiku-4-5",
+            ]
+        )
 
         assert args.model == "claude-haiku-4-5"
 
@@ -506,11 +602,16 @@ class TestAdjustRangesCLI:
         from main.cli_args import create_adjust_ranges_parser
 
         parser = create_adjust_ranges_parser()
-        args = parser.parse_args([
-            "--input", "test_file.txt",
-            "--schema", "TestSchema",
-            "--reasoning-effort", "low",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_file.txt",
+                "--schema",
+                "TestSchema",
+                "--reasoning-effort",
+                "low",
+            ]
+        )
 
         assert args.reasoning_effort == "low"
 
@@ -519,15 +620,24 @@ class TestAdjustRangesCLI:
         from main.cli_args import create_adjust_ranges_parser
 
         parser = create_adjust_ranges_parser()
-        args = parser.parse_args([
-            "--input", "test_file.txt",
-            "--schema", "TestSchema",
-            "--model", "gpt-5.4-nano",
-            "--reasoning-effort", "medium",
-            "--max-output-tokens", "4096",
-            "--temperature", "0.5",
-            "--top-p", "0.9",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_file.txt",
+                "--schema",
+                "TestSchema",
+                "--model",
+                "gpt-5.4-nano",
+                "--reasoning-effort",
+                "medium",
+                "--max-output-tokens",
+                "4096",
+                "--temperature",
+                "0.5",
+                "--top-p",
+                "0.9",
+            ]
+        )
 
         assert args.model == "gpt-5.4-nano"
         assert args.reasoning_effort == "medium"
@@ -540,10 +650,14 @@ class TestAdjustRangesCLI:
         from main.cli_args import create_adjust_ranges_parser
 
         parser = create_adjust_ranges_parser()
-        args = parser.parse_args([
-            "--input", "test_file.txt",
-            "--schema", "TestSchema",
-        ])
+        args = parser.parse_args(
+            [
+                "--input",
+                "test_file.txt",
+                "--schema",
+                "TestSchema",
+            ]
+        )
 
         assert args.model is None
         assert args.reasoning_effort is None

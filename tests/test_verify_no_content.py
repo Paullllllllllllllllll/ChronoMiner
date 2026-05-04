@@ -18,17 +18,21 @@ from modules.line_ranges.readjuster import (
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _make_readjuster(
     scan_range_multiplier: int = 2,
     delete_ranges_with_no_content: bool = True,
 ) -> LineRangeReadjuster:
     """Create a readjuster without needing real API keys or prompt files."""
-    with patch(
-        "modules.line_ranges.readjuster.load_prompt_template",
-        return_value="fake prompt",
-    ), patch(
-        "modules.line_ranges.readjuster.detect_capabilities",
-        return_value=MagicMock(supports_prompt_caching=False),
+    with (
+        patch(
+            "modules.line_ranges.readjuster.load_prompt_template",
+            return_value="fake prompt",
+        ),
+        patch(
+            "modules.line_ranges.readjuster.detect_capabilities",
+            return_value=MagicMock(supports_prompt_caching=False),
+        ),
     ):
         return LineRangeReadjuster(
             {"extraction_model": {"name": "gpt-4o"}},
@@ -71,6 +75,7 @@ def _make_raw_lines(n: int = 100) -> List[str]:
 # ---------------------------------------------------------------------------
 # Interior scan: no content → deletion confirmed
 # ---------------------------------------------------------------------------
+
 
 class TestVerifyNoContentDeletesEmpty:
     """When interior scan confirms no content, should_delete is True."""
@@ -125,6 +130,7 @@ class TestVerifyNoContentDeletesEmpty:
 # ---------------------------------------------------------------------------
 # Interior scan: content found → preservation
 # ---------------------------------------------------------------------------
+
 
 class TestVerifyNoContentPreserves:
     """When interior scan finds content, should_delete is False."""
@@ -188,6 +194,7 @@ class TestVerifyNoContentPreserves:
 # ---------------------------------------------------------------------------
 # Scan window geometry
 # ---------------------------------------------------------------------------
+
 
 class TestScanWindowGeometry:
     """Verify that scan windows are built inside the range, not outside."""
@@ -273,6 +280,7 @@ class TestScanWindowGeometry:
 # ---------------------------------------------------------------------------
 # Two-window branch (long range with small multiplier)
 # ---------------------------------------------------------------------------
+
 
 class TestTwoWindowBranch:
     """Exercise the two-window sampling path for very large ranges with small multipliers.
@@ -390,13 +398,16 @@ class TestTwoWindowBranch:
 
         for call in mock_run.call_args_list:
             window = call.kwargs["context_window"]
-            assert window[0] >= 100, f"Window start {window[0]} is before range start 100"
+            assert window[0] >= 100, (
+                f"Window start {window[0]} is before range start 100"
+            )
             assert window[1] <= 900, f"Window end {window[1]} is after range end 900"
 
 
 # ---------------------------------------------------------------------------
 # Audit trail
 # ---------------------------------------------------------------------------
+
 
 class TestAuditTrail:
     """Verify the structure and content of verification attempt records."""
@@ -420,8 +431,12 @@ class TestAuditTrail:
         )
 
         expected_keys = {
-            "window", "window_index", "decision_type",
-            "certainty", "semantic_marker", "found_content",
+            "window",
+            "window_index",
+            "decision_type",
+            "certainty",
+            "semantic_marker",
+            "found_content",
         }
         assert set(attempts[0].keys()) == expected_keys
 
@@ -449,6 +464,7 @@ class TestAuditTrail:
 # ---------------------------------------------------------------------------
 # _run_model forwarding
 # ---------------------------------------------------------------------------
+
 
 class TestRunModelForwarding:
     """Verify that _verify_no_content forwards correct args to _run_model."""
@@ -501,6 +517,7 @@ class TestRunModelForwarding:
 # ---------------------------------------------------------------------------
 # Re-anchoring on verify-interior content (Fix A)
 # ---------------------------------------------------------------------------
+
 
 def _make_raw_lines_with_marker(
     n: int = 100, marker: str = "Recipe Title", marker_line: int = 55
@@ -576,6 +593,7 @@ class TestVerifyReanchor:
 # Exhaustion fallback verification (Fix B)
 # ---------------------------------------------------------------------------
 
+
 class TestExhaustionFallback:
     """When all boundary windows exhaust at low certainty, the exhaustion
     fallback triggers _verify_no_content before keeping the range."""
@@ -626,7 +644,8 @@ class TestExhaustionFallback:
         # Verify that the fallback ran and deleted the range
         assert result.should_delete is True
         verify_attempts = [
-            a for a in result.attempts
+            a
+            for a in result.attempts
             if a.get("decision_type", "").startswith("verify_interior")
         ]
         assert len(verify_attempts) >= 1
@@ -713,6 +732,7 @@ class TestExhaustionFallback:
 # found_content audit field accuracy (Fix C)
 # ---------------------------------------------------------------------------
 
+
 class TestFoundContentField:
     """Verify found_content reflects contains_no_semantic_boundary alone."""
 
@@ -745,6 +765,7 @@ class TestFoundContentField:
 # ---------------------------------------------------------------------------
 # boundary_already_on_target routing (Route 0)
 # ---------------------------------------------------------------------------
+
 
 class TestBoundaryAlreadyOnTarget:
     """Verify that boundary_already_on_target=True keeps original range
@@ -781,8 +802,7 @@ class TestBoundaryAlreadyOnTarget:
         assert result.adjusted_range == (10, 50)
         assert result.total_llm_calls == 1
         on_target = [
-            a for a in result.attempts
-            if a.get("decision_type") == "already_on_target"
+            a for a in result.attempts if a.get("decision_type") == "already_on_target"
         ]
         assert len(on_target) == 1
         assert on_target[0]["certainty"] == 90
@@ -818,13 +838,11 @@ class TestBoundaryAlreadyOnTarget:
         )
 
         on_target = [
-            a for a in result.attempts
-            if a.get("decision_type") == "already_on_target"
+            a for a in result.attempts if a.get("decision_type") == "already_on_target"
         ]
         assert len(on_target) == 0
         low_cert = [
-            a for a in result.attempts
-            if a.get("decision_type") == "low_certainty"
+            a for a in result.attempts if a.get("decision_type") == "low_certainty"
         ]
         assert len(low_cert) >= 1
 

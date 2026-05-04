@@ -45,11 +45,19 @@ def _patch_common(monkeypatch: pytest.MonkeyPatch, *, interactive: bool) -> None
     monkeypatch.setattr(
         ef,
         "load_core_resources",
-        lambda: (object(), {"paths": True}, {"model": True}, {"chunk": True}, {"schemas": True}),
+        lambda: (
+            object(),
+            {"paths": True},
+            {"model": True},
+            {"chunk": True},
+            {"schemas": True},
+        ),
     )
 
 
-def test_dualmodescript_execute_interactive_calls_run_interactive(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dualmodescript_execute_interactive_calls_run_interactive(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _patch_common(monkeypatch, interactive=True)
 
     class _Script(ef.DualModeScript):
@@ -59,7 +67,9 @@ def test_dualmodescript_execute_interactive_calls_run_interactive(monkeypatch: p
             self.cli_called = False
 
         def create_argument_parser(self) -> argparse.ArgumentParser:
-            raise AssertionError("create_argument_parser should not be called in interactive mode")
+            raise AssertionError(
+                "create_argument_parser should not be called in interactive mode"
+            )
 
         def run_interactive(self) -> None:
             self.interactive_called = True
@@ -78,7 +88,9 @@ def test_dualmodescript_execute_interactive_calls_run_interactive(monkeypatch: p
     assert s.cli_called is False
 
 
-def test_dualmodescript_execute_cli_calls_run_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dualmodescript_execute_cli_calls_run_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _patch_common(monkeypatch, interactive=False)
 
     class _Script(ef.DualModeScript):
@@ -106,7 +118,9 @@ def test_dualmodescript_execute_cli_calls_run_cli(monkeypatch: pytest.MonkeyPatc
     assert s.received_args.foo == "bar"
 
 
-def test_dualmodescript_keyboardinterrupt_exits_0(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dualmodescript_keyboardinterrupt_exits_0(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _patch_common(monkeypatch, interactive=True)
 
     class _Script(ef.DualModeScript):
@@ -125,7 +139,9 @@ def test_dualmodescript_keyboardinterrupt_exits_0(monkeypatch: pytest.MonkeyPatc
     assert exc.value.code == 0
 
 
-def test_create_simple_dual_mode_executor_passes_config_to_runners(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_create_simple_dual_mode_executor_passes_config_to_runners(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     seen: Dict[str, Any] = {}
 
     def parser_factory() -> argparse.ArgumentParser:
@@ -159,7 +175,9 @@ def test_create_simple_dual_mode_executor_passes_config_to_runners(monkeypatch: 
 
 
 @pytest.mark.asyncio
-async def test_async_dual_mode_script_execute_async_cli(monkeypatch: pytest.MonkeyPatch) -> None:
+async def test_async_dual_mode_script_execute_async_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     _patch_common(monkeypatch, interactive=False)
 
     class _Script(ef.AsyncDualModeScript):

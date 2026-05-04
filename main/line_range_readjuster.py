@@ -50,7 +50,9 @@ from modules.ui.core import UserInterface
 logger = setup_logger(__name__)
 
 
-def _model_config_with_verbosity(model_config: dict[str, Any], verbosity: str) -> dict[str, Any]:
+def _model_config_with_verbosity(
+    model_config: dict[str, Any], verbosity: str
+) -> dict[str, Any]:
     """Return a copied model config with transcription verbosity overridden."""
     updated = deepcopy(model_config or {})
     transcription_cfg = updated.setdefault("extraction_model", {})
@@ -160,7 +162,9 @@ def _resolve_line_ranges_file(text_file: Path) -> Path | None:
 
 def _prompt_int(ui: UserInterface | None, message: str, default: int) -> int:
     if ui:
-        response = ui.get_input(f"{message} (default: {default})", allow_back=False, allow_quit=False)
+        response = ui.get_input(
+            f"{message} (default: {default})", allow_back=False, allow_quit=False
+        )
         if not response:
             return default
         try:
@@ -216,9 +220,9 @@ async def _adjust_files(
     token_limit_enabled = check_token_limit_enabled()
 
     # Extract concurrency settings
-    readjustment_cfg = (
-        (concurrency_config or {}).get("concurrency", {}) or {}
-    ).get("readjustment", {}) or {}
+    readjustment_cfg = ((concurrency_config or {}).get("concurrency", {}) or {}).get(
+        "readjustment", {}
+    ) or {}
     max_concurrent = max(1, int(readjustment_cfg.get("max_concurrent_files", 1)))
     delay_between = float(readjustment_cfg.get("delay_between_files", 0.0) or 0.0)
 
@@ -229,7 +233,10 @@ async def _adjust_files(
     for text_file in text_files:
         line_ranges_file = _resolve_line_ranges_file(text_file)
         if not line_ranges_file:
-            notifier(f"Skipping {text_file.name}: no associated line range file found.", "warning")
+            notifier(
+                f"Skipping {text_file.name}: no associated line range file found.",
+                "warning",
+            )
             skipped.append(text_file)
             continue
 
@@ -243,8 +250,13 @@ async def _adjust_files(
             retry_config=retry_config or None,
             ranges_fingerprint=ranges_fingerprint,
         ):
-            notifier(f"Skipping {text_file.name}: line ranges already adjusted with current settings.", "info")
-            logger.info(f"Resume: skipping {text_file.name} (completed JSONL matches current settings)")
+            notifier(
+                f"Skipping {text_file.name}: line ranges already adjusted with current settings.",
+                "info",
+            )
+            logger.info(
+                f"Resume: skipping {text_file.name} (completed JSONL matches current settings)"
+            )
             skipped.append(text_file)
             continue
 
@@ -274,7 +286,9 @@ async def _adjust_files(
                     return
 
             notifier(f"Adjusting line ranges for {text_file.name}...", "info")
-            logger.info(f"Adjusting {text_file.name} (context window: {context_window}, boundary: {boundary_type})")
+            logger.info(
+                f"Adjusting {text_file.name} (context window: {context_window}, boundary: {boundary_type})"
+            )
 
             try:
                 await readjuster.ensure_adjusted_line_ranges(
@@ -286,8 +300,12 @@ async def _adjust_files(
                     first_n_chunks=first_n_chunks,
                     last_n_chunks=last_n_chunks,
                 )
-                notifier(f"Successfully adjusted line ranges for {text_file.name}", "success")
-                logger.info(f"Line ranges for {text_file.name} adjusted using {line_ranges_file.name}")
+                notifier(
+                    f"Successfully adjusted line ranges for {text_file.name}", "success"
+                )
+                logger.info(
+                    f"Line ranges for {text_file.name} adjusted using {line_ranges_file.name}"
+                )
                 successes.append((text_file, line_ranges_file))
 
                 if token_limit_enabled:
@@ -304,8 +322,7 @@ async def _adjust_files(
                 failures.append((text_file, exc))
 
     tasks = [
-        asyncio.create_task(_process_one_file(tf, lrf))
-        for tf, lrf in files_to_process
+        asyncio.create_task(_process_one_file(tf, lrf)) for tf, lrf in files_to_process
     ]
     await asyncio.gather(*tasks)
 
@@ -322,18 +339,20 @@ async def main_async() -> None:
         chunking_and_context_config,
         schemas_paths,
     ) = load_core_resources()
-    
+
     chunking_config = (chunking_and_context_config or {}).get("chunking", {})
     matching_config = (chunking_and_context_config or {}).get("matching", {})
     retry_config = (chunking_and_context_config or {}).get("retry", {})
-    
+
     try:
         schema_manager = load_schema_manager()
     except RuntimeError as exc:
         print(f"[ERROR] {exc}; cannot select schema for input paths.")
         sys.exit(1)
-    
-    default_context_window = int(chunking_config.get("line_range_context_window", 6) or 6)
+
+    default_context_window = int(
+        chunking_config.get("line_range_context_window", 6) or 6
+    )
     concurrency_config = config_loader.get_concurrency_config()
 
     # Determine execution mode
@@ -386,7 +405,7 @@ async def _run_interactive_mode(
     """Run line range readjustment in interactive mode with back navigation support."""
     ui = UserInterface(logger, use_colors=True)
     ui.print_section_header("Line Range Adjustment")
-    
+
     # State machine for navigation
     # States: schema -> files -> context -> confirm
     current_step = "schema"
@@ -398,22 +417,26 @@ async def _run_interactive_mode(
             if result is None:
                 ui.print_info("Schema selection cancelled.")
                 return
-            
+
             selected_schema, selected_schema_name = result
             state["selected_schema"] = selected_schema
             state["selected_schema_name"] = selected_schema_name
             state["boundary_type"] = selected_schema_name
-            
+
             # Validate schema has paths configured
             if not validate_schema_paths(selected_schema_name, schemas_paths, ui):
-                logger.error(f"Exiting: No path configuration for schema '{selected_schema_name}'")
+                logger.error(
+                    f"Exiting: No path configuration for schema '{selected_schema_name}'"
+                )
                 sys.exit(1)
-            
+
             # Determine base directory (validated above, so schema_name is in schemas_paths)
-            state["base_dir"] = Path(schemas_paths[selected_schema_name].get("input", ""))
-            
+            state["base_dir"] = Path(
+                schemas_paths[selected_schema_name].get("input", "")
+            )
+
             current_step = "files"
-        
+
         elif current_step == "files":
             selected_files = ui.select_input_source(state["base_dir"], allow_back=True)
             if selected_files is None:
@@ -424,7 +447,7 @@ async def _run_interactive_mode(
                 return
             state["selected_files"] = selected_files
             current_step = "resume"
-        
+
         elif current_step == "resume":
             use_resume = ui.confirm(
                 "Resume mode? (skip files already adjusted with current settings)",
@@ -432,25 +455,27 @@ async def _run_interactive_mode(
             )
             state["resume"] = use_resume
             current_step = "context"
-        
+
         elif current_step == "context":
             # Context is now automatically resolved - skip directly to context_window
             current_step = "context_window"
-        
+
         elif current_step == "context_window":
             context_window = _prompt_int(
-                ui, 
-                "Enter context window size (lines around boundaries)", 
-                default_context_window
+                ui,
+                "Enter context window size (lines around boundaries)",
+                default_context_window,
             )
             state["context_window"] = context_window
-            
+
             # Get prompt override if any
             prompt_override = chunking_config.get("line_range_prompt_path")
-            state["prompt_path"] = Path(prompt_override).resolve() if prompt_override else None
-            
+            state["prompt_path"] = (
+                Path(prompt_override).resolve() if prompt_override else None
+            )
+
             current_step = "confirm"
-        
+
         elif current_step == "confirm":
             # Display summary
             ui.print_section_header("Adjustment Configuration")
@@ -460,18 +485,18 @@ async def _run_interactive_mode(
             ui.console_print(f"  Boundary type: {state['boundary_type']}")
             if state["prompt_path"]:
                 ui.console_print(f"  Prompt override: {state['prompt_path']}")
-            
+
             ui.console_print(f"  Context: Automatically resolved (hierarchical)")
-            
+
             if not ui.confirm("\nProceed with line range adjustment?", default=True):
                 ui.print_info("Operation cancelled by user.")
                 return
-            
+
             # Break out of loop to start adjustment
             break
-    
+
     ui.print_section_header("Adjusting Line Ranges")
-    
+
     # Display initial token usage statistics if enabled
     if check_token_limit_enabled():
         token_tracker = get_token_tracker()
@@ -485,7 +510,7 @@ async def _run_interactive_mode(
             f"Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
-    
+
     # UI-aware notifier
     def ui_notifier(msg: str, level: str = "info") -> None:
         if level == "success":
@@ -496,7 +521,7 @@ async def _run_interactive_mode(
             ui.print_warning(msg)
         else:
             ui.print_info(msg)
-    
+
     # Perform adjustments
     successes, skipped, failures = await _adjust_files(
         text_files=state["selected_files"],
@@ -511,7 +536,7 @@ async def _run_interactive_mode(
         resume=state.get("resume", False),
         concurrency_config=concurrency_config,
     )
-    
+
     # Display summary
     ui.print_section_header("Adjustment Summary")
     ui.print_success(f"Successfully adjusted: {len(successes)} file(s)")
@@ -519,7 +544,7 @@ async def _run_interactive_mode(
         ui.print_warning(f"Skipped (no line ranges): {len(skipped)} file(s)")
     if failures:
         ui.print_error(f"Failed: {len(failures)} file(s)")
-    
+
     if skipped:
         ui.print_subsection_header("Files with no line range file")
         for skipped_file in skipped:
@@ -528,7 +553,7 @@ async def _run_interactive_mode(
         ui.print_subsection_header("Files with errors")
         for failed_file, error in failures:
             ui.console_print(f"  • {failed_file.name}: {error}")
-    
+
     # Final token usage statistics
     if check_token_limit_enabled():
         token_tracker = get_token_tracker()
@@ -558,58 +583,63 @@ async def _run_cli_mode(
     logger.info("Starting line range readjustment (CLI Mode)")
 
     model_config = build_effective_model_config(model_config, args)
-    
+
     # Validate and resolve input path
     if not args.path:
         print("[ERROR] --path is required in CLI mode")
         sys.exit(1)
-    
+
     target = args.path.expanduser().resolve()
     if not target.exists():
         logger.error("Specified path does not exist: %s", target)
         print(f"[ERROR] Path does not exist: {target}")
         sys.exit(1)
-    
+
     selected_files = collect_text_files(target)
     if not selected_files:
         print(f"[WARN] No eligible text files found under {target}.")
         sys.exit(0)
-    
+
     # Get boundary type from --schema argument
     if not args.schema:
         print("[ERROR] Schema name is required when using --path in CLI mode.")
         sys.exit(1)
-    
+
     available_schemas = schema_manager.get_available_schemas()
     if args.schema not in available_schemas:
         print(f"[ERROR] Schema '{args.schema}' not found.")
         print(f"[INFO] Available schemas: {list(available_schemas.keys())}")
         sys.exit(1)
-    
+
     boundary_type = args.schema
-    
+
     # Validate schema has paths configured
     if not validate_schema_paths(boundary_type, schemas_paths):
         logger.error(f"Exiting: No path configuration for schema '{boundary_type}'")
         sys.exit(1)
-    
+
     print(f"[INFO] Using boundary type: {boundary_type}")
-    
+
     # Get configurations
     context_window = max(1, args.context_window or default_context_window)
     prompt_override = args.prompt_path or chunking_config.get("line_range_prompt_path")
-    prompt_path: Path | None = Path(prompt_override).resolve() if prompt_override else None
-    
+    prompt_path: Path | None = (
+        Path(prompt_override).resolve() if prompt_override else None
+    )
+
     # Simple notifier for CLI mode
     def cli_notifier(msg: str, level: str = "info") -> None:
-        prefixes = {"success": "[SUCCESS]", "error": "[ERROR]", "warning": "[WARN]", "info": "[INFO]"}
+        prefixes = {
+            "success": "[SUCCESS]",
+            "error": "[ERROR]",
+            "warning": "[WARN]",
+            "info": "[INFO]",
+        }
         print(f"{prefixes.get(level, '[INFO]')} {msg}")
-    
+
     # Display configuration
-    effective_name = (
-        model_config
-        .get("extraction_model", {})
-        .get("name", "(from config)")
+    effective_name = model_config.get("extraction_model", {}).get(
+        "name", "(from config)"
     )
     print("\n" + "=" * 80)
     print(f"  LINE RANGE READJUSTMENT")
@@ -621,7 +651,7 @@ async def _run_cli_mode(
     if prompt_path:
         print(f"Prompt override: {prompt_path}")
     print(f"Context: Automatically resolved (hierarchical)")
-    
+
     # Display initial token usage statistics if enabled
     if check_token_limit_enabled():
         token_tracker = get_token_tracker()
@@ -635,10 +665,10 @@ async def _run_cli_mode(
             f"[INFO] Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
-    
+
     # Determine resume mode
     use_resume = getattr(args, "resume", False) and not getattr(args, "force", False)
-    
+
     # Perform adjustments
     successes, skipped, failures = await _adjust_files(
         text_files=selected_files,
@@ -651,11 +681,11 @@ async def _run_cli_mode(
         notifier=cli_notifier,
         ui=None,
         resume=use_resume,
-        first_n_chunks=getattr(args, 'first_n_chunks', None),
-        last_n_chunks=getattr(args, 'last_n_chunks', None),
+        first_n_chunks=getattr(args, "first_n_chunks", None),
+        last_n_chunks=getattr(args, "last_n_chunks", None),
         concurrency_config=concurrency_config,
     )
-    
+
     # Display summary
     print("\n" + "=" * 80)
     print("  SUMMARY")
@@ -663,7 +693,7 @@ async def _run_cli_mode(
     print(f"Successful adjustments: {len(successes)}")
     print(f"Skipped (missing line ranges): {len(skipped)}")
     print(f"Failures: {len(failures)}")
-    
+
     if skipped:
         print("\nFiles with no associated line range file:")
         for skipped_file in skipped:
@@ -672,7 +702,7 @@ async def _run_cli_mode(
         print("\nFiles that encountered errors:")
         for failed_file, error in failures:
             print(f"  - {failed_file}: {error}")
-    
+
     # Final token usage statistics
     if check_token_limit_enabled():
         token_tracker = get_token_tracker()

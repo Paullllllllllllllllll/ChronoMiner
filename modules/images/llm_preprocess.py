@@ -93,6 +93,7 @@ class ImageProcessor:
 
         if image_config is None:
             from modules.config.loader import get_config_loader
+
             image_config = get_config_loader().get_image_processing_config()
 
         section_name = get_image_config_section_name(self.model_type)
@@ -136,7 +137,12 @@ class ImageProcessor:
             return image
         detail_norm = (detail or "high").lower()
         if detail_norm not in (
-            "low", "high", "auto", "medium", "ultra_high", "original"
+            "low",
+            "high",
+            "auto",
+            "medium",
+            "ultra_high",
+            "original",
         ):
             detail_norm = "high"
 
@@ -238,11 +244,12 @@ class ImageProcessor:
                 img.save(jpg_output_path, format="JPEG", quality=jpeg_quality)
                 logger.debug(
                     "Saved processed image %s size=%s quality=%d detail=%s",
-                    jpg_output_path.name, img.size, jpeg_quality, detail,
+                    jpg_output_path.name,
+                    img.size,
+                    jpeg_quality,
+                    detail,
                 )
             return jpg_output_path
         except Exception as e:
-            logger.error(
-                "Error processing image %s: %s", self.image_path.name, e
-            )
+            logger.error("Error processing image %s: %s", self.image_path.name, e)
             raise

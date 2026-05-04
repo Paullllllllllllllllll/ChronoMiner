@@ -54,6 +54,7 @@ def test_clear_config_cache_allows_reinit(tmp_config_dir, monkeypatch):
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _write_yaml(path: Path, data: dict) -> None:
     path.write_text(yaml.safe_dump(data, sort_keys=False), encoding="utf-8")
 
@@ -62,12 +63,15 @@ def _write_yaml(path: Path, data: dict) -> None:
 # ConfigManager — validate_paths
 # ---------------------------------------------------------------------------
 
+
 class TestConfigManagerValidatePaths:
     def test_passes_with_relative_paths_allowed(self, config_loader):
         manager = ConfigManager(config_loader)
         paths_config = {
             "general": {"allow_relative_paths": True},
-            "schemas_paths": {"S": {"input": "relative/path", "output": "relative/out"}},
+            "schemas_paths": {
+                "S": {"input": "relative/path", "output": "relative/out"}
+            },
         }
         assert manager.validate_paths(paths_config) is True
 
@@ -84,7 +88,9 @@ class TestConfigManagerValidatePaths:
         manager = ConfigManager(config_loader)
         paths_config = {
             "general": {"allow_relative_paths": False},
-            "schemas_paths": {"MySchema": {"input": "relative/input", "output": "/abs/output"}},
+            "schemas_paths": {
+                "MySchema": {"input": "relative/input", "output": "/abs/output"}
+            },
         }
         with pytest.raises(ConfigValidationError, match="input path"):
             manager.validate_paths(paths_config, raise_on_error=True)
@@ -93,7 +99,9 @@ class TestConfigManagerValidatePaths:
         manager = ConfigManager(config_loader)
         paths_config = {
             "general": {"allow_relative_paths": False},
-            "schemas_paths": {"MySchema": {"input": "/abs/input", "output": "relative/output"}},
+            "schemas_paths": {
+                "MySchema": {"input": "/abs/input", "output": "relative/output"}
+            },
         }
         with pytest.raises(ConfigValidationError, match="output path"):
             manager.validate_paths(paths_config, raise_on_error=True)
@@ -108,6 +116,7 @@ class TestConfigManagerValidatePaths:
 
     def test_passes_with_absolute_paths(self, config_loader):
         import sys
+
         manager = ConfigManager(config_loader)
         # On Windows, absolute paths need a drive letter
         if sys.platform == "win32":
@@ -139,6 +148,7 @@ class TestConfigManagerValidatePaths:
 # ConfigManager — load_developer_message
 # ---------------------------------------------------------------------------
 
+
 class TestConfigManagerLoadDeveloperMessage:
     """Verify delegation to SchemaManager (project-root-anchored, not CWD-relative)."""
 
@@ -148,9 +158,7 @@ class TestConfigManagerLoadDeveloperMessage:
 
         manager = ConfigManager(config_loader)
         sm = SchemaManager(dev_messages_dir=dev_dir)
-        patcher = patch(
-            "modules.config.schema_manager.SchemaManager", return_value=sm
-        )
+        patcher = patch("modules.config.schema_manager.SchemaManager", return_value=sm)
         patcher.start()
         return manager, patcher
 
@@ -181,9 +189,7 @@ class TestConfigManagerLoadDeveloperMessage:
     def test_existing_file(self, config_loader, tmp_path):
         dev_dir = tmp_path / "developer_messages"
         dev_dir.mkdir()
-        (dev_dir / "TestSchema.txt").write_text(
-            "Test dev message", encoding="utf-8"
-        )
+        (dev_dir / "TestSchema.txt").write_text("Test dev message", encoding="utf-8")
         manager, patcher = self._patched_manager(config_loader, dev_dir)
         try:
             result = manager.load_developer_message("TestSchema")
@@ -196,6 +202,7 @@ class TestConfigManagerLoadDeveloperMessage:
 # ConfigManager — get_schemas_paths
 # ---------------------------------------------------------------------------
 
+
 class TestConfigManagerGetSchemasPaths:
     def test_returns_schemas_paths(self, config_loader):
         manager = ConfigManager(config_loader)
@@ -207,6 +214,7 @@ class TestConfigManagerGetSchemasPaths:
 # ---------------------------------------------------------------------------
 # ConfigLoader — _ensure_image_support
 # ---------------------------------------------------------------------------
+
 
 class TestEnsureImageSupport:
     def test_no_image_support_raises(self, tmp_config_dir):
@@ -235,6 +243,7 @@ class TestEnsureImageSupport:
 # ConfigLoader — _load_yaml error
 # ---------------------------------------------------------------------------
 
+
 class TestLoadYamlErrors:
     def test_missing_file_raises(self, tmp_config_dir):
         loader = ConfigLoader(config_dir=tmp_config_dir)
@@ -257,6 +266,7 @@ class TestLoadYamlErrors:
 # ConfigLoader — _validate_config
 # ---------------------------------------------------------------------------
 
+
 class TestValidateConfig:
     def test_missing_key_raises(self, tmp_config_dir):
         loader = ConfigLoader(config_dir=tmp_config_dir)
@@ -271,6 +281,7 @@ class TestValidateConfig:
 # ---------------------------------------------------------------------------
 # ConfigLoader — _resolve_paths
 # ---------------------------------------------------------------------------
+
 
 class TestResolvePaths:
     def test_skip_when_not_allowed(self, tmp_config_dir):
@@ -331,9 +342,11 @@ class TestResolvePaths:
 # clear_config_cache
 # ---------------------------------------------------------------------------
 
+
 class TestClearConfigCache:
     def test_clears_cache(self):
         import modules.config.loader as loader_module
+
         # The conftest fixture sets _config_cache, so it should be set
         assert loader_module._config_cache is not None
         clear_config_cache()
@@ -343,6 +356,7 @@ class TestClearConfigCache:
 # ---------------------------------------------------------------------------
 # ConfigLoader — validate_model_config with image support
 # ---------------------------------------------------------------------------
+
 
 class TestValidateModelConfigImageSupport:
     def test_image_config_validated(self, tmp_config_dir):

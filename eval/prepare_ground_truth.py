@@ -98,7 +98,9 @@ def extract_for_editing(
         # Search for JSONL files in directory and subdirectories
         jsonl_files.extend(input_path.rglob("*.jsonl"))
     else:
-        print_error(f"Input path does not exist or is not a valid JSONL file/directory: {input_path}")
+        print_error(
+            f"Input path does not exist or is not a valid JSONL file/directory: {input_path}"
+        )
         return 1
 
     if not jsonl_files:
@@ -129,7 +131,9 @@ def extract_for_editing(
         out_dir.mkdir(parents=True, exist_ok=True)
         editable_path = out_dir / f"{jsonl_path.stem.replace('_temp', '')}_editable.txt"
 
-        export_chunks_to_editable_txt(doc, editable_path, include_chunk_text=include_text)
+        export_chunks_to_editable_txt(
+            doc, editable_path, include_chunk_text=include_text
+        )
 
         print_success(f"Exported {doc.chunk_count()} chunks -> {editable_path.name}")
         extracted_count += 1
@@ -139,7 +143,9 @@ def extract_for_editing(
         return 1
 
     print_info(f"Extraction complete. {extracted_count} file(s) created.")
-    print_info("Edit the _editable.txt files to correct extractions, then run with --apply")
+    print_info(
+        "Edit the _editable.txt files to correct extractions, then run with --apply"
+    )
 
     return 0
 
@@ -204,7 +210,9 @@ def apply_corrections(
 
         # Also try without _temp suffix
         if not original_jsonl.exists():
-            original_jsonl = txt_path.parent / (txt_path.stem.replace("_editable", "") + ".jsonl")
+            original_jsonl = txt_path.parent / (
+                txt_path.stem.replace("_editable", "") + ".jsonl"
+            )
 
         original_doc = None
         if original_jsonl.exists():
@@ -356,7 +364,10 @@ def show_status(eval_dir: Path) -> int:
         for model_dir in cat_output.iterdir():
             if model_dir.is_dir():
                 for jsonl in model_dir.rglob("*.jsonl"):
-                    if "_batch_" not in jsonl.name and "debug" not in jsonl.name.lower():
+                    if (
+                        "_batch_" not in jsonl.name
+                        and "debug" not in jsonl.name.lower()
+                    ):
                         # Remove _temp suffix for source name
                         source_name = jsonl.stem.replace("_temp", "")
                         sources.add(source_name)
@@ -444,17 +455,20 @@ Examples:
 
     # Input/output options
     parser.add_argument(
-        "--input", "-i",
+        "--input",
+        "-i",
         type=Path,
         help="Input path (JSONL file/directory for extract, edited txt for apply)",
     )
     parser.add_argument(
-        "--output", "-o",
+        "--output",
+        "-o",
         type=Path,
         help="Output directory (optional, defaults based on mode)",
     )
     parser.add_argument(
-        "--category", "-c",
+        "--category",
+        "-c",
         type=str,
         help="Category name (auto-detected if not provided)",
     )
@@ -499,7 +513,9 @@ Examples:
 
     # Execute mode
     if args.extract:
-        return extract_for_editing(input_path, output_dir, include_text=args.include_text)
+        return extract_for_editing(
+            input_path, output_dir, include_text=args.include_text
+        )
     elif args.apply:
         return apply_corrections(
             input_path,

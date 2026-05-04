@@ -112,7 +112,10 @@ class TestParseLlmResponseText:
             "output": [
                 {
                     "type": "message",
-                    "content": [{"type": "output_text", "text": "piece1"}, {"text": "piece2"}],
+                    "content": [
+                        {"type": "output_text", "text": "piece1"},
+                        {"text": "piece2"},
+                    ],
                 }
             ]
         }

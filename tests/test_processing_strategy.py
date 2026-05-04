@@ -44,11 +44,15 @@ async def test_create_processing_strategy_factory() -> None:
 
 
 @pytest.mark.asyncio
-async def test_batch_processing_strategy_raises_for_unsupported_provider(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+async def test_batch_processing_strategy_raises_for_unsupported_provider(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(ps, "supports_batch", lambda provider: False)
 
     strat = ps.BatchProcessingStrategy()
-    model_config = {"extraction_model": {"provider": "openrouter", "name": "openrouter/some"}}
+    model_config = {
+        "extraction_model": {"provider": "openrouter", "name": "openrouter/some"}
+    }
 
     with pytest.raises(ValueError):
         await strat.process_chunks(
@@ -64,7 +68,9 @@ async def test_batch_processing_strategy_raises_for_unsupported_provider(monkeyp
 
 
 @pytest.mark.asyncio
-async def test_batch_processing_strategy_writes_request_and_tracking_records(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+async def test_batch_processing_strategy_writes_request_and_tracking_records(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
     monkeypatch.setattr(ps, "supports_batch", lambda provider: True)
 
     class _Backend:
@@ -79,7 +85,9 @@ async def test_batch_processing_strategy_writes_request_and_tracking_records(mon
         ):
             assert system_prompt == "dev"
             assert schema_name == "TestSchema"
-            return ps.BatchHandle(provider="openai", batch_id="batch_123", metadata={"ok": True})
+            return ps.BatchHandle(
+                provider="openai", batch_id="batch_123", metadata={"ok": True}
+            )
 
     monkeypatch.setattr(ps, "get_batch_backend", lambda provider: _Backend())
 
@@ -103,7 +111,11 @@ async def test_batch_processing_strategy_writes_request_and_tracking_records(mon
     assert res == []
     assert temp_jsonl.exists()
 
-    lines = [json.loads(line) for line in temp_jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        json.loads(line)
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert len(lines) == 3
 
     assert "batch_request" in lines[0]
@@ -135,7 +147,9 @@ async def test_batch_processing_strategy_builds_visual_batch_requests(
             schema_name: Optional[str] = None,
         ):
             captured_requests.extend(requests)
-            return ps.BatchHandle(provider="openai", batch_id="vis_batch_1", metadata={})
+            return ps.BatchHandle(
+                provider="openai", batch_id="vis_batch_1", metadata={}
+            )
 
     monkeypatch.setattr(ps, "get_batch_backend", lambda provider: _VisualBackend())
 
@@ -191,9 +205,15 @@ async def test_batch_processing_strategy_builds_visual_batch_requests(
 
 
 @pytest.mark.asyncio
-async def test_synchronous_processing_strategy_raises_when_api_key_missing(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai"))
-    monkeypatch.setattr(ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: None))
+async def test_synchronous_processing_strategy_raises_when_api_key_missing(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: None)
+    )
 
     strat = ps.SynchronousProcessingStrategy(concurrency_config={})
 
@@ -211,24 +231,45 @@ async def test_synchronous_processing_strategy_raises_when_api_key_missing(monke
 
 
 @pytest.mark.asyncio
-async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_tokens(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai"))
-    monkeypatch.setattr(ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key"))
+async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_tokens(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
 
     extractor = object()
-    monkeypatch.setattr(ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(extractor))
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(extractor)
+    )
 
-    async def _process_text_chunk(*, text_chunk: str, extractor: object, system_message: str, json_schema: Dict[str, Any], **kwargs):
+    async def _process_text_chunk(
+        *,
+        text_chunk: str,
+        extractor: object,
+        system_message: str,
+        json_schema: Dict[str, Any],
+        **kwargs,
+    ):
         assert extractor is extractor
         assert system_message == "dev"
-        return {"ok": True, "usage": {"input_tokens": 2, "output_tokens": 3}, "text": text_chunk}
+        return {
+            "ok": True,
+            "usage": {"input_tokens": 2, "output_tokens": 3},
+            "text": text_chunk,
+        }
 
     monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
 
     temp_jsonl = tmp_path / "temp.jsonl"
     file_path = tmp_path / "input.txt"
 
-    strat = ps.SynchronousProcessingStrategy(concurrency_config={"concurrency": {"extraction": {"concurrency_limit": 2}}})
+    strat = ps.SynchronousProcessingStrategy(
+        concurrency_config={"concurrency": {"extraction": {"concurrency_limit": 2}}}
+    )
 
     results = await strat.process_chunks(
         chunks=["c1", "c2"],
@@ -243,7 +284,11 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
 
     assert len(results) == 2
 
-    lines = [json.loads(line) for line in temp_jsonl.read_text(encoding="utf-8").splitlines() if line.strip()]
+    lines = [
+        json.loads(line)
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     assert len(lines) == 2
     assert lines[0]["custom_id"] == f"{file_path.stem}-chunk-1"
     assert lines[1]["custom_id"] == f"{file_path.stem}-chunk-2"
@@ -254,8 +299,12 @@ async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_ope
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai"))
-    monkeypatch.setattr(ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key"))
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
 
     captured_kwargs: Dict[str, Any] = {}
 
@@ -265,8 +314,19 @@ async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_ope
 
     monkeypatch.setattr(ps, "open_extractor", _open_extractor_stub)
 
-    async def _process_text_chunk(*, text_chunk: str, extractor: object, system_message: str, json_schema: Dict[str, Any], **kwargs):
-        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}, "text": text_chunk}
+    async def _process_text_chunk(
+        *,
+        text_chunk: str,
+        extractor: object,
+        system_message: str,
+        json_schema: Dict[str, Any],
+        **kwargs,
+    ):
+        return {
+            "ok": True,
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+            "text": text_chunk,
+        }
 
     monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
 
@@ -299,11 +359,19 @@ async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_ope
 
 
 @pytest.mark.asyncio
-async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "anthropic"))
-    monkeypatch.setattr(ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key"))
+async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "anthropic")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
 
-    monkeypatch.setattr(ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object()))
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object())
+    )
     monkeypatch.setattr(ps.random, "uniform", lambda a, b: 0.0)
 
     async def _noop_sleep(_seconds: float) -> None:
@@ -313,7 +381,14 @@ async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(monk
 
     calls = {"n": 0}
 
-    async def _process_text_chunk(*, text_chunk: str, extractor: object, system_message: str, json_schema: Dict[str, Any], **kwargs):
+    async def _process_text_chunk(
+        *,
+        text_chunk: str,
+        extractor: object,
+        system_message: str,
+        json_schema: Dict[str, Any],
+        **kwargs,
+    ):
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("429 rate_limit")
@@ -329,7 +404,12 @@ async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(monk
             "concurrency": {
                 "extraction": {
                     "concurrency_limit": 5,
-                    "retry": {"attempts": 2, "wait_min_seconds": 0.0, "wait_max_seconds": 0.0, "jitter_max_seconds": 0.0},
+                    "retry": {
+                        "attempts": 2,
+                        "wait_min_seconds": 0.0,
+                        "wait_max_seconds": 0.0,
+                        "jitter_max_seconds": 0.0,
+                    },
                 }
             }
         }

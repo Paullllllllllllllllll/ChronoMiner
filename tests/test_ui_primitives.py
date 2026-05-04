@@ -134,7 +134,11 @@ class TestPromptText:
 @pytest.mark.unit
 class TestPromptSelect:
     def test_valid_selection_returns_option_value(self):
-        options = [("alpha", "First option"), ("beta", "Second option"), ("gamma", "Third")]
+        options = [
+            ("alpha", "First option"),
+            ("beta", "Second option"),
+            ("gamma", "Third"),
+        ]
         with patch("builtins.input", return_value="2"):
             result = prompt_select("pick one", options)
         assert isinstance(result, PromptResult)

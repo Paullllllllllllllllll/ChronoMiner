@@ -1,18 +1,15 @@
 import sys
 import pytest
 from unittest.mock import Mock, patch
-from main.mode_detector import (
-    detect_execution_mode,
-    get_mode_description
-)
+from main.mode_detector import detect_execution_mode, get_mode_description
 
 
 @pytest.mark.unit
 def test_detect_execution_mode_no_args_interactive_config():
     mock_loader = Mock()
-    mock_loader.get_paths_config = Mock(return_value={
-        "general": {"interactive_mode": True}
-    })
+    mock_loader.get_paths_config = Mock(
+        return_value={"general": {"interactive_mode": True}}
+    )
 
     with patch.object(sys, "argv", ["script.py"]):
         is_interactive = detect_execution_mode(mock_loader)
@@ -23,9 +20,9 @@ def test_detect_execution_mode_no_args_interactive_config():
 @pytest.mark.unit
 def test_detect_execution_mode_with_args_overrides_config():
     mock_loader = Mock()
-    mock_loader.get_paths_config = Mock(return_value={
-        "general": {"interactive_mode": True}
-    })
+    mock_loader.get_paths_config = Mock(
+        return_value={"general": {"interactive_mode": True}}
+    )
 
     with patch.object(sys, "argv", ["script.py", "--input", "file.txt"]):
         is_interactive = detect_execution_mode(mock_loader)
@@ -36,9 +33,9 @@ def test_detect_execution_mode_with_args_overrides_config():
 @pytest.mark.unit
 def test_detect_execution_mode_cli_config_no_args():
     mock_loader = Mock()
-    mock_loader.get_paths_config = Mock(return_value={
-        "general": {"interactive_mode": False}
-    })
+    mock_loader.get_paths_config = Mock(
+        return_value={"general": {"interactive_mode": False}}
+    )
 
     with patch.object(sys, "argv", ["script.py"]):
         is_interactive = detect_execution_mode(mock_loader)
@@ -49,9 +46,9 @@ def test_detect_execution_mode_cli_config_no_args():
 @pytest.mark.unit
 def test_detect_execution_mode_help_flag():
     mock_loader = Mock()
-    mock_loader.get_paths_config = Mock(return_value={
-        "general": {"interactive_mode": True}
-    })
+    mock_loader.get_paths_config = Mock(
+        return_value={"general": {"interactive_mode": True}}
+    )
 
     with patch.object(sys, "argv", ["script.py", "-h"]):
         is_interactive = detect_execution_mode(mock_loader)
@@ -62,9 +59,9 @@ def test_detect_execution_mode_help_flag():
 @pytest.mark.unit
 def test_detect_execution_mode_long_help_flag():
     mock_loader = Mock()
-    mock_loader.get_paths_config = Mock(return_value={
-        "general": {"interactive_mode": True}
-    })
+    mock_loader.get_paths_config = Mock(
+        return_value={"general": {"interactive_mode": True}}
+    )
 
     with patch.object(sys, "argv", ["script.py", "--help"]):
         is_interactive = detect_execution_mode(mock_loader)
@@ -75,9 +72,7 @@ def test_detect_execution_mode_long_help_flag():
 @pytest.mark.unit
 def test_detect_execution_mode_default_interactive_when_not_specified():
     mock_loader = Mock()
-    mock_loader.get_paths_config = Mock(return_value={
-        "general": {}
-    })
+    mock_loader.get_paths_config = Mock(return_value={"general": {}})
 
     with patch.object(sys, "argv", ["script.py"]):
         is_interactive = detect_execution_mode(mock_loader)
@@ -88,9 +83,9 @@ def test_detect_execution_mode_default_interactive_when_not_specified():
 @pytest.mark.unit
 def test_detect_execution_mode_returns_bool():
     mock_loader = Mock()
-    mock_loader.get_paths_config = Mock(return_value={
-        "general": {"interactive_mode": True}
-    })
+    mock_loader.get_paths_config = Mock(
+        return_value={"general": {"interactive_mode": True}}
+    )
 
     with patch.object(sys, "argv", ["script.py"]):
         result = detect_execution_mode(mock_loader)
@@ -102,9 +97,9 @@ def test_detect_execution_mode_returns_bool():
 @pytest.mark.unit
 def test_detect_execution_mode_false_with_cli_args():
     mock_loader = Mock()
-    mock_loader.get_paths_config = Mock(return_value={
-        "general": {"interactive_mode": True}
-    })
+    mock_loader.get_paths_config = Mock(
+        return_value={"general": {"interactive_mode": True}}
+    )
 
     with patch.object(sys, "argv", ["script.py", "--schema", "TestSchema"]):
         result = detect_execution_mode(mock_loader)
@@ -140,11 +135,13 @@ def test_detect_execution_mode_missing_general_section():
 @pytest.mark.unit
 def test_detect_execution_mode_multiple_cli_args():
     mock_loader = Mock()
-    mock_loader.get_paths_config = Mock(return_value={
-        "general": {"interactive_mode": True}
-    })
+    mock_loader.get_paths_config = Mock(
+        return_value={"general": {"interactive_mode": True}}
+    )
 
-    with patch.object(sys, "argv", ["script.py", "--input", "file.txt", "--output", "out.json"]):
+    with patch.object(
+        sys, "argv", ["script.py", "--input", "file.txt", "--output", "out.json"]
+    ):
         is_interactive = detect_execution_mode(mock_loader)
 
     assert is_interactive is False

@@ -17,14 +17,14 @@ _backends: dict[str, BatchBackend] = {}
 
 def get_batch_backend(provider: str | None = None) -> BatchBackend:
     """Get the batch backend for a given provider.
-    
+
     Args:
         provider: Provider name ('openai', 'anthropic', 'google').
                   If None, attempts to detect from model_config.yaml.
-    
+
     Returns:
         BatchBackend instance for the specified provider.
-    
+
     Raises:
         ValueError: If provider is not supported or cannot be determined.
     """
@@ -33,6 +33,7 @@ def get_batch_backend(provider: str | None = None) -> BatchBackend:
         # Try to detect from config
         try:
             from modules.config.loader import get_config_loader
+
             mc = get_config_loader().get_model_config()
             tm = mc.get("extraction_model", {})
             provider = tm.get("provider")
@@ -40,6 +41,7 @@ def get_batch_backend(provider: str | None = None) -> BatchBackend:
                 # Auto-detect from model name
                 model_name = tm.get("name", "")
                 from modules.config.capabilities import detect_provider
+
                 provider = detect_provider(model_name)
         except Exception:
             pass
@@ -60,14 +62,17 @@ def get_batch_backend(provider: str | None = None) -> BatchBackend:
     backend: BatchBackend
     if provider == "openai":
         from modules.batch.backends.openai_backend import OpenAIBatchBackend
+
         backend = OpenAIBatchBackend()
 
     elif provider == "anthropic":
         from modules.batch.backends.anthropic_backend import AnthropicBatchBackend
+
         backend = AnthropicBatchBackend()
 
     elif provider == "google":
         from modules.batch.backends.google_backend import GoogleBatchBackend
+
         backend = GoogleBatchBackend()
 
     elif provider == "openrouter":
@@ -92,10 +97,10 @@ def get_batch_backend(provider: str | None = None) -> BatchBackend:
 
 def supports_batch(provider: str) -> bool:
     """Check if a provider supports batch processing.
-    
+
     Args:
         provider: Provider name to check.
-    
+
     Returns:
         True if the provider supports batch processing.
     """
@@ -104,7 +109,7 @@ def supports_batch(provider: str) -> bool:
 
 def clear_backend_cache() -> None:
     """Clear the cached backend instances.
-    
+
     Useful for testing or when configuration changes.
     """
     global _backends

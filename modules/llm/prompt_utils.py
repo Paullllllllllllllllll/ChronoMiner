@@ -14,7 +14,7 @@ def render_prompt_with_schema(
     context: str | None = None,
 ) -> str:
     """Inject schema metadata and unified context into a system prompt.
-    
+
     Parameters
     ----------
     prompt_text : str
@@ -27,7 +27,7 @@ def render_prompt_with_schema(
         Whether to inject the schema
     context : Optional[str]
         Unified context to inject (replaces both basic and additional context)
-    
+
     Returns
     -------
     str
@@ -46,7 +46,9 @@ def render_prompt_with_schema(
         else:
             # Remove entire context section to save tokens
             # Pattern: "Context:\n{{CONTEXT}}\n"
-            prompt_text = re.sub(r"Context:\s*\n\s*\{\{CONTEXT\}\}\s*\n?", "", prompt_text)
+            prompt_text = re.sub(
+                r"Context:\s*\n\s*\{\{CONTEXT\}\}\s*\n?", "", prompt_text
+            )
             # Fallback: just remove the placeholder
             prompt_text = prompt_text.replace(context_placeholder, "")
 
@@ -76,7 +78,11 @@ def render_prompt_with_schema(
         if start_brace != -1:
             end_brace = prompt_text.rfind("}")
             if end_brace != -1 and end_brace > start_brace:
-                return prompt_text[:start_brace] + schema_str + prompt_text[end_brace + 1 :]
+                return (
+                    prompt_text[:start_brace]
+                    + schema_str
+                    + prompt_text[end_brace + 1 :]
+                )
         return prompt_text + "\n" + schema_str
 
     return prompt_text + "\n\nThe JSON schema:\n" + schema_str

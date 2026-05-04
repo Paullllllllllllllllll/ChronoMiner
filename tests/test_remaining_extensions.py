@@ -135,7 +135,10 @@ class TestExtractTextFromApiBody:
             "output": [
                 {
                     "type": "message",
-                    "content": [{"type": "text", "text": "part1"}, {"type": "text", "text": "part2"}],
+                    "content": [
+                        {"type": "text", "text": "part1"},
+                        {"type": "text", "text": "part2"},
+                    ],
                 }
             ]
         }
@@ -157,17 +160,26 @@ class TestParseEntriesFromText:
         assert _parse_entries_from_text("[1,2,3]") is None
 
     def test_no_content_flag(self):
-        assert _parse_entries_from_text(json.dumps({"contains_no_content_of_requested_type": True})) is None
+        assert (
+            _parse_entries_from_text(
+                json.dumps({"contains_no_content_of_requested_type": True})
+            )
+            is None
+        )
 
     def test_no_entries_key(self):
         assert _parse_entries_from_text(json.dumps({"data": [1, 2]})) is None
 
     def test_valid_entries(self):
-        result = _parse_entries_from_text(json.dumps({"entries": [{"id": 1}, {"id": 2}]}))
+        result = _parse_entries_from_text(
+            json.dumps({"entries": [{"id": 1}, {"id": 2}]})
+        )
         assert result == [{"id": 1}, {"id": 2}]
 
     def test_filters_none_entries(self):
-        result = _parse_entries_from_text(json.dumps({"entries": [{"id": 1}, None, {"id": 2}]}))
+        result = _parse_entries_from_text(
+            json.dumps({"entries": [{"id": 1}, None, {"id": 2}]})
+        )
         assert result == [{"id": 1}, {"id": 2}]
 
 
@@ -213,7 +225,10 @@ class TestExtractEntriesFromJson:
 
     def test_no_content_flag(self, tmp_path):
         f = tmp_path / "data.json"
-        f.write_text(json.dumps({"contains_no_content_of_requested_type": True}), encoding="utf-8")
+        f.write_text(
+            json.dumps({"contains_no_content_of_requested_type": True}),
+            encoding="utf-8",
+        )
         result = extract_entries_from_json(f)
         assert result == []
 
@@ -300,7 +315,9 @@ class TestExtractEntriesFromJson:
 
     def test_filters_none_entries(self, tmp_path):
         f = tmp_path / "data.json"
-        f.write_text(json.dumps({"entries": [{"id": 1}, None, {"id": 2}]}), encoding="utf-8")
+        f.write_text(
+            json.dumps({"entries": [{"id": 1}, None, {"id": 2}]}), encoding="utf-8"
+        )
         result = extract_entries_from_json(f)
         assert len(result) == 2
 
@@ -401,7 +418,9 @@ class TestRenderPromptExtended:
 
     def test_no_inject_schema(self):
         prompt = "Schema: {{TRANSCRIPTION_SCHEMA}}"
-        result = render_prompt_with_schema(prompt, {"type": "object"}, inject_schema=False)
+        result = render_prompt_with_schema(
+            prompt, {"type": "object"}, inject_schema=False
+        )
         assert "{{TRANSCRIPTION_SCHEMA}}" not in result
         assert "object" not in result
 

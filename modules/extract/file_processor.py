@@ -27,10 +27,22 @@ from modules.extract.resume import (
     get_output_json_path,
 )
 from modules.extract.schema_handlers import get_schema_handler
-from modules.infra.chunking import ChunkingService, ChunkSlice, apply_chunk_slice, TextProcessor
+from modules.infra.chunking import (
+    ChunkingService,
+    ChunkSlice,
+    apply_chunk_slice,
+    TextProcessor,
+)
 from modules.infra.paths import ensure_path_safe
 from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
-from modules.ui import print_error, print_info, print_success, print_warning, ui_input, ui_print
+from modules.ui import (
+    print_error,
+    print_info,
+    print_success,
+    print_warning,
+    ui_input,
+    ui_print,
+)
 
 # Backward compatibility alias for callers still importing the private name.
 _METADATA_KEY = METADATA_KEY
@@ -96,7 +108,7 @@ class FileProcessor:
         paths_config: dict[str, Any],
         model_config: dict[str, Any],
         chunking_config: dict[str, Any],
-        concurrency_config: dict[str, Any] | None = None
+        concurrency_config: dict[str, Any] | None = None,
     ):
         """
         Initialize file processor.
@@ -110,15 +122,17 @@ class FileProcessor:
         self.model_config = model_config
         self.chunking_config = chunking_config
         self.concurrency_config = concurrency_config or {}
-        
+
         self.text_processor = TextProcessor()
-        
+
         # Initialize chunking service
         chunking_settings = chunking_config.get("chunking", {})
         self.chunking_service = ChunkingService(
             model_name=model_config["extraction_model"]["name"],
-            default_tokens_per_chunk=chunking_settings.get("default_tokens_per_chunk", 7500),
-            text_processor=self.text_processor
+            default_tokens_per_chunk=chunking_settings.get(
+                "default_tokens_per_chunk", 7500
+            ),
+            text_processor=self.text_processor,
         )
 
     @staticmethod
@@ -191,18 +205,26 @@ class FileProcessor:
             try:
                 with file_path.open("r", encoding="utf-8") as f:
                     lines = f.readlines()
-                logger.info(f"Successfully read file {file_path.name} using UTF-8 encoding")
+                logger.info(
+                    f"Successfully read file {file_path.name} using UTF-8 encoding"
+                )
             except UnicodeDecodeError:
                 # Fallback for non-UTF-8 files
-                messenger.warning(f"File {file_path.name} is not UTF-8, attempting encoding detection...")
-                logger.warning(f"UTF-8 decode failed for {file_path.name}, using chardet detection")
+                messenger.warning(
+                    f"File {file_path.name} is not UTF-8, attempting encoding detection..."
+                )
+                logger.warning(
+                    f"UTF-8 decode failed for {file_path.name}, using chardet detection"
+                )
                 encoding = TextProcessor.detect_encoding(file_path)
                 messenger.info(f"Detected encoding: {encoding}")
                 with file_path.open("r", encoding=encoding) as f:
                     lines = f.readlines()
-            
+
             normalized_lines = [TextProcessor.normalize_text(line) for line in lines]
-            messenger.info(f"Successfully read and normalized {len(lines)} lines from {file_path.name}")
+            messenger.info(
+                f"Successfully read and normalized {len(lines)} lines from {file_path.name}"
+            )
         except Exception as e:
             messenger.error(f"Failed to read file {file_path.name}: {e}", exc_info=e)
             return
@@ -218,17 +240,23 @@ class FileProcessor:
             chunks, ranges = self.chunking_service.chunk_text(
                 lines=normalized_lines,
                 strategy=chunking_method,
-                line_ranges_file=line_ranges_file if line_ranges_file.exists() else None,
-                original_start_line=1
+                line_ranges_file=line_ranges_file
+                if line_ranges_file.exists()
+                else None,
+                original_start_line=1,
             )
             messenger.info(f"Generated {len(chunks)} text chunks from {file_path.name}")
             logger.info(f"Total chunks generated from {file_path.name}: {len(chunks)}")
         except Exception as e:
-            messenger.error(f"Failed to chunk text from {file_path.name}: {e}", exc_info=e)
+            messenger.error(
+                f"Failed to chunk text from {file_path.name}: {e}", exc_info=e
+            )
             return
 
         # Apply chunk slice (first/last N) if requested
-        if chunk_slice is not None and (chunk_slice.first_n is not None or chunk_slice.last_n is not None):
+        if chunk_slice is not None and (
+            chunk_slice.first_n is not None or chunk_slice.last_n is not None
+        ):
             original_count = len(chunks)
             chunks, ranges = apply_chunk_slice(chunks, ranges, chunk_slice)
             messenger.info(
@@ -290,11 +318,13 @@ class FileProcessor:
 
         # 2. Determine provider and load image config
         from modules.llm.langchain_provider import ProviderConfig
+
         provider = ProviderConfig._detect_provider(model_name)
         model_type = detect_model_type(provider, model_name)
         section_name = get_image_config_section_name(model_type)
 
         from modules.config.loader import get_config_loader
+
         image_config = get_config_loader().get_image_processing_config()
         img_cfg = image_config.get(section_name, {})
 
@@ -320,12 +350,15 @@ class FileProcessor:
                 max_pixels_per_page = int(image_config.get("max_pixels_per_page", 0))
                 with PDFProcessor(file_path) as pdf:
                     page_count = pdf.get_page_count()
-                    messenger.info(f"PDF has {page_count} page(s), rendering at {target_dpi} DPI")
+                    messenger.info(
+                        f"PDF has {page_count} page(s), rendering at {target_dpi} DPI"
+                    )
                     pil_images = pdf.extract_pages_as_images(
                         dpi=target_dpi, max_pixels=max_pixels_per_page
                     )
             else:
                 from PIL import Image
+
                 pil_images = [Image.open(file_path).convert("RGB")]
 
             messenger.info(f"Loaded {len(pil_images)} image(s) from {file_path.name}")
@@ -361,16 +394,21 @@ class FileProcessor:
                 processed_path = processor.process_image(temp_output)
 
                 b64_data, mime_type = encode_image_to_base64(processed_path)
-                image_chunks.append({
-                    "base64": b64_data,
-                    "mime_type": mime_type,
-                    "detail": image_detail,
-                })
+                image_chunks.append(
+                    {
+                        "base64": b64_data,
+                        "mime_type": mime_type,
+                        "detail": image_detail,
+                    }
+                )
 
             messenger.info(f"Preprocessed {len(image_chunks)} image(s)")
 
         except Exception as e:
-            messenger.error(f"Failed to load/preprocess images from {file_path.name}: {e}", exc_info=e)
+            messenger.error(
+                f"Failed to load/preprocess images from {file_path.name}: {e}",
+                exc_info=e,
+            )
             return
 
         # Load visual extraction prompt
@@ -443,8 +481,12 @@ class FileProcessor:
                 logger.info(f"Using manual context from: {manual_path}")
                 messenger.info(f"Using context from: {manual_path.name}")
             else:
-                logger.warning(f"Manual context path not found: {manual_path}; falling back to auto")
-                context, context_path = resolve_context_for_extraction(text_file=file_path)
+                logger.warning(
+                    f"Manual context path not found: {manual_path}; falling back to auto"
+                )
+                context, context_path = resolve_context_for_extraction(
+                    text_file=file_path
+                )
         else:
             context, context_path = resolve_context_for_extraction(text_file=file_path)
 
@@ -473,8 +515,8 @@ class FileProcessor:
 
         # Determine output paths
         try:
-            working_folder, output_json_path, temp_jsonl_path = self._setup_output_paths(
-                file_path, schema_paths
+            working_folder, output_json_path, temp_jsonl_path = (
+                self._setup_output_paths(file_path, schema_paths)
             )
             messenger.info(f"Output will be saved to: {output_json_path}")
         except Exception as e:
@@ -537,7 +579,10 @@ class FileProcessor:
                     if temp_jsonl_path.exists() and temp_jsonl_path.stat().st_size > 0:
                         # Build chunk slice metadata if a slice was applied
                         _cs_info: dict | None = None
-                        if chunk_slice is not None and (chunk_slice.first_n is not None or chunk_slice.last_n is not None):
+                        if chunk_slice is not None and (
+                            chunk_slice.first_n is not None
+                            or chunk_slice.last_n is not None
+                        ):
                             _cs_info = {}
                             if chunk_slice.first_n is not None:
                                 _cs_info["first_n"] = chunk_slice.first_n
@@ -550,7 +595,8 @@ class FileProcessor:
                                 handler,
                                 schema_paths,
                                 messenger,
-                                partial=processing_cancelled or processing_exception is not None,
+                                partial=processing_cancelled
+                                or processing_exception is not None,
                                 chunk_slice_info=_cs_info,
                             )
                         )
@@ -561,13 +607,16 @@ class FileProcessor:
                             "no output file generated."
                         )
                 except Exception as gen_exc:
-                    messenger.error(f"Failed to write final output: {gen_exc}", exc_info=gen_exc)
+                    messenger.error(
+                        f"Failed to write final output: {gen_exc}", exc_info=gen_exc
+                    )
 
             self._cleanup_temp_files(use_batch, temp_jsonl_path, messenger)
 
             # Clean up temporary preprocessed images
             if temp_image_dir and temp_image_dir.exists():
                 import shutil
+
                 try:
                     shutil.rmtree(temp_image_dir)
                     logger.debug("Cleaned up temp image directory: %s", temp_image_dir)
@@ -590,33 +639,36 @@ class FileProcessor:
         file_path: Path,
         global_chunking_method: str | None,
         messenger: _MessagingAdapter,
-        ui: Any
+        ui: Any,
     ) -> str:
         """Determine which chunking method to use."""
         if global_chunking_method == "per-file":
             global_chunking_method = None
 
         if global_chunking_method is not None:
-            messenger.info(f"Using global chunking method '{global_chunking_method}' for file {file_path.name}")
+            messenger.info(
+                f"Using global chunking method '{global_chunking_method}' for file {file_path.name}"
+            )
             return global_chunking_method
         else:
             # Ask for per-file chunking method
-            if ui and hasattr(ui, 'ask_file_chunking_method'):
+            if ui and hasattr(ui, "ask_file_chunking_method"):
                 return ui.ask_file_chunking_method(file_path.name)
             else:
                 return self._default_ask_file_chunking_method(file_path.name)
 
-
     def _setup_output_paths(
-        self,
-        file_path: Path,
-        schema_paths: dict[str, Any]
+        self, file_path: Path, schema_paths: dict[str, Any]
     ) -> tuple[Path, Path, Path]:
         """Set up output directory paths."""
         if self.paths_config["general"]["input_paths_is_output_path"]:
             working_folder = ensure_path_safe(file_path.parent)
-            output_json_path = ensure_path_safe(working_folder / f"{file_path.stem}_output.json")
-            temp_jsonl_path = ensure_path_safe(working_folder / f"{file_path.stem}_temp.jsonl")
+            output_json_path = ensure_path_safe(
+                working_folder / f"{file_path.stem}_output.json"
+            )
+            temp_jsonl_path = ensure_path_safe(
+                working_folder / f"{file_path.stem}_temp.jsonl"
+            )
             working_folder.mkdir(parents=True, exist_ok=True)
         else:
             output_path_str = schema_paths.get("output", "")
@@ -635,8 +687,12 @@ class FileProcessor:
             temp_folder = ensure_path_safe(working_folder / "temp_jsonl")
             working_folder.mkdir(parents=True, exist_ok=True)
             temp_folder.mkdir(parents=True, exist_ok=True)
-            output_json_path = ensure_path_safe(working_folder / f"{file_path.stem}_output.json")
-            temp_jsonl_path = ensure_path_safe(temp_folder / f"{file_path.stem}_temp.jsonl")
+            output_json_path = ensure_path_safe(
+                working_folder / f"{file_path.stem}_output.json"
+            )
+            temp_jsonl_path = ensure_path_safe(
+                temp_folder / f"{file_path.stem}_temp.jsonl"
+            )
 
         return working_folder, output_json_path, temp_jsonl_path
 
@@ -655,7 +711,7 @@ class FileProcessor:
         try:
             messenger.info("Constructing final output from temporary file...")
             results = []
-            
+
             if temp_jsonl_path.exists():
                 with temp_jsonl_path.open("r", encoding="utf-8") as tempf:
                     for line in tempf:
@@ -665,7 +721,9 @@ class FileProcessor:
                         try:
                             record = json.loads(line)
                             if "custom_id" in record:
-                                response_field = record.get("response", {}).get("body", {})
+                                response_field = record.get("response", {}).get(
+                                    "body", {}
+                                )
                                 output_record = {
                                     "custom_id": record.get("custom_id"),
                                     "chunk_index": record.get("chunk_index"),
@@ -676,13 +734,15 @@ class FileProcessor:
                         except json.JSONDecodeError as e:
                             logger.warning(f"Failed to parse line in temp file: {e}")
                             continue
-            
+
             # Sort results by chunk_index, handling None values
             results.sort(key=lambda x: x.get("chunk_index") or 0)
-            
+
             # Build output structure with metadata
             chunking_method = "unknown"
-            model_name = self.model_config.get("extraction_model", {}).get("name", "unknown")
+            model_name = self.model_config.get("extraction_model", {}).get(
+                "name", "unknown"
+            )
             schema_name_for_meta = getattr(handler, "schema_name", "unknown")
             output_data = {
                 _METADATA_KEY: build_extraction_metadata(
@@ -703,20 +763,24 @@ class FileProcessor:
                     f"Partial structured JSON output saved to {output_json_path}"
                 )
             else:
-                messenger.success(f"Final structured JSON output saved to {output_json_path}")
+                messenger.success(
+                    f"Final structured JSON output saved to {output_json_path}"
+                )
         except Exception as e:
             messenger.error(f"Failed to write final output: {e}", exc_info=e)
             return
 
         # Generate additional formats
-        self._generate_additional_formats(output_json_path, handler, schema_paths, messenger)
+        self._generate_additional_formats(
+            output_json_path, handler, schema_paths, messenger
+        )
 
     def _generate_additional_formats(
         self,
         output_json_path: Path,
         handler: Any,
         schema_paths: dict[str, Any],
-        messenger: _MessagingAdapter
+        messenger: _MessagingAdapter,
     ) -> None:
         """Generate CSV, DOCX, and TXT outputs if configured."""
         if schema_paths.get("csv_output", False):
@@ -744,10 +808,7 @@ class FileProcessor:
                 messenger.warning(f"Failed to generate TXT output: {e}")
 
     def _cleanup_temp_files(
-        self,
-        use_batch: bool,
-        temp_jsonl_path: Path,
-        messenger: _MessagingAdapter
+        self, use_batch: bool, temp_jsonl_path: Path, messenger: _MessagingAdapter
     ) -> None:
         """Clean up temporary files if not needed."""
         if use_batch:
@@ -761,14 +822,22 @@ class FileProcessor:
                     logger.info(f"Deleted temporary file: {temp_jsonl_path}")
                     messenger.info(f"Deleted temporary file: {temp_jsonl_path.name}")
                 except Exception as e:
-                    messenger.error(f"Could not delete temporary file {temp_jsonl_path.name}: {e}")
+                    messenger.error(
+                        f"Could not delete temporary file {temp_jsonl_path.name}: {e}"
+                    )
 
     def _default_ask_file_chunking_method(self, file_name: str) -> str:
         """Default implementation if UI not provided."""
         ui_print(f"\nSelect chunking method for file '{file_name}':")
-        ui_print("  1. Automatic chunking - Split text based on token limits with no intervention")
-        ui_print("  2. Interactive chunking - View default chunks and manually adjust boundaries")
-        ui_print("  3. Predefined chunks - Use saved boundaries from {file}_line_ranges.txt file")
+        ui_print(
+            "  1. Automatic chunking - Split text based on token limits with no intervention"
+        )
+        ui_print(
+            "  2. Interactive chunking - View default chunks and manually adjust boundaries"
+        )
+        ui_print(
+            "  3. Predefined chunks - Use saved boundaries from {file}_line_ranges.txt file"
+        )
 
         choice = ui_input("Enter option (1-3): ").strip()
         if choice == "1":

@@ -79,9 +79,7 @@ def _build_responses_body(
     # Structured outputs
     if schema and caps.supports_structured_outputs:
         fmt = build_structured_text_format(
-            schema, 
-            schema_name or "ExtractionSchema", 
-            True
+            schema, schema_name or "ExtractionSchema", True
         )
         if fmt is not None:
             body.setdefault("text", {})
@@ -155,7 +153,9 @@ def _build_image_responses_body(
 
     # Structured outputs
     if schema and caps.supports_structured_outputs:
-        fmt = build_structured_text_format(schema, schema_name or "ExtractionSchema", True)
+        fmt = build_structured_text_format(
+            schema, schema_name or "ExtractionSchema", True
+        )
         if fmt is not None:
             body.setdefault("text", {})
             body["text"]["format"] = fmt
@@ -177,6 +177,7 @@ class OpenAIBatchBackend(BatchBackend):
         """Lazy initialization of OpenAI client."""
         if self._client is None:
             from openai import OpenAI
+
             self._client = OpenAI()
         return self._client
 
@@ -209,8 +210,12 @@ class OpenAIBatchBackend(BatchBackend):
         for req in requests:
             # Route by input type: visual or text
             if req.is_visual:
-                assert req.image_base64 is not None, "image_base64 required for visual batch requests"
-                assert req.mime_type is not None, "mime_type required for visual batch requests"
+                assert req.image_base64 is not None, (
+                    "image_base64 required for visual batch requests"
+                )
+                assert req.mime_type is not None, (
+                    "mime_type required for visual batch requests"
+                )
                 body = _build_image_responses_body(
                     model_config=model_config,
                     system_prompt=system_prompt,
@@ -239,10 +244,7 @@ class OpenAIBatchBackend(BatchBackend):
 
         # Write to temp file
         with tempfile.NamedTemporaryFile(
-            mode="w",
-            suffix=".jsonl",
-            delete=False,
-            encoding="utf-8"
+            mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
         ) as f:
             for line in jsonl_lines:
                 f.write(line + "\n")
@@ -250,7 +252,9 @@ class OpenAIBatchBackend(BatchBackend):
 
         try:
             # Upload file
-            logger.info("Uploading batch file to OpenAI (%d requests)...", len(requests))
+            logger.info(
+                "Uploading batch file to OpenAI (%d requests)...", len(requests)
+            )
             with temp_path.open("rb") as f:
                 file_response = client.files.create(file=f, purpose="batch")
             file_id = file_response.id
@@ -321,7 +325,8 @@ class OpenAIBatchBackend(BatchBackend):
             completed_requests=completed,
             failed_requests=failed,
             pending_requests=total - completed - failed,
-            results_available=status == BatchStatus.COMPLETED and output_file_id is not None,
+            results_available=status == BatchStatus.COMPLETED
+            and output_file_id is not None,
             output_file_id=output_file_id,
         )
 
@@ -390,8 +395,13 @@ class OpenAIBatchBackend(BatchBackend):
                     for item in output if isinstance(output, list) else []:
                         if isinstance(item, dict) and item.get("type") == "message":
                             content_list = item.get("content", [])
-                            for c in content_list if isinstance(content_list, list) else []:
-                                if isinstance(c, dict) and c.get("type") == "output_text":
+                            for c in (
+                                content_list if isinstance(content_list, list) else []
+                            ):
+                                if (
+                                    isinstance(c, dict)
+                                    and c.get("type") == "output_text"
+                                ):
                                     result_item.content = c.get("text", "")
                                     break
 

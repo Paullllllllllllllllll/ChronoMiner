@@ -17,6 +17,7 @@ from dataclasses import dataclass
 # Initialize colorama for Windows color support
 try:
     import colorama
+
     colorama.just_fix_windows_console()
 except ImportError:
     pass  # colorama not available, colors may not work on Windows
@@ -28,6 +29,7 @@ logger = setup_logger(__name__)
 
 class NavigationAction(Enum):
     """User navigation choices in interactive prompts."""
+
     CONTINUE = "continue"
     BACK = "back"
     QUIT = "quit"
@@ -36,35 +38,36 @@ class NavigationAction(Enum):
 @dataclass
 class PromptResult:
     """Result from a prompt with navigation support."""
+
     action: NavigationAction
     value: Any = None
 
 
 class PromptStyle:
     """Visual styling constants for consistent UI."""
-    
+
     # Box drawing characters - ASCII-safe for Windows compatibility
     DOUBLE_LINE = "="
     SINGLE_LINE = "-"
     LIGHT_LINE = "."
-    
+
     # ANSI Color codes - now work on Windows thanks to colorama
-    HEADER = "\033[1;36m"      # Cyan bold (headers, titles)
-    INFO = "\033[0;36m"        # Cyan (informational messages)
-    SUCCESS = "\033[1;32m"     # Green bold (success messages)
-    WARNING = "\033[1;33m"     # Yellow bold (warnings)
-    ERROR = "\033[1;31m"       # Red bold (errors)
-    PROMPT = "\033[1;37m"      # White bold (user prompts)
-    DIM = "\033[2;37m"         # Dimmed white (secondary text)
-    HIGHLIGHT = "\033[1;35m"   # Magenta bold (highlights)
-    RESET = "\033[0m"          # Reset to default
-    
+    HEADER = "\033[1;36m"  # Cyan bold (headers, titles)
+    INFO = "\033[0;36m"  # Cyan (informational messages)
+    SUCCESS = "\033[1;32m"  # Green bold (success messages)
+    WARNING = "\033[1;33m"  # Yellow bold (warnings)
+    ERROR = "\033[1;31m"  # Red bold (errors)
+    PROMPT = "\033[1;37m"  # White bold (user prompts)
+    DIM = "\033[2;37m"  # Dimmed white (secondary text)
+    HIGHLIGHT = "\033[1;35m"  # Magenta bold (highlights)
+    RESET = "\033[0m"  # Reset to default
+
     @staticmethod
     def supports_color() -> bool:
         """Check if terminal supports color."""
         # With colorama, we can safely assume color support
         return True
-    
+
     @classmethod
     def colorize(cls, text: str, color: str) -> str:
         """Apply color to text if terminal supports it."""
@@ -75,7 +78,7 @@ class PromptStyle:
 
 def ui_print(message: str, style: str = "", end: str = "\n") -> None:
     """Print a UI message (distinct from logging).
-    
+
     Args:
         message: The message to display
         style: Optional style/color code
@@ -90,7 +93,7 @@ def ui_print(message: str, style: str = "", end: str = "\n") -> None:
             print(message, end=end, flush=True)
     except UnicodeEncodeError:
         # Fallback to ASCII if encoding fails
-        safe_message = message.encode('ascii', 'replace').decode('ascii')
+        safe_message = message.encode("ascii", "replace").decode("ascii")
         if style and PromptStyle.supports_color():
             print(f"{style}{safe_message}{PromptStyle.RESET}", end=end, flush=True)
         else:
@@ -99,11 +102,11 @@ def ui_print(message: str, style: str = "", end: str = "\n") -> None:
 
 def ui_input(prompt: str, style: str = PromptStyle.PROMPT) -> str:
     """Get user input with consistent styling.
-    
+
     Args:
         prompt: The prompt message
         style: Optional style/color code
-        
+
     Returns:
         User input stripped of whitespace
     """
@@ -121,7 +124,7 @@ def ui_input(prompt: str, style: str = PromptStyle.PROMPT) -> str:
 
 def print_header(title: str, subtitle: str = "") -> None:
     """Print a formatted header for a section.
-    
+
     Args:
         title: Main title text
         subtitle: Optional subtitle text
@@ -162,7 +165,7 @@ def print_error(message: str, prefix: str = "[ERROR]") -> None:
 
 def print_navigation_help(allow_back: bool = False) -> None:
     """Print navigation options help text.
-    
+
     Args:
         allow_back: Whether to show the 'back' option
     """
@@ -170,32 +173,34 @@ def print_navigation_help(allow_back: bool = False) -> None:
     if allow_back:
         options.append("'b' to go back")
     options.append("'q' to quit")
-    
+
     if options:
         help_text = " | ".join(options)
         ui_print(f"  {PromptStyle.LIGHT_LINE * 3} {help_text}", PromptStyle.DIM)
 
 
-def handle_navigation_input(user_input: str, allow_back: bool = False) -> NavigationAction | None:
+def handle_navigation_input(
+    user_input: str, allow_back: bool = False
+) -> NavigationAction | None:
     """Check if user input is a navigation command.
-    
+
     Args:
         user_input: The user's input
         allow_back: Whether back navigation is allowed
-        
+
     Returns:
         NavigationAction if input is a navigation command, None otherwise
     """
     input_lower = user_input.lower()
-    
+
     if input_lower in ["q", "quit", "exit"]:
         print_info("Exiting as requested.")
         return NavigationAction.QUIT
-    
+
     if allow_back and input_lower in ["b", "back"]:
         print_info("Going back to previous step...")
         return NavigationAction.BACK
-    
+
     return None
 
 
@@ -203,59 +208,57 @@ def prompt_select(
     question: str,
     options: list[tuple[str, str]],
     allow_back: bool = False,
-    show_help: bool = True
+    show_help: bool = True,
 ) -> PromptResult:
     """Prompt user to select from a list of options.
-    
+
     Args:
         question: The question to ask
         options: List of (value, description) tuples
         allow_back: Whether to allow back navigation
         show_help: Whether to show navigation help
-        
+
     Returns:
         PromptResult with the selected value or navigation action
     """
     ui_print(f"\n{question}", PromptStyle.PROMPT)
     print_separator()
-    
+
     for idx, (value, description) in enumerate(options, 1):
         ui_print(f"  {idx}. {description}")
-    
+
     if show_help:
         print_navigation_help(allow_back)
-    
+
     while True:
         choice = ui_input("\nEnter your choice: ")
-        
+
         # Check for navigation
         nav_action = handle_navigation_input(choice, allow_back)
         if nav_action == NavigationAction.QUIT:
             sys.exit(0)
         if nav_action == NavigationAction.BACK:
             return PromptResult(NavigationAction.BACK)
-        
+
         # Check for valid selection
         if choice.isdigit():
             idx = int(choice)
             if 1 <= idx <= len(options):
                 return PromptResult(NavigationAction.CONTINUE, options[idx - 1][0])
-        
+
         print_error("Invalid selection. Please try again.")
 
 
 def prompt_yes_no(
-    question: str,
-    default: bool | None = None,
-    allow_back: bool = False
+    question: str, default: bool | None = None, allow_back: bool = False
 ) -> PromptResult:
     """Prompt user for a yes/no answer.
-    
+
     Args:
         question: The question to ask
         default: Default answer if user presses Enter (None for no default)
         allow_back: Whether to allow back navigation
-        
+
     Returns:
         PromptResult with boolean value or navigation action
     """
@@ -266,32 +269,32 @@ def prompt_yes_no(
         suffix = " (y/N)"
     else:
         suffix = " (y/n)"
-    
+
     ui_print(f"\n{question}{suffix}", PromptStyle.PROMPT)
-    
+
     if allow_back:
         print_navigation_help(allow_back)
-    
+
     while True:
         choice = ui_input("> ").lower()
-        
+
         # Check for navigation
         nav_action = handle_navigation_input(choice, allow_back)
         if nav_action == NavigationAction.QUIT:
             sys.exit(0)
         if nav_action == NavigationAction.BACK:
             return PromptResult(NavigationAction.BACK)
-        
+
         # Handle default
         if choice == "" and default is not None:
             return PromptResult(NavigationAction.CONTINUE, default)
-        
+
         # Check for valid yes/no
         if choice in ["y", "yes"]:
             return PromptResult(NavigationAction.CONTINUE, True)
         if choice in ["n", "no"]:
             return PromptResult(NavigationAction.CONTINUE, False)
-        
+
         print_error("Please enter 'y' for yes or 'n' for no.")
 
 
@@ -301,10 +304,10 @@ def prompt_text(
     allow_back: bool = False,
     validator: Callable[[str], bool] | None = None,
     error_message: str = "Invalid input. Please try again.",
-    default: str = ""
+    default: str = "",
 ) -> PromptResult:
     """Prompt user for text input.
-    
+
     Args:
         question: The question to ask
         allow_empty: Whether to allow empty input
@@ -312,43 +315,43 @@ def prompt_text(
         validator: Optional validation function
         error_message: Message to show on validation failure
         default: Default value if user presses Enter
-        
+
     Returns:
         PromptResult with text value or navigation action
     """
     prompt_text_display = question
     if default:
         prompt_text_display = f"{question} [{default}]"
-    
+
     ui_print(f"\n{prompt_text_display}", PromptStyle.PROMPT)
-    
+
     if allow_back:
         print_navigation_help(allow_back)
-    
+
     while True:
         value = ui_input("> ")
-        
+
         # Use default if empty and default provided
         if not value and default:
             value = default
-        
+
         # Check for navigation
         nav_action = handle_navigation_input(value, allow_back)
         if nav_action == NavigationAction.QUIT:
             sys.exit(0)
         if nav_action == NavigationAction.BACK:
             return PromptResult(NavigationAction.BACK)
-        
+
         # Check for empty
         if not value and not allow_empty:
             print_error("Input cannot be empty.")
             continue
-        
+
         # Validate
         if validator and not validator(value):
             print_error(error_message)
             continue
-        
+
         return PromptResult(NavigationAction.CONTINUE, value)
 
 
@@ -357,21 +360,21 @@ def _match_items_by_name(
     items: list[tuple[str, str]],
 ) -> set:
     """Match items by partial name search.
-    
+
     Args:
         search_term: Search string to match against item descriptions
         items: List of (identifier, description) tuples
-        
+
     Returns:
         Set of matching indices (0-based)
     """
     matched_indices = set()
     search_lower = search_term.lower()
-    
+
     for idx, (identifier, description) in enumerate(items):
         if search_lower in description.lower():
             matched_indices.add(idx)
-    
+
     return matched_indices
 
 
@@ -379,70 +382,70 @@ def prompt_multiselect(
     question: str,
     items: list[tuple[str, str]],
     allow_all: bool = True,
-    allow_back: bool = False
+    allow_back: bool = False,
 ) -> PromptResult:
     """Prompt user to select multiple items.
-    
+
     Supports numeric selection (1,3,5), ranges (1-5), 'all', and filename search.
-    
+
     Args:
         question: The question to ask
         items: List of (identifier, description) tuples
         allow_all: Whether to allow selecting all items
         allow_back: Whether to allow back navigation
-        
+
     Returns:
         PromptResult with list of selected identifiers or navigation action
     """
     ui_print(f"\n{question}", PromptStyle.PROMPT)
     print_separator()
-    
+
     for idx, (identifier, description) in enumerate(items, 1):
         # Truncate long descriptions
         if len(description) > 75:
             description = description[:72] + "..."
         ui_print(f"  {idx}. {description}")
-    
+
     ui_print(f"\n  Selection options:", PromptStyle.INFO)
     ui_print("    - Enter numbers separated by commas (e.g., '1,3,5')", PromptStyle.DIM)
     ui_print("    - Enter a range with a dash (e.g., '1-5')", PromptStyle.DIM)
     ui_print("    - Enter a filename or part of it to search", PromptStyle.DIM)
     if allow_all:
         ui_print("    - Enter 'all' to select everything", PromptStyle.DIM)
-    
+
     if allow_back:
         ui_print("")  # Spacing
         print_navigation_help(allow_back)
-    
+
     while True:
         choice = ui_input("\nYour selection: ").strip()
         choice_lower = choice.lower()
-        
+
         if not choice:
             print_warning("No selection made. Please make a choice.")
             continue
-        
+
         # Check for navigation
         nav_action = handle_navigation_input(choice, allow_back)
         if nav_action == NavigationAction.QUIT:
             sys.exit(0)
         if nav_action == NavigationAction.BACK:
             return PromptResult(NavigationAction.BACK)
-        
+
         # Check for 'all'
         if allow_all and choice_lower == "all":
             selected = [identifier for identifier, _ in items]
             print_success(f"Selected all {len(items)} items.")
             return PromptResult(NavigationAction.CONTINUE, selected)
-        
+
         # Determine if input is numeric selection or filename search
         normalized_input = choice.replace(" ", "").replace(";", ",")
         is_numeric_selection = all(
             c.isdigit() or c in ",-" for c in normalized_input
         ) and any(c.isdigit() for c in normalized_input)
-        
+
         selected_indices: set = set()
-        
+
         if not is_numeric_selection:
             # Try filename matching
             matched = _match_items_by_name(choice, items)
@@ -466,7 +469,9 @@ def prompt_multiselect(
                         start_idx = int(start.strip())
                         end_idx = int(end.strip())
                         if not (1 <= start_idx <= end_idx <= len(items)):
-                            print_error(f"Range {part} is invalid. Must be between 1 and {len(items)}.")
+                            print_error(
+                                f"Range {part} is invalid. Must be between 1 and {len(items)}."
+                            )
                             selected_indices.clear()
                             break
                         selected_indices.update(range(start_idx - 1, end_idx))
@@ -474,35 +479,39 @@ def prompt_multiselect(
                         # Single number
                         idx = int(part)
                         if not (1 <= idx <= len(items)):
-                            print_error(f"Selection {part} is out of range. Must be between 1 and {len(items)}.")
+                            print_error(
+                                f"Selection {part} is out of range. Must be between 1 and {len(items)}."
+                            )
                             selected_indices.clear()
                             break
                         selected_indices.add(idx - 1)
             except ValueError as e:
-                print_error(f"Invalid input: '{choice}'. Use numbers, ranges (e.g., 1-3), 'all', or a filename.")
+                print_error(
+                    f"Invalid input: '{choice}'. Use numbers, ranges (e.g., 1-3), 'all', or a filename."
+                )
                 continue
-        
+
         if not selected_indices:
             continue
-        
+
         selected = [items[i][0] for i in sorted(selected_indices)]
-        
+
         # Confirm selection
         if len(selected) == 1:
             print_success(f"Selected: {items[list(selected_indices)[0]][1]}")
         else:
             print_success(f"Selected {len(selected)} item(s).")
-        
+
         return PromptResult(NavigationAction.CONTINUE, selected)
 
 
 def confirm_action(message: str, default: bool = False) -> bool:
     """Simple confirmation prompt (no back navigation).
-    
+
     Args:
         message: Confirmation message
         default: Default answer
-        
+
     Returns:
         True if confirmed, False otherwise
     """

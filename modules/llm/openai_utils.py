@@ -33,11 +33,11 @@ logger = setup_logger(__name__)
 class LLMExtractor:
     """
     A unified wrapper for interacting with LLM providers via LangChain.
-    
+
     Supports OpenAI, Anthropic, Google Gemini, and OpenRouter through a
     consistent interface for structured data extraction tasks.
     """
-    
+
     def __init__(
         self,
         api_key: str | None = None,
@@ -49,10 +49,10 @@ class LLMExtractor:
     ) -> None:
         if not model:
             raise ValueError("Model must be specified.")
-        
+
         self.model: str = model
         self.provider: ProviderType = provider or ProviderConfig._detect_provider(model)
-        
+
         # Get API key from parameter or environment
         if api_key:
             self.api_key: str = api_key
@@ -61,56 +61,62 @@ class LLMExtractor:
             if not resolved_key:
                 raise ValueError(f"API key not found for provider {self.provider}")
             self.api_key = resolved_key
-        
+
         # Load prompt text if path provided
         self.prompt_text: str = ""
         if prompt_path and prompt_path.exists():
             try:
-                with prompt_path.open('r', encoding='utf-8') as prompt_file:
+                with prompt_path.open("r", encoding="utf-8") as prompt_file:
                     self.prompt_text = prompt_file.read().strip()
             except Exception as e:
                 logger.error(f"Failed to read prompt: {e}")
                 raise
-        
+
         # Load configuration using cached loader
         config = get_config_loader()
-        self.model_config: dict[str, Any] = model_config_override or config.get_model_config()
+        self.model_config: dict[str, Any] = (
+            model_config_override or config.get_model_config()
+        )
         self.concurrency_config: dict[str, Any] = (
             concurrency_config_override or config.get_concurrency_config()
         )
-        
+
         tm: dict[str, Any] = self.model_config.get("extraction_model", {})
-        
+
         # Model parameters
         self.max_output_tokens: int = int(tm.get("max_output_tokens", 4096))
         self.temperature: float = float(tm.get("temperature", 0.0))
         self.top_p: float = float(tm.get("top_p", 1.0))
         self.presence_penalty: float = float(tm.get("presence_penalty", 0.0))
         self.frequency_penalty: float = float(tm.get("frequency_penalty", 0.0))
-        
+
         # Reasoning / text controls (used for reasoning models)
         self.reasoning: dict[str, Any] = tm.get("reasoning", {"effort": "medium"})
         self.text_params: dict[str, Any] = tm.get("text", {"verbosity": "medium"})
-        
+
         # Capabilities gating
         self.caps = detect_capabilities(self.model, provider=self.provider)
-        
+
         # Create LangChain LLM instance
         self._llm: LangChainLLM | None = None
         self._initialize_llm()
-    
+
     def _initialize_llm(self) -> None:
         """Initialize the LangChain LLM instance."""
         # Load service_tier from concurrency config (CM-1)
-        extraction_cfg = (
-            (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
-        )
+        extraction_cfg = (self.concurrency_config.get("concurrency", {}) or {}).get(
+            "extraction", {}
+        ) or {}
         service_tier = extraction_cfg.get("service_tier")
 
         # Build extra_params including reasoning (CM-3) and service_tier (CM-1)
         extra_params: dict[str, Any] = {
-            "presence_penalty": self.presence_penalty if self.caps.supports_sampler_controls else 0.0,
-            "frequency_penalty": self.frequency_penalty if self.caps.supports_sampler_controls else 0.0,
+            "presence_penalty": self.presence_penalty
+            if self.caps.supports_sampler_controls
+            else 0.0,
+            "frequency_penalty": self.frequency_penalty
+            if self.caps.supports_sampler_controls
+            else 0.0,
             "reasoning_config": self.reasoning,
             "reasoning_effort": self.reasoning.get("effort", "medium"),
             "text_config": self.text_params,
@@ -125,13 +131,15 @@ class LLMExtractor:
             provider=self.provider,
             model=self.model,
             api_key=self.api_key,
-            temperature=self.temperature if self.caps.supports_sampler_controls else 0.0,
+            temperature=self.temperature
+            if self.caps.supports_sampler_controls
+            else 0.0,
             max_tokens=self.max_output_tokens,
             top_p=self.top_p if self.caps.supports_sampler_controls else 1.0,
             max_retries=0,
             extra_params=extra_params,
         )
-        
+
         # Set base URL for OpenRouter and custom endpoints
         if self.provider == "openrouter":
             config.base_url = "https://openrouter.ai/api/v1"
@@ -139,9 +147,9 @@ class LLMExtractor:
             tm = self.model_config.get("extraction_model", {})
             custom_cfg = tm.get("custom_endpoint", {})
             config.base_url = custom_cfg.get("base_url")
-        
+
         self._llm = LangChainLLM(config)
-    
+
     @property
     def llm(self) -> LangChainLLM:
         """Get the underlying LangChain LLM instance."""
@@ -149,7 +157,7 @@ class LLMExtractor:
             self._initialize_llm()
         assert self._llm is not None, "LLM initialization failed"
         return self._llm
-    
+
     async def close(self) -> None:
         """Clean up resources (no-op for LangChain, kept for API compatibility)."""
         pass
@@ -244,14 +252,14 @@ async def process_text_chunk(
                 "schema": json_schema,
                 "strict": True,
             }
-    
+
     # LangChain handles retries internally via max_retries parameter
     # Token tracking is handled via usage_metadata on the response
     result = await extractor.llm.ainvoke_with_structured_output(
         messages=messages,
         json_schema=structured_schema,
     )
-    
+
     return {
         "output_text": result.get("output_text", ""),
         "response_data": result.get("response_data", {}),
@@ -361,7 +369,7 @@ async def process_text_chunk_with_provider(
 ) -> dict[str, Any]:
     """
     Process a text chunk with explicit provider selection.
-    
+
     This is a convenience function for one-off calls without managing
     an extractor context.
 
@@ -376,21 +384,21 @@ async def process_text_chunk_with_provider(
     # Load config if not provided (uses cached loader)
     if model_config is None:
         model_config = get_config_loader().get_model_config()
-    
+
     # Get model from config if not specified
     if model is None:
         model = model_config.get("extraction_model", {}).get("name", "")
-    
+
     if not model:
         raise ValueError("Model must be specified either directly or in config")
-    
+
     # Get API key based on provider
     detected_provider = provider or ProviderConfig._detect_provider(model)
     api_key = ProviderConfig._get_api_key(detected_provider)
-    
+
     if not api_key:
         raise ValueError(f"API key not found for provider {detected_provider}")
-    
+
     # Create extractor and process
     async with open_extractor(
         api_key=api_key,
