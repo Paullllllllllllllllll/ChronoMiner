@@ -21,7 +21,7 @@ from pathlib import Path
 from collections.abc import Callable
 from typing import Any
 
-import chardet
+from charset_normalizer import detect as _charset_detect
 import tiktoken
 
 from modules.infra.paths import ensure_path_safe
@@ -56,7 +56,7 @@ class TextProcessor:
         safe_path = ensure_path_safe(file_path)
         with safe_path.open("rb") as f:
             raw_data = f.read(100000)
-        result = chardet.detect(raw_data)
+        result = _charset_detect(raw_data)
         encoding = result["encoding"]
         logger.info(f"Detected file encoding: {encoding}")
         return encoding or "utf-8"
