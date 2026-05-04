@@ -173,7 +173,8 @@ class FileProcessor:
         :param global_chunking_method: Global chunking method if specified
         :param ui: UserInterface instance for user feedback
         :param resume: If True, skip completed chunks and resume partial outputs
-        :param context_override: Optional dict with 'mode' ('auto'|'none'|'manual') and 'path' (CM-8)
+        :param context_override: Optional dict with 'mode' ('auto'|'none'|'manual')
+            and 'path' (CM-8)
         :param image_detail: Image detail level for vision models
         """
         if self._is_visual_input(file_path):
@@ -209,7 +210,8 @@ class FileProcessor:
             except UnicodeDecodeError:
                 # Fallback for non-UTF-8 files
                 messenger.warning(
-                    f"File {file_path.name} is not UTF-8, attempting encoding detection..."
+                    f"File {file_path.name} is not UTF-8,"
+                    " attempting encoding detection..."
                 )
                 logger.warning(
                     f"UTF-8 decode failed for {file_path.name}, using chardet detection"
@@ -221,7 +223,8 @@ class FileProcessor:
 
             normalized_lines = [TextProcessor.normalize_text(line) for line in lines]
             messenger.info(
-                f"Successfully read and normalized {len(lines)} lines from {file_path.name}"
+                f"Successfully read and normalized {len(lines)} lines"
+                f" from {file_path.name}"
             )
         except Exception as e:
             messenger.error(f"Failed to read file {file_path.name}: {e}", exc_info=e)
@@ -291,7 +294,8 @@ class FileProcessor:
         context_override: dict[str, Any] | None = None,
         image_detail: str | None = None,
     ) -> None:
-        """Process a visual input file (image or PDF) through the LLM vision pipeline."""
+        """Process a visual input file (image or PDF) through the LLM vision
+        pipeline."""
         from modules.config.capabilities import detect_capabilities
         from modules.images import (
             ImageProcessor,
@@ -310,7 +314,8 @@ class FileProcessor:
         if not caps.supports_image_input:
             messenger.error(
                 f"Model '{model_name}' does not support image inputs. "
-                f"Use a vision-capable model (e.g., gpt-5-mini, claude-sonnet-4-5, gemini-2.5-flash)."
+                "Use a vision-capable model"
+                " (e.g., gpt-5-mini, claude-sonnet-4-5, gemini-2.5-flash)."
             )
             return
 
@@ -370,7 +375,8 @@ class FileProcessor:
                     pil_images = pil_images[-chunk_slice.last_n :]
                 if len(pil_images) != original_count:
                     messenger.info(
-                        f"Chunk slice applied: processing {len(pil_images)}/{original_count} page(s)"
+                        f"Chunk slice applied: processing"
+                        f" {len(pil_images)}/{original_count} page(s)"
                     )
 
             # 4. Preprocess and encode each image
@@ -480,7 +486,8 @@ class FileProcessor:
                 messenger.info(f"Using context from: {manual_path.name}")
             else:
                 logger.warning(
-                    f"Manual context path not found: {manual_path}; falling back to auto"
+                    f"Manual context path not found: {manual_path};"
+                    " falling back to auto"
                 )
                 context, context_path = resolve_context_for_extraction(
                     text_file=file_path
@@ -535,8 +542,9 @@ class FileProcessor:
                 return
             if status == FileStatus.PARTIAL:
                 messenger.info(
-                    f"Resuming {file_path.name}: {len(completed_chunk_indices)}/{len(chunks)} "
-                    f"{unit_label}s already done"
+                    f"Resuming {file_path.name}:"
+                    f" {len(completed_chunk_indices)}/{len(chunks)}"
+                    f" {unit_label}s already done"
                 )
 
         # Create processing strategy and execute
@@ -564,7 +572,8 @@ class FileProcessor:
         except asyncio.CancelledError:
             processing_cancelled = True
             messenger.warning(
-                f"Processing interrupted by user. Attempting to persist completed {unit_label}s before exit..."
+                f"Processing interrupted by user. "
+                f"Attempting to persist completed {unit_label}s before exit..."
             )
             raise
         except Exception as e:
@@ -601,8 +610,8 @@ class FileProcessor:
                         wrote_output = True
                     elif processing_cancelled:
                         messenger.warning(
-                            f"Processing was interrupted before any {unit_label}s completed; "
-                            "no output file generated."
+                            f"Processing was interrupted before any {unit_label}s "
+                            "completed; no output file generated."
                         )
                 except Exception as gen_exc:
                     messenger.error(
@@ -624,7 +633,8 @@ class FileProcessor:
             if processing_cancelled:
                 if wrote_output:
                     messenger.warning(
-                        f"Processing cancelled. Partial results saved to {output_json_path}"
+                        f"Processing cancelled. Partial results saved to "
+                        f"{output_json_path}"
                     )
             elif processing_exception is None:
                 messenger.success(f"Completed processing of file: {file_path.name}")
@@ -645,7 +655,8 @@ class FileProcessor:
 
         if global_chunking_method is not None:
             messenger.info(
-                f"Using global chunking method '{global_chunking_method}' for file {file_path.name}"
+                f"Using global chunking method '{global_chunking_method}' "
+                f"for file {file_path.name}"
             )
             return global_chunking_method
         else:
@@ -673,14 +684,16 @@ class FileProcessor:
             # CM-7: Validate that output path is not empty or CWD
             if not output_path_str or not str(output_path_str).strip():
                 raise ValueError(
-                    "Output path is not configured. Set 'output' in paths_config.yaml for this schema, "
-                    "or enable 'input_paths_is_output_path: true' in general settings."
+                    "Output path is not configured. Set 'output' in paths_config.yaml "
+                    "for this schema, or enable "
+                    "'input_paths_is_output_path: true' in general settings."
                 )
             working_folder = ensure_path_safe(Path(output_path_str))
             if working_folder.resolve() == Path.cwd().resolve():
                 raise ValueError(
-                    f"Output path '{working_folder}' resolves to the current working directory. "
-                    "Configure a specific output directory to avoid mixing output with project files."
+                    f"Output path '{working_folder}' resolves to the current working "
+                    "directory. Configure a specific output directory to avoid mixing "
+                    "output with project files."
                 )
             temp_folder = ensure_path_safe(working_folder / "temp_jsonl")
             working_folder.mkdir(parents=True, exist_ok=True)
@@ -828,13 +841,16 @@ class FileProcessor:
         """Default implementation if UI not provided."""
         ui_print(f"\nSelect chunking method for file '{file_name}':")
         ui_print(
-            "  1. Automatic chunking - Split text based on token limits with no intervention"
+            "  1. Automatic chunking - Split text based on token limits "
+            "with no intervention"
         )
         ui_print(
-            "  2. Interactive chunking - View default chunks and manually adjust boundaries"
+            "  2. Interactive chunking - View default chunks and manually "
+            "adjust boundaries"
         )
         ui_print(
-            "  3. Predefined chunks - Use saved boundaries from {file}_line_ranges.txt file"
+            "  3. Predefined chunks - Use saved boundaries from "
+            "{file}_line_ranges.txt file"
         )
 
         choice = ui_input("Enter option (1-3): ").strip()

@@ -185,7 +185,8 @@ class TestVerifyNoContentPreserves:
 
         # No marker to anchor with, so deletion proceeds
         assert should_delete is True
-        # found_content reflects the model's assertion (cnb=False means content detected)
+        # found_content reflects the model's assertion
+        # (cnb=False means content detected)
         assert attempts[0]["found_content"] is True
 
 
@@ -248,8 +249,10 @@ class TestScanWindowGeometry:
         """With a very small multiplier, a large range gets two windows
         (first portion + last portion) rather than one full scan."""
         # scan_radius = range_size * 0.1 (simulated by integer truncation)
-        # We need range_size > 2 * scan_radius → range_size > 2 * range_size * multiplier
-        # → 1 > 2 * multiplier → multiplier < 0.5. But multiplier is int, minimum useful is 1.
+        # We need range_size > 2 * scan_radius
+        # → range_size > 2 * range_size * multiplier
+        # → 1 > 2 * multiplier → multiplier < 0.5.
+        # But multiplier is int, minimum useful is 1.
         # With multiplier=1, condition is range_size <= 2*range_size (always true),
         # so we can't trigger two windows with integer multipliers >= 1.
         # This test documents that with multiplier=2, all ranges get a single window.
@@ -281,7 +284,8 @@ class TestScanWindowGeometry:
 
 
 class TestTwoWindowBranch:
-    """Exercise the two-window sampling path for very large ranges with small multipliers.
+    """Exercise the two-window sampling path for very large ranges with small
+    multipliers.
 
     This requires patching scan_range_multiplier to a fractional-equivalent value.
     Since the attribute is set directly, we can set it to any numeric value.
@@ -289,7 +293,8 @@ class TestTwoWindowBranch:
 
     @pytest.mark.asyncio
     async def test_two_windows_first_content_aborts(self) -> None:
-        """When two windows are needed and the first finds content, only one call is made."""
+        """When two windows are needed and the first finds content, only one call
+        is made."""
         readjuster = _make_readjuster(scan_range_multiplier=2)
         # Force a small scan_radius so the two-window branch triggers
         readjuster.scan_range_multiplier = 0.1  # type: ignore[assignment]
@@ -538,7 +543,8 @@ class TestVerifyReanchor:
 
     @pytest.mark.asyncio
     async def test_reanchor_on_verify_content(self) -> None:
-        """Interior scan finds marker that resolves to a unique line → re-anchored range returned."""
+        """Interior scan finds marker that resolves to a unique line →
+        re-anchored range returned."""
         readjuster = _make_readjuster()
         marker_text = "Soupe à l'oignon."
         raw_lines = _make_raw_lines_with_marker(100, marker_text, 55)
@@ -564,7 +570,8 @@ class TestVerifyReanchor:
 
     @pytest.mark.asyncio
     async def test_reanchor_marker_not_resolved(self) -> None:
-        """Interior scan finds content with marker that doesn't match source → reanchored is None."""
+        """Interior scan finds content with marker that doesn't match source →
+        reanchored is None."""
         readjuster = _make_readjuster()
         raw_lines = _make_raw_lines(100)  # no matching marker in source
 
@@ -687,7 +694,8 @@ class TestExhaustionFallback:
 
     @pytest.mark.asyncio
     async def test_exhaustion_fallback_reanchors(self) -> None:
-        """Exhaustion fallback verify scan finds content with resolvable marker → re-anchored."""
+        """Exhaustion fallback verify scan finds content with resolvable marker →
+        re-anchored."""
         readjuster = _make_readjuster()
         readjuster.certainty_threshold = 70
         readjuster.max_low_certainty_retries = 1
@@ -736,7 +744,8 @@ class TestFoundContentField:
 
     @pytest.mark.asyncio
     async def test_found_content_true_without_marker(self) -> None:
-        """contains_no_semantic_boundary=False with empty marker → found_content=True."""
+        """contains_no_semantic_boundary=False with empty marker →
+        found_content=True."""
         readjuster = _make_readjuster()
         raw_lines = _make_raw_lines(100)
 

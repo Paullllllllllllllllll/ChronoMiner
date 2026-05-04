@@ -22,7 +22,8 @@ def build_structured_text_format(
         default_strict: Default strict mode setting.
 
     Returns:
-        Dict with shape {"type": "json_schema", "name": ..., "schema": ..., "strict": ...}
+        Dict with shape {"type": "json_schema", "name": ..., "schema": ...,
+        "strict": ...}
         or None if the provided schema is not usable.
     """
     if not isinstance(schema_obj, dict) or not schema_obj:

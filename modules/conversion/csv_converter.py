@@ -55,21 +55,22 @@ class CSVConverter(BaseConverter):
         converters = {
             "bibliographicentries": self._convert_bibliographic_entries_to_df,
             "structuredsummaries": self._convert_structured_summaries_to_df,
-            "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_df,
+            "historicaladdressbookentries": (
+                self._convert_historicaladdressbookentries_to_df
+            ),
             "brazilianmilitaryrecords": self._convert_brazilianoccupationrecords_to_df,
             "culinarypersonsentries": self._convert_culinary_persons_to_df,
             "culinaryplacesentries": self._convert_culinary_places_to_df,
             "culinaryworksentries": self._convert_culinary_works_to_df,
             "culinaryentitiesentries": self._convert_culinary_entities_to_df,
-            "historicalrecipesentriesproduction": self._convert_historical_recipes_production_to_df,
+            "historicalrecipesentriesproduction": (
+                self._convert_historical_recipes_production_to_df
+            ),
             "michelinguides": self._convert_michelin_guides_to_df,
             "cookbookmetadataentries": self._convert_cookbook_metadata_to_df,
         }
         converter = self.get_converter(converters)
-        if converter:
-            df = converter(entries)
-        else:
-            df = pd.json_normalize(entries, sep="_")
+        df = converter(entries) if converter else pd.json_normalize(entries, sep="_")
         try:
             df.to_csv(output_csv, index=False)
             logger.info(f"CSV file generated at {output_csv}")
@@ -383,8 +384,9 @@ class CSVConverter(BaseConverter):
 
     def _convert_bibliographic_entries_to_df(self, entries: list[Any]) -> pd.DataFrame:
         """
-        Converts bibliographic entries to a pandas DataFrame according to schema version 3.3.
-        Creates one row per edition with all entry-level data repeated.
+        Converts bibliographic entries to a pandas DataFrame according to
+        schema version 3.3. Creates one row per edition with all entry-level
+        data repeated.
 
         :param entries: List of bibliographic entry dictionaries
         :return: pandas DataFrame with normalized bibliographic data
@@ -458,7 +460,10 @@ class CSVConverter(BaseConverter):
                 price_info = edition.get("price_information")
                 price_str = ""
                 if price_info and isinstance(price_info, dict):
-                    price_str = f"{price_info.get('price', '')} {price_info.get('currency', '')}"
+                    price_str = (
+                        f"{price_info.get('price', '')} "
+                        f"{price_info.get('currency', '')}"
+                    )
 
                 edition_row = {
                     # Entry-level fields
@@ -607,7 +612,8 @@ class CSVConverter(BaseConverter):
     def _convert_historical_recipes_to_df(self, entries: list[Any]) -> pd.DataFrame:
         """
         Converts historical recipes entries to DataFrame according to schema v2.2.
-        Handles deeply nested structures for ingredients, cooking methods, utensils, and more.
+        Handles deeply nested structures for ingredients, cooking methods,
+        utensils, and more.
         """
         entries = self._normalize_entries(entries)
         rows = []
@@ -710,7 +716,8 @@ class CSVConverter(BaseConverter):
     def _convert_michelin_guides_to_df(self, entries: list[Any]) -> pd.DataFrame:
         """
         Converts Michelin Guide entries to DataFrame according to schema v1.1.
-        Handles deeply nested structures for location, address, awards, cuisine, pricing, amenities, etc.
+        Handles deeply nested structures for location, address, awards,
+        cuisine, pricing, amenities, etc.
         """
         entries = self._normalize_entries(entries)
         rows = []
@@ -799,7 +806,10 @@ class CSVConverter(BaseConverter):
             set_menus_str = (
                 "; ".join(
                     [
-                        f"{m.get('label', '')}: {m.get('price_min', '')}-{m.get('price_max', '')}"
+                        (
+                            f"{m.get('label', '')}: "
+                            f"{m.get('price_min', '')}-{m.get('price_max', '')}"
+                        )
                         for m in set_menus
                         if isinstance(m, dict)
                     ]
@@ -912,7 +922,8 @@ class CSVConverter(BaseConverter):
             title_modern = entry.get("title_modern_english")
             recipe_type = entry.get("recipe_type")
 
-            # Ingredients — production schema uses quantity_original (no standardized fields)
+            # Ingredients — production schema uses quantity_original
+            # (no standardized fields)
             ingredients = entry.get("ingredients", [])
             ingredients_list: list[str] = []
             luxury_ratings: list[str] = []

@@ -111,10 +111,7 @@ class TokenBasedChunking(ChunkingStrategy):
         encode = _get_cl100k_encoding().encode
 
         for idx, line in enumerate(lines, 1):
-            if not line:
-                line_tokens = 0
-            else:
-                line_tokens = len(encode(line))
+            line_tokens = 0 if not line else len(encode(line))
             if current_tokens + line_tokens > tokens_per_chunk and current_tokens > 0:
                 ranges.append((start_line, end_line))
                 start_line = idx

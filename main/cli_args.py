@@ -92,7 +92,10 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--output",
         type=str,
-        help="Output directory path (relative or absolute). If not specified, uses config or input directory.",
+        help=(
+            "Output directory path (relative or absolute). "
+            "If not specified, uses config or input directory."
+        ),
     )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument(
@@ -111,8 +114,9 @@ Examples:
   python main/process_text_files.py --schema BibliographicEntries --input data/file.txt
   
   # Process a directory with specific chunking
-  python main/process_text_files.py --schema BibliographicEntries --input data/ --chunking auto
-  
+  python main/process_text_files.py --schema BibliographicEntries --input data/ \
+    --chunking auto
+
   # Use batch processing
   python main/process_text_files.py --schema BibliographicEntries --input data/ --batch
         """,
@@ -218,7 +222,9 @@ Examples:
         "--delay",
         type=float,
         metavar="SECS",
-        help="Override concurrency.extraction.delay_between_tasks (seconds) for this run",
+        help=(
+            "Override concurrency.extraction.delay_between_tasks (seconds) for this run"
+        ),
     )
 
     parser.add_argument(
@@ -313,7 +319,10 @@ Examples:
     parser.add_argument(
         "--schema",
         type=str,
-        help="Schema name (used to determine input directory from config if --input not provided)",
+        help=(
+            "Schema name (used to determine input directory from config "
+            "if --input not provided)"
+        ),
     )
     parser.add_argument(
         "--input", type=str, required=True, help="Input file or directory path"
@@ -350,13 +359,16 @@ def create_adjust_ranges_parser() -> argparse.ArgumentParser:
         epilog="""
 Examples:
   # Adjust ranges for a file
-  python main/line_range_readjuster.py --input data/file.txt --schema BibliographicEntries
-  
+  python main/line_range_readjuster.py --input data/file.txt \\
+    --schema BibliographicEntries
+
   # Adjust with custom context window size
-  python main/line_range_readjuster.py --input data/ --schema BibliographicEntries --context-window 10
-  
+  python main/line_range_readjuster.py --input data/ \\
+    --schema BibliographicEntries --context-window 10
+
   # Resume: skip files whose line ranges were already adjusted
-  python main/line_range_readjuster.py --input data/ --schema BibliographicEntries --resume
+  python main/line_range_readjuster.py --input data/ \\
+    --schema BibliographicEntries --resume
         """,
     )
 
@@ -380,7 +392,9 @@ Examples:
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Skip files whose line ranges were already adjusted with the same settings",
+        help=(
+            "Skip files whose line ranges were already adjusted with the same settings"
+        ),
     )
     parser.add_argument(
         "--force",
@@ -488,7 +502,8 @@ def resolve_path(path_str: str, base_dir: Path | None = None) -> Path:
     Resolve a path string to an absolute Path object.
 
     :param path_str: Path string (relative or absolute)
-    :param base_dir: Base directory for relative paths (default: current working directory)
+    :param base_dir: Base directory for relative paths
+        (default: current working directory)
     :return: Resolved absolute Path
     """
     path = Path(path_str)
@@ -555,13 +570,13 @@ def parse_indices(indices_str: str) -> list[int]:
                 end_idx = int(end.strip())
                 result.update(range(start_idx, end_idx + 1))
             except ValueError:
-                raise ValueError(f"Invalid range format: {part}")
+                raise ValueError(f"Invalid range format: {part}") from None
         else:
             # Single index: "5"
             try:
                 result.add(int(part))
             except ValueError:
-                raise ValueError(f"Invalid index: {part}")
+                raise ValueError(f"Invalid index: {part}") from None
 
     return sorted(result)
 
@@ -578,7 +593,8 @@ def get_files_from_path(
     :param path: Input path (file or directory)
     :param pattern: Glob pattern for files (default: *.txt). Ignored when
         *input_type* is 'image', 'pdf', or 'mixed'.
-    :param exclude_patterns: List of patterns to exclude (e.g., ["*_line_ranges.txt", "*_context.txt"])
+    :param exclude_patterns: List of patterns to exclude
+        (e.g., ["*_line_ranges.txt", "*_context.txt"])
     :param input_type: If provided, overrides *pattern* to collect visual files.
     :return: List of file paths
     """

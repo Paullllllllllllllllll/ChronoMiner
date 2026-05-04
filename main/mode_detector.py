@@ -1,7 +1,8 @@
 # modules/cli/mode_detector.py
 
 """
-Utility to detect execution mode (interactive UI vs CLI) based on configuration and arguments.
+Utility to detect execution mode (interactive UI vs CLI)
+based on configuration and arguments.
 """
 
 import sys

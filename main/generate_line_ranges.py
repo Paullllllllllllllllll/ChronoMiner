@@ -3,8 +3,9 @@
 """
 Script to generate line ranges for text files.
 
-This script selects a schema, reads a text file (or multiple files), and generates line ranges based
-on token-based chunking. The line ranges are written to a '_line_ranges.txt' file.
+This script selects a schema, reads a text file (or multiple files), and
+generates line ranges based on token-based chunking. The line ranges are
+written to a '_line_ranges.txt' file.
 
 Supports two execution modes:
 1. Interactive Mode: User-friendly prompts
@@ -253,7 +254,8 @@ class GenerateLineRangesScript(DualModeScript):
                         n = min(chunk_slice.last_n, len(line_ranges))
                         line_ranges = line_ranges[-n:]
                     self.print_or_log(
-                        f"Chunk slice applied: writing {len(line_ranges)}/{original_count} ranges"
+                        f"Chunk slice applied: writing "
+                        f"{len(line_ranges)}/{original_count} ranges"
                     )
 
                 line_ranges_file = write_line_ranges_file(file_path, line_ranges)
@@ -279,7 +281,7 @@ class GenerateLineRangesScript(DualModeScript):
         return success_count, fail_count
 
     def run_interactive(self) -> None:
-        """Run line range generation in interactive mode with back navigation support."""
+        """Run line range generation in interactive mode with back navigation."""
         assert self.ui is not None
         self.ui.print_section_header("Line Range Generation")
         self.ui.print_info("Loading configuration...")
@@ -302,7 +304,8 @@ class GenerateLineRangesScript(DualModeScript):
                     selected_schema_name, self.schemas_paths, self.ui
                 ):
                     self.logger.error(
-                        f"Exiting: No path configuration for schema '{selected_schema_name}'"
+                        "Exiting: No path configuration for schema "
+                        f"'{selected_schema_name}'"
                     )
                     sys.exit(1)
 
@@ -381,7 +384,8 @@ class GenerateLineRangesScript(DualModeScript):
         self.logger.info(f"Found {len(files)} file(s) to process")
         if args.verbose:
             print(
-                f"[INFO] Processing {len(files)} file(s) with {self.tokens_per_chunk} tokens per chunk"
+                f"[INFO] Processing {len(files)} file(s) "
+                f"with {self.tokens_per_chunk} tokens per chunk"
             )
 
         # Build chunk slice from CLI args

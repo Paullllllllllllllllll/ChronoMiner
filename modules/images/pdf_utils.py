@@ -83,7 +83,8 @@ class PDFProcessor:
             if pixels_at_dpi > max_pixels:
                 effective_dpi = max(1, int(dpi * math.sqrt(max_pixels / pixels_at_dpi)))
                 logger.info(
-                    "Page %d: %.0f MP at %d DPI exceeds limit (%.0f MP); reducing to %d DPI",
+                    "Page %d: %.0f MP at %d DPI exceeds limit (%.0f MP); "
+                    "reducing to %d DPI",
                     page_index + 1,
                     pixels_at_dpi / 1e6,
                     dpi,

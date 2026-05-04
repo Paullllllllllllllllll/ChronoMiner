@@ -102,15 +102,17 @@ def validate_schema_paths(
 
     if schema_name not in schemas_paths:
         return _report_error(
-            f"Schema '{schema_name}' has no path configuration in config/paths_config.yaml. "
-            f"Please add an entry under 'schemas_paths' with 'input' and 'output' paths."
+            f"Schema '{schema_name}' has no path configuration in "
+            f"config/paths_config.yaml. Please add an entry under "
+            f"'schemas_paths' with 'input' and 'output' paths."
         )
 
     schema_config = schemas_paths[schema_name]
     for key in ("input", "output"):
         if not schema_config.get(key):
             return _report_error(
-                f"Schema '{schema_name}' has no '{key}' path configured in config/paths_config.yaml."
+                f"Schema '{schema_name}' has no '{key}' path configured "
+                f"in config/paths_config.yaml."
             )
 
     return True

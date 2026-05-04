@@ -131,7 +131,8 @@ async def test_batch_processing_strategy_writes_request_and_tracking_records(
 async def test_batch_processing_strategy_builds_visual_batch_requests(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:
-    """When image_chunks are provided, BatchProcessingStrategy builds visual BatchRequests."""
+    """When image_chunks are provided, BatchProcessingStrategy builds visual
+    BatchRequests."""
     monkeypatch.setattr(ps, "supports_batch", lambda provider: True)
 
     captured_requests: list = []
@@ -295,7 +296,7 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
 
 
 @pytest.mark.asyncio
-async def test_synchronous_processing_strategy_forwards_runtime_overrides_to_open_extractor(
+async def test_synchronous_processing_strategy_forwards_runtime_overrides(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
 ) -> None:

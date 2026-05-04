@@ -316,21 +316,23 @@ class TestGoogleBackend:
         mock_google = MagicMock()
         mock_google.genai = mock_genai
 
-        with patch.dict("os.environ", {"GOOGLE_API_KEY": "test-key"}):
-            with patch.dict(
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test-key"}),
+            patch.dict(
                 sys.modules, {"google": mock_google, "google.genai": mock_genai}
-            ):
-                backend = get_batch_backend("google")
-                handle = BatchHandle(
-                    provider="google",
-                    batch_id="batch-123",
-                    metadata={"request_count": 5},
-                )
+            ),
+        ):
+            backend = get_batch_backend("google")
+            handle = BatchHandle(
+                provider="google",
+                batch_id="batch-123",
+                metadata={"request_count": 5},
+            )
 
-                status = backend.get_status(handle)
+            status = backend.get_status(handle)
 
-                assert status.status == BatchStatus.COMPLETED
-                assert status.results_available is True
+            assert status.status == BatchStatus.COMPLETED
+            assert status.results_available is True
 
 
 class TestOpenAIImageResponsesBody:
@@ -401,7 +403,8 @@ class TestOpenAIImageResponsesBody:
 
 
 class TestOpenAIVisualBatchRouting:
-    """Test that submit_batch routes visual requests through _build_image_responses_body."""
+    """Test that submit_batch routes visual requests through
+    _build_image_responses_body."""
 
     def setup_method(self):
         clear_backend_cache()
@@ -423,8 +426,6 @@ class TestOpenAIVisualBatchRouting:
         mock_client.batches.create.return_value = mock_batch_response
 
         captured_jsonl: list = []
-
-        original_create = mock_client.files.create
 
         def _capture_file(file, purpose):
             content = file.read().decode("utf-8")

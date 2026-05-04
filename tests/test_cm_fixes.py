@@ -90,7 +90,8 @@ class TestCM1ServiceTierSyncMode:
 
 
 class TestCM2ServiceTierBatchMode:
-    """CM-2: BatchProcessingStrategy must inject service_tier from concurrency_config."""
+    """CM-2: BatchProcessingStrategy must inject service_tier from
+    concurrency_config."""
 
     @pytest.mark.unit
     def test_batch_strategy_stores_concurrency_config(self):
@@ -103,7 +104,8 @@ class TestCM2ServiceTierBatchMode:
 
     @pytest.mark.unit
     def test_create_processing_strategy_passes_concurrency_to_batch(self):
-        """create_processing_strategy passes concurrency_config to BatchProcessingStrategy."""
+        """create_processing_strategy passes concurrency_config to
+        BatchProcessingStrategy."""
         from modules.extract.processing_strategy import (
             BatchProcessingStrategy,
             create_processing_strategy,
@@ -116,7 +118,8 @@ class TestCM2ServiceTierBatchMode:
 
     @pytest.mark.unit
     def test_build_responses_body_uses_injected_service_tier(self):
-        """_build_responses_body uses service_tier when it is in model_config.extraction_model."""
+        """_build_responses_body uses service_tier when it is in
+        model_config.extraction_model."""
         from modules.batch.backends.openai_backend import _build_responses_body
 
         model_config = {
@@ -303,7 +306,8 @@ class TestCM5TextVerbosity:
 
     @pytest.mark.unit
     def test_text_verbosity_passed_for_gpt5(self):
-        """ChatOpenAI receives text={"verbosity": ...} via model_kwargs for gpt-5 model."""
+        """ChatOpenAI receives text={"verbosity": ...} via model_kwargs for
+        gpt-5 model."""
         from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
@@ -505,7 +509,8 @@ class TestCM7EmptyOutputPath:
 
 
 class TestCM8ContextSelection:
-    """CM-8: ask_context_selection returns correct dicts; process_file accepts context_override."""
+    """CM-8: ask_context_selection returns correct dicts; process_file accepts
+    context_override."""
 
     @pytest.mark.unit
     def test_ask_context_selection_auto(self):

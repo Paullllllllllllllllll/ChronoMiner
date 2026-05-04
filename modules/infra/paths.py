@@ -39,7 +39,8 @@ def create_safe_directory_name(original_name: str, suffix: str = "") -> str:
 
     Example:
         Input:  "Beukers etal 2025 Grape (Vitis vinifera) use in the early modern..."
-        Output: "Beukers etal 2025 Grape (Vitis vinifera) use in the earl-a3f8d9e2_working_files"
+        Output: "Beukers etal 2025 Grape (Vitis vinifera) use in the
+        earl-a3f8d9e2_working_files"
     """
     name_hash = hashlib.sha256(original_name.encode("utf-8")).hexdigest()[:HASH_LENGTH]
 

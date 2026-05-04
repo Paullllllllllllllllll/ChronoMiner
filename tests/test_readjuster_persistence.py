@@ -1,4 +1,5 @@
-"""Tests for JSONL persistence, RangeResult, and range-level resume in the readjuster."""
+"""Tests for JSONL persistence, RangeResult, and range-level resume in the
+readjuster."""
 
 import json
 from pathlib import Path
@@ -405,7 +406,8 @@ class TestReadjusterForceFresh:
 
     @pytest.mark.asyncio
     async def test_force_fresh_discards_stale_jsonl(self, tmp_path: Path) -> None:
-        """With force_fresh=True, a pre-existing temp JSONL is deleted and all ranges are reprocessed."""
+        """With force_fresh=True, a pre-existing temp JSONL is deleted and all ranges
+        are reprocessed."""
         text_file = tmp_path / "sample.txt"
         text_file.write_text(
             "\n".join(f"Line {i}" for i in range(1, 21)) + "\n",

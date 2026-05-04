@@ -62,7 +62,8 @@ def register_schema_handler(schema_name: str, handler_class: type) -> None:
 
 
 def get_schema_handler(schema_name: str) -> BaseSchemaHandler:
-    """Get the handler for a schema, defaulting to BaseSchemaHandler if not registered."""
+    """Get the handler for a schema, defaulting to BaseSchemaHandler if not
+    registered."""
     return schema_handlers_registry.get(schema_name, BaseSchemaHandler(schema_name))
 
 

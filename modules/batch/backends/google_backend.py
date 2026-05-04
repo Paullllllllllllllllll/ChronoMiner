@@ -6,6 +6,7 @@ See: https://ai.google.dev/gemini-api/docs/batch-api
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import tempfile
@@ -192,10 +193,8 @@ class GoogleBatchBackend(BatchBackend):
                     },
                 )
             finally:
-                try:
+                with contextlib.suppress(Exception):
                     temp_path.unlink()
-                except Exception:
-                    pass
 
         batch_name = batch_job.name
         logger.info("Batch submitted; job name: %s", batch_name)

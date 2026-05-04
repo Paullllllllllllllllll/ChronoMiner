@@ -510,7 +510,8 @@ def compute_extraction_metrics(
         hypothesis: Hypothesis (model output) JSON data
         entries_key: Key for the array of entries (e.g., "entries")
         fields_to_evaluate: List of field paths to evaluate (None = all fields)
-        key_fields: Fields used for matching entries (defaults to first 2 of fields_to_evaluate)
+        key_fields: Fields used for matching entries (defaults to first 2 of
+            fields_to_evaluate)
         threshold: Similarity threshold for fuzzy matching
         case_sensitive: Whether comparison is case-sensitive
         normalize_ws: Whether to normalize whitespace
@@ -699,7 +700,8 @@ def format_metrics_table(
 
     # Build header
     lines = [
-        "| Model | Category | Entry P (%) | Entry R (%) | Entry F1 (%) | Micro P (%) | Micro R (%) | Micro F1 (%) |"
+        "| Model | Category | Entry P (%) | Entry R (%) | Entry F1 (%)"
+        " | Micro P (%) | Micro R (%) | Micro F1 (%) |"
     ]
     lines.append(
         "|-------|----------|-------------|-------------|--------------|-------------|-------------|--------------|"
@@ -712,8 +714,10 @@ def format_metrics_table(
                 m = model_metrics[model_name][category]
                 lines.append(
                     f"| {model_name} | {category} | "
-                    f"{m.entry_precision * 100:.2f} | {m.entry_recall * 100:.2f} | {m.entry_f1 * 100:.2f} | "
-                    f"{m.micro_precision * 100:.2f} | {m.micro_recall * 100:.2f} | {m.micro_f1 * 100:.2f} |"
+                    f"{m.entry_precision * 100:.2f} | {m.entry_recall * 100:.2f}"
+                    f" | {m.entry_f1 * 100:.2f} | "
+                    f"{m.micro_precision * 100:.2f} | {m.micro_recall * 100:.2f}"
+                    f" | {m.micro_f1 * 100:.2f} |"
                 )
 
     return "\n".join(lines)
@@ -734,7 +738,8 @@ def format_field_metrics_table(metrics: ExtractionMetrics) -> str:
 
     for field_name, fm in sorted(metrics.field_metrics.items()):
         lines.append(
-            f"| {field_name} | {fm.precision * 100:.2f} | {fm.recall * 100:.2f} | {fm.f1 * 100:.2f} | "
+            f"| {field_name} | {fm.precision * 100:.2f} | {fm.recall * 100:.2f}"
+            f" | {fm.f1 * 100:.2f} | "
             f"{fm.true_positives} | {fm.false_positives} | {fm.false_negatives} |"
         )
 

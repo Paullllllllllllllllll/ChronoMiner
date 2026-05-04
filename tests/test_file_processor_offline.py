@@ -22,7 +22,7 @@ class DummyStrategy:
         completed_chunk_indices=None,
     ):
         with temp_jsonl_path.open("w", encoding="utf-8") as f:
-            for idx, chunk in enumerate(chunks, 1):
+            for idx, _chunk in enumerate(chunks, 1):
                 f.write(
                     json.dumps(
                         {
@@ -184,5 +184,6 @@ def test_file_processor_no_chunk_slice(tmp_path, config_loader, monkeypatch):
     data = json.loads(out_json.read_text(encoding="utf-8"))
     meta = data["_chronominer_metadata"]
     assert "chunk_slice" not in meta
-    # Without slice, should have all generated chunks (more than 2 for 200 lines at 10 tokens)
+    # Without slice, should have all generated chunks
+    # (more than 2 for 200 lines at 10 tokens)
     assert len(data["records"]) > 2
