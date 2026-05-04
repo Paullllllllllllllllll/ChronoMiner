@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 """
 Line range readjustment module for semantic boundary detection.
 
@@ -10,15 +8,17 @@ Supports multiple LLM providers via LangChain:
 - OpenRouter (multi-provider access)
 """
 
+from __future__ import annotations
+
 import asyncio
 import hashlib
 import json
 import logging
 import re
 import unicodedata
+from collections.abc import Generator, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from collections.abc import Generator, Iterable, Sequence
 from typing import Any
 
 from modules.config.capabilities import detect_capabilities
@@ -69,10 +69,17 @@ SEMANTIC_BOUNDARY_SCHEMA: dict[str, Any] = {
                 "description": "A precise 5-15 character verbatim substring that marks the semantic boundary. Leave empty if contains_no_semantic_boundary or needs_more_context is true.",
             },
         },
-        "required": ["contains_no_semantic_boundary", "needs_more_context", "boundary_already_on_target", "certainty", "semantic_marker"],
+        "required": [
+            "contains_no_semantic_boundary",
+            "needs_more_context",
+            "boundary_already_on_target",
+            "certainty",
+            "semantic_marker",
+        ],
         "additionalProperties": False,
     },
 }
+
 
 @dataclass
 class BoundaryDecision:
@@ -83,12 +90,16 @@ class BoundaryDecision:
     semantic_marker: str | None = None
 
     @classmethod
-    def from_payload(cls, payload: dict[str, Any]) -> "BoundaryDecision":
+    def from_payload(cls, payload: dict[str, Any]) -> BoundaryDecision:
         return cls(
-            contains_no_semantic_boundary=bool(payload.get("contains_no_semantic_boundary", False)),
+            contains_no_semantic_boundary=bool(
+                payload.get("contains_no_semantic_boundary", False)
+            ),
             needs_more_context=bool(payload.get("needs_more_context", False)),
             certainty=int(payload.get("certainty", 0)),
-            boundary_already_on_target=bool(payload.get("boundary_already_on_target", False)),
+            boundary_already_on_target=bool(
+                payload.get("boundary_already_on_target", False)
+            ),
             semantic_marker=payload.get("semantic_marker") or None,
         )
 
@@ -147,7 +158,9 @@ class LineRangeReadjuster:
         transcription_cfg = model_config.get("extraction_model", {})
         model_name: str = transcription_cfg.get("name", "")
         if not model_name:
-            raise ValueError("extraction_model.name must be configured to use LineRangeReadjuster")
+            raise ValueError(
+                "extraction_model.name must be configured to use LineRangeReadjuster"
+            )
 
         self.model_name = model_name
         self._model_config = model_config
@@ -155,25 +168,41 @@ class LineRangeReadjuster:
         self.prompt_path = prompt_path or Path("prompts/semantic_boundary_prompt.txt")
         self.prompt_template = load_prompt_template(self.prompt_path)
         self.text_processor = TextProcessor()
-        self._enable_cache_control = detect_capabilities(model_name).supports_prompt_caching
-        
+        self._enable_cache_control = detect_capabilities(
+            model_name
+        ).supports_prompt_caching
+
         # Load matching configuration with defaults
         self.matching_config = matching_config or {}
-        self.normalize_whitespace = self.matching_config.get("normalize_whitespace", True)
+        self.normalize_whitespace = self.matching_config.get(
+            "normalize_whitespace", True
+        )
         self.case_sensitive = self.matching_config.get("case_sensitive", False)
-        self.normalize_diacritics = self.matching_config.get("normalize_diacritics", True)
+        self.normalize_diacritics = self.matching_config.get(
+            "normalize_diacritics", True
+        )
         self.strip_punctuation = self.matching_config.get("strip_punctuation", False)
-        self.allow_substring_match = self.matching_config.get("allow_substring_match", True)
+        self.allow_substring_match = self.matching_config.get(
+            "allow_substring_match", True
+        )
         self.min_substring_length = self.matching_config.get("min_substring_length", 8)
-        
+
         # Load retry configuration with defaults
         self.retry_config = retry_config or {}
         self.certainty_threshold = self.retry_config.get("certainty_threshold", 70)
-        self.max_low_certainty_retries = self.retry_config.get("max_low_certainty_retries", 3)
-        self.max_context_expansion_attempts = self.retry_config.get("max_context_expansion_attempts", 3)
-        self.delete_ranges_with_no_content = self.retry_config.get("delete_ranges_with_no_content", True)
+        self.max_low_certainty_retries = self.retry_config.get(
+            "max_low_certainty_retries", 3
+        )
+        self.max_context_expansion_attempts = self.retry_config.get(
+            "max_context_expansion_attempts", 3
+        )
+        self.delete_ranges_with_no_content = self.retry_config.get(
+            "delete_ranges_with_no_content", True
+        )
         self.scan_range_multiplier = self.retry_config.get("scan_range_multiplier", 3)
-        self.max_marker_mismatch_retries = self.retry_config.get("max_marker_mismatch_retries", 2)
+        self.max_marker_mismatch_retries = self.retry_config.get(
+            "max_marker_mismatch_retries", 2
+        )
 
         max_gap_setting = self.retry_config.get("max_gap_between_ranges")
         if max_gap_setting is None:
@@ -210,7 +239,9 @@ class LineRangeReadjuster:
             raise FileNotFoundError(f"Line ranges file not found: {line_ranges_file}")
 
         if not boundary_type:
-            raise ValueError("boundary_type must be provided when readjusting line ranges")
+            raise ValueError(
+                "boundary_type must be provided when readjusting line ranges"
+            )
 
         ranges = load_line_ranges(line_ranges_file)
         if not ranges:
@@ -219,10 +250,14 @@ class LineRangeReadjuster:
 
         # Apply chunk slicing if requested
         if first_n_chunks is not None:
-            logger.info("Slicing to first %d range(s) of %d total", first_n_chunks, len(ranges))
+            logger.info(
+                "Slicing to first %d range(s) of %d total", first_n_chunks, len(ranges)
+            )
             ranges = ranges[:first_n_chunks]
         elif last_n_chunks is not None:
-            logger.info("Slicing to last %d range(s) of %d total", last_n_chunks, len(ranges))
+            logger.info(
+                "Slicing to last %d range(s) of %d total", last_n_chunks, len(ranges)
+            )
             ranges = ranges[-last_n_chunks:]
 
         safe_text_file = ensure_path_safe(text_file)
@@ -233,7 +268,9 @@ class LineRangeReadjuster:
         provider = ProviderConfig._detect_provider(self.model_name)
         api_key = ProviderConfig._get_api_key(provider)
         if not api_key:
-            raise RuntimeError(f"API key not found for provider {provider}. Set the appropriate environment variable.")
+            raise RuntimeError(
+                f"API key not found for provider {provider}. Set the appropriate environment variable."
+            )
 
         # Resolve unified context using hierarchical resolution
         context, context_path = resolve_context_for_readjustment(
@@ -248,9 +285,7 @@ class LineRangeReadjuster:
         # Compute fingerprint and prompt hash early (needed for header and
         # staleness validation before the processing loop starts).
         current_fingerprint = compute_ranges_fingerprint(line_ranges_file)
-        prompt_hash = hashlib.sha256(
-            self.prompt_template.encode("utf-8")
-        ).hexdigest()
+        prompt_hash = hashlib.sha256(self.prompt_template.encode("utf-8")).hexdigest()
 
         # Temp JSONL for per-range persistence and resume
         stem = line_ranges_file.stem
@@ -315,17 +350,19 @@ class LineRangeReadjuster:
             with JsonlWriter(temp_jsonl_path, mode=file_mode) as writer:
                 # Write header as first record on fresh start
                 if file_mode == "w":
-                    writer.write_record(build_jsonl_header(
-                        ranges_fingerprint=current_fingerprint,
-                        total_ranges=len(ranges),
-                        boundary_type=boundary_type,
-                        model_name=self.model_name,
-                        context_window=self.context_window,
-                        matching_config=self.matching_config,
-                        retry_config=self.retry_config,
-                        prompt_hash=prompt_hash,
-                        context_path=str(context_path) if context_path else None,
-                    ))
+                    writer.write_record(
+                        build_jsonl_header(
+                            ranges_fingerprint=current_fingerprint,
+                            total_ranges=len(ranges),
+                            boundary_type=boundary_type,
+                            model_name=self.model_name,
+                            context_window=self.context_window,
+                            matching_config=self.matching_config,
+                            retry_config=self.retry_config,
+                            prompt_hash=prompt_hash,
+                            context_path=str(context_path) if context_path else None,
+                        )
+                    )
 
                 for index, original_range in enumerate(ranges, start=1):
                     if index in completed_ids:
@@ -522,14 +559,16 @@ class LineRangeReadjuster:
                 # PRIORITY 1: Check certainty threshold (applies to all responses)
                 # ====================================================================
                 if decision.certainty < self.certainty_threshold:
-                    attempts.append({
-                        "window": list(window),
-                        "window_index": window_idx,
-                        "decision_type": "low_certainty",
-                        "certainty": decision.certainty,
-                        "semantic_marker": decision.semantic_marker,
-                        "marker_matched": False,
-                    })
+                    attempts.append(
+                        {
+                            "window": list(window),
+                            "window_index": window_idx,
+                            "decision_type": "low_certainty",
+                            "certainty": decision.certainty,
+                            "semantic_marker": decision.semantic_marker,
+                            "marker_matched": False,
+                        }
+                    )
                     low_certainty_retries += 1
                     if low_certainty_retries <= self.max_low_certainty_retries:
                         logger.info(
@@ -559,14 +598,16 @@ class LineRangeReadjuster:
 
                 # ROUTE 0: Boundary already at correct position
                 if decision.boundary_already_on_target:
-                    attempts.append({
-                        "window": list(window),
-                        "window_index": window_idx,
-                        "decision_type": "already_on_target",
-                        "certainty": decision.certainty,
-                        "semantic_marker": decision.semantic_marker,
-                        "marker_matched": False,
-                    })
+                    attempts.append(
+                        {
+                            "window": list(window),
+                            "window_index": window_idx,
+                            "decision_type": "already_on_target",
+                            "certainty": decision.certainty,
+                            "semantic_marker": decision.semantic_marker,
+                            "marker_matched": False,
+                        }
+                    )
                     logger.info(
                         "[Range %d, Window %d] Boundary already on target "
                         "(certainty: %d); keeping original range %s",
@@ -580,16 +621,21 @@ class LineRangeReadjuster:
 
                 # ROUTE 1: Model requests more context -> Expand window
                 elif decision.needs_more_context:
-                    attempts.append({
-                        "window": list(window),
-                        "window_index": window_idx,
-                        "decision_type": "needs_more_context",
-                        "certainty": decision.certainty,
-                        "semantic_marker": decision.semantic_marker,
-                        "marker_matched": False,
-                    })
+                    attempts.append(
+                        {
+                            "window": list(window),
+                            "window_index": window_idx,
+                            "decision_type": "needs_more_context",
+                            "certainty": decision.certainty,
+                            "semantic_marker": decision.semantic_marker,
+                            "marker_matched": False,
+                        }
+                    )
                     context_expansion_attempts += 1
-                    if context_expansion_attempts <= self.max_context_expansion_attempts:
+                    if (
+                        context_expansion_attempts
+                        <= self.max_context_expansion_attempts
+                    ):
                         logger.info(
                             "[Range %d, Window %d] Requests more context (certainty: %d); expansion %d/%d",
                             range_index,
@@ -610,14 +656,16 @@ class LineRangeReadjuster:
 
                 # ROUTE 2: Model confident no content exists -> Verify with broad scan
                 elif decision.contains_no_semantic_boundary:
-                    attempts.append({
-                        "window": list(window),
-                        "window_index": window_idx,
-                        "decision_type": "no_semantic_boundary",
-                        "certainty": decision.certainty,
-                        "semantic_marker": decision.semantic_marker,
-                        "marker_matched": False,
-                    })
+                    attempts.append(
+                        {
+                            "window": list(window),
+                            "window_index": window_idx,
+                            "decision_type": "no_semantic_boundary",
+                            "certainty": decision.certainty,
+                            "semantic_marker": decision.semantic_marker,
+                            "marker_matched": False,
+                        }
+                    )
                     logger.info(
                         "[Range %d, Window %d] High-certainty no-content response (certainty: %d); triggering verification",
                         range_index,
@@ -626,7 +674,11 @@ class LineRangeReadjuster:
                     )
 
                     if self.delete_ranges_with_no_content:
-                        should_delete, reanchored_range, verify_attempts = await self._verify_no_content(
+                        (
+                            should_delete,
+                            reanchored_range,
+                            verify_attempts,
+                        ) = await self._verify_no_content(
                             extractor=extractor,
                             raw_lines=raw_lines,
                             original_range=original_range,
@@ -678,14 +730,16 @@ class LineRangeReadjuster:
                     )
                     if candidate_range:
                         adjusted_range = candidate_range
-                        attempts.append({
-                            "window": list(window),
-                            "window_index": window_idx,
-                            "decision_type": "marker_found",
-                            "certainty": decision.certainty,
-                            "semantic_marker": decision.semantic_marker,
-                            "marker_matched": True,
-                        })
+                        attempts.append(
+                            {
+                                "window": list(window),
+                                "window_index": window_idx,
+                                "decision_type": "marker_found",
+                                "certainty": decision.certainty,
+                                "semantic_marker": decision.semantic_marker,
+                                "marker_matched": True,
+                            }
+                        )
                         logger.info(
                             "[Range %d] Successfully adjusted to %s using marker '%s' (certainty: %d)",
                             range_index,
@@ -697,14 +751,16 @@ class LineRangeReadjuster:
                         break
 
                     marker_text = (decision.semantic_marker or "").strip()
-                    attempts.append({
-                        "window": list(window),
-                        "window_index": window_idx,
-                        "decision_type": "marker_mismatch",
-                        "certainty": decision.certainty,
-                        "semantic_marker": decision.semantic_marker,
-                        "marker_matched": False,
-                    })
+                    attempts.append(
+                        {
+                            "window": list(window),
+                            "window_index": window_idx,
+                            "decision_type": "marker_mismatch",
+                            "certainty": decision.certainty,
+                            "semantic_marker": decision.semantic_marker,
+                            "marker_matched": False,
+                        }
+                    )
                     if marker_text and marker_text not in failed_marker_history:
                         failed_marker_history.append(marker_text)
                     marker_mismatch_retries += 1
@@ -745,7 +801,9 @@ class LineRangeReadjuster:
             )
 
         # Exhaustion fallback: verify interior before keeping unchanged
-        if (not stop_processing or exhausted_at_low_certainty) and self.delete_ranges_with_no_content:
+        if (
+            not stop_processing or exhausted_at_low_certainty
+        ) and self.delete_ranges_with_no_content:
             logger.info(
                 "[Range %d] All boundary windows exhausted; running fallback interior verification",
                 range_index,
@@ -845,14 +903,16 @@ class LineRangeReadjuster:
                 context=context,
             )
             decision = BoundaryDecision.from_payload(payload)
-            verification_attempts.append({
-                "window": [scan_start, scan_end],
-                "window_index": -(idx + 1),
-                "decision_type": f"verify_interior_{idx + 1}",
-                "certainty": decision.certainty,
-                "semantic_marker": decision.semantic_marker,
-                "found_content": not decision.contains_no_semantic_boundary,
-            })
+            verification_attempts.append(
+                {
+                    "window": [scan_start, scan_end],
+                    "window_index": -(idx + 1),
+                    "decision_type": f"verify_interior_{idx + 1}",
+                    "certainty": decision.certainty,
+                    "semantic_marker": decision.semantic_marker,
+                    "found_content": not decision.contains_no_semantic_boundary,
+                }
+            )
 
             # If we found content inside the range, don't delete
             if not decision.contains_no_semantic_boundary and decision.semantic_marker:
@@ -903,11 +963,8 @@ class LineRangeReadjuster:
         start, end = original_range
         context_start, context_end = context_window
         context_block = self._format_context(raw_lines, context_start, context_end)
-        
-        chunk_text = (
-            f"Input text:\n\n"
-            f"{context_block}\n"
-        )
+
+        chunk_text = f"Input text:\n\n{context_block}\n"
 
         # Render system prompt with unified context and schema
         system_prompt = render_prompt_with_schema(
@@ -918,7 +975,9 @@ class LineRangeReadjuster:
         )
 
         if failed_markers:
-            sanitized_failures = [marker.strip() for marker in failed_markers if marker and marker.strip()]
+            sanitized_failures = [
+                marker.strip() for marker in failed_markers if marker and marker.strip()
+            ]
             if sanitized_failures:
                 bullet_list = "\n".join(f"- {marker}" for marker in sanitized_failures)
                 system_prompt += (
@@ -991,7 +1050,8 @@ class LineRangeReadjuster:
         yielded: set[tuple[int, int]] = set()
 
         def emit(
-            window_start: int, window_end: int,
+            window_start: int,
+            window_end: int,
         ) -> Generator[tuple[int, int], None, None]:
             bounded = (max(1, window_start), min(total_lines, window_end))
             if bounded[1] < bounded[0]:
@@ -1023,31 +1083,32 @@ class LineRangeReadjuster:
     def _normalize_text(self, text: str) -> str:
         """Apply normalization rules to text according to matching configuration."""
         normalized = text
-        
+
         # Strip leading/trailing whitespace
         normalized = normalized.strip()
-        
+
         # Normalize whitespace (collapse multiple spaces)
         if self.normalize_whitespace:
-            normalized = re.sub(r'\s+', ' ', normalized)
-        
+            normalized = re.sub(r"\s+", " ", normalized)
+
         # Normalize diacritics (remove accents, umlauts, etc.)
         if self.normalize_diacritics:
             # Decompose unicode characters and filter out combining marks
-            normalized = ''.join(
-                char for char in unicodedata.normalize('NFD', normalized)
-                if unicodedata.category(char) != 'Mn'
+            normalized = "".join(
+                char
+                for char in unicodedata.normalize("NFD", normalized)
+                if unicodedata.category(char) != "Mn"
             )
-        
+
         # Case normalization
         if not self.case_sensitive:
             normalized = normalized.lower()
-        
+
         # Strip punctuation
         if self.strip_punctuation:
             # Remove common punctuation while preserving alphanumeric and spaces
-            normalized = re.sub(r'[^\w\s]', '', normalized)
-        
+            normalized = re.sub(r"[^\w\s]", "", normalized)
+
         return normalized
 
     def _collect_normalized_matches(
@@ -1058,19 +1119,19 @@ class LineRangeReadjuster:
     ) -> list[int]:
         """
         Collect line numbers where the needle matches, applying configured normalization.
-        
+
         Supports both exact line matching and substring matching based on configuration.
         """
         start_line, end_line = search_range
         end_line = min(len(raw_lines), max(start_line, end_line))
         matches: list[int] = []
-        
+
         normalized_needle = self._normalize_text(needle)
-        
+
         for line_number in range(start_line, end_line + 1):
             line_text = raw_lines[line_number - 1]
             normalized_line = self._normalize_text(line_text)
-            
+
             if self.allow_substring_match:
                 # Check if needle appears as substring in the line
                 if normalized_needle in normalized_line:
@@ -1079,7 +1140,7 @@ class LineRangeReadjuster:
                 # Require exact match (after normalization)
                 if normalized_line == normalized_needle:
                     matches.append(line_number)
-        
+
         return matches
 
     def _match_boundary_text(
@@ -1093,15 +1154,18 @@ class LineRangeReadjuster:
     ) -> int | None:
         """
         Match boundary text in the source lines using configured normalization.
-        
+
         Prefers substring_match if provided, otherwise falls back to boundary_text.
         """
         # Prefer the precise substring_match if provided and meets minimum length
-        if substring_match and len(substring_match.strip()) >= self.min_substring_length:
+        if (
+            substring_match
+            and len(substring_match.strip()) >= self.min_substring_length
+        ):
             needle = substring_match.strip()
         else:
             needle = boundary_text.strip()
-        
+
         if not needle:
             return None
 
@@ -1136,7 +1200,9 @@ class LineRangeReadjuster:
         if not text:
             return None
 
-        code_block_pattern = re.compile(r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE)
+        code_block_pattern = re.compile(
+            r"```(?:json)?\s*(.*?)```", re.DOTALL | re.IGNORECASE
+        )
         candidates = [m.group(1) for m in code_block_pattern.finditer(text)]
         if not candidates:
             candidates = [text]
@@ -1154,7 +1220,9 @@ class LineRangeReadjuster:
     def _infer_line_ranges_file(self, text_file: Path) -> Path:
         return text_file.with_name(f"{text_file.stem}_line_ranges.txt")
 
-    def _write_line_ranges(self, line_ranges_file: Path, ranges: Sequence[tuple[int, int]]) -> None:
+    def _write_line_ranges(
+        self, line_ranges_file: Path, ranges: Sequence[tuple[int, int]]
+    ) -> None:
         safe_line_ranges_file = ensure_path_safe(line_ranges_file)
         with safe_line_ranges_file.open("w", encoding="utf-8") as handle:
             for start, end in ranges:
@@ -1218,7 +1286,9 @@ class LineRangeReadjuster:
                 previous = processed[-1]
 
                 if previous["end"] >= current_start:
-                    trimmed_prev_end = min(previous["end"], max(previous["start"], current_start - 1))
+                    trimmed_prev_end = min(
+                        previous["end"], max(previous["start"], current_start - 1)
+                    )
 
                     if trimmed_prev_end < previous["end"]:
                         logger.info(
@@ -1320,7 +1390,7 @@ async def adjust_line_ranges_for_paths(
     boundary_type: str,
 ) -> dict[Path, list[tuple[int, int]]]:
     """Adjust line ranges for multiple files.
-    
+
     Context is resolved automatically using hierarchical fallback.
     """
     readjuster = LineRangeReadjuster(
@@ -1350,9 +1420,10 @@ def run_adjustment_sync(
     boundary_type: str,
 ) -> list[tuple[int, int]]:
     """Run line range adjustment synchronously.
-    
+
     Context is resolved automatically using hierarchical fallback.
     """
+
     async def _runner() -> list[tuple[int, int]]:
         readjuster = LineRangeReadjuster(
             model_config,

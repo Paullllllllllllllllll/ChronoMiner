@@ -31,6 +31,7 @@ dev = [
     "pytest-cov>=7.0",
     "coverage>=7.13",
     "mypy>=1.20",
+    "ruff>=0.15",
     "types-PyYAML>=6.0",
 ]
 
@@ -40,3 +41,28 @@ packages = ["main", "modules"]
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+extend-include = ["*.ipynb"]
+extend-exclude = ["data/", "outputs/", "scratch", ".claude", "backup", "deprecated", "exploratory", "explorative", "extras"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+ignore = []
+
+[tool.ruff.lint.per-file-ignores]
+"main/cancel_batches.py" = ["E402"]
+"main/check_batches.py" = ["E402"]
+"main/generate_line_ranges.py" = ["E402"]
+"main/line_range_readjuster.py" = ["E402"]
+"main/process_text_files.py" = ["E402"]
+"main/repair_extractions.py" = ["E402"]
+"eval/*.py" = ["E402"]
+"eval/*.ipynb" = ["E402"]
+"tests/test_remaining_extensions.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = false

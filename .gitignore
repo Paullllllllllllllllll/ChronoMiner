@@ -38,6 +38,7 @@ env/
 *~
 .windsurf
 .claude
+CLAUDE.md
 
 # OS
 .DS_Store
