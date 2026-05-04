@@ -23,6 +23,7 @@ from modules.line_ranges.readjuster import (
 # RangeResult
 # ---------------------------------------------------------------------------
 
+
 class TestRangeResult:
     def test_to_jsonl_record_envelope(self) -> None:
         decision = BoundaryDecision(
@@ -176,6 +177,7 @@ class TestBoundaryDecisionRoundTrip:
 # BoundaryDecision.to_dict
 # ---------------------------------------------------------------------------
 
+
 class TestBoundaryDecisionToDict:
     def test_serialization(self) -> None:
         d = BoundaryDecision(
@@ -198,17 +200,21 @@ class TestBoundaryDecisionToDict:
 # Readjuster temp JSONL persistence
 # ---------------------------------------------------------------------------
 
+
 def _make_readjuster(
     model_name: str = "gpt-4o",
     context_window: int = 3,
 ) -> LineRangeReadjuster:
     """Create a readjuster without needing real API keys or prompt files."""
-    with patch(
-        "modules.line_ranges.readjuster.load_prompt_template",
-        return_value="fake prompt",
-    ), patch(
-        "modules.line_ranges.readjuster.detect_capabilities",
-        return_value=MagicMock(supports_prompt_caching=False),
+    with (
+        patch(
+            "modules.line_ranges.readjuster.load_prompt_template",
+            return_value="fake prompt",
+        ),
+        patch(
+            "modules.line_ranges.readjuster.detect_capabilities",
+            return_value=MagicMock(supports_prompt_caching=False),
+        ),
     ):
         return LineRangeReadjuster(
             {"extraction_model": {"name": model_name}},
@@ -233,14 +239,18 @@ def _fake_range_result(
             certainty=90,
             semantic_marker="marker" if not delete else None,
         ),
-        attempts=[{
-            "window": [1, 10],
-            "window_index": 0,
-            "decision_type": "marker_found" if not delete else "no_semantic_boundary",
-            "certainty": 90,
-            "semantic_marker": "marker" if not delete else None,
-            "marker_matched": not delete,
-        }],
+        attempts=[
+            {
+                "window": [1, 10],
+                "window_index": 0,
+                "decision_type": "marker_found"
+                if not delete
+                else "no_semantic_boundary",
+                "certainty": 90,
+                "semantic_marker": "marker" if not delete else None,
+                "marker_matched": not delete,
+            }
+        ],
         total_llm_calls=1,
     )
 
@@ -274,16 +284,19 @@ class TestReadjusterTempJsonl:
             call_count += 1
             return result
 
-        with patch.object(
-            readjuster, "_process_single_range", side_effect=mock_process_range
-        ), patch(
-            "modules.line_ranges.readjuster.ProviderConfig"
-        ) as mock_provider, patch(
-            "modules.line_ranges.readjuster.open_extractor",
-            new_callable=lambda: _async_noop_context,
-        ), patch(
-            "modules.line_ranges.readjuster.resolve_context_for_readjustment",
-            return_value=(None, None),
+        with (
+            patch.object(
+                readjuster, "_process_single_range", side_effect=mock_process_range
+            ),
+            patch("modules.line_ranges.readjuster.ProviderConfig") as mock_provider,
+            patch(
+                "modules.line_ranges.readjuster.open_extractor",
+                new_callable=lambda: _async_noop_context,
+            ),
+            patch(
+                "modules.line_ranges.readjuster.resolve_context_for_readjustment",
+                return_value=(None, None),
+            ),
         ):
             mock_provider._detect_provider.return_value = "openai"
             mock_provider._get_api_key.return_value = "fake-key"
@@ -335,8 +348,12 @@ class TestReadjusterResume:
         )
         existing_records = [
             header,
-            _fake_range_result(1, (1, 10), (3, 10)).to_jsonl_record("sample_line_ranges"),
-            _fake_range_result(2, (11, 20), (13, 20)).to_jsonl_record("sample_line_ranges"),
+            _fake_range_result(1, (1, 10), (3, 10)).to_jsonl_record(
+                "sample_line_ranges"
+            ),
+            _fake_range_result(2, (11, 20), (13, 20)).to_jsonl_record(
+                "sample_line_ranges"
+            ),
         ]
         temp_jsonl.write_text(
             "\n".join(json.dumps(r) for r in existing_records) + "\n",
@@ -353,16 +370,19 @@ class TestReadjusterResume:
             processed_indices.append(idx)
             return _fake_range_result(idx, kwargs["original_range"], (22, 30))
 
-        with patch.object(
-            readjuster, "_process_single_range", side_effect=mock_process_range
-        ), patch(
-            "modules.line_ranges.readjuster.ProviderConfig"
-        ) as mock_provider, patch(
-            "modules.line_ranges.readjuster.open_extractor",
-            new_callable=lambda: _async_noop_context,
-        ), patch(
-            "modules.line_ranges.readjuster.resolve_context_for_readjustment",
-            return_value=(None, None),
+        with (
+            patch.object(
+                readjuster, "_process_single_range", side_effect=mock_process_range
+            ),
+            patch("modules.line_ranges.readjuster.ProviderConfig") as mock_provider,
+            patch(
+                "modules.line_ranges.readjuster.open_extractor",
+                new_callable=lambda: _async_noop_context,
+            ),
+            patch(
+                "modules.line_ranges.readjuster.resolve_context_for_readjustment",
+                return_value=(None, None),
+            ),
         ):
             mock_provider._detect_provider.return_value = "openai"
             mock_provider._get_api_key.return_value = "fake-key"
@@ -398,8 +418,12 @@ class TestReadjusterForceFresh:
         # Pre-populate temp JSONL with both ranges (simulating a completed prior run)
         temp_jsonl = tmp_path / "sample_line_ranges_adjust_temp.jsonl"
         stale_records = [
-            _fake_range_result(1, (1, 10), (3, 10)).to_jsonl_record("sample_line_ranges"),
-            _fake_range_result(2, (11, 20), (13, 20)).to_jsonl_record("sample_line_ranges"),
+            _fake_range_result(1, (1, 10), (3, 10)).to_jsonl_record(
+                "sample_line_ranges"
+            ),
+            _fake_range_result(2, (11, 20), (13, 20)).to_jsonl_record(
+                "sample_line_ranges"
+            ),
         ]
         temp_jsonl.write_text(
             "\n".join(json.dumps(r) for r in stale_records) + "\n",
@@ -412,18 +436,23 @@ class TestReadjusterForceFresh:
         async def mock_process_range(**kwargs: Any) -> RangeResult:
             idx = kwargs["range_index"]
             processed_indices.append(idx)
-            return _fake_range_result(idx, kwargs["original_range"], kwargs["original_range"])
+            return _fake_range_result(
+                idx, kwargs["original_range"], kwargs["original_range"]
+            )
 
-        with patch.object(
-            readjuster, "_process_single_range", side_effect=mock_process_range
-        ), patch(
-            "modules.line_ranges.readjuster.ProviderConfig"
-        ) as mock_provider, patch(
-            "modules.line_ranges.readjuster.open_extractor",
-            new_callable=lambda: _async_noop_context,
-        ), patch(
-            "modules.line_ranges.readjuster.resolve_context_for_readjustment",
-            return_value=(None, None),
+        with (
+            patch.object(
+                readjuster, "_process_single_range", side_effect=mock_process_range
+            ),
+            patch("modules.line_ranges.readjuster.ProviderConfig") as mock_provider,
+            patch(
+                "modules.line_ranges.readjuster.open_extractor",
+                new_callable=lambda: _async_noop_context,
+            ),
+            patch(
+                "modules.line_ranges.readjuster.resolve_context_for_readjustment",
+                return_value=(None, None),
+            ),
         ):
             mock_provider._detect_provider.return_value = "openai"
             mock_provider._get_api_key.return_value = "fake-key"
@@ -454,16 +483,19 @@ class TestReadjusterCleanup:
         async def mock_process_range(**kwargs: Any) -> RangeResult:
             return _fake_range_result(1, (1, 2), (1, 2))
 
-        with patch.object(
-            readjuster, "_process_single_range", side_effect=mock_process_range
-        ), patch(
-            "modules.line_ranges.readjuster.ProviderConfig"
-        ) as mock_provider, patch(
-            "modules.line_ranges.readjuster.open_extractor",
-            new_callable=lambda: _async_noop_context,
-        ), patch(
-            "modules.line_ranges.readjuster.resolve_context_for_readjustment",
-            return_value=(None, None),
+        with (
+            patch.object(
+                readjuster, "_process_single_range", side_effect=mock_process_range
+            ),
+            patch("modules.line_ranges.readjuster.ProviderConfig") as mock_provider,
+            patch(
+                "modules.line_ranges.readjuster.open_extractor",
+                new_callable=lambda: _async_noop_context,
+            ),
+            patch(
+                "modules.line_ranges.readjuster.resolve_context_for_readjustment",
+                return_value=(None, None),
+            ),
         ):
             mock_provider._detect_provider.return_value = "openai"
             mock_provider._get_api_key.return_value = "fake-key"
@@ -482,6 +514,7 @@ class TestReadjusterCleanup:
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
 
 class _async_noop_context:
     """Async context manager that yields a dummy extractor."""

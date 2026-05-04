@@ -90,7 +90,9 @@ class PDFProcessor:
                     max_pixels / 1e6,
                     effective_dpi,
                 )
-        pix = page.get_pixmap(matrix=fitz.Matrix(effective_dpi / 72, effective_dpi / 72), alpha=False)
+        pix = page.get_pixmap(
+            matrix=fitz.Matrix(effective_dpi / 72, effective_dpi / 72), alpha=False
+        )
         img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
         return img
 
@@ -116,7 +118,11 @@ class PDFProcessor:
             self.open_pdf()
         assert self.doc is not None
 
-        indices = page_indices if page_indices is not None else list(range(self.doc.page_count))
+        indices = (
+            page_indices
+            if page_indices is not None
+            else list(range(self.doc.page_count))
+        )
         images: list[Image.Image] = []
         for idx in indices:
             try:
@@ -124,6 +130,8 @@ class PDFProcessor:
             except Exception as e:
                 logger.error(
                     "Error rendering page %d from %s: %s",
-                    idx + 1, self.pdf_path.name, e,
+                    idx + 1,
+                    self.pdf_path.name,
+                    e,
                 )
         return images

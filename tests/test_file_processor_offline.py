@@ -42,7 +42,9 @@ class DummyHandler:
 
 
 @pytest.mark.integration
-def test_file_processor_writes_output_json_offline(tmp_path: Path, config_loader, monkeypatch):
+def test_file_processor_writes_output_json_offline(
+    tmp_path: Path, config_loader, monkeypatch
+):
     from modules.extract.file_processor import FileProcessor
 
     monkeypatch.setattr(
@@ -149,7 +151,9 @@ def _run_with_slice(tmp_path, config_loader, monkeypatch, chunk_slice):
 def test_file_processor_chunk_slice_first_n(tmp_path, config_loader, monkeypatch):
     from modules.infra.chunking import ChunkSlice
 
-    out_json = _run_with_slice(tmp_path, config_loader, monkeypatch, ChunkSlice(first_n=2))
+    out_json = _run_with_slice(
+        tmp_path, config_loader, monkeypatch, ChunkSlice(first_n=2)
+    )
     assert out_json.exists()
     data = json.loads(out_json.read_text(encoding="utf-8"))
     records = data["records"]
@@ -162,7 +166,9 @@ def test_file_processor_chunk_slice_first_n(tmp_path, config_loader, monkeypatch
 def test_file_processor_chunk_slice_last_n(tmp_path, config_loader, monkeypatch):
     from modules.infra.chunking import ChunkSlice
 
-    out_json = _run_with_slice(tmp_path, config_loader, monkeypatch, ChunkSlice(last_n=1))
+    out_json = _run_with_slice(
+        tmp_path, config_loader, monkeypatch, ChunkSlice(last_n=1)
+    )
     assert out_json.exists()
     data = json.loads(out_json.read_text(encoding="utf-8"))
     records = data["records"]

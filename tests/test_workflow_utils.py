@@ -206,10 +206,7 @@ class TestValidateSchemaPaths:
     def test_valid_schema_paths(self):
         """Test validation passes with valid paths."""
         schemas_paths = {
-            "TestSchema": {
-                "input": "/path/to/input",
-                "output": "/path/to/output"
-            }
+            "TestSchema": {"input": "/path/to/input", "output": "/path/to/output"}
         }
 
         result = validate_schema_paths("TestSchema", schemas_paths)
@@ -220,10 +217,7 @@ class TestValidateSchemaPaths:
     def test_missing_schema_returns_false(self):
         """Test validation fails for missing schema."""
         schemas_paths = {
-            "OtherSchema": {
-                "input": "/path/to/input",
-                "output": "/path/to/output"
-            }
+            "OtherSchema": {"input": "/path/to/input", "output": "/path/to/output"}
         }
 
         result = validate_schema_paths("MissingSchema", schemas_paths)
@@ -233,11 +227,7 @@ class TestValidateSchemaPaths:
     @pytest.mark.unit
     def test_missing_input_path_returns_false(self):
         """Test validation fails when input path is missing."""
-        schemas_paths = {
-            "TestSchema": {
-                "output": "/path/to/output"
-            }
-        }
+        schemas_paths = {"TestSchema": {"output": "/path/to/output"}}
 
         result = validate_schema_paths("TestSchema", schemas_paths)
 
@@ -246,11 +236,7 @@ class TestValidateSchemaPaths:
     @pytest.mark.unit
     def test_missing_output_path_returns_false(self):
         """Test validation fails when output path is missing."""
-        schemas_paths = {
-            "TestSchema": {
-                "input": "/path/to/input"
-            }
-        }
+        schemas_paths = {"TestSchema": {"input": "/path/to/input"}}
 
         result = validate_schema_paths("TestSchema", schemas_paths)
 
@@ -259,12 +245,7 @@ class TestValidateSchemaPaths:
     @pytest.mark.unit
     def test_empty_paths_returns_false(self):
         """Test validation fails with empty paths."""
-        schemas_paths = {
-            "TestSchema": {
-                "input": "",
-                "output": ""
-            }
-        }
+        schemas_paths = {"TestSchema": {"input": "", "output": ""}}
 
         result = validate_schema_paths("TestSchema", schemas_paths)
 

@@ -30,7 +30,10 @@ class TestDetectModelType:
         assert detect_model_type("openrouter", "google/gemini-2.5-flash") == "google"
 
     def test_openrouter_with_anthropic_model(self):
-        assert detect_model_type("openrouter", "anthropic/claude-sonnet-4-5") == "anthropic"
+        assert (
+            detect_model_type("openrouter", "anthropic/claude-sonnet-4-5")
+            == "anthropic"
+        )
 
     def test_openrouter_with_openai_model(self):
         assert detect_model_type("openrouter", "openai/gpt-5-mini") == "openai"
@@ -53,7 +56,9 @@ class TestGetImageConfigSectionName:
         assert get_image_config_section_name("google") == "google_image_processing"
 
     def test_anthropic(self):
-        assert get_image_config_section_name("anthropic") == "anthropic_image_processing"
+        assert (
+            get_image_config_section_name("anthropic") == "anthropic_image_processing"
+        )
 
     def test_openai(self):
         assert get_image_config_section_name("openai") == "api_image_processing"
@@ -126,13 +131,17 @@ class TestResizeForDetail:
     def test_high_detail_anthropic_caps_side(self):
         img = self._make_img(3000, 2000)
         cfg = {"high_max_side_px": 1568}
-        result = ImageProcessor.resize_for_detail(img, "high", cfg, model_type="anthropic")
+        result = ImageProcessor.resize_for_detail(
+            img, "high", cfg, model_type="anthropic"
+        )
         assert max(result.size) <= 1568
 
     def test_anthropic_no_resize_if_small(self):
         img = self._make_img(800, 600)
         cfg = {"high_max_side_px": 1568}
-        result = ImageProcessor.resize_for_detail(img, "high", cfg, model_type="anthropic")
+        result = ImageProcessor.resize_for_detail(
+            img, "high", cfg, model_type="anthropic"
+        )
         assert result.size == (800, 600)
 
     def test_original_detail_caps_side(self):

@@ -41,6 +41,7 @@ class GoogleBatchBackend(BatchBackend):
         """Lazy initialization of Google GenAI client."""
         if self._client is None:
             from google import genai
+
             self._client = genai.Client()
         return self._client
 
@@ -119,26 +120,33 @@ class GoogleBatchBackend(BatchBackend):
             if generation_config:
                 request_obj["generation_config"] = generation_config
 
-            inline_requests.append({
-                "key": req.custom_id,
-                "request": request_obj,
-            })
+            inline_requests.append(
+                {
+                    "key": req.custom_id,
+                    "request": request_obj,
+                }
+            )
 
         # Check if we should use file-based submission (larger batches)
         total_size = sum(len(json.dumps(r)) for r in inline_requests)
 
         if total_size < MAX_INLINE_BYTES:
             # Use inline requests
-            logger.info("Submitting inline batch with %d requests to Google...", len(inline_requests))
-            
+            logger.info(
+                "Submitting inline batch with %d requests to Google...",
+                len(inline_requests),
+            )
+
             # Convert to the format expected by the SDK
             src_requests = []
             for item in inline_requests:
-                src_requests.append({
-                    "contents": item["request"]["contents"],
-                    "system_instruction": item["request"].get("system_instruction"),
-                    "generation_config": item["request"].get("generation_config"),
-                })
+                src_requests.append(
+                    {
+                        "contents": item["request"]["contents"],
+                        "system_instruction": item["request"].get("system_instruction"),
+                        "generation_config": item["request"].get("generation_config"),
+                    }
+                )
 
             batch_job = client.batches.create(
                 model=api_model_name,
@@ -149,14 +157,14 @@ class GoogleBatchBackend(BatchBackend):
             )
         else:
             # Use file-based submission for larger batches
-            logger.info("Submitting file-based batch with %d requests to Google...", len(inline_requests))
-            
+            logger.info(
+                "Submitting file-based batch with %d requests to Google...",
+                len(inline_requests),
+            )
+
             # Create JSONL file
             with tempfile.NamedTemporaryFile(
-                mode="w",
-                suffix=".jsonl",
-                delete=False,
-                encoding="utf-8"
+                mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
             ) as f:
                 for item in inline_requests:
                     f.write(json.dumps(item) + "\n")
@@ -165,12 +173,13 @@ class GoogleBatchBackend(BatchBackend):
             try:
                 # Upload file
                 from google.genai import types
+
                 uploaded_file = client.files.upload(
                     file=str(temp_path),
                     config=types.UploadFileConfig(
                         display_name=f"batch-requests-{int(time.time())}",
-                        mime_type="jsonl"
-                    )
+                        mime_type="jsonl",
+                    ),
                 )
                 logger.info("Uploaded batch file: %s", uploaded_file.name)
 
@@ -265,7 +274,11 @@ class GoogleBatchBackend(BatchBackend):
         if hasattr(dest, "file_name") and dest.file_name:
             # Download result file
             file_content = client.files.download(file=dest.file_name)
-            text = file_content.decode("utf-8") if isinstance(file_content, bytes) else str(file_content)
+            text = (
+                file_content.decode("utf-8")
+                if isinstance(file_content, bytes)
+                else str(file_content)
+            )
 
             # Parse JSONL
             for line in text.strip().split("\n"):
@@ -331,7 +344,7 @@ class GoogleBatchBackend(BatchBackend):
                         custom_id = cid
                         break
                 if custom_id is None:
-                    custom_id = f"req-{i+1}"
+                    custom_id = f"req-{i + 1}"
 
                 result_item = BatchResultItem(custom_id=custom_id)
 

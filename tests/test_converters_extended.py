@@ -8,7 +8,9 @@ from modules.conversion.csv_converter import CSVConverter
 from modules.conversion.document_converter import DocumentConverter
 
 
-def test_document_converter_convert_to_txt_writes_message_when_no_entries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_document_converter_convert_to_txt_writes_message_when_no_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     converter = DocumentConverter(schema_name="StructuredSummaries")
     monkeypatch.setattr(converter, "get_entries", lambda _path: [])
 
@@ -22,7 +24,9 @@ def test_document_converter_convert_to_txt_writes_message_when_no_entries(tmp_pa
     assert "No valid entries found" in out.read_text(encoding="utf-8")
 
 
-def test_csv_converter_convert_to_csv_returns_when_no_entries(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_csv_converter_convert_to_csv_returns_when_no_entries(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     converter = CSVConverter(schema_name="StructuredSummaries")
     monkeypatch.setattr(converter, "get_entries", lambda _path: [])
 
@@ -35,11 +39,21 @@ def test_csv_converter_convert_to_csv_returns_when_no_entries(tmp_path: Path, mo
     assert not out.exists()
 
 
-def test_document_converter_convert_ignores_unsupported_suffix(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+def test_document_converter_convert_ignores_unsupported_suffix(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     converter = DocumentConverter(schema_name="StructuredSummaries")
 
-    monkeypatch.setattr(converter, "convert_to_docx", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("docx")))
-    monkeypatch.setattr(converter, "convert_to_txt", lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("txt")))
+    monkeypatch.setattr(
+        converter,
+        "convert_to_docx",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("docx")),
+    )
+    monkeypatch.setattr(
+        converter,
+        "convert_to_txt",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("txt")),
+    )
 
     json_file = tmp_path / "input.json"
     json_file.write_text("{}", encoding="utf-8")

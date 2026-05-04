@@ -39,6 +39,7 @@ class AnthropicBatchBackend(BatchBackend):
         """Lazy initialization of Anthropic client."""
         if self._client is None:
             import anthropic
+
             self._client = anthropic.Anthropic()
         return self._client
 
@@ -69,10 +70,7 @@ class AnthropicBatchBackend(BatchBackend):
         # Model configuration
         tm = model_config.get("extraction_model", {}) or model_config
         model_name = tm.get("name", "claude-sonnet-4-20250514")
-        max_tokens = int(
-            tm.get("max_output_tokens")
-            or tm.get("max_tokens", 4096)
-        )
+        max_tokens = int(tm.get("max_output_tokens") or tm.get("max_tokens", 4096))
 
         # Build batch requests
         batch_requests = []
@@ -118,13 +116,17 @@ class AnthropicBatchBackend(BatchBackend):
                 if caps.supports_sampler_controls:
                     params["temperature"] = float(temperature)
 
-            batch_requests.append({
-                "custom_id": req.custom_id,
-                "params": params,
-            })
+            batch_requests.append(
+                {
+                    "custom_id": req.custom_id,
+                    "params": params,
+                }
+            )
 
         # Submit batch
-        logger.info("Submitting batch with %d requests to Anthropic...", len(batch_requests))
+        logger.info(
+            "Submitting batch with %d requests to Anthropic...", len(batch_requests)
+        )
         batch_response = client.messages.batches.create(requests=batch_requests)
         batch_id = batch_response.id
         logger.info("Batch submitted; batch id: %s", batch_id)
@@ -227,6 +229,7 @@ class AnthropicBatchBackend(BatchBackend):
                             from modules.conversion.json_utils import (
                                 parse_json_from_text,
                             )
+
                             json_str = parse_json_from_text(result_item.content)
                             if json_str is not None:
                                 try:
@@ -240,7 +243,9 @@ class AnthropicBatchBackend(BatchBackend):
                         usage = getattr(message, "usage", None)
                         if usage:
                             result_item.input_tokens = getattr(usage, "input_tokens", 0)
-                            result_item.output_tokens = getattr(usage, "output_tokens", 0)
+                            result_item.output_tokens = getattr(
+                                usage, "output_tokens", 0
+                            )
                     else:
                         result_item.success = True
                         result_item.content = ""

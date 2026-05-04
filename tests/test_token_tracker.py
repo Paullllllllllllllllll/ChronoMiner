@@ -158,9 +158,12 @@ class TestTokenTrackerStats:
 # check_token_limit_enabled, check_and_wait_for_token_limit
 # ---------------------------------------------------------------------------
 
+
 class TestTokenTrackerGetStatsExtended:
     def test_returns_all_keys(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=10000, enabled=True, state_file=tmp_path / "state.json")
+        tracker = DailyTokenTracker(
+            daily_limit=10000, enabled=True, state_file=tmp_path / "state.json"
+        )
         stats = tracker.get_stats()
 
         assert "enabled" in stats
@@ -174,7 +177,9 @@ class TestTokenTrackerGetStatsExtended:
         assert "current_date" in stats
 
     def test_stats_reflect_usage(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=tmp_path / "state.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "state.json"
+        )
         tracker.add_tokens(400)
         stats = tracker.get_stats()
 
@@ -184,7 +189,9 @@ class TestTokenTrackerGetStatsExtended:
         assert stats["limit_reached"] is False
 
     def test_stats_limit_reached(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=100, enabled=True, state_file=tmp_path / "state.json")
+        tracker = DailyTokenTracker(
+            daily_limit=100, enabled=True, state_file=tmp_path / "state.json"
+        )
         tracker.add_tokens(100)
         stats = tracker.get_stats()
 
@@ -195,22 +202,30 @@ class TestTokenTrackerGetStatsExtended:
 
 class TestGetUsagePercentage:
     def test_disabled_returns_zero(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=False, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=False, state_file=tmp_path / "s.json"
+        )
         assert tracker.get_usage_percentage() == 0.0
 
     def test_zero_limit_returns_zero(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=0, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=0, enabled=True, state_file=tmp_path / "s.json"
+        )
         assert tracker.get_usage_percentage() == 0.0
 
     def test_over_limit(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=100, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=100, enabled=True, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(150)
         assert tracker.get_usage_percentage() == 150.0
 
 
 class TestGetSecondsUntilReset:
     def test_returns_positive_integer(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
         seconds = tracker.get_seconds_until_reset()
         assert isinstance(seconds, int)
         assert 0 < seconds <= 86400
@@ -218,7 +233,9 @@ class TestGetSecondsUntilReset:
 
 class TestGetResetTime:
     def test_returns_future_midnight(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
         reset_time = tracker.get_reset_time()
         now = datetime.now()
         assert reset_time > now
@@ -228,22 +245,30 @@ class TestGetResetTime:
 
 class TestCanUseTokensExtended:
     def test_disabled_always_true(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=100, enabled=False, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=100, enabled=False, state_file=tmp_path / "s.json"
+        )
         assert tracker.can_use_tokens(999999) is True
 
     def test_with_remaining(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
         assert tracker.can_use_tokens(500) is True
         assert tracker.can_use_tokens(0) is True
 
     def test_exceeds_remaining(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=100, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=100, enabled=True, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(90)
         assert tracker.can_use_tokens(20) is False
         assert tracker.can_use_tokens(10) is True
 
     def test_exact_limit(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=100, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=100, enabled=True, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(100)
         assert tracker.can_use_tokens(0) is False
         assert tracker.can_use_tokens(1) is False
@@ -251,32 +276,44 @@ class TestCanUseTokensExtended:
 
 class TestIsLimitReachedExtended:
     def test_disabled_never_reached(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=0, enabled=False, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=0, enabled=False, state_file=tmp_path / "s.json"
+        )
         assert tracker.is_limit_reached() is False
 
     def test_below_limit(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(500)
         assert tracker.is_limit_reached() is False
 
     def test_at_limit(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=100, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=100, enabled=True, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(100)
         assert tracker.is_limit_reached() is True
 
 
 class TestGetTokensRemainingExtended:
     def test_disabled_returns_limit(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=5000, enabled=False, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=5000, enabled=False, state_file=tmp_path / "s.json"
+        )
         assert tracker.get_tokens_remaining() == 5000
 
     def test_returns_correct_remaining(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(300)
         assert tracker.get_tokens_remaining() == 700
 
     def test_clamps_to_zero(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=100, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=100, enabled=True, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(200)
         assert tracker.get_tokens_remaining() == 0
 
@@ -286,7 +323,9 @@ class TestLoadState:
         state_file = tmp_path / "state.json"
         state_file.write_text("not valid json", encoding="utf-8")
 
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=state_file)
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=state_file
+        )
         assert tracker._tokens_used_today == 0
 
     def test_different_day_resets(self, tmp_path):
@@ -296,7 +335,9 @@ class TestLoadState:
             encoding="utf-8",
         )
 
-        tracker = DailyTokenTracker(daily_limit=10000, enabled=True, state_file=state_file)
+        tracker = DailyTokenTracker(
+            daily_limit=10000, enabled=True, state_file=state_file
+        )
         assert tracker._tokens_used_today == 0
 
     def test_same_day_restores(self, tmp_path):
@@ -307,7 +348,9 @@ class TestLoadState:
             encoding="utf-8",
         )
 
-        tracker = DailyTokenTracker(daily_limit=10000, enabled=True, state_file=state_file)
+        tracker = DailyTokenTracker(
+            daily_limit=10000, enabled=True, state_file=state_file
+        )
         assert tracker._tokens_used_today == 3000
 
 
@@ -316,7 +359,9 @@ class TestSaveState:
         state_file = tmp_path / "subdir" / "state.json"
         state_file.parent.mkdir(parents=True)
 
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=state_file)
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=state_file
+        )
         tracker.add_tokens(100)
 
         assert state_file.exists()
@@ -324,7 +369,9 @@ class TestSaveState:
         assert data["tokens_used"] == 100
 
     def test_save_state_error_handled(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
 
         with patch.object(Path, "with_suffix", side_effect=OSError("disk full")):
             # Should not raise — errors are logged but swallowed
@@ -333,7 +380,9 @@ class TestSaveState:
 
 class TestCheckAndResetIfNewDay:
     def test_resets_on_new_day(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(500)
         assert tracker._tokens_used_today == 500
 
@@ -345,17 +394,23 @@ class TestCheckAndResetIfNewDay:
 
 class TestAddTokens:
     def test_disabled_no_op(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=False, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=False, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(500)
         assert tracker._tokens_used_today == 0
 
     def test_negative_tokens_ignored(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(-100)
         assert tracker._tokens_used_today == 0
 
     def test_zero_tokens_ignored(self, tmp_path):
-        tracker = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=tmp_path / "s.json")
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
         tracker.add_tokens(0)
         assert tracker._tokens_used_today == 0
 
@@ -373,6 +428,7 @@ class TestCheckAndWaitForTokenLimit:
 
     def test_returns_true_when_disabled(self, tmp_path):
         import modules.infra.token_tracker as tt
+
         tt._tracker_instance = DailyTokenTracker(
             daily_limit=100, enabled=False, state_file=tmp_path / "s.json"
         )
@@ -381,6 +437,7 @@ class TestCheckAndWaitForTokenLimit:
 
     def test_keyboard_interrupt_returns_false(self, tmp_path):
         import modules.infra.token_tracker as tt
+
         tracker = DailyTokenTracker(
             daily_limit=100, enabled=True, state_file=tmp_path / "s.json"
         )
@@ -393,6 +450,7 @@ class TestCheckAndWaitForTokenLimit:
 
     def test_with_ui_object(self, tmp_path):
         import modules.infra.token_tracker as tt
+
         tracker = DailyTokenTracker(
             daily_limit=100, enabled=True, state_file=tmp_path / "s.json"
         )
@@ -407,6 +465,7 @@ class TestCheckAndWaitForTokenLimit:
 
     def test_limit_resets_during_wait(self, tmp_path):
         import modules.infra.token_tracker as tt
+
         tracker = DailyTokenTracker(
             daily_limit=100, enabled=True, state_file=tmp_path / "s.json"
         )

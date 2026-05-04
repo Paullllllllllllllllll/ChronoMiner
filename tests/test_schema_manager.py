@@ -10,7 +10,7 @@ from modules.config.schema_manager import SchemaManager
 
 class TestSchemaManagerBasic:
     """Basic tests for SchemaManager."""
-    
+
     @pytest.mark.unit
     def test_loads_schemas_and_lists_options(self, tmp_path: Path):
         """Test loading schemas and listing options."""
@@ -18,9 +18,13 @@ class TestSchemaManagerBasic:
         schemas_dir.mkdir()
 
         schema = {"name": "MySchema", "schema": {"type": "object"}}
-        (schemas_dir / "my_schema.json").write_text(json.dumps(schema), encoding="utf-8")
+        (schemas_dir / "my_schema.json").write_text(
+            json.dumps(schema), encoding="utf-8"
+        )
 
-        mgr = SchemaManager(schemas_dir=schemas_dir, dev_messages_dir=tmp_path / "devmsgs")
+        mgr = SchemaManager(
+            schemas_dir=schemas_dir, dev_messages_dir=tmp_path / "devmsgs"
+        )
         mgr.load_schemas()
 
         available = mgr.get_available_schemas()
@@ -56,7 +60,7 @@ class TestSchemaManagerBasic:
 
 class TestSchemaManagerMultipleSchemas:
     """Tests for handling multiple schemas."""
-    
+
     @pytest.mark.unit
     def test_loads_multiple_schemas(self, tmp_path: Path):
         """Test loading multiple schemas."""
@@ -65,28 +69,35 @@ class TestSchemaManagerMultipleSchemas:
 
         schema1 = {"name": "Schema1", "schema": {"type": "object"}}
         schema2 = {"name": "Schema2", "schema": {"type": "array"}}
-        
+
         (schemas_dir / "schema1.json").write_text(json.dumps(schema1), encoding="utf-8")
         (schemas_dir / "schema2.json").write_text(json.dumps(schema2), encoding="utf-8")
 
-        mgr = SchemaManager(schemas_dir=schemas_dir, dev_messages_dir=tmp_path / "devmsgs")
+        mgr = SchemaManager(
+            schemas_dir=schemas_dir, dev_messages_dir=tmp_path / "devmsgs"
+        )
         mgr.load_schemas()
 
         available = mgr.get_available_schemas()
         assert len(available) == 2
         assert "Schema1" in available
         assert "Schema2" in available
-    
+
     @pytest.mark.unit
     def test_get_schema_by_name(self, tmp_path: Path):
         """Test getting schema by name."""
         schemas_dir = tmp_path / "schemas"
         schemas_dir.mkdir()
 
-        schema = {"name": "TestSchema", "schema": {"type": "object", "properties": {"id": {"type": "integer"}}}}
+        schema = {
+            "name": "TestSchema",
+            "schema": {"type": "object", "properties": {"id": {"type": "integer"}}},
+        }
         (schemas_dir / "test.json").write_text(json.dumps(schema), encoding="utf-8")
 
-        mgr = SchemaManager(schemas_dir=schemas_dir, dev_messages_dir=tmp_path / "devmsgs")
+        mgr = SchemaManager(
+            schemas_dir=schemas_dir, dev_messages_dir=tmp_path / "devmsgs"
+        )
         mgr.load_schemas()
 
         available = mgr.get_available_schemas()
@@ -96,19 +107,21 @@ class TestSchemaManagerMultipleSchemas:
 
 class TestSchemaManagerEdgeCases:
     """Edge case tests for SchemaManager."""
-    
+
     @pytest.mark.unit
     def test_empty_schemas_directory(self, tmp_path: Path):
         """Test with empty schemas directory."""
         schemas_dir = tmp_path / "schemas"
         schemas_dir.mkdir()
 
-        mgr = SchemaManager(schemas_dir=schemas_dir, dev_messages_dir=tmp_path / "devmsgs")
+        mgr = SchemaManager(
+            schemas_dir=schemas_dir, dev_messages_dir=tmp_path / "devmsgs"
+        )
         mgr.load_schemas()
 
         available = mgr.get_available_schemas()
         assert len(available) == 0
-    
+
     @pytest.mark.unit
     def test_nonexistent_dev_message(self, tmp_path: Path):
         """Test getting a non-existent dev message."""
@@ -122,7 +135,7 @@ class TestSchemaManagerEdgeCases:
 
         result = mgr.get_dev_message("NonExistent")
         assert result is None or result == ""
-    
+
     @pytest.mark.unit
     def test_schema_without_name_field(self, tmp_path: Path):
         """Test handling schema file without explicit name field."""
@@ -131,9 +144,13 @@ class TestSchemaManagerEdgeCases:
 
         # Schema without 'name' field - should use filename
         schema = {"schema": {"type": "object"}}
-        (schemas_dir / "unnamed_schema.json").write_text(json.dumps(schema), encoding="utf-8")
+        (schemas_dir / "unnamed_schema.json").write_text(
+            json.dumps(schema), encoding="utf-8"
+        )
 
-        mgr = SchemaManager(schemas_dir=schemas_dir, dev_messages_dir=tmp_path / "devmsgs")
+        mgr = SchemaManager(
+            schemas_dir=schemas_dir, dev_messages_dir=tmp_path / "devmsgs"
+        )
         mgr.load_schemas()
 
         available = mgr.get_available_schemas()

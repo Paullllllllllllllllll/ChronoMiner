@@ -5,7 +5,9 @@ import logging
 from pathlib import Path
 from typing import Any
 
-from modules.llm.openai_sdk_utils import sdk_to_dict  # TODO: move sdk_to_dict into modules.batch once openai_sdk_utils is slimmed
+from modules.llm.openai_sdk_utils import (
+    sdk_to_dict,
+)  # TODO: move sdk_to_dict into modules.batch once openai_sdk_utils is slimmed
 
 logger = logging.getLogger(__name__)
 
@@ -17,9 +19,7 @@ def diagnose_batch_failure(batch_id: str, client: Any) -> str:
         batch = sdk_to_dict(batch_obj)
         status = str(batch.get("status", "")).lower()
         if status == "failed":
-            return (
-                f"Batch {batch_id} failed. Review the OpenAI dashboard for detailed errors."
-            )
+            return f"Batch {batch_id} failed. Review the OpenAI dashboard for detailed errors."
         if status == "cancelled":
             return f"Batch {batch_id} was cancelled."
         if status == "expired":
@@ -28,9 +28,7 @@ def diagnose_batch_failure(batch_id: str, client: Any) -> str:
     except Exception as exc:
         message = str(exc).lower()
         if "not found" in message:
-            return (
-                f"Batch {batch_id} not found. It may have been deleted or was submitted with another API key."
-            )
+            return f"Batch {batch_id} not found. It may have been deleted or was submitted with another API key."
         if "unauthorized" in message:
             return "API key unauthorized. Verify OpenAI credentials."
         if "quota" in message:
@@ -38,7 +36,9 @@ def diagnose_batch_failure(batch_id: str, client: Any) -> str:
         return f"Error retrieving batch {batch_id}: {exc}"
 
 
-def extract_custom_id_mapping(temp_file: Path) -> tuple[dict[str, dict[str, Any]], dict[str, int]]:
+def extract_custom_id_mapping(
+    temp_file: Path,
+) -> tuple[dict[str, dict[str, Any]], dict[str, int]]:
     """
     Build mapping of custom_id -> metadata and order index by scanning a JSONL temp file.
     Returns (custom_id_map, order_map).
@@ -59,9 +59,7 @@ def extract_custom_id_mapping(temp_file: Path) -> tuple[dict[str, dict[str, Any]
                     cid = request.get("custom_id")
                     if cid:
                         info = (
-                            request.get("image_info")
-                            or request.get("metadata")
-                            or {}
+                            request.get("image_info") or request.get("metadata") or {}
                         )
                         custom_id_map[cid] = info
                         if "order_index" in info:

@@ -69,22 +69,23 @@ def test_get_files_from_path_excludes_context_files(tmp_path: Path):
 # Chunk-slice CLI arguments
 # ---------------------------------------------------------------------------
 
+
 class TestChunkSliceArgs:
     """Tests for --first-n-chunks and --last-n-chunks CLI arguments."""
 
     def test_process_parser_first_n(self):
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--schema", "Test", "--input", "data/", "--first-n-chunks", "5"
-        ])
+        args = parser.parse_args(
+            ["--schema", "Test", "--input", "data/", "--first-n-chunks", "5"]
+        )
         assert args.first_n_chunks == 5
         assert args.last_n_chunks is None
 
     def test_process_parser_last_n(self):
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--schema", "Test", "--input", "data/", "--last-n-chunks", "3"
-        ])
+        args = parser.parse_args(
+            ["--schema", "Test", "--input", "data/", "--last-n-chunks", "3"]
+        )
         assert args.last_n_chunks == 3
         assert args.first_n_chunks is None
 
@@ -97,10 +98,18 @@ class TestChunkSliceArgs:
     def test_process_parser_mutual_exclusion(self):
         parser = create_process_parser()
         with pytest.raises(SystemExit):
-            parser.parse_args([
-                "--schema", "Test", "--input", "data/",
-                "--first-n-chunks", "5", "--last-n-chunks", "3"
-            ])
+            parser.parse_args(
+                [
+                    "--schema",
+                    "Test",
+                    "--input",
+                    "data/",
+                    "--first-n-chunks",
+                    "5",
+                    "--last-n-chunks",
+                    "3",
+                ]
+            )
 
     def test_generate_ranges_parser_first_n(self):
         parser = create_generate_ranges_parser()
@@ -120,15 +129,24 @@ class TestProcessParserModelOverrides:
 
     def test_process_parser_model_overrides(self):
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--schema", "Test",
-            "--input", "data/",
-            "--model", "gpt-5-mini",
-            "--reasoning-effort", "high",
-            "--verbosity", "low",
-            "--max-output-tokens", "8192",
-            "--chunk-size", "6000",
-        ])
+        args = parser.parse_args(
+            [
+                "--schema",
+                "Test",
+                "--input",
+                "data/",
+                "--model",
+                "gpt-5-mini",
+                "--reasoning-effort",
+                "high",
+                "--verbosity",
+                "low",
+                "--max-output-tokens",
+                "8192",
+                "--chunk-size",
+                "6000",
+            ]
+        )
 
         assert args.model == "gpt-5-mini"
         assert args.reasoning_effort == "high"
@@ -139,17 +157,27 @@ class TestProcessParserModelOverrides:
     def test_process_parser_max_output_tokens_must_be_positive(self):
         parser = create_process_parser()
         with pytest.raises(SystemExit):
-            parser.parse_args([
-                "--schema", "Test",
-                "--input", "data/",
-                "--max-output-tokens", "0",
-            ])
+            parser.parse_args(
+                [
+                    "--schema",
+                    "Test",
+                    "--input",
+                    "data/",
+                    "--max-output-tokens",
+                    "0",
+                ]
+            )
 
     def test_process_parser_chunk_size_must_be_positive(self):
         parser = create_process_parser()
         with pytest.raises(SystemExit):
-            parser.parse_args([
-                "--schema", "Test",
-                "--input", "data/",
-                "--chunk-size", "0",
-            ])
+            parser.parse_args(
+                [
+                    "--schema",
+                    "Test",
+                    "--input",
+                    "data/",
+                    "--chunk-size",
+                    "0",
+                ]
+            )

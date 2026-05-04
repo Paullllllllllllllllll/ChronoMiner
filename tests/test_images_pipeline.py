@@ -44,7 +44,10 @@ class TestDetectModelType:
         assert detect_model_type("custom", "local-model") == "custom"
 
     def test_openrouter_infers_from_model_name(self):
-        assert detect_model_type("openrouter", "anthropic/claude-3-5-sonnet") == "anthropic"
+        assert (
+            detect_model_type("openrouter", "anthropic/claude-3-5-sonnet")
+            == "anthropic"
+        )
         assert detect_model_type("openrouter", "google/gemini-2.5-pro") == "google"
         assert detect_model_type("openrouter", "openai/gpt-5-mini") == "openai"
 
@@ -57,7 +60,9 @@ class TestImageConfigSectionName:
     def test_known_sections(self):
         assert get_image_config_section_name("openai") == "api_image_processing"
         assert get_image_config_section_name("google") == "google_image_processing"
-        assert get_image_config_section_name("anthropic") == "anthropic_image_processing"
+        assert (
+            get_image_config_section_name("anthropic") == "anthropic_image_processing"
+        )
         assert get_image_config_section_name("custom") == "custom_image_processing"
 
 
@@ -118,9 +123,7 @@ class TestImageProcessorInterface:
         bad = tmp_path / "x.xyz"
         bad.write_bytes(b"")
         with pytest.raises(ValueError, match="Unsupported image format"):
-            ImageProcessor(
-                bad, provider="openai", model_name="gpt-4o", image_config={}
-            )
+            ImageProcessor(bad, provider="openai", model_name="gpt-4o", image_config={})
 
     def test_process_image_writes_jpeg(self, tmp_path):
         src = _write_png(tmp_path / "src.png", size=(50, 50))

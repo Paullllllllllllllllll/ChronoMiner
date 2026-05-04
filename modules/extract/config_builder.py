@@ -63,9 +63,7 @@ def build_effective_chunking_config(
 ) -> dict[str, Any]:
     """Build a per-run chunking config with optional CLI chunk-size override."""
     effective_chunking_config = {
-        "chunking": dict(
-            (chunking_and_context_config or {}).get("chunking", {}) or {}
-        )
+        "chunking": dict((chunking_and_context_config or {}).get("chunking", {}) or {})
     }
     if getattr(args, "chunk_size", None) is not None:
         effective_chunking_config["chunking"]["default_tokens_per_chunk"] = int(
@@ -79,9 +77,7 @@ def build_effective_concurrency_config(
 ) -> dict[str, Any]:
     """Build a per-run concurrency config with CLI overrides applied."""
     effective = deepcopy(concurrency_config or {})
-    extraction = effective.setdefault("concurrency", {}).setdefault(
-        "extraction", {}
-    )
+    extraction = effective.setdefault("concurrency", {}).setdefault("extraction", {})
 
     if getattr(args, "concurrency_limit", None) is not None:
         extraction["concurrency_limit"] = int(args.concurrency_limit)

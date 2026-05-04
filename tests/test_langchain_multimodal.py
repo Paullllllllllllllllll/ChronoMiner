@@ -15,7 +15,10 @@ class TestMultimodalContentPassthrough:
         # Simulate what ainvoke_with_structured_output does with image content
         content = [
             {"type": "text", "text": "Extract data from this image."},
-            {"type": "image_url", "image_url": {"url": "data:image/jpeg;base64,abc123"}},
+            {
+                "type": "image_url",
+                "image_url": {"url": "data:image/jpeg;base64,abc123"},
+            },
         ]
 
         # Check that has_image detection works
@@ -30,7 +33,10 @@ class TestMultimodalContentPassthrough:
         """Anthropic image blocks (type='image') should also be preserved."""
         content = [
             {"type": "text", "text": "Extract data."},
-            {"type": "image", "source": {"type": "base64", "media_type": "image/jpeg", "data": "abc"}},
+            {
+                "type": "image",
+                "source": {"type": "base64", "media_type": "image/jpeg", "data": "abc"},
+            },
         ]
 
         has_image = any(

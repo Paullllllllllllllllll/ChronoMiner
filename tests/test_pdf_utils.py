@@ -23,8 +23,10 @@ class TestPDFProcessorContextManager:
         pdf_path.write_bytes(b"dummy")
         proc = PDFProcessor(pdf_path)
 
-        with patch.object(proc, "open_pdf") as mock_open, \
-             patch.object(proc, "close_pdf") as mock_close:
+        with (
+            patch.object(proc, "open_pdf") as mock_open,
+            patch.object(proc, "close_pdf") as mock_close,
+        ):
             with proc:
                 mock_open.assert_called_once()
             mock_close.assert_called_once()
@@ -37,6 +39,7 @@ class TestPDFProcessorWithFixture:
     def minimal_pdf(self, tmp_path):
         """Create a minimal valid PDF with one page using PyMuPDF."""
         import fitz
+
         pdf_path = tmp_path / "minimal.pdf"
         doc = fitz.open()
         page = doc.new_page(width=200, height=300)
@@ -86,6 +89,7 @@ class TestPDFProcessorMultiPage:
     @pytest.fixture
     def three_page_pdf(self, tmp_path):
         import fitz
+
         pdf_path = tmp_path / "three_pages.pdf"
         doc = fitz.open()
         for i in range(3):

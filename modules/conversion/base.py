@@ -43,7 +43,7 @@ def resolve_field(entry: dict, key: str, default: Any = "") -> Any:
 class BaseConverter(ABC):
     """
     Abstract base class for data format converters.
-    
+
     Provides shared functionality:
     - Schema name normalization
     - Entry extraction from JSON files
@@ -51,21 +51,21 @@ class BaseConverter(ABC):
     - Safe string conversion
     - Converter registry pattern
     """
-    
+
     def __init__(self, schema_name: str) -> None:
         """
         Initialize the converter with a schema name.
-        
+
         :param schema_name: Name of the schema (case-insensitive)
         """
         self.schema_name: str = schema_name.lower()
-    
+
     def get_entries(self, json_file: Path) -> list[Any]:
         """
         Extract and filter entries from a JSON file.
-        
+
         Uses extract_entries_from_json utility and filters out None values.
-        
+
         :param json_file: Path to the JSON file
         :return: List of non-None entries
         """
@@ -78,19 +78,19 @@ class BaseConverter(ABC):
     def safe_str(value: Any) -> str:
         """
         Safely convert a value to string, handling None values.
-        
+
         :param value: Any value that might be None
         :return: String representation or empty string if None
         """
         if value is None:
             return ""
         return str(value)
-    
+
     @staticmethod
     def join_list(values: Any, separator: str = ", ") -> str:
         """
         Join list values into a string, filtering None and empty values.
-        
+
         :param values: List of values or non-list value
         :param separator: Separator string (default: ", ")
         :return: Joined string or empty string if not a list
@@ -99,12 +99,12 @@ class BaseConverter(ABC):
             items = [str(v) for v in values if v not in (None, "")]
             return separator.join(items)
         return ""
-    
+
     @staticmethod
     def format_name_variants(variants: Any) -> str:
         """
         Format name variants for display.
-        
+
         :param variants: List of variant dictionaries with 'original' and 'modern_english' keys
         :return: Formatted string with variants
         """
@@ -120,12 +120,12 @@ class BaseConverter(ABC):
                 else:
                     formatted.append(original)
         return "; ".join([f for f in formatted if f])
-    
+
     @staticmethod
     def format_associations(assocs: Any, as_list: bool = False) -> Any:
         """
         Format associations for display.
-        
+
         :param assocs: List of association dictionaries
         :param as_list: If True, return list of strings; if False, return joined string
         :return: Formatted associations as string or list
@@ -137,7 +137,9 @@ class BaseConverter(ABC):
             if not isinstance(assoc, dict):
                 continue
             target_type = assoc.get("target_type")
-            label = assoc.get("target_label_modern_english") or assoc.get("target_label_original")
+            label = assoc.get("target_label_modern_english") or assoc.get(
+                "target_label_original"
+            )
             relationship = assoc.get("relationship")
             parts = [part for part in [target_type, label] if part]
             base = " - ".join(parts) if parts else ""
@@ -146,7 +148,7 @@ class BaseConverter(ABC):
             if base:
                 formatted.append(base)
         return formatted if as_list else "; ".join(formatted)
-    
+
     @staticmethod
     def _normalize_entries(entries: list[Any]) -> list[Any]:
         """Guard against a None list and filter out null elements."""
@@ -155,9 +157,7 @@ class BaseConverter(ABC):
         return [e for e in entries if e is not None]
 
     @staticmethod
-    def _extract_period(
-        entry: dict[str, Any], key: str = "period"
-    ) -> tuple:
+    def _extract_period(entry: dict[str, Any], key: str = "period") -> tuple:
         """Return (start_year, end_year, notation) from a nested period dict."""
         period = entry.get(key, {})
         if not isinstance(period, dict):
@@ -200,8 +200,7 @@ class BaseConverter(ABC):
         if not officials:
             return ""
         return "; ".join(
-            f"{o.get('position', '')}: {o.get('signature', '')}"
-            for o in officials
+            f"{o.get('position', '')}: {o.get('signature', '')}" for o in officials
         )
 
     @staticmethod
@@ -217,23 +216,20 @@ class BaseConverter(ABC):
                     return f"{val} {unit}"
         return ""
 
-    def get_converter(
-        self,
-        converters: dict[str, Callable]
-    ) -> Callable | None:
+    def get_converter(self, converters: dict[str, Callable]) -> Callable | None:
         """
         Get the appropriate converter function for the current schema.
-        
+
         :param converters: Dictionary mapping schema names to converter functions
         :return: Converter function or None if not found
         """
         return converters.get(self.schema_name.lower())
-    
+
     @abstractmethod
     def convert(self, json_file: Path, output_file: Path) -> None:
         """
         Convert JSON data to the target format.
-        
+
         :param json_file: Input JSON file path
         :param output_file: Output file path
         """

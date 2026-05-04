@@ -40,12 +40,8 @@ ZIP_PATH = Path(
 GT_OUTPUT_DIR = SCRIPT_DIR / "test_data" / "ground_truth"
 
 RA_FILE_MAP: Dict[str, Tuple[str, str, int]] = {
-    "address_book_2500_edited_fertig.txt": (
-        "address_books", "address_books", 2500
-    ),
-    "address_book_5000_edited_fertig.txt": (
-        "address_books", "address_books", 5000
-    ),
+    "address_book_2500_edited_fertig.txt": ("address_books", "address_books", 2500),
+    "address_book_5000_edited_fertig.txt": ("address_books", "address_books", 5000),
     "bibliography_2500_edited_fertig.txt": (
         "bibliography",
         "Whitaker_1913_English_Cookery_Books_to_the_Year_1850",
@@ -57,23 +53,27 @@ RA_FILE_MAP: Dict[str, Tuple[str, str, int]] = {
         5000,
     ),
     "antonio_franco_2500_edited_fertig.txt": (
-        "military_records", "Antonio Franco", 2500
+        "military_records",
+        "Antonio Franco",
+        2500,
     ),
     "antonio_franco_5000_edited_fertig.txt": (
-        "military_records", "Antonio Franco", 5000
+        "military_records",
+        "Antonio Franco",
+        5000,
     ),
     "carlos_schmidt_2500_edited_fertig.txt": (
-        "military_records", "Carlos Schimidt", 2500
+        "military_records",
+        "Carlos Schimidt",
+        2500,
     ),
     "carlos_schmidt_5000_edited_fertig.txt": (
-        "military_records", "Carlos Schimidt", 5000
+        "military_records",
+        "Carlos Schimidt",
+        5000,
     ),
-    "elza_elias_2500_edited_fertig.txt": (
-        "military_records", "Elza Elias", 2500
-    ),
-    "elza_elias_5000_edited_fertig.txt": (
-        "military_records", "Elza Elias", 5000
-    ),
+    "elza_elias_2500_edited_fertig.txt": ("military_records", "Elza Elias", 2500),
+    "elza_elias_5000_edited_fertig.txt": ("military_records", "Elza Elias", 5000),
 }
 
 
@@ -95,7 +95,7 @@ def repair_json(text: str) -> str:
     # "key": "null,  ->  "key": null,
     text = re.sub(
         r'("[\w.]+"\s*:\s*)"(null|true|false)([,\s}\]])',
-        r'\1\2\3',
+        r"\1\2\3",
         text,
     )
 
@@ -115,10 +115,10 @@ def repair_json(text: str) -> str:
         return f'{key_part}"{value_part}",\n'
 
     text = re.sub(
-        r'("[\w.]+"\s*:\s*")'          # "key": "
-        r'([^"\n]{3,})'                 # value without closing quote (3+ chars)
-        r'\s*\n'                        # newline (string not closed)
-        r'(?=\s*"[\w.]+"\s*:)',         # lookahead: next line has "key":
+        r'("[\w.]+"\s*:\s*")'  # "key": "
+        r'([^"\n]{3,})'  # value without closing quote (3+ chars)
+        r"\s*\n"  # newline (string not closed)
+        r'(?=\s*"[\w.]+"\s*:)',  # lookahead: next line has "key":
         fix_unterminated_string,
         text,
     )
@@ -127,9 +127,9 @@ def repair_json(text: str) -> str:
     # "name": "T.C,  ->  "name": "T.C.",
     # Detect: "key": "value<no-closing-quote><comma-or-newline>
     text = re.sub(
-        r'("[\w.]+"\s*:\s*")'          # "key": "
-        r'([^"\n]{1,50}?)'             # short value without quote
-        r'(?=\n\s*"[\w.]+"\s*:)',       # followed by next property (no comma)
+        r'("[\w.]+"\s*:\s*")'  # "key": "
+        r'([^"\n]{1,50}?)'  # short value without quote
+        r'(?=\n\s*"[\w.]+"\s*:)',  # followed by next property (no comma)
         lambda m: f'{m.group(1)}{m.group(2).rstrip()}",',
         text,
     )
@@ -154,8 +154,8 @@ def repair_json(text: str) -> str:
 
     text = re.sub(
         r'("[\w.]+"\s*:\s*)'
-        r'([A-Za-z\u00C0-\u024F*][^\n\r]*?)'
-        r'(\s*[,}\]\n])',
+        r"([A-Za-z\u00C0-\u024F*][^\n\r]*?)"
+        r"(\s*[,}\]\n])",
         quote_unquoted,
         text,
     )
@@ -165,7 +165,7 @@ def repair_json(text: str) -> str:
     # Handles: null\n"key", "value"\n"key", true\n"key", 123\n"key"
     text = re.sub(
         r'((?:null|true|false|\d+|"[^"]*"))\s*\n(\s*"[\w.]+"\s*:)',
-        r'\1,\n\2',
+        r"\1,\n\2",
         text,
     )
 
@@ -175,8 +175,8 @@ def repair_json(text: str) -> str:
     # not properly closed before the next entry starts.
     text = re.sub(
         r'("[\w.]+"\s*:\s*(?:null|true|false|\d+|"[^"]*"))\s*\n'
-        r'(\s{2,4})\{',
-        r'\1\n\2},\n\2{',
+        r"(\s{2,4})\{",
+        r"\1\n\2},\n\2{",
         text,
     )
 
@@ -309,27 +309,23 @@ def main() -> int:
     total_files = 0
     total_errors = 0
 
-    for ra_filename, (category, source_name, chunk_size) in sorted(
-        RA_FILE_MAP.items()
-    ):
+    for ra_filename, (category, source_name, chunk_size) in sorted(RA_FILE_MAP.items()):
         if ra_filename not in z.namelist():
             print(f"[WARN] File not found in zip: {ra_filename}")
             continue
 
         content = z.read(ra_filename).decode("utf-8")
         print(f"\n[INFO] Processing: {ra_filename}")
-        print(f"  Category: {category}, Source: {source_name}, Chunk size: {chunk_size}")
-
-        doc = convert_file(
-            ra_filename, content, category, source_name, chunk_size
+        print(
+            f"  Category: {category}, Source: {source_name}, Chunk size: {chunk_size}"
         )
+
+        doc = convert_file(ra_filename, content, category, source_name, chunk_size)
         if doc is None:
             continue
 
         # Check for parse errors
-        has_errors = any(
-            "parse_error" in c.extraction_data for c in doc.chunks
-        )
+        has_errors = any("parse_error" in c.extraction_data for c in doc.chunks)
         if has_errors:
             total_errors += 1
             print(f"  [FAIL] Skipping write due to parse errors")

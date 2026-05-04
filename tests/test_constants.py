@@ -45,7 +45,10 @@ class TestSupportedExtensions:
         assert ".pdf" in SUPPORTED_PDF_EXTENSIONS
 
     def test_visual_extensions_union(self):
-        assert SUPPORTED_VISUAL_EXTENSIONS == SUPPORTED_IMAGE_EXTENSIONS | SUPPORTED_PDF_EXTENSIONS
+        assert (
+            SUPPORTED_VISUAL_EXTENSIONS
+            == SUPPORTED_IMAGE_EXTENSIONS | SUPPORTED_PDF_EXTENSIONS
+        )
 
     def test_png_in_visual(self):
         assert ".png" in SUPPORTED_VISUAL_EXTENSIONS

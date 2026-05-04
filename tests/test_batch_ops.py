@@ -115,9 +115,7 @@ class TestResponseToText:
 @pytest.mark.unit
 class TestNormalizeResponseEntry:
     def test_preserves_plain_string_response(self):
-        result = _normalize_response_entry(
-            {"custom_id": "x", "response": "raw-text"}
-        )
+        result = _normalize_response_entry({"custom_id": "x", "response": "raw-text"})
         assert result["response"] == "raw-text"
         assert result["raw_response"] == "raw-text"
 
@@ -135,9 +133,7 @@ class TestNormalizeResponseEntry:
 class TestResolveFileIdByKeys:
     def test_returns_first_match(self):
         batch = {"output_file_id": "file-abc", "response_file_id": "file-def"}
-        assert (
-            _resolve_file_id_by_keys(batch, OUTPUT_FILE_KEYS) == "file-abc"
-        )
+        assert _resolve_file_id_by_keys(batch, OUTPUT_FILE_KEYS) == "file-abc"
 
     def test_returns_none_for_missing(self):
         assert _resolve_file_id_by_keys({}, OUTPUT_FILE_KEYS) is None
@@ -150,23 +146,21 @@ class TestProcessBatchOutputFile:
         lines = [
             json.dumps({"custom_id": "d-chunk-1", "response": "r1"}),
             json.dumps({"batch_tracking": {"batch_id": "b1", "provider": "openai"}}),
-            json.dumps({"custom_id": "d-chunk-2", "response": "r2", "chunk_range": [1, 10]}),
+            json.dumps(
+                {"custom_id": "d-chunk-2", "response": "r2", "chunk_range": [1, 10]}
+            ),
             "",  # blank line ignored
         ]
         path.write_text("\n".join(lines), encoding="utf-8")
 
         result = process_batch_output_file(path)
         assert len(result["responses"]) == 2
-        assert result["tracking"] == [
-            {"batch_id": "b1", "provider": "openai"}
-        ]
+        assert result["tracking"] == [{"batch_id": "b1", "provider": "openai"}]
 
     def test_handles_malformed_lines(self, tmp_path):
         path = tmp_path / "temp.jsonl"
         path.write_text(
-            "{not json}\n"
-            + json.dumps({"custom_id": "ok", "response": "x"})
-            + "\n",
+            "{not json}\n" + json.dumps({"custom_id": "ok", "response": "x"}) + "\n",
             encoding="utf-8",
         )
         result = process_batch_output_file(path)
@@ -202,9 +196,7 @@ class TestRecoverMissingBatchIds:
         artifact = tmp_path / "doc_batch_submission_debug.json"
         artifact.write_text(json.dumps({"batch_ids": ["b1"]}), encoding="utf-8")
 
-        _recover_missing_batch_ids(
-            temp_file=temp_file, identifier="doc", persist=True
-        )
+        _recover_missing_batch_ids(temp_file=temp_file, identifier="doc", persist=True)
         content = temp_file.read_text(encoding="utf-8").strip()
         assert content, "persist=True must append a tracking record"
         record = json.loads(content)

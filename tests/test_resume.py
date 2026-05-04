@@ -71,7 +71,11 @@ class TestDetectExtractionStatus:
         assert completed == set()
 
     def test_not_started_when_empty_records(self, tmp_path: Path):
-        from modules.extract.resume import FileStatus, detect_extraction_status, _METADATA_KEY
+        from modules.extract.resume import (
+            FileStatus,
+            detect_extraction_status,
+            _METADATA_KEY,
+        )
 
         out = tmp_path / "empty_output.json"
         out.write_text(json.dumps({_METADATA_KEY: {}, "records": []}), encoding="utf-8")
@@ -80,7 +84,11 @@ class TestDetectExtractionStatus:
         assert completed == set()
 
     def test_complete_when_all_chunks_present(self, tmp_path: Path):
-        from modules.extract.resume import FileStatus, detect_extraction_status, _METADATA_KEY
+        from modules.extract.resume import (
+            FileStatus,
+            detect_extraction_status,
+            _METADATA_KEY,
+        )
 
         records = [
             {"custom_id": "file-chunk-1", "response": {}},
@@ -88,20 +96,28 @@ class TestDetectExtractionStatus:
             {"custom_id": "file-chunk-3", "response": {}},
         ]
         out = tmp_path / "complete_output.json"
-        out.write_text(json.dumps({_METADATA_KEY: {}, "records": records}), encoding="utf-8")
+        out.write_text(
+            json.dumps({_METADATA_KEY: {}, "records": records}), encoding="utf-8"
+        )
         status, completed = detect_extraction_status(out, expected_chunks=3)
         assert status == FileStatus.COMPLETE
         assert completed == {1, 2, 3}
 
     def test_partial_when_some_chunks_missing(self, tmp_path: Path):
-        from modules.extract.resume import FileStatus, detect_extraction_status, _METADATA_KEY
+        from modules.extract.resume import (
+            FileStatus,
+            detect_extraction_status,
+            _METADATA_KEY,
+        )
 
         records = [
             {"custom_id": "file-chunk-1", "response": {}},
             {"custom_id": "file-chunk-3", "response": {}},
         ]
         out = tmp_path / "partial_output.json"
-        out.write_text(json.dumps({_METADATA_KEY: {}, "records": records}), encoding="utf-8")
+        out.write_text(
+            json.dumps({_METADATA_KEY: {}, "records": records}), encoding="utf-8"
+        )
         status, completed = detect_extraction_status(out, expected_chunks=3)
         assert status == FileStatus.PARTIAL
         assert completed == {1, 3}
@@ -120,7 +136,11 @@ class TestDetectExtractionStatus:
         assert completed == {1, 2}
 
     def test_complete_with_more_chunks_than_expected(self, tmp_path: Path):
-        from modules.extract.resume import FileStatus, detect_extraction_status, _METADATA_KEY
+        from modules.extract.resume import (
+            FileStatus,
+            detect_extraction_status,
+            _METADATA_KEY,
+        )
 
         records = [
             {"custom_id": "file-chunk-1", "response": {}},
@@ -128,7 +148,9 @@ class TestDetectExtractionStatus:
             {"custom_id": "file-chunk-3", "response": {}},
         ]
         out = tmp_path / "extra_output.json"
-        out.write_text(json.dumps({_METADATA_KEY: {}, "records": records}), encoding="utf-8")
+        out.write_text(
+            json.dumps({_METADATA_KEY: {}, "records": records}), encoding="utf-8"
+        )
         status, completed = detect_extraction_status(out, expected_chunks=2)
         assert status == FileStatus.COMPLETE
         assert completed == {1, 2, 3}
@@ -154,9 +176,7 @@ class TestGetOutputJsonPath:
         input_dir = tmp_path / "input"
         input_dir.mkdir()
         paths_config = {"general": {"input_paths_is_output_path": True}}
-        result = get_output_json_path(
-            input_dir / "myfile.txt", paths_config, {}
-        )
+        result = get_output_json_path(input_dir / "myfile.txt", paths_config, {})
         assert result.name == "myfile_output.json"
         assert str(input_dir) in str(result)
 
@@ -169,7 +189,9 @@ class TestReadExtractionMetadata:
 
         meta = {"schema_name": "Test", "version": 1}
         out = tmp_path / "out.json"
-        out.write_text(json.dumps({_METADATA_KEY: meta, "records": []}), encoding="utf-8")
+        out.write_text(
+            json.dumps({_METADATA_KEY: meta, "records": []}), encoding="utf-8"
+        )
         result = read_extraction_metadata(out)
         assert result == meta
 
@@ -205,19 +227,25 @@ class TestJsonlAdjustmentComplete:
         jsonl_path = tmp_path / "test_line_ranges_adjust_temp.jsonl"
         fingerprint = "abc123"
         with JsonlWriter(jsonl_path, mode="w") as writer:
-            writer.write_record(build_jsonl_header(
-                ranges_fingerprint=fingerprint,
-                total_ranges=1,
-                boundary_type="BibliographicEntries",
-                model_name="gpt-4o",
-                context_window=6,
-            ))
+            writer.write_record(
+                build_jsonl_header(
+                    ranges_fingerprint=fingerprint,
+                    total_ranges=1,
+                    boundary_type="BibliographicEntries",
+                    model_name="gpt-4o",
+                    context_window=6,
+                )
+            )
 
         finalize_jsonl_header(
             jsonl_path,
-            stats={"total_ranges": 1, "ranges_adjusted": 0,
-                   "ranges_deleted": 0, "ranges_kept_original": 1,
-                   "total_llm_calls": 1},
+            stats={
+                "total_ranges": 1,
+                "ranges_adjusted": 0,
+                "ranges_deleted": 0,
+                "ranges_kept_original": 1,
+                "total_llm_calls": 1,
+            },
         )
 
         assert is_jsonl_adjustment_complete(
@@ -240,13 +268,15 @@ class TestJsonlAdjustmentComplete:
 
         jsonl_path = tmp_path / "test_line_ranges_adjust_temp.jsonl"
         with JsonlWriter(jsonl_path, mode="w") as writer:
-            writer.write_record(build_jsonl_header(
-                ranges_fingerprint="abc123",
-                total_ranges=1,
-                boundary_type="BibliographicEntries",
-                model_name="gpt-4o",
-                context_window=6,
-            ))
+            writer.write_record(
+                build_jsonl_header(
+                    ranges_fingerprint="abc123",
+                    total_ranges=1,
+                    boundary_type="BibliographicEntries",
+                    model_name="gpt-4o",
+                    context_window=6,
+                )
+            )
 
         assert not is_jsonl_adjustment_complete(
             lr_file,
@@ -269,19 +299,25 @@ class TestJsonlAdjustmentComplete:
 
         jsonl_path = tmp_path / "test_line_ranges_adjust_temp.jsonl"
         with JsonlWriter(jsonl_path, mode="w") as writer:
-            writer.write_record(build_jsonl_header(
-                ranges_fingerprint="abc123",
-                total_ranges=1,
-                boundary_type="BibliographicEntries",
-                model_name="gpt-4o",
-                context_window=6,
-            ))
+            writer.write_record(
+                build_jsonl_header(
+                    ranges_fingerprint="abc123",
+                    total_ranges=1,
+                    boundary_type="BibliographicEntries",
+                    model_name="gpt-4o",
+                    context_window=6,
+                )
+            )
 
         finalize_jsonl_header(
             jsonl_path,
-            stats={"total_ranges": 1, "ranges_adjusted": 0,
-                   "ranges_deleted": 0, "ranges_kept_original": 1,
-                   "total_llm_calls": 1},
+            stats={
+                "total_ranges": 1,
+                "ranges_adjusted": 0,
+                "ranges_deleted": 0,
+                "ranges_kept_original": 1,
+                "total_llm_calls": 1,
+            },
         )
 
         assert not is_jsonl_adjustment_complete(
@@ -312,11 +348,15 @@ class TestCliResumeFlags:
         from main.cli_args import create_process_parser
 
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--schema", "Test",
-            "--input", "data/",
-            "--resume",
-        ])
+        args = parser.parse_args(
+            [
+                "--schema",
+                "Test",
+                "--input",
+                "data/",
+                "--resume",
+            ]
+        )
         assert args.resume is True
         assert args.force is False
 
@@ -324,11 +364,15 @@ class TestCliResumeFlags:
         from main.cli_args import create_process_parser
 
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--schema", "Test",
-            "--input", "data/",
-            "--force",
-        ])
+        args = parser.parse_args(
+            [
+                "--schema",
+                "Test",
+                "--input",
+                "data/",
+                "--force",
+            ]
+        )
         assert args.force is True
         assert args.resume is False
 
@@ -336,12 +380,16 @@ class TestCliResumeFlags:
         from main.cli_args import create_process_parser
 
         parser = create_process_parser()
-        args = parser.parse_args([
-            "--schema", "Test",
-            "--input", "data/",
-            "--resume",
-            "--force",
-        ])
+        args = parser.parse_args(
+            [
+                "--schema",
+                "Test",
+                "--input",
+                "data/",
+                "--resume",
+                "--force",
+            ]
+        )
         assert args.resume is True
         assert args.force is True
 
@@ -349,20 +397,28 @@ class TestCliResumeFlags:
         from main.cli_args import create_adjust_ranges_parser
 
         parser = create_adjust_ranges_parser()
-        args = parser.parse_args([
-            "--schema", "Test",
-            "--input", "data/",
-            "--resume",
-        ])
+        args = parser.parse_args(
+            [
+                "--schema",
+                "Test",
+                "--input",
+                "data/",
+                "--resume",
+            ]
+        )
         assert args.resume is True
 
     def test_adjust_ranges_parser_has_force_flag(self):
         from main.cli_args import create_adjust_ranges_parser
 
         parser = create_adjust_ranges_parser()
-        args = parser.parse_args([
-            "--schema", "Test",
-            "--input", "data/",
-            "--force",
-        ])
+        args = parser.parse_args(
+            [
+                "--schema",
+                "Test",
+                "--input",
+                "data/",
+                "--force",
+            ]
+        )
         assert args.force is True

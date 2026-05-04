@@ -90,22 +90,22 @@ def _compute_reasoning_budget(max_tokens: int, effort: str) -> int:
         Token budget for reasoning, or 0 to skip
     """
     effort_lower = effort.lower().strip()
-    
+
     # Effort to budget ratio mapping
     # low: minimal reasoning overhead
     # medium: balanced
     # high: maximum reasoning depth
     ratios = {
-        "low": 0.1,      # 10% of output budget for reasoning
-        "medium": 0.25,  # 25% of output budget for reasoning  
-        "high": 0.5,     # 50% of output budget for reasoning
-        "none": 0.0,     # Disable reasoning
+        "low": 0.1,  # 10% of output budget for reasoning
+        "medium": 0.25,  # 25% of output budget for reasoning
+        "high": 0.5,  # 50% of output budget for reasoning
+        "none": 0.0,  # Disable reasoning
     }
-    
+
     ratio = ratios.get(effort_lower, 0.25)  # Default to medium
     if ratio <= 0:
         return 0
-    
+
     # Compute budget with reasonable bounds
     budget = int(max_tokens * ratio)
     # Minimum 1024 tokens for meaningful reasoning, max 32768
@@ -133,14 +133,14 @@ def _build_reasoning_payload(
     """
     if not reasoning_config:
         return None
-    
+
     m = model_name.lower().strip()
     reasoning_payload: dict[str, Any] = {}
-    
+
     effort = reasoning_config.get("effort")
     if effort:
         reasoning_payload["effort"] = str(effort)
-    
+
     # Handle explicit max_tokens override
     max_reasoning_tokens = reasoning_config.get("max_tokens")
     if max_reasoning_tokens is not None:
@@ -148,12 +148,12 @@ def _build_reasoning_payload(
             reasoning_payload["max_tokens"] = int(max_reasoning_tokens)
         except (ValueError, TypeError):
             pass
-    
+
     # Handle exclude flag
     exclude = reasoning_config.get("exclude")
     if exclude is not None:
         reasoning_payload["exclude"] = bool(exclude)
-    
+
     # Handle enabled flag — auto-enable when effort is set, except "none"
     enabled = reasoning_config.get("enabled")
     if enabled is not None:
@@ -164,32 +164,34 @@ def _build_reasoning_payload(
 
     if not reasoning_payload:
         return None
-    
+
     # Provider-specific translations
-    
+
     # For Anthropic and Gemini thinking models, map effort -> max_tokens budget
-    if ("anthropic/" in m or "claude" in m or "gemini" in m) and "max_tokens" not in reasoning_payload:
+    if (
+        "anthropic/" in m or "claude" in m or "gemini" in m
+    ) and "max_tokens" not in reasoning_payload:
         eff = reasoning_payload.get("effort", "medium")
         budget = _compute_reasoning_budget(max_tokens=max_tokens, effort=str(eff))
         if budget > 0:
             # Remove effort and use max_tokens instead for these providers
             reasoning_payload.pop("effort", None)
             reasoning_payload["max_tokens"] = budget
-    
+
     # For DeepSeek models, map effort to enabled flag
     if "deepseek/" in m or "deepseek" in m:
         eff = str(reasoning_payload.get("effort", "medium")).lower().strip()
         reasoning_payload.pop("effort", None)
         if "enabled" not in reasoning_payload:
             reasoning_payload["enabled"] = eff != "none"
-    
+
     return reasoning_payload if reasoning_payload else None
 
 
 @dataclass
 class ProviderConfig:
     """Configuration for an LLM provider."""
-    
+
     provider: ProviderType
     model: str
     api_key: str | None = None
@@ -202,7 +204,7 @@ class ProviderConfig:
     requests_per_second: float | None = None  # For rate limiting
     reasoning_effort: str | None = None
     extra_params: dict[str, Any] = field(default_factory=dict)
-    
+
     @classmethod
     def from_config(
         cls,
@@ -213,7 +215,7 @@ class ProviderConfig:
         """Create ProviderConfig from model_config dictionary."""
         tm = model_config.get("extraction_model", {})
         model_name = tm.get("name", "")
-        
+
         # Check for explicit provider field in config, then override, then auto-detect
         config_provider = tm.get("provider")
         if provider_override:
@@ -221,15 +223,23 @@ class ProviderConfig:
         elif config_provider:
             # Normalize provider name
             provider = config_provider.lower().strip()
-            if provider not in ("openai", "anthropic", "google", "openrouter", "custom"):
-                logger.warning(f"Unknown provider '{config_provider}', auto-detecting from model name")
+            if provider not in (
+                "openai",
+                "anthropic",
+                "google",
+                "openrouter",
+                "custom",
+            ):
+                logger.warning(
+                    f"Unknown provider '{config_provider}', auto-detecting from model name"
+                )
                 provider = cls._detect_provider(model_name)
         else:
             provider = cls._detect_provider(model_name)
-        
+
         # Get API key based on provider
         api_key = cls._get_api_key(provider)
-        
+
         # Get base URL for OpenRouter or custom endpoints
         base_url = None
         if provider == "openrouter":
@@ -242,29 +252,31 @@ class ProviderConfig:
                     "provider: custom requires custom_endpoint.base_url "
                     "in extraction_model config"
                 )
-        
+
         # Retry authority lives in SynchronousProcessingStrategy's outer loop
         # (429-aware exponential backoff + jitter). LangChain's internal retry
         # is disabled by passing max_retries=0 to avoid double-layered retries.
         if concurrency_config is None:
             concurrency_config = _load_concurrency_config()
-        extraction_cfg = (concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
+        extraction_cfg = (concurrency_config.get("concurrency", {}) or {}).get(
+            "extraction", {}
+        ) or {}
         retry_cfg = extraction_cfg.get("retry", {}) or {}  # consumed by the outer loop
         max_retries = 0
-        
+
         # Get timeout from config
         timeouts_cfg = extraction_cfg.get("timeouts", {}) or {}
         timeout = float(timeouts_cfg.get("total", 600.0))
 
         # Get service_tier from concurrency config
         service_tier = extraction_cfg.get("service_tier")
-        
+
         # Build extra_params including reasoning config
         extra_params = {
             "presence_penalty": float(tm.get("presence_penalty", 0.0)),
             "frequency_penalty": float(tm.get("frequency_penalty", 0.0)),
         }
-        
+
         # Add reasoning config if present
         reasoning_cfg = tm.get("reasoning")
         if reasoning_cfg:
@@ -272,7 +284,7 @@ class ProviderConfig:
             # Extract effort for direct use
             effort = reasoning_cfg.get("effort", "medium")
             extra_params["reasoning_effort"] = effort
-        
+
         # Add text verbosity config if present (GPT-5 family)
         text_cfg = tm.get("text")
         if text_cfg:
@@ -281,7 +293,7 @@ class ProviderConfig:
         # Add service_tier from concurrency config
         if service_tier:
             extra_params["service_tier"] = service_tier
-        
+
         return cls(
             provider=provider,
             model=model_name,
@@ -294,12 +306,12 @@ class ProviderConfig:
             max_retries=max_retries,
             extra_params=extra_params,
         )
-    
+
     @staticmethod
     def _detect_provider(model_name: str) -> ProviderType:
         """
         Detect provider from model name.
-        
+
         Delegates to the canonical detect_provider() in model_capabilities.py,
         but defaults to "openai" for backward compatibility when provider is unknown.
         """
@@ -308,7 +320,7 @@ class ProviderConfig:
         if provider == "unknown":
             return "openai"
         return provider
-    
+
     @staticmethod
     def _get_api_key(provider: ProviderType) -> str | None:
         """Get API key for the specified provider."""
@@ -328,8 +340,7 @@ class ProviderConfig:
                 if key:
                     return key
             logger.warning(
-                f"Custom endpoint API key not found. "
-                f"Set env var: {env_var!r}"
+                f"Custom endpoint API key not found. Set env var: {env_var!r}"
             )
             return None
         env_var = key_mapping.get(provider)
@@ -341,87 +352,92 @@ class ProviderConfig:
 class LangChainLLM:
     """
     Unified LangChain LLM wrapper supporting multiple providers.
-    
+
     Provides a consistent interface for text processing with structured outputs
     regardless of the underlying provider.
-    
+
     Capability Guarding:
     ====================
     LangChain does NOT automatically filter unsupported parameters for different
     models (e.g., temperature for o1/o3 reasoning models). We use LangChain's
     `disabled_params` feature combined with our model_capabilities detection
     to automatically filter out unsupported parameters.
-    
+
     This replaces manual parameter filtering with LangChain's built-in mechanism.
     """
-    
+
     def __init__(self, config: ProviderConfig) -> None:
         self.config = config
         self._chat_model = None
         self._initialized = False
         self._capabilities = None
-    
+
     def _ensure_initialized(self) -> None:
         """Lazily initialize the chat model."""
         if self._initialized:
             return
-        
+
         self._chat_model = self._create_chat_model()
         self._initialized = True
-    
+
     def _get_capabilities(self) -> Any:
         """Get model capabilities using our detection logic."""
         if self._capabilities is None:
             from modules.config.capabilities import detect_capabilities
+
             self._capabilities = detect_capabilities(
                 self.config.model, provider=self.config.provider
             )
         return self._capabilities
-    
+
     def _get_disabled_params(self) -> dict[str, Any] | None:
         """
         Get parameters to disable based on model capabilities.
-        
+
         LangChain's disabled_params feature allows us to specify which parameters
         should NOT be sent to the API. This is used for capability guarding.
-        
+
         For reasoning models (o1, o3, gpt-5):
         - Disable temperature, top_p, presence_penalty, frequency_penalty
-        
+
         For non-structured-output models:
         - Disable response_format
         """
         caps = self._get_capabilities()
         disabled: dict[str, Any] = {}
-        
+
         # Reasoning models don't support sampler controls
         if not caps.supports_sampler_controls:
             disabled["temperature"] = None
             disabled["top_p"] = None
             disabled["presence_penalty"] = None
             disabled["frequency_penalty"] = None
-            logger.debug(f"Model {self.config.model}: Disabled sampler controls (reasoning model)")
-        
+            logger.debug(
+                f"Model {self.config.model}: Disabled sampler controls (reasoning model)"
+            )
+
         # Some models don't support structured outputs via response_format
         if not caps.supports_structured_outputs:
             disabled["response_format"] = None
-            logger.debug(f"Model {self.config.model}: Disabled response_format (not supported)")
-        
+            logger.debug(
+                f"Model {self.config.model}: Disabled response_format (not supported)"
+            )
+
         return disabled if disabled else None
-    
+
     def _create_chat_model(self) -> Any:
         """
         Create the appropriate LangChain chat model based on provider.
-        
+
         Uses disabled_params for capability guarding - LangChain will automatically
         filter out parameters that are incompatible with the model.
         """
         provider = self.config.provider
         caps = self._get_capabilities()
-        
+
         # Get disabled params for capability guarding
         disabled_params = self._get_disabled_params()
-        
+
         # Only include sampler controls if supported by model
         common_params = {}
         if caps.supports_sampler_controls:
@@ -429,16 +445,20 @@ class LangChainLLM:
             common_params["max_tokens"] = self.config.max_tokens
             common_params["top_p"] = self.config.top_p
             if self.config.extra_params.get("presence_penalty"):
-                common_params["presence_penalty"] = self.config.extra_params["presence_penalty"]
+                common_params["presence_penalty"] = self.config.extra_params[
+                    "presence_penalty"
+                ]
             if self.config.extra_params.get("frequency_penalty"):
-                common_params["frequency_penalty"] = self.config.extra_params["frequency_penalty"]
+                common_params["frequency_penalty"] = self.config.extra_params[
+                    "frequency_penalty"
+                ]
         else:
             # For reasoning models, only set max_tokens (required for output budget)
             common_params["max_tokens"] = self.config.max_tokens
-        
+
         if provider == "openai":
             from langchain_openai import ChatOpenAI
-            
+
             params = {
                 "model": self.config.model,
                 "api_key": self.config.api_key,
@@ -446,15 +466,17 @@ class LangChainLLM:
                 "max_retries": self.config.max_retries,
                 **common_params,
             }
-            
+
             # Add disabled_params for capability guarding
             # LangChain will filter these out before sending to API
             if disabled_params:
                 params["disabled_params"] = disabled_params
-            
+
             # Add reasoning effort for reasoning models
             if caps.supports_reasoning_effort:
-                params["reasoning_effort"] = self.config.extra_params.get("reasoning_effort", "medium")
+                params["reasoning_effort"] = self.config.extra_params.get(
+                    "reasoning_effort", "medium"
+                )
 
             # Add service_tier if configured (CM-1)
             service_tier = self.config.extra_params.get("service_tier")
@@ -466,10 +488,12 @@ class LangChainLLM:
             if text_config and str(caps.family).startswith("gpt-5"):
                 verbosity = text_config.get("verbosity")
                 if verbosity:
-                    params.setdefault("model_kwargs", {})["text"] = {"verbosity": verbosity}  # type: ignore[call-overload]
+                    params.setdefault("model_kwargs", {})["text"] = {
+                        "verbosity": verbosity
+                    }  # type: ignore[call-overload]
 
             return ChatOpenAI(**params)
-        
+
         elif provider == "anthropic":
             from langchain_anthropic import ChatAnthropic
 
@@ -482,13 +506,20 @@ class LangChainLLM:
 
             # Add extended thinking for Anthropic when reasoning is configured (CM-4)
             reasoning_config = self.config.extra_params.get("reasoning_config", {})
-            if reasoning_config and reasoning_config.get("effort") and reasoning_config.get("effort") != "none":
+            if (
+                reasoning_config
+                and reasoning_config.get("effort")
+                and reasoning_config.get("effort") != "none"
+            ):
                 effort = reasoning_config.get("effort", "medium")
                 budget = _compute_reasoning_budget(
                     max_tokens=self.config.max_tokens, effort=str(effort)
                 )
                 if budget > 0:
-                    anthropic_params["thinking"] = {"type": "enabled", "budget_tokens": budget}
+                    anthropic_params["thinking"] = {
+                        "type": "enabled",
+                        "budget_tokens": budget,
+                    }
                     anthropic_params["temperature"] = 1.0
                     anthropic_params.pop("top_p", None)
                     # Both betas are required: interleaved-thinking for
@@ -512,7 +543,7 @@ class LangChainLLM:
                 max_retries=self.config.max_retries,
                 **anthropic_params,
             )
-        
+
         elif provider == "google":
             from langchain_google_genai import ChatGoogleGenerativeAI
 
@@ -521,7 +552,11 @@ class LangChainLLM:
             # Add thinking config for Google when reasoning is configured (CM-4)
             # Works for both Gemini and Gemma models via the Gemini API
             reasoning_config = self.config.extra_params.get("reasoning_config", {})
-            if reasoning_config and reasoning_config.get("effort") and reasoning_config.get("effort") != "none":
+            if (
+                reasoning_config
+                and reasoning_config.get("effort")
+                and reasoning_config.get("effort") != "none"
+            ):
                 effort = reasoning_config.get("effort", "medium")
                 budget = _compute_reasoning_budget(
                     max_tokens=self.config.max_tokens, effort=str(effort)
@@ -542,15 +577,15 @@ class LangChainLLM:
                 max_retries=self.config.max_retries,
                 **google_params,
             )
-        
+
         elif provider == "openrouter":
             from langchain_openai import ChatOpenAI
-            
+
             # OpenRouter uses OpenAI-compatible API
             model_name = self.config.model
             if model_name.startswith("openrouter/"):
-                model_name = model_name[len("openrouter/"):]
-            
+                model_name = model_name[len("openrouter/") :]
+
             params = {
                 "model": model_name,
                 "api_key": self.config.api_key,
@@ -559,11 +594,11 @@ class LangChainLLM:
                 "max_retries": self.config.max_retries,
                 **common_params,
             }
-            
+
             # Add disabled_params for capability guarding
             if disabled_params:
                 params["disabled_params"] = disabled_params
-            
+
             # Build extra_body for OpenRouter (reasoning + provider routing)
             extra_body: dict[str, Any] = {}
 
@@ -576,7 +611,9 @@ class LangChainLLM:
                 )
                 if reasoning_payload:
                     extra_body["reasoning"] = reasoning_payload
-                    logger.info(f"Using OpenRouter reasoning={reasoning_payload} for model {model_name}")
+                    logger.info(
+                        f"Using OpenRouter reasoning={reasoning_payload} for model {model_name}"
+                    )
 
             # Force vision-capable provider for models that need it
             if "gemma" in model_name.lower():
@@ -592,7 +629,7 @@ class LangChainLLM:
                 "HTTP-Referer": "https://github.com/ChronoMiner",
                 "X-Title": "ChronoMiner",
             }
-            
+
             return ChatOpenAI(**params)
 
         elif provider == "custom":
@@ -617,19 +654,19 @@ class LangChainLLM:
 
         else:
             raise ValueError(f"Unsupported provider: {provider}")
-    
+
     @property
     def supports_structured_outputs(self) -> bool:
         """
         Check if the provider/model supports structured outputs.
-        
+
         Now delegates to model_capabilities.py for centralized capability detection.
         LangChain does NOT automatically detect this - we handle it via our
         capability system and use disabled_params if needed.
         """
         caps = self._get_capabilities()
         return bool(caps.supports_structured_outputs)
-    
+
     async def ainvoke_with_structured_output(
         self,
         messages: list[dict[str, Any]],
@@ -637,28 +674,34 @@ class LangChainLLM:
     ) -> dict[str, Any]:
         """
         Invoke the model asynchronously with optional structured output.
-        
+
         Args:
             messages: List of message dicts with 'role' and 'content' keys
             json_schema: Optional JSON schema for structured output
-            
+
         Returns:
             Dict with 'output_text', 'response_data', and 'request_metadata'
         """
         self._ensure_initialized()
-        
-        from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
-        
+
+        from langchain_core.messages import (
+            HumanMessage,
+            SystemMessage,
+            AIMessage,
+            BaseMessage,
+        )
+
         # Convert message dicts to LangChain message objects
         lc_messages: list[BaseMessage] = []
         for msg in messages:
             role = msg.get("role", "user")
             content = msg.get("content", "")
-            
+
             # Handle content that might be a list (for multimodal or cache-annotated)
             if isinstance(content, list):
                 has_image = any(
-                    isinstance(item, dict) and item.get("type") in ("image_url", "image")
+                    isinstance(item, dict)
+                    and item.get("type") in ("image_url", "image")
                     for item in content
                 )
                 has_cache_control = any(
@@ -674,7 +717,8 @@ class LangChainLLM:
                                 **{k: v for k, v in item.items() if k != "type"},
                                 "type": "text",
                             }
-                            if isinstance(item, dict) and item.get("type") == "input_text"
+                            if isinstance(item, dict)
+                            and item.get("type") == "input_text"
                             else item
                             for item in content
                         ]
@@ -687,7 +731,7 @@ class LangChainLLM:
                         elif isinstance(item, str):
                             text_parts.append(item)
                     content = "\n".join(text_parts)
-            
+
             if role == "system":
                 lc_messages.append(SystemMessage(content=content))
             elif role == "user":
@@ -696,13 +740,13 @@ class LangChainLLM:
                 lc_messages.append(AIMessage(content=content))
             else:
                 lc_messages.append(HumanMessage(content=content))
-        
+
         chat_model = self._chat_model
         response_data: dict[str, Any] = {}
-        
+
         if chat_model is None:
             raise RuntimeError("Chat model not initialized")
-        
+
         try:
             # Use structured output if schema provided and supported
             if json_schema and self.supports_structured_outputs:
@@ -711,13 +755,10 @@ class LangChainLLM:
                 except Exception as e:
                     provider = getattr(self.config, "provider", None)
                     err_msg = str(e)
-                    anthropic_schema_limit = (
-                        provider == "anthropic"
-                        and (
-                            "Tool schema contains too many conditional branches" in err_msg
-                            or "reduce the use of anyOf constructs" in err_msg
-                            or "anyOf constructs (limit: 8)" in err_msg
-                        )
+                    anthropic_schema_limit = provider == "anthropic" and (
+                        "Tool schema contains too many conditional branches" in err_msg
+                        or "reduce the use of anyOf constructs" in err_msg
+                        or "anyOf constructs (limit: 8)" in err_msg
                     )
                     if anthropic_schema_limit:
                         logger.warning(
@@ -730,7 +771,7 @@ class LangChainLLM:
                         raise
             else:
                 response = await chat_model.ainvoke(lc_messages)
-            
+
             raw_response = response
             parsed_response = None
             parsing_error = None
@@ -748,28 +789,35 @@ class LangChainLLM:
                 else:
                     output_text = json.dumps(parsed_response, ensure_ascii=False)
             else:
-                content = raw_response.content if hasattr(raw_response, 'content') else str(raw_response)
+                content = (
+                    raw_response.content
+                    if hasattr(raw_response, "content")
+                    else str(raw_response)
+                )
                 if isinstance(content, list):
                     content = next(
-                        (item.get('text', '') for item in content
-                         if isinstance(item, dict) and item.get('type') == 'text'),
-                        '',
+                        (
+                            item.get("text", "")
+                            for item in content
+                            if isinstance(item, dict) and item.get("type") == "text"
+                        ),
+                        "",
                     ) or str(content)
                 output_text = content
-            
+
             # Track token usage from provider-specific metadata containers.
             usage_candidates: list[Any] = []
-            usage_metadata = getattr(raw_response, 'usage_metadata', None)
+            usage_metadata = getattr(raw_response, "usage_metadata", None)
             if usage_metadata:
                 usage_candidates.append(usage_metadata)
 
-            response_metadata = getattr(raw_response, 'response_metadata', None)
+            response_metadata = getattr(raw_response, "response_metadata", None)
             if isinstance(response_metadata, dict):
-                token_usage = response_metadata.get('token_usage')
+                token_usage = response_metadata.get("token_usage")
                 if token_usage:
                     usage_candidates.append(token_usage)
             elif response_metadata is not None:
-                token_usage = getattr(response_metadata, 'token_usage', None)
+                token_usage = getattr(response_metadata, "token_usage", None)
                 if token_usage:
                     usage_candidates.append(token_usage)
 
@@ -779,13 +827,29 @@ class LangChainLLM:
 
             for usage in usage_candidates:
                 if isinstance(usage, dict):
-                    input_tokens = input_tokens or int(usage.get('input_tokens') or usage.get('prompt_tokens') or 0)
-                    output_tokens = output_tokens or int(usage.get('output_tokens') or usage.get('completion_tokens') or 0)
-                    total_tokens = total_tokens or int(usage.get('total_tokens') or 0)
+                    input_tokens = input_tokens or int(
+                        usage.get("input_tokens") or usage.get("prompt_tokens") or 0
+                    )
+                    output_tokens = output_tokens or int(
+                        usage.get("output_tokens")
+                        or usage.get("completion_tokens")
+                        or 0
+                    )
+                    total_tokens = total_tokens or int(usage.get("total_tokens") or 0)
                 else:
-                    input_tokens = input_tokens or int(getattr(usage, 'input_tokens', 0) or getattr(usage, 'prompt_tokens', 0) or 0)
-                    output_tokens = output_tokens or int(getattr(usage, 'output_tokens', 0) or getattr(usage, 'completion_tokens', 0) or 0)
-                    total_tokens = total_tokens or int(getattr(usage, 'total_tokens', 0) or 0)
+                    input_tokens = input_tokens or int(
+                        getattr(usage, "input_tokens", 0)
+                        or getattr(usage, "prompt_tokens", 0)
+                        or 0
+                    )
+                    output_tokens = output_tokens or int(
+                        getattr(usage, "output_tokens", 0)
+                        or getattr(usage, "completion_tokens", 0)
+                        or 0
+                    )
+                    total_tokens = total_tokens or int(
+                        getattr(usage, "total_tokens", 0) or 0
+                    )
 
             if total_tokens <= 0 and (input_tokens > 0 or output_tokens > 0):
                 total_tokens = input_tokens + output_tokens
@@ -829,8 +893,12 @@ class LangChainLLM:
                     "total_tokens": total_tokens,
                 }
                 if cache_creation_tokens > 0 or cache_read_tokens > 0:
-                    response_data["usage"]["cache_creation_input_tokens"] = cache_creation_tokens
-                    response_data["usage"]["cache_read_input_tokens"] = cache_read_tokens
+                    response_data["usage"]["cache_creation_input_tokens"] = (
+                        cache_creation_tokens
+                    )
+                    response_data["usage"]["cache_read_input_tokens"] = (
+                        cache_read_tokens
+                    )
 
                 # Report to token tracker
                 try:
@@ -843,11 +911,11 @@ class LangChainLLM:
                         )
                 except Exception as e:
                     logger.warning(f"Error reporting token usage: {e}")
-            
+
             # Store response metadata
             response_data["model"] = self.config.model
             response_data["provider"] = self.config.provider
-            
+
             return {
                 "output_text": output_text,
                 "response_data": response_data,
@@ -858,11 +926,11 @@ class LangChainLLM:
                     "model": self.config.model,
                 },
             }
-        
+
         except Exception as e:
             logger.error(f"Error invoking LLM: {e}", exc_info=True)
             raise
-    
+
     async def _invoke_with_schema(
         self,
         messages: list[Any],
@@ -872,23 +940,25 @@ class LangChainLLM:
         if self._chat_model is None:
             raise RuntimeError("Chat model not initialized")
         provider = self.config.provider
-        
+
         # Extract schema definition
         schema_def = json_schema.get("schema", json_schema)
         schema_name = json_schema.get("name", "Response")
-        
+
         if provider == "openai":
             # Use OpenAI's native structured output
             return await self._invoke_openai_structured(messages, json_schema)
-        
+
         elif provider == "anthropic":
             # Anthropic: Use with_structured_output
-            return await self._invoke_anthropic_structured(messages, schema_def, schema_name)
-        
+            return await self._invoke_anthropic_structured(
+                messages, schema_def, schema_name
+            )
+
         elif provider == "google":
             # Google: Use with_structured_output
             return await self._invoke_google_structured(messages, schema_def)
-        
+
         elif provider == "openrouter":
             # Models routed through OpenRouter that lack native json_schema
             # and tool-calling support fall back to plain invocation —
@@ -908,7 +978,7 @@ class LangChainLLM:
 
         # Fallback: regular invoke
         return await self._chat_model.ainvoke(messages)
-    
+
     async def _invoke_openai_structured(
         self,
         messages: list[Any],
@@ -921,7 +991,7 @@ class LangChainLLM:
         schema_def = json_schema.get("schema", json_schema)
         schema_name = json_schema.get("name", "Response")
         strict = json_schema.get("strict", True)
-        
+
         # Use bind with response_format
         structured_model = self._chat_model.bind(
             response_format={
@@ -930,12 +1000,12 @@ class LangChainLLM:
                     "name": schema_name,
                     "schema": schema_def,
                     "strict": strict,
-                }
+                },
             }
         )
-        
+
         return await structured_model.ainvoke(messages)
-    
+
     async def _invoke_anthropic_structured(
         self,
         messages: list[Any],
@@ -963,8 +1033,7 @@ class LangChainLLM:
         # Detect whether extended thinking is enabled on the chat model.
         thinking_cfg = getattr(self._chat_model, "thinking", None)
         thinking_enabled = (
-            isinstance(thinking_cfg, dict)
-            and thinking_cfg.get("type") == "enabled"
+            isinstance(thinking_cfg, dict) and thinking_cfg.get("type") == "enabled"
         )
 
         if thinking_enabled:
@@ -984,7 +1053,7 @@ class LangChainLLM:
 
         result = await structured_model.ainvoke(messages)
         return result
-    
+
     async def _invoke_google_structured(
         self,
         messages: list[Any],
@@ -1001,7 +1070,7 @@ class LangChainLLM:
         )
         result = await structured_model.ainvoke(messages)
         return result
-    
+
     def invoke_with_structured_output(
         self,
         messages: list[dict[str, Any]],
@@ -1014,6 +1083,7 @@ class LangChainLLM:
             loop = None
         if loop and loop.is_running():
             import concurrent.futures
+
             with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
                 future = pool.submit(
                     asyncio.run,
@@ -1026,12 +1096,12 @@ class LangChainLLM:
 class LLMProvider:
     """
     Factory class for creating LLM instances.
-    
+
     Handles provider detection, configuration, and instance caching.
     """
-    
+
     _instances: dict[str, LangChainLLM] = {}
-    
+
     @classmethod
     def get_llm(
         cls,
@@ -1042,13 +1112,13 @@ class LLMProvider:
     ) -> LangChainLLM:
         """
         Get or create an LLM instance.
-        
+
         Args:
             model_config: Model configuration dict (from config loader)
             provider: Override provider type
             model: Override model name
             **kwargs: Additional config parameters
-            
+
         Returns:
             LangChainLLM instance
         """
@@ -1058,17 +1128,17 @@ class LLMProvider:
         else:
             if not model:
                 raise ValueError("Either model_config or model must be provided")
-            
+
             detected_provider = provider or ProviderConfig._detect_provider(model)
             api_key = ProviderConfig._get_api_key(detected_provider)
-            
+
             config = ProviderConfig(
                 provider=detected_provider,
                 model=model,
                 api_key=api_key,
                 **kwargs,
             )
-        
+
         cache_key = (
             f"{config.provider}:{config.model}"
             f":{config.temperature}:{config.max_tokens}"
@@ -1079,7 +1149,7 @@ class LLMProvider:
             cls._instances[cache_key] = LangChainLLM(config)
 
         return cls._instances[cache_key]
-    
+
     @classmethod
     def clear_cache(cls) -> None:
         """Clear all cached LLM instances."""

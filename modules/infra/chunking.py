@@ -154,7 +154,7 @@ class ChunkHandler:
         """Split the full text into chunks based on line ranges."""
         chunks: list[str] = []
         for start, end in ranges:
-            chunk: str = "".join(all_lines[start - 1:end])
+            chunk: str = "".join(all_lines[start - 1 : end])
             chunks.append(chunk)
         return chunks
 
@@ -188,8 +188,7 @@ class ChunkHandler:
                     actual_end = initial_end
                     final_ranges.append((actual_start, actual_end))
                     logger.info(
-                        f"Chunk {i + 1} kept as Lines "
-                        f"{actual_start} - {actual_end}\n"
+                        f"Chunk {i + 1} kept as Lines {actual_start} - {actual_end}\n"
                     )
                     break
                 else:
@@ -209,9 +208,7 @@ class ChunkHandler:
                                 f"{actual_start} and {total_lines}."
                             )
                     except ValueError:
-                        logger.error(
-                            "Invalid input. Please enter a valid integer."
-                        )
+                        logger.error("Invalid input. Please enter a valid integer.")
             current_start = actual_end + 1
             i += 1
         return final_ranges
@@ -297,8 +294,7 @@ def apply_chunk_slice(
         n = chunk_slice.first_n
         if n >= total:
             logger.warning(
-                "Requested first %d chunks/pages but only %d available; "
-                "processing all",
+                "Requested first %d chunks/pages but only %d available; processing all",
                 n,
                 total,
             )
@@ -309,8 +305,7 @@ def apply_chunk_slice(
         n = chunk_slice.last_n
         if n >= total:
             logger.warning(
-                "Requested last %d chunks/pages but only %d available; "
-                "processing all",
+                "Requested last %d chunks/pages but only %d available; processing all",
                 n,
                 total,
             )

@@ -30,7 +30,7 @@ class PayloadBuilder:
         text_chunk: str,
         dev_message: str,
         model_config: dict[str, Any],
-        schema: dict[str, Any]
+        schema: dict[str, Any],
     ) -> dict[str, Any]:
         """
         Build a complete API request payload.
@@ -42,38 +42,38 @@ class PayloadBuilder:
         :return: Complete request payload
         """
         user_message = f"Input text:\n{text_chunk}"
-        
+
         json_schema_payload = self._build_json_schema_payload(
             dev_message, model_config, schema
         )
-        
+
         model_cfg = model_config.get("extraction_model", {})
         model_name = model_cfg.get("name")
-        
+
         # Detect model capabilities
         caps = detect_capabilities(model_name) if model_name else None
-        
+
         # Build structured format
         fmt = build_structured_text_format(json_schema_payload, self.schema_name, True)
-        
+
         body = {
             "model": model_name,
             "max_output_tokens": model_cfg.get("max_output_tokens", 4096),
             "input": [
                 {
                     "role": "system",
-                    "content": [{"type": "input_text", "text": dev_message}]
+                    "content": [{"type": "input_text", "text": dev_message}],
                 },
                 {
                     "role": "user",
-                    "content": [{"type": "input_text", "text": user_message}]
-                }
-            ]
+                    "content": [{"type": "input_text", "text": user_message}],
+                },
+            ],
         }
-        
+
         if fmt is not None:
             body.setdefault("text", {})["format"] = fmt
-        
+
         # Add sampler controls only for non-reasoning families
         if caps and caps.supports_sampler_controls:
             for k in ("temperature", "top_p"):
@@ -94,10 +94,7 @@ class PayloadBuilder:
         return request_obj
 
     def _build_json_schema_payload(
-        self,
-        dev_message: str,
-        model_config: dict[str, Any],
-        schema: dict[str, Any]
+        self, dev_message: str, model_config: dict[str, Any], schema: dict[str, Any]
     ) -> dict[str, Any]:
         """
         Build JSON schema payload.
@@ -107,8 +104,4 @@ class PayloadBuilder:
         :param schema: JSON schema
         :return: JSON schema payload
         """
-        return {
-            "name": self.schema_name,
-            "schema": schema,
-            "strict": True
-        }
+        return {"name": self.schema_name, "schema": schema, "strict": True}

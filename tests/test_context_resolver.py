@@ -22,6 +22,7 @@ from modules.config.context import (
 # _resolve_context (generic)
 # ---------------------------------------------------------------------------
 
+
 @pytest.mark.unit
 def test_resolve_context_file_specific(tmp_path):
     """File-specific context is found and returned."""
@@ -30,7 +31,9 @@ def test_resolve_context_file_specific(tmp_path):
     ctx = tmp_path / "myfile_extract_context.txt"
     ctx.write_text("file-level ctx", encoding="utf-8")
 
-    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=tmp_path)
+    content, path = _resolve_context(
+        "extract_context", text_file=text_file, context_dir=tmp_path
+    )
     assert content == "file-level ctx"
     assert path == ctx
 
@@ -45,7 +48,9 @@ def test_resolve_context_folder_specific(tmp_path):
     ctx = tmp_path / "archive_extract_context.txt"
     ctx.write_text("folder-level ctx", encoding="utf-8")
 
-    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=tmp_path)
+    content, path = _resolve_context(
+        "extract_context", text_file=text_file, context_dir=tmp_path
+    )
     assert content == "folder-level ctx"
     assert path == ctx
 
@@ -62,7 +67,9 @@ def test_resolve_context_general_fallback(tmp_path):
     text_file.parent.mkdir(parents=True)
     text_file.write_text("body", encoding="utf-8")
 
-    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=context_dir)
+    content, path = _resolve_context(
+        "extract_context", text_file=text_file, context_dir=context_dir
+    )
     assert content == "general ctx"
     assert path == general
 
@@ -80,7 +87,9 @@ def test_resolve_context_file_wins_over_folder(tmp_path):
     folder_ctx = tmp_path / "archive_adjust_context.txt"
     folder_ctx.write_text("folder loses", encoding="utf-8")
 
-    content, path = _resolve_context("adjust_context", text_file=text_file, context_dir=tmp_path)
+    content, path = _resolve_context(
+        "adjust_context", text_file=text_file, context_dir=tmp_path
+    )
     assert content == "file wins"
     assert path == file_ctx
 
@@ -100,7 +109,9 @@ def test_resolve_context_folder_wins_over_general(tmp_path):
     folder_ctx = tmp_path / "archive_extract_context.txt"
     folder_ctx.write_text("folder wins", encoding="utf-8")
 
-    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=context_dir)
+    content, path = _resolve_context(
+        "extract_context", text_file=text_file, context_dir=context_dir
+    )
     assert content == "folder wins"
     assert path == folder_ctx
 
@@ -111,7 +122,9 @@ def test_resolve_context_no_context(tmp_path):
     text_file = tmp_path / "myfile.txt"
     text_file.write_text("body", encoding="utf-8")
 
-    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=tmp_path)
+    content, path = _resolve_context(
+        "extract_context", text_file=text_file, context_dir=tmp_path
+    )
     assert content is None
     assert path is None
 
@@ -124,7 +137,9 @@ def test_resolve_context_no_text_file(tmp_path):
     general = context_dir / "adjust_context.txt"
     general.write_text("fallback only", encoding="utf-8")
 
-    content, path = _resolve_context("adjust_context", text_file=None, context_dir=context_dir)
+    content, path = _resolve_context(
+        "adjust_context", text_file=None, context_dir=context_dir
+    )
     assert content == "fallback only"
     assert path == general
 
@@ -137,7 +152,9 @@ def test_resolve_context_empty_file_skipped(tmp_path):
     empty_ctx = tmp_path / "myfile_extract_context.txt"
     empty_ctx.write_text("", encoding="utf-8")
 
-    content, path = _resolve_context("extract_context", text_file=text_file, context_dir=tmp_path)
+    content, path = _resolve_context(
+        "extract_context", text_file=text_file, context_dir=tmp_path
+    )
     assert content is None
     assert path is None
 
@@ -145,6 +162,7 @@ def test_resolve_context_empty_file_skipped(tmp_path):
 # ---------------------------------------------------------------------------
 # Public helpers
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 def test_resolve_context_for_extraction(tmp_path):
@@ -154,7 +172,9 @@ def test_resolve_context_for_extraction(tmp_path):
     ctx = tmp_path / "data_extract_context.txt"
     ctx.write_text("extraction ctx", encoding="utf-8")
 
-    content, path = resolve_context_for_extraction(text_file=text_file, context_dir=tmp_path)
+    content, path = resolve_context_for_extraction(
+        text_file=text_file, context_dir=tmp_path
+    )
     assert content == "extraction ctx"
     assert path == ctx
 
@@ -167,7 +187,9 @@ def test_resolve_context_for_readjustment(tmp_path):
     ctx = tmp_path / "data_adjust_context.txt"
     ctx.write_text("adjust ctx", encoding="utf-8")
 
-    content, path = resolve_context_for_readjustment(text_file=text_file, context_dir=tmp_path)
+    content, path = resolve_context_for_readjustment(
+        text_file=text_file, context_dir=tmp_path
+    )
     assert content == "adjust ctx"
     assert path == ctx
 
@@ -175,6 +197,7 @@ def test_resolve_context_for_readjustment(tmp_path):
 # ---------------------------------------------------------------------------
 # _read_and_validate_context
 # ---------------------------------------------------------------------------
+
 
 @pytest.mark.unit
 def test_read_and_validate_context_valid(tmp_path):

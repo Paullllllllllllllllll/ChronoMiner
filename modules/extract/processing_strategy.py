@@ -111,7 +111,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         else:
             provider = ProviderConfig._detect_provider(model_name)
         api_key = ProviderConfig._get_api_key(provider)
-        
+
         if not api_key:
             error_msg = f"API key not found for provider {provider}. Set the appropriate environment variable."
             logger.error(error_msg)
@@ -120,7 +120,8 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
 
         skip_indices = completed_chunk_indices or set()
         chunks_to_process = [
-            (idx, chunk) for idx, chunk in enumerate(chunks, 1)
+            (idx, chunk)
+            for idx, chunk in enumerate(chunks, 1)
             if idx not in skip_indices
         ]
         if skip_indices:
@@ -128,21 +129,27 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                 f"[INFO] Resuming: {len(chunks_to_process)} new chunks/pages to process "
                 f"({len(skip_indices)} already done)"
             )
-        console_print(f"[INFO] Starting synchronous processing of {len(chunks_to_process)} chunks/pages...")
+        console_print(
+            f"[INFO] Starting synchronous processing of {len(chunks_to_process)} chunks/pages..."
+        )
         results: list[dict[str, Any]] = []
 
         # Extract concurrency settings
-        extraction_cfg = (
-            (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
-        )
-        retry_cfg = (extraction_cfg.get("retry", {}) or {})
+        extraction_cfg = (self.concurrency_config.get("concurrency", {}) or {}).get(
+            "extraction", {}
+        ) or {}
+        retry_cfg = extraction_cfg.get("retry", {}) or {}
         total_chunks = len(chunks)
         try:
-            configured_limit = int(extraction_cfg.get("concurrency_limit", total_chunks or 1))
+            configured_limit = int(
+                extraction_cfg.get("concurrency_limit", total_chunks or 1)
+            )
         except (ValueError, TypeError):
             configured_limit = total_chunks or 1
         concurrency_limit = max(1, min(configured_limit, total_chunks or 1))
-        delay_between_tasks = float(extraction_cfg.get("delay_between_tasks", 0.0) or 0.0)
+        delay_between_tasks = float(
+            extraction_cfg.get("delay_between_tasks", 0.0) or 0.0
+        )
 
         try:
             retry_attempts = int(retry_cfg.get("attempts", 1))
@@ -187,7 +194,6 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                     if delay_between_tasks > 0:
                         await asyncio.sleep(delay_between_tasks)
                     async with semaphore:
-
                         for attempt in range(retry_attempts):
                             try:
                                 # Route to image or text processing
@@ -215,25 +221,38 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 request_obj = handler.prepare_payload(
                                     chunk, dev_message, model_config, schema
                                 )
-                                request_obj["custom_id"] = f"{file_path.stem}-chunk-{idx}"
+                                request_obj["custom_id"] = (
+                                    f"{file_path.stem}-chunk-{idx}"
+                                )
 
                                 response_obj = {
                                     "custom_id": request_obj["custom_id"],
-                                    "response": {
-                                        "body": result
-                                    }
+                                    "response": {"body": result},
                                 }
                                 tempf.write(json.dumps(response_obj) + "\n")
                                 tempf.flush()
 
-                                console_print(f"[INFO] Processed {unit_label} {idx}/{total_chunks}")
+                                console_print(
+                                    f"[INFO] Processed {unit_label} {idx}/{total_chunks}"
+                                )
                                 return result
                             except Exception as e:  # Intentionally broad: LangChain/API errors are diverse and unpredictable
                                 msg = str(e)
                                 is_429 = "429" in msg or "rate_limit" in msg.lower()
-                                if provider == "anthropic" and is_429 and attempt < (retry_attempts - 1):
-                                    base_wait = min(wait_max_seconds, wait_min_seconds * (2 ** attempt))
-                                    jitter = random.uniform(0.0, jitter_max_seconds) if jitter_max_seconds > 0 else 0.0
+                                if (
+                                    provider == "anthropic"
+                                    and is_429
+                                    and attempt < (retry_attempts - 1)
+                                ):
+                                    base_wait = min(
+                                        wait_max_seconds,
+                                        wait_min_seconds * (2**attempt),
+                                    )
+                                    jitter = (
+                                        random.uniform(0.0, jitter_max_seconds)
+                                        if jitter_max_seconds > 0
+                                        else 0.0
+                                    )
                                     wait_s = min(wait_max_seconds, base_wait + jitter)
                                     logger.warning(
                                         "Rate-limited on chunk/page %s (attempt %s/%s). Waiting %.1fs and retrying.",
@@ -245,26 +264,34 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                     await asyncio.sleep(wait_s)
                                     continue
 
-                                logger.error(f"Error processing {unit_label} {idx}: {e}", exc_info=e)
-                                console_print(f"[ERROR] Failed to process {unit_label} {idx}: {e}")
+                                logger.error(
+                                    f"Error processing {unit_label} {idx}: {e}",
+                                    exc_info=e,
+                                )
+                                console_print(
+                                    f"[ERROR] Failed to process {unit_label} {idx}: {e}"
+                                )
                                 return {"error": str(e)}
                         # If all retries exhausted without returning, return error
-                        return {"error": f"Max retries ({retry_attempts}) exhausted for {unit_label} {idx}"}
+                        return {
+                            "error": f"Max retries ({retry_attempts}) exhausted for {unit_label} {idx}"
+                        }
 
                 # Process chunks (skipping already-completed ones)
                 tasks = [
-                    process_single_chunk(idx, chunk)
-                    for idx, chunk in chunks_to_process
+                    process_single_chunk(idx, chunk) for idx, chunk in chunks_to_process
                 ]
                 results = await asyncio.gather(*tasks, return_exceptions=False)
 
-        console_print(f"[SUCCESS] Completed synchronous processing of {len(chunks_to_process)} chunks/pages")
+        console_print(
+            f"[SUCCESS] Completed synchronous processing of {len(chunks_to_process)} chunks/pages"
+        )
         return results
 
 
 class BatchProcessingStrategy(ProcessingStrategy):
     """Batch (deferred) processing strategy.
-    
+
     Supports multiple providers:
     - OpenAI: Uses OpenAI Batch API with /v1/responses endpoint
     - Anthropic: Uses Anthropic Message Batches API
@@ -322,18 +349,20 @@ class BatchProcessingStrategy(ProcessingStrategy):
             )
             for idx, img in enumerate(image_chunks, 1):
                 custom_id = f"{file_path.stem}-page-{idx}"
-                batch_requests.append(BatchRequest(
-                    custom_id=custom_id,
-                    image_base64=img["base64"],
-                    mime_type=img["mime_type"],
-                    image_detail=img.get("detail"),
-                    order_index=idx,
-                    metadata={
-                        "file_path": str(file_path),
-                        "page_index": idx,
-                        "total_pages": len(image_chunks),
-                    },
-                ))
+                batch_requests.append(
+                    BatchRequest(
+                        custom_id=custom_id,
+                        image_base64=img["base64"],
+                        mime_type=img["mime_type"],
+                        image_detail=img.get("detail"),
+                        order_index=idx,
+                        metadata={
+                            "file_path": str(file_path),
+                            "page_index": idx,
+                            "total_pages": len(image_chunks),
+                        },
+                    )
+                )
         else:
             console_print(
                 f"[INFO] Preparing batch processing for {len(chunks)} "
@@ -341,17 +370,19 @@ class BatchProcessingStrategy(ProcessingStrategy):
             )
             for idx, chunk in enumerate(chunks, 1):
                 custom_id = f"{file_path.stem}-chunk-{idx}"
-                batch_requests.append(BatchRequest(
-                    custom_id=custom_id,
-                    text=chunk,
-                    order_index=idx,
-                    metadata={
-                        "file_path": str(file_path),
-                        "chunk_index": idx,
-                        "total_chunks": len(chunks),
-                    },
-                ))
-        
+                batch_requests.append(
+                    BatchRequest(
+                        custom_id=custom_id,
+                        text=chunk,
+                        order_index=idx,
+                        metadata={
+                            "file_path": str(file_path),
+                            "chunk_index": idx,
+                            "total_chunks": len(chunks),
+                        },
+                    )
+                )
+
         # Get the appropriate batch backend
         try:
             backend = get_batch_backend(provider)
@@ -363,9 +394,9 @@ class BatchProcessingStrategy(ProcessingStrategy):
         schema_name = getattr(handler, "schema_name", None) or "ExtractionSchema"
 
         # Inject service_tier from concurrency_config into model_config for the backend (CM-2)
-        extraction_cfg = (
-            (self.concurrency_config.get("concurrency", {}) or {}).get("extraction", {}) or {}
-        )
+        extraction_cfg = (self.concurrency_config.get("concurrency", {}) or {}).get(
+            "extraction", {}
+        ) or {}
         service_tier = extraction_cfg.get("service_tier")
         effective_model_config = model_config
         if service_tier:
@@ -384,7 +415,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 schema=schema,
                 schema_name=schema_name,
             )
-            
+
             # Write tracking record to temp JSONL file
             tracking_record = {
                 "batch_tracking": {
@@ -395,7 +426,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
                     "metadata": handle.metadata,
                 }
             }
-            
+
             # Also write batch request metadata for result correlation
             with temp_jsonl_path.open("w", encoding="utf-8") as tempf:
                 # Write request metadata lines first
@@ -410,7 +441,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
                     tempf.write(json.dumps(request_meta) + "\n")
                 # Write tracking record at the end
                 tempf.write(json.dumps(tracking_record) + "\n")
-            
+
             console_print(
                 f"[SUCCESS] Batch submitted successfully. Batch ID: {handle.batch_id}"
             )
@@ -419,26 +450,25 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 provider,
                 handle.batch_id,
                 len(batch_requests),
-                temp_jsonl_path
+                temp_jsonl_path,
             )
-            
+
         except Exception as e:  # Intentionally broad: batch backends can raise diverse provider-specific errors
             logger.error(f"Error during batch submission: {e}", exc_info=True)
             console_print(f"[ERROR] Failed to submit batch: {e}")
             raise
-        
+
         console_print(
             f"[SUCCESS] Submitted batch to {provider}. "
             f"Use check_batches.py to monitor progress."
         )
-        
+
         # Return empty list since results will be retrieved later
         return []
 
 
 def create_processing_strategy(
-    use_batch: bool,
-    concurrency_config: dict[str, Any] | None = None
+    use_batch: bool, concurrency_config: dict[str, Any] | None = None
 ) -> ProcessingStrategy:
     """
     Factory function to create appropriate processing strategy.

@@ -17,6 +17,7 @@ from modules.infra.jsonl import (
 # JsonlWriter
 # ---------------------------------------------------------------------------
 
+
 class TestJsonlWriter:
     def test_write_single_record(self, tmp_path: Path) -> None:
         path = tmp_path / "out.jsonl"
@@ -75,6 +76,7 @@ class TestJsonlWriter:
 # read_jsonl_records
 # ---------------------------------------------------------------------------
 
+
 class TestReadJsonlRecords:
     def test_read_valid_file(self, tmp_path: Path) -> None:
         path = tmp_path / "data.jsonl"
@@ -105,6 +107,7 @@ class TestReadJsonlRecords:
 # ---------------------------------------------------------------------------
 # extract_completed_ids
 # ---------------------------------------------------------------------------
+
 
 class TestExtractCompletedIds:
     def test_extract_chunk_ids(self, tmp_path: Path) -> None:

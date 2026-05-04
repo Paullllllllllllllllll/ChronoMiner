@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 # Internal helpers — keep parsing logic DRY across response formats
 # ---------------------------------------------------------------------------
 
+
 def _extract_text_from_api_body(body: Any) -> str:
     """
     Extract the model's text content from a raw API response body.
@@ -47,7 +48,9 @@ def _extract_text_from_api_body(body: Any) -> str:
     if "choices" in body:
         choices = body.get("choices", [])
         if choices:
-            message = choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
+            message = (
+                choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
+            )
             return message.get("content", "")
 
     # Responses API (nested output → message → content → text)
@@ -122,7 +125,7 @@ def _extract_json_from_text(text: str) -> str | None:
             elif ch == "}":
                 depth -= 1
                 if depth == 0:
-                    return text[start:i + 1]
+                    return text[start : i + 1]
 
     return None
 
@@ -215,6 +218,7 @@ def _extract_entries_from_record(record: Any) -> list[Any]:
 # Public API
 # ---------------------------------------------------------------------------
 
+
 def extract_entries_from_json(json_file: Path) -> list[Any]:
     """
     Extract entries from a JSON file, handling various response formats.
@@ -243,7 +247,9 @@ def extract_entries_from_json(json_file: Path) -> list[Any]:
     if isinstance(data, dict):
         # Check if the model indicated no content of requested type
         if data.get("contains_no_content_of_requested_type", False):
-            logger.info(f"Model indicated no content of requested type in {json_file.name}")
+            logger.info(
+                f"Model indicated no content of requested type in {json_file.name}"
+            )
             return []
 
         # Direct entries format
@@ -268,7 +274,11 @@ def extract_entries_from_json(json_file: Path) -> list[Any]:
                             entries.extend(parsed)
                     elif isinstance(resp, dict):
                         # check_batches.py normalises responses with raw_response / body
-                        body = resp.get("raw_response") if "raw_response" in resp else resp.get("body", {})
+                        body = (
+                            resp.get("raw_response")
+                            if "raw_response" in resp
+                            else resp.get("body", {})
+                        )
                         if not isinstance(body, dict):
                             body = {}
                         content = _extract_text_from_api_body(body)

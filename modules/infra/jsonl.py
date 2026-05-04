@@ -119,9 +119,7 @@ def compute_ranges_fingerprint(line_ranges_file: Path) -> str:
     any change to the input ranges (e.g. regeneration with a different
     ``tokens_per_chunk``) produces a different fingerprint.
     """
-    return hashlib.sha256(
-        ensure_path_safe(line_ranges_file).read_bytes()
-    ).hexdigest()
+    return hashlib.sha256(ensure_path_safe(line_ranges_file).read_bytes()).hexdigest()
 
 
 def build_jsonl_header(
@@ -244,9 +242,7 @@ def finalize_jsonl_header(
     try:
         first_record = json.loads(lines[0].strip())
     except json.JSONDecodeError:
-        logger.warning(
-            "Cannot finalize header: first line is not valid JSON: %s", path
-        )
+        logger.warning("Cannot finalize header: first line is not valid JSON: %s", path)
         return
 
     header = first_record.get("jsonl_header")
@@ -341,11 +337,7 @@ def compute_stats_from_jsonl(path: Path) -> dict[str, int]:
         else:
             original = body.get("original_range")
             adj = body.get("adjusted_range")
-            if (
-                original is not None
-                and adj is not None
-                and list(original) != list(adj)
-            ):
+            if original is not None and adj is not None and list(original) != list(adj):
                 adjusted += 1
             else:
                 kept_original += 1

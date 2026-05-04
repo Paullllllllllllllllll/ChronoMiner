@@ -5,7 +5,10 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from main.generate_line_ranges import generate_line_ranges_for_file, write_line_ranges_file
+from main.generate_line_ranges import (
+    generate_line_ranges_for_file,
+    write_line_ranges_file,
+)
 
 
 @pytest.mark.unit
@@ -15,9 +18,13 @@ def test_generate_and_write_line_ranges(tmp_path: Path, monkeypatch):
 
     from modules.infra.chunking import TextProcessor
 
-    monkeypatch.setattr(TextProcessor, "detect_encoding", staticmethod(lambda p: "utf-8"))
+    monkeypatch.setattr(
+        TextProcessor, "detect_encoding", staticmethod(lambda p: "utf-8")
+    )
 
-    ranges = generate_line_ranges_for_file(text_file=text_file, default_tokens_per_chunk=10, model_name="gpt-4o")
+    ranges = generate_line_ranges_for_file(
+        text_file=text_file, default_tokens_per_chunk=10, model_name="gpt-4o"
+    )
     assert ranges
 
     out = write_line_ranges_file(text_file, ranges)
