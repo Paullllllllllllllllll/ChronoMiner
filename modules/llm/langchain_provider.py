@@ -19,8 +19,6 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from pydantic import BaseModel
-
 from modules.config.loader import get_config_loader
 from modules.config.capabilities import detect_provider as _canonical_detect_provider
 from modules.infra.logger import setup_logger
