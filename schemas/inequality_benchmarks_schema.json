@@ -1,0 +1,103 @@
+{
+  "name": "InequalityBenchmarks",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if this page contains no quantitative inequality data (e.g., only prose, abstract, footnotes, bibliography, or index). Set to false if any table or figure with numerical inequality measures (Gini coefficients, top-income or top-wealth shares, price ratios, extraction ratios) is present."
+      },
+      "entries": {
+        "type": "array",
+        "description": "One entry per data row extracted from this page. A single table row that reports one measure for one location and one year produces one entry. If a row spans multiple years (e.g., '1500-1600'), use the midpoint as year. If a row reports values for multiple localities in separate columns, produce one entry per locality column.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "table_id": {
+              "type": ["string", "null"],
+              "description": "Stable identifier for the table this row belongs to. Derive from the most specific visible label on this page: use the table or figure number exactly as printed (e.g., 'Table 2', 'Figure A.3', 'Appendix Table B1'). If no explicit label is visible but a section heading unambiguously identifies the data block, use that heading verbatim. Use null only when no identifying label is visible at all. This field is used by post-processing to group rows from the same multi-page table, so consistency across pages is critical."
+            },
+            "column_headers": {
+              "type": ["array", "null"],
+              "items": {
+                "type": "string"
+              },
+              "description": "The full column header row of the table, copied verbatim in left-to-right order (e.g., ['Year', 'Barcelona', 'Valencia', 'Gini', 'Top 10%']). Include this array only when the header row is physically visible on this page. Set to null for continuation pages where the header row is not reprinted. Do not guess or reconstruct headers from memory; post-processing will propagate headers from the preceding page that shares the same table_id."
+            },
+            "region_or_locality": {
+              "type": "string",
+              "description": "The geographic unit for this observation, as it appears in the source. May be a city ('Barcelona', 'Madrid'), region ('Old Castile', 'Central Spain'), country ('Spain', 'England'), or composite label ('Southern Low Countries', 'England and Wales'). Preserve the source's exact spelling; canonical region mapping is done in post-processing."
+            },
+            "year": {
+              "type": ["integer", "null"],
+              "description": "The observation year as an integer. For year ranges (e.g., '1690-1700'), use the midpoint rounded to the nearest integer (1695). For decade labels (e.g., '1750s'), use the midpoint (1755). For vague labels (e.g., 'mid-18th century'), use the best point estimate and explain in notes. Use null only when no year information is recoverable from the page."
+            },
+            "measure_type": {
+              "type": "string",
+              "enum": [
+                "wealth_gini",
+                "income_gini",
+                "top10_income_share",
+                "top10_wealth_share",
+                "top1_income_share",
+                "top1_wealth_share",
+                "top5_income_share",
+                "top5_wealth_share",
+                "price_ratio",
+                "extraction_ratio",
+                "other"
+              ],
+              "description": "The type of inequality measure. Use 'wealth_gini' for Gini coefficients computed on wealth or tax-assessment distributions; 'income_gini' for Gini coefficients on income distributions; 'top10_income_share' / 'top10_wealth_share' for the share held by the top decile; 'top5_income_share' / 'top5_wealth_share' for the share held by the top 5%; 'top1_income_share' / 'top1_wealth_share' for the share held by the top percentile; 'price_ratio' for the Hoffman et al. real-inequality ratio (ratio of luxury to subsistence prices); 'extraction_ratio' for a Milanovic-style extraction ratio; 'other' for anything not fitting the above categories. When 'other' is used, record the original column header verbatim in measure_detail."
+            },
+            "measure_value": {
+              "type": ["number", "null"],
+              "description": "The numeric value of the measure exactly as printed in the source, without any unit conversion. Gini values may appear on a 0-1 scale (e.g., 0.56) or a 0-100 scale (e.g., 56.0); record the raw printed value and document the scale in measure_detail. Top shares may appear as percentages (e.g., 35.2 meaning 35.2%) or proportions (e.g., 0.352); record the raw printed value. Use null if the cell is blank, contains only a dash, or is illegible."
+            },
+            "measure_detail": {
+              "type": ["string", "null"],
+              "description": "Any qualifications visible in the source that bear on interpretation: the scale of the Gini (state '0-1 scale' or '0-100 scale' if determinable from context), whether the value is an average across localities or a single-year direct observation, whether the source labels it 'estimated' or 'interpolated', the exact column header text if it does not map cleanly to measure_type, or any footnote symbol attached to the cell. Use null if no such detail is present."
+            },
+            "population_scope": {
+              "type": ["string", "null"],
+              "description": "The population covered by this observation, as described in the source: e.g., 'all households', 'taxpayers only', 'urban', 'rural', 'excluding clergy', 'male heads of household'. Use null if no scope qualifier is stated."
+            },
+            "source_table_label": {
+              "type": ["string", "null"],
+              "description": "The full label or caption of the table or figure as printed in the source, including any subtitle (e.g., 'Table 3. Gini coefficients for Barcelona, 1481-1880'). Copy verbatim. Use null if no label or caption is printed on this page."
+            },
+            "page_number": {
+              "type": ["integer", "null"],
+              "description": "The page number printed on this page (the number visible in the header or footer, not the PDF page index). Use null if no page number is visible."
+            },
+            "notes": {
+              "type": ["string", "null"],
+              "description": "Any additional information needed for correct interpretation: partial illegibility, OCR artifacts, a footnote explaining a specific data point, the source's stated data quality caveats, uncertainty about the year estimate, or the reason for choosing 'other' as measure_type. Use null if none."
+            }
+          },
+          "required": [
+            "table_id",
+            "column_headers",
+            "region_or_locality",
+            "year",
+            "measure_type",
+            "measure_value",
+            "measure_detail",
+            "population_scope",
+            "source_table_label",
+            "page_number",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "contains_no_content_of_requested_type",
+      "entries"
+    ],
+    "additionalProperties": false
+  }
+}
