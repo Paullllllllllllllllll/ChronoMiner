@@ -13,13 +13,17 @@ the evaluation framework. It provides two main operations:
 
 Usage:
     # Extract extractions for editing
-    python eval/prepare_ground_truth.py --extract --input eval/test_data/output/bibliography/gpt_5.1_medium
+    python eval/prepare_ground_truth.py --extract \
+        --input eval/test_data/output/bibliography/gpt_5.1_medium
 
     # Apply corrections back to ground truth
-    python eval/prepare_ground_truth.py --apply --input eval/test_data/output/bibliography/gpt_5.1_medium/source_editable.txt
+    python eval/prepare_ground_truth.py --apply \
+        --input eval/test_data/output/bibliography/gpt_5.1_medium/source_editable.txt
 
     # Specify custom ground truth output directory
-    python eval/prepare_ground_truth.py --apply --input source_editable.txt --output eval/test_data/ground_truth/bibliography
+    python eval/prepare_ground_truth.py --apply \
+        --input source_editable.txt \
+        --output eval/test_data/ground_truth/bibliography
 
     # Show status of ground truth coverage
     python eval/prepare_ground_truth.py --status
@@ -95,7 +99,8 @@ def extract_for_editing(
         jsonl_files.extend(input_path.rglob("*.jsonl"))
     else:
         print_error(
-            f"Input path does not exist or is not a valid JSONL file/directory: {input_path}"
+            "Input path does not exist or is not a valid JSONL "
+            f"file/directory: {input_path}"
         )
         return 1
 
@@ -119,10 +124,7 @@ def extract_for_editing(
             continue
 
         # Determine output path
-        if output_dir:
-            out_dir = output_dir
-        else:
-            out_dir = jsonl_path.parent
+        out_dir = output_dir if output_dir else jsonl_path.parent
 
         out_dir.mkdir(parents=True, exist_ok=True)
         editable_path = out_dir / f"{jsonl_path.stem.replace('_temp', '')}_editable.txt"
@@ -407,19 +409,22 @@ def main() -> int:
         epilog="""
 Examples:
   # Extract extractions for manual editing
-  python eval/prepare_ground_truth.py --extract --input eval/test_data/output/bibliography/gpt_5.1_medium
+  python eval/prepare_ground_truth.py --extract \
+      --input eval/test_data/output/bibliography/gpt_5.1_medium
 
   # Include original chunk text as comments
   python eval/prepare_ground_truth.py --extract --input folder --include-text
 
   # Apply corrections to create ground truth
-  python eval/prepare_ground_truth.py --apply --input eval/test_data/output/bibliography/gpt_5.1_medium
+  python eval/prepare_ground_truth.py --apply \
+      --input eval/test_data/output/bibliography/gpt_5.1_medium
 
   # Dry run to see what would be written
   python eval/prepare_ground_truth.py --apply --input folder_editable.txt --dry-run
 
   # Convert legacy JSON ground truth to JSONL
-  python eval/prepare_ground_truth.py --convert --input eval/test_data/ground_truth/bibliography
+  python eval/prepare_ground_truth.py --convert \
+      --input eval/test_data/ground_truth/bibliography
 
   # Show status of ground truth coverage
   python eval/prepare_ground_truth.py --status

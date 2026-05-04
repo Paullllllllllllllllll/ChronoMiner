@@ -275,7 +275,8 @@ class RepairExtractionsScript(DualModeScript):
             status = "✓ FINAL EXISTS" if final_exists else "⚠ PENDING"
             self.ui.console_print(f"  {idx}. {temp_file.name}")
             self.ui.console_print(
-                f"      Schema: {candidate['schema_name']} | Responses: {responses_count}/{tracking_count} | {status}"
+                f"      Schema: {candidate['schema_name']} | "
+                f"Responses: {responses_count}/{tracking_count} | {status}"
             )
 
         selection = self.ui.get_input(
@@ -414,7 +415,8 @@ class RepairExtractionsScript(DualModeScript):
             for candidate in candidates:
                 status = "FINAL EXISTS" if candidate["has_final"] else "PENDING"
                 print(
-                    f"  - {candidate['temp_file'].name} ({candidate['schema_name']}) - {status}"
+                    f"  - {candidate['temp_file'].name} "
+                    f"({candidate['schema_name']}) - {status}"
                 )
 
         # Confirm unless --force

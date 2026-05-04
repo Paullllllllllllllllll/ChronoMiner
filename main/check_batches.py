@@ -1,8 +1,9 @@
 """
 Script to retrieve and process batch results.
 
-This script scans all schema-specific repositories for temporary batch results, aggregates tracking
-and response records, retrieves missing responses via provider-specific APIs, and writes a final JSON output.
+This script scans all schema-specific repositories for temporary batch results,
+aggregates tracking and response records, retrieves missing responses via
+provider-specific APIs, and writes a final JSON output.
 If enabled in paths_config.yaml, additional .csv, .txt, or .docx outputs are generated.
 
 Supports multiple providers:
@@ -65,10 +66,7 @@ def _group_temp_files_by_base(temp_files: list[Path]) -> dict[str, list[Path]]:
         stem = temp_file.stem
         # Remove _part{n} suffix if present
         base_match = re.match(r"(.+?)(?:_part\d+)?$", stem)
-        if base_match:
-            base_identifier = base_match.group(1)
-        else:
-            base_identifier = stem
+        base_identifier = base_match.group(1) if base_match else stem
 
         if base_identifier not in groups:
             groups[base_identifier] = []
@@ -171,10 +169,12 @@ def process_all_batches(
             if len(temp_file_group) > 1:
                 _safe_subsection(
                     ui,
-                    f"Processing merged file: {base_identifier} ({len(temp_file_group)} parts)",
+                    f"Processing merged file: {base_identifier} "
+                    f"({len(temp_file_group)} parts)",
                 )
                 logger.info(
-                    f"Processing {len(temp_file_group)} split files for base: {base_identifier}"
+                    f"Processing {len(temp_file_group)} split files "
+                    f"for base: {base_identifier}"
                 )
             else:
                 _safe_subsection(ui, f"Processing: {temp_file_group[0].name}")
@@ -210,11 +210,13 @@ def process_all_batches(
             if not tracking:
                 _safe_print(
                     ui,
-                    f"Tracking information missing for {base_identifier}. Skipping final output.",
+                    f"Tracking information missing for {base_identifier}. "
+                    f"Skipping final output.",
                     "warning",
                 )
                 logger.warning(
-                    f"Tracking information missing for {base_identifier}. Skipping final output."
+                    f"Tracking information missing for {base_identifier}. "
+                    f"Skipping final output."
                 )
                 continue
 
@@ -242,13 +244,15 @@ def process_all_batches(
             if not batch_ids:
                 _safe_print(
                     ui,
-                    f"No batch IDs found for {base_identifier}. Unable to finalize this file.",
+                    f"No batch IDs found for {base_identifier}. "
+                    f"Unable to finalize this file.",
                     "warning",
                 )
                 logger.warning("No batch IDs recovered for %s", base_identifier)
                 continue
 
-            # Check batch status and retrieve completed results using provider-agnostic backends
+            # Check batch status and retrieve completed results
+            # using provider-agnostic backends
             all_finished: bool = True
             completed_batches = []
             failed_batches = []
@@ -283,7 +287,8 @@ def process_all_batches(
                     )
                     _safe_print(
                         ui,
-                        f"Batch {batch_id} not found (may have expired or been deleted)",
+                        f"Batch {batch_id} not found "
+                        f"(may have expired or been deleted)",
                         "error",
                     )
                     failed_batches.append((track, f"not found: {exc}"))
@@ -343,13 +348,15 @@ def process_all_batches(
                 if in_progress_count > 0:
                     _safe_print(
                         ui,
-                        f"{in_progress_count} batch(es) still processing. Run this script again once complete.",
+                        f"{in_progress_count} batch(es) still processing. "
+                        f"Run this script again once complete.",
                         "info",
                     )
                 else:
                     _safe_print(
                         ui,
-                        f"Cannot finalize {base_identifier} - some batches failed or expired.",
+                        f"Cannot finalize {base_identifier} - "
+                        f"some batches failed or expired.",
                         "warning",
                     )
                 logger.info(
@@ -416,7 +423,8 @@ def process_all_batches(
             num_batches = len(completed_batches)
             _safe_print(
                 ui,
-                f"✓ Successfully processed {num_responses} chunk(s)/page(s) from {num_batches} batch(es) for '{final_identifier}'",
+                f"✓ Successfully processed {num_responses} chunk(s)/page(s) "
+                f"from {num_batches} batch(es) for '{final_identifier}'",
                 "success",
             )
 
@@ -481,7 +489,8 @@ class CheckBatchesScript(DualModeScript):
 
     def __init__(self) -> None:
         super().__init__("check_batches")
-        # No longer require OPENAI_API_KEY at init - provider backends handle their own keys
+        # No longer require OPENAI_API_KEY at init -
+        # provider backends handle their own keys
         self.repo_info_list: list[tuple[str, Path, dict[str, Any]]] = []
         self.processing_settings: dict[str, Any] = {}
 

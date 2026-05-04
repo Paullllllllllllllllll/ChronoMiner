@@ -407,7 +407,7 @@ class TestCustomProviderRouting:
         import asyncio
 
         schema = {"name": "Test", "schema": {"type": "object"}, "strict": True}
-        result = asyncio.run(llm._invoke_with_schema([], schema))
+        asyncio.run(llm._invoke_with_schema([], schema))
         llm._invoke_openai_structured.assert_awaited_once()
 
 

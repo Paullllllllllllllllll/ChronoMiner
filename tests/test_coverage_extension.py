@@ -330,7 +330,10 @@ class TestBaseConverterHelpers:
     @pytest.mark.unit
     def test_get_converter(self):
         impl = self._make("myschema")
-        fn = lambda x: x
+
+        def fn(x):
+            return x
+
         assert impl.get_converter({"myschema": fn}) is fn
         assert impl.get_converter({}) is None
 
@@ -518,7 +521,8 @@ class TestGetBatchBackend:
 
     @pytest.mark.unit
     def test_none_provider_auto_detects_from_config(self):
-        """When provider=None, factory auto-detects from model config and returns a backend."""
+        """When provider=None, factory auto-detects from model config and returns a
+        backend."""
         from modules.batch.backends.factory import (
             clear_backend_cache,
             get_batch_backend,

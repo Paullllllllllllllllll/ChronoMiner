@@ -89,13 +89,19 @@ class DocumentConverter(BaseConverter):
         converters = {
             "structuredsummaries": self._convert_structured_summaries_to_docx,
             "bibliographicentries": self._convert_bibliographic_entries_to_docx,
-            "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_docx,
-            "brazilianmilitaryrecords": self._convert_brazilianoccupationrecords_to_docx,
+            "historicaladdressbookentries": (
+                self._convert_historicaladdressbookentries_to_docx
+            ),
+            "brazilianmilitaryrecords": (
+                self._convert_brazilianoccupationrecords_to_docx
+            ),
             "culinarypersonsentries": self._convert_culinary_persons_to_docx,
             "culinaryplacesentries": self._convert_culinary_places_to_docx,
             "culinaryworksentries": self._convert_culinary_works_to_docx,
             "culinaryentitiesentries": self._convert_culinary_entities_to_docx,
-            "historicalrecipesentriesproduction": self._convert_historical_recipes_production_to_docx,
+            "historicalrecipesentriesproduction": (
+                self._convert_historical_recipes_production_to_docx
+            ),
             "michelinguides": self._convert_michelin_guides_to_docx,
             "cookbookmetadataentries": self._convert_cookbook_metadata_to_docx,
         }
@@ -124,13 +130,19 @@ class DocumentConverter(BaseConverter):
         converters = {
             "structuredsummaries": self._convert_structured_summaries_to_txt,
             "bibliographicentries": self._convert_bibliographic_entries_to_txt,
-            "historicaladdressbookentries": self._convert_historicaladdressbookentries_to_txt,
-            "brazilianmilitaryrecords": self._convert_brazilianoccupationrecords_to_txt,
+            "historicaladdressbookentries": (
+                self._convert_historicaladdressbookentries_to_txt
+            ),
+            "brazilianmilitaryrecords": (
+                self._convert_brazilianoccupationrecords_to_txt
+            ),
             "culinarypersonsentries": self._convert_culinary_persons_to_txt,
             "culinaryplacesentries": self._convert_culinary_places_to_txt,
             "culinaryworksentries": self._convert_culinary_works_to_txt,
             "culinaryentitiesentries": self._convert_culinary_entities_to_txt,
-            "historicalrecipesentriesproduction": self._convert_historical_recipes_production_to_txt,
+            "historicalrecipesentriesproduction": (
+                self._convert_historical_recipes_production_to_txt
+            ),
             "michelinguides": self._convert_michelin_guides_to_txt,
             "cookbookmetadataentries": self._convert_cookbook_metadata_to_txt,
         }
@@ -156,8 +168,9 @@ class DocumentConverter(BaseConverter):
     ) -> None:
         """
         Converts structured summaries entries to a DOCX document.
-        For each entry, writes the page number in bold (as simple text) followed by bullet-pointed summaries.
-        The keywords are formatted in italic (without asterisks).
+        For each entry, writes the page number in bold (as simple text) followed
+        by bullet-pointed summaries. The keywords are formatted in italic
+        (without asterisks).
         """
         literature_set = set()
         for entry in entries:
@@ -166,7 +179,8 @@ class DocumentConverter(BaseConverter):
             keywords = entry.get("keywords")
             literature = entry.get("literature")
 
-            # Instead of adding a heading, add a paragraph with bold text for the page number.
+            # Instead of adding a heading, add a paragraph with bold text for
+            # the page number.
             p_page = document.add_paragraph()
             run_page = p_page.add_run(
                 f"Page {page}" if page is not None else "Page Unknown"
@@ -254,9 +268,10 @@ class DocumentConverter(BaseConverter):
             document.add_paragraph(
                 f"Pages: {pages if pages is not None else 'Unknown'}"
             )
-            document.add_paragraph(
-                f"Total Editions: {total_editions if total_editions is not None else 'Unknown'}"
+            total_editions_str = (
+                total_editions if total_editions is not None else "Unknown"
             )
+            document.add_paragraph(f"Total Editions: {total_editions_str}")
 
             # Add edition information
             document.add_heading("Edition Information", level=2)
@@ -327,13 +342,17 @@ class DocumentConverter(BaseConverter):
                     edition_category = edition.get("edition_category", "")
 
                     # Format edition text
+                    ed_num = edition_number if edition_number is not None else "Unknown"
+                    ed_year = year if year is not None else "Unknown"
+                    ed_lang = language if language else "Unknown"
+                    ed_cat = edition_category if edition_category else "Unknown"
                     edition_text = (
-                        f"Edition: {edition_number if edition_number is not None else 'Unknown'}, "
-                        f"Year: {year if year is not None else 'Unknown'}, "
+                        f"Edition: {ed_num}, "
+                        f"Year: {ed_year}, "
                         f"Location: {city}, {country}, "
-                        f"Language: {language if language else 'Unknown'}, "
+                        f"Language: {ed_lang}, "
                         f"Contributors: {contributors_str}, "
-                        f"Category: {edition_category if edition_category else 'Unknown'}"
+                        f"Category: {ed_cat}"
                     )
 
                     if short_note:
@@ -479,7 +498,8 @@ class DocumentConverter(BaseConverter):
                 f"  Languages: {self.join_list(profile.get('language_contexts'))}"
             )
             lines.append(
-                f"  Associations: {self.format_associations(profile.get('associations'))}"
+                f"  Associations:"
+                f" {self.format_associations(profile.get('associations'))}"
             )
             lines.append(f"  Notes: {self.safe_str(profile.get('notes'))}")
 
@@ -487,10 +507,12 @@ class DocumentConverter(BaseConverter):
                 lines.append(f"  Gender: {self.safe_str(profile.get('gender'))}")
                 lines.append(f"  Roles: {self.join_list(profile.get('roles'))}")
                 lines.append(
-                    f"  Name Variants: {self.format_name_variants(profile.get('name_variants'))}"
+                    f"  Name Variants:"
+                    f" {self.format_name_variants(profile.get('name_variants'))}"
                 )
                 lines.append(
-                    f"  Biographical Notes: {self.safe_str(profile.get('biographical_notes'))}"
+                    f"  Biographical Notes:"
+                    f" {self.safe_str(profile.get('biographical_notes'))}"
                 )
 
             elif entry_type == "Place":
@@ -498,16 +520,20 @@ class DocumentConverter(BaseConverter):
                     f"  Place Type: {self.safe_str(profile.get('place_type'))}"
                 )
                 lines.append(
-                    f"  Country (Modern): {self.safe_str(profile.get('country_modern'))}"
+                    f"  Country (Modern):"
+                    f" {self.safe_str(profile.get('country_modern'))}"
+                )
+                culinary_roles = self.join_list(
+                    profile.get("roles_in_culinary_ecosystem")
+                )
+                lines.append(f"  Culinary Roles: {culinary_roles}")
+                lines.append(
+                    f"  Associated Products:"
+                    f" {self.join_list(profile.get('associated_products'))}"
                 )
                 lines.append(
-                    f"  Culinary Roles: {self.join_list(profile.get('roles_in_culinary_ecosystem'))}"
-                )
-                lines.append(
-                    f"  Associated Products: {self.join_list(profile.get('associated_products'))}"
-                )
-                lines.append(
-                    f"  Notable Establishments: {self.join_list(profile.get('notable_establishments'))}"
+                    f"  Notable Establishments:"
+                    f" {self.join_list(profile.get('notable_establishments'))}"
                 )
                 lines.append(
                     f"  Place Notes: {self.safe_str(profile.get('place_notes'))}"
@@ -527,7 +553,8 @@ class DocumentConverter(BaseConverter):
                 material = profile.get("material_features", {}) or {}
                 lines.append(f"  Format: {self.safe_str(material.get('format'))}")
                 lines.append(
-                    f"  Has Illustrations: {self.safe_str(material.get('has_illustrations'))}"
+                    f"  Has Illustrations:"
+                    f" {self.safe_str(material.get('has_illustrations'))}"
                 )
                 lines.append(
                     f"  Page Count: {self.safe_str(material.get('page_count'))}"
@@ -551,7 +578,10 @@ class DocumentConverter(BaseConverter):
 
     @staticmethod
     def _addressbook_header(entry: dict) -> str:
-        header = f"{entry.get('last_name', 'Unknown')}, {entry.get('first_name', 'Unknown')} - {entry.get('occupation', 'Unknown')}"
+        last = entry.get("last_name", "Unknown")
+        first = entry.get("first_name", "Unknown")
+        occupation = entry.get("occupation", "Unknown")
+        header = f"{last}, {first} - {occupation}"
         section = entry.get("section")
         if section:
             header += f" (Section: {section})"
@@ -603,7 +633,10 @@ class DocumentConverter(BaseConverter):
 
     @staticmethod
     def _brazilian_header(entry: dict) -> str:
-        return f"{entry.get('surname', '')}, {entry.get('first_name', '')} - {entry.get('profession', '')}"
+        surname = entry.get("surname", "")
+        first = entry.get("first_name", "")
+        profession = entry.get("profession", "")
+        return f"{surname}, {first} - {profession}"
 
     def _convert_brazilianoccupationrecords_to_docx(
         self, entries: list[Any], document: _DocxDocument
@@ -662,9 +695,8 @@ class DocumentConverter(BaseConverter):
                 f"Full Title: {self.safe_str(entry.get('full_title', 'Unknown Title'))}"
             )
             lines.append(f"Short Title: {self.safe_str(entry.get('short_title', ''))}")
-            lines.append(
-                f"Bibliography Number: {self.safe_str(entry.get('bibliography_number', ''))}"
-            )
+            bib_num = self.safe_str(entry.get("bibliography_number", ""))
+            lines.append(f"Bibliography Number: {bib_num}")
 
             authors = entry.get("authors", [])
             if authors is None:
@@ -711,16 +743,20 @@ class DocumentConverter(BaseConverter):
                 ed_roles = edition.get("roles", []) or []
                 ed_roles = [role for role in ed_roles if role is not None]
 
+                ed_num_txt = self.safe_str(edition.get("edition_number", "Unknown"))
+                ed_year_txt = self.safe_str(edition.get("year", "Unknown"))
+                ed_orig = self.safe_str(edition.get("original_language", ""))
+                ed_trans = self.safe_str(edition.get("translated_from", ""))
                 edition_text = (
-                    f"Year: {self.safe_str(edition.get('year', 'Unknown'))}, "
-                    f"Edition: {self.safe_str(edition.get('edition_number', 'Unknown'))}, "
+                    f"Year: {ed_year_txt}, "
+                    f"Edition: {ed_num_txt}, "
                     f"Location: {city}, {country}, "
                     f"Roles: {', '.join(ed_roles)}, "
                     f"Note: {self.safe_str(edition.get('short_note', ''))}, "
                     f"Category: {self.safe_str(edition.get('edition_category', ''))}, "
                     f"Language: {self.safe_str(edition.get('language', ''))}, "
-                    f"Orig Lang: {self.safe_str(edition.get('original_language', ''))}, "
-                    f"Translated From: {self.safe_str(edition.get('translated_from', ''))}"
+                    f"Orig Lang: {ed_orig}, "
+                    f"Translated From: {ed_trans}"
                 )
                 lines.append(f" - {edition_text}")
 

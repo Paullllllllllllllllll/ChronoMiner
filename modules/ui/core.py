@@ -52,7 +52,8 @@ logger = logging.getLogger(__name__)
 
 class UserInterface:
     """
-    Handles all user interaction for ChronoMiner with consistent formatting and navigation.
+    Handles all user interaction for ChronoMiner with consistent formatting
+    and navigation.
 
     Key Features:
     - ASCII-safe characters for Windows compatibility
@@ -81,7 +82,8 @@ class UserInterface:
         """
         Initialize the user interface.
 
-        :param logger: Optional logger instance for detailed logging separate from user output
+        :param logger: Optional logger instance for detailed logging separate
+            from user output
         :param use_colors: Whether to use ANSI color codes (default True with colorama)
         """
         self.logger = logger
@@ -147,7 +149,7 @@ class UserInterface:
         """Display a welcome banner with information about the application."""
         print_header(
             "ChronoMiner - Structured Data Extraction Tool",
-            "Extract structured data from historical documents using advanced AI models",
+            "Extract structured data from historical documents using advanced AI",
         )
 
     def get_input(
@@ -239,7 +241,7 @@ class UserInterface:
                 for name, path in schema_options_with_paths
             ]
         else:
-            schema_options = [(name, name) for name in available_schemas.keys()]
+            schema_options = [(name, name) for name in available_schemas]
 
         selected_schema_name = self.select_option(
             "Select a schema to use for extraction:",
@@ -270,7 +272,7 @@ class UserInterface:
             ),
             (
                 "auto-adjust",
-                "Manual adjustment - Automatic chunking with real-time manual boundary refinement",
+                "Manual adjustment - Automatic chunking with real-time manual boundary",
             ),
             (
                 "line_ranges.txt",
@@ -278,11 +280,11 @@ class UserInterface:
             ),
             (
                 "adjust-line-ranges",
-                "AI-assisted adjustment - Auto-generate line ranges, refine with AI boundary detection, then process",
+                "AI-assisted adjustment - Auto-generate and refine line ranges with AI",
             ),
             (
                 "per-file",
-                "Per-file selection - Choose chunking method for each file individually",
+                "Per-file selection - Choose chunking method for each file",
             ),
         ]
 
@@ -306,7 +308,7 @@ class UserInterface:
             ("sync", "Synchronous - Process in real-time with immediate results"),
             (
                 "batch",
-                "Batch - Submit as batch job (50% cost reduction, results within 24 hours)",
+                "Batch - Submit as batch job (50% cost reduction, 24h turnaround)",
             ),
         ]
 
@@ -455,11 +457,13 @@ class UserInterface:
         input_type: str | None = None,
     ) -> list[Path] | None:
         """
-        Guide user through selecting input source (single file, multiple files, or folder).
+        Guide user through selecting input source (single file, multiple
+        files, or folder).
 
         :param raw_text_dir: Base directory for input files
         :param allow_back: Whether to allow going back to previous step
-        :param input_type: Input type ('text', 'image', 'pdf', 'mixed', or None for text behavior)
+        :param input_type: Input type ('text', 'image', 'pdf', 'mixed', or
+            None for text behavior)
         :return: List of selected file paths or None if back selected
         """
         is_visual = input_type in ("image", "pdf", "mixed")
@@ -510,11 +514,13 @@ class UserInterface:
                         )
                     else:
                         self.print_info(
-                            "Enter the filename to process (with or without .txt extension)"
+                            "Enter the filename to process"
+                            " (with or without .txt extension)"
                         )
                         self.console_print("  - Enter the base text filename")
                         self.console_print(
-                            "  - Or enter the line range filename ending in '_line_ranges.txt'"
+                            "  - Or enter the line range filename"
+                            " ending in '_line_ranges.txt'"
                         )
 
                     file_input = self.get_input(
@@ -594,14 +600,15 @@ class UserInterface:
                                     return files
                                 else:
                                     self.print_error(
-                                        f"Please enter a number between 1 and {len(file_candidates)}."
+                                        "Please enter a number between"
+                                        f" 1 and {len(file_candidates)}."
                                     )
                             except ValueError:
                                 self.print_error(
                                     "Invalid input. Please enter a number."
                                 )
 
-                        # If we broke out of the number selection loop, retry filename input
+                        # Broke out of number selection — retry filename input
                         continue
 
                 # If we broke out of the filename loop, return to mode selection
@@ -613,7 +620,8 @@ class UserInterface:
                 if not all_files:
                     self.print_error(f"No {file_label} found in {raw_text_dir}")
                     self.print_info(
-                        "Please check the directory or go back to select a different option."
+                        "Please check the directory or go back to select a"
+                        " different option."
                     )
                     continue
 
@@ -628,7 +636,8 @@ class UserInterface:
 
                 self.console_print("")  # Empty line for spacing
                 self.print_info(
-                    "Enter file numbers to process (comma-separated, e.g., '1,3,5' or '1-3,5')"
+                    "Enter file numbers to process"
+                    " (comma-separated, e.g., '1,3,5' or '1-3,5')"
                 )
 
                 while True:
@@ -668,7 +677,8 @@ class UserInterface:
 
                         if not selected_indices:
                             self.print_error(
-                                "No files selected. Please enter at least one file number."
+                                "No files selected. Please enter at least one"
+                                " file number."
                             )
                             continue
 
@@ -685,7 +695,8 @@ class UserInterface:
                     except ValueError as e:
                         self.print_error(f"Invalid selection: {e}")
                         self.print_info(
-                            f"Please enter numbers between 1 and {len(all_files)}, comma-separated"
+                            f"Please enter numbers between 1 and"
+                            f" {len(all_files)}, comma-separated"
                         )
 
                 # If we broke out of selection loop, return to mode selection
@@ -697,7 +708,8 @@ class UserInterface:
                 if not files:
                     self.print_error(f"No {file_label} found in {raw_text_dir}")
                     self.print_info(
-                        "Please check the directory or go back to select a different option."
+                        "Please check the directory or go back to select a"
+                        " different option."
                     )
                     continue
 
@@ -718,7 +730,8 @@ class UserInterface:
         existing_output_count: int | None = None,
     ) -> bool:
         """
-        Display a detailed summary of the selected processing options and ask for confirmation.
+        Display a detailed summary of the selected processing options and ask
+        for confirmation.
 
         :param files: List of selected file paths
         :param selected_schema_name: Name of the selected schema
@@ -738,7 +751,8 @@ class UserInterface:
 
         file_type = "file" if len(files) == 1 else "files"
         self.console_print(
-            f"\n  Ready to process {self.BOLD}{len(files)}{self.RESET} text {file_type}\n"
+            f"\n  Ready to process {self.BOLD}{len(files)}{self.RESET}"
+            f" text {file_type}\n"
         )
 
         # === Processing Configuration ===
@@ -754,9 +768,10 @@ class UserInterface:
             "adjust-line-ranges": "AI-assisted line range adjustment",
             "per-file": "Per-file chunking selection",
         }
-        self.console_print(
-            f"    - Chunking method: {chunking_display.get(global_chunking_method or '', 'Per-file selection')}"
+        chunking_label = chunking_display.get(
+            global_chunking_method or "", "Per-file selection"
         )
+        self.console_print(f"    - Chunking method: {chunking_label}")
 
         processing_mode = (
             "Batch (asynchronous)" if use_batch else "Synchronous (real-time)"
@@ -795,9 +810,10 @@ class UserInterface:
             tm = model_config.get("extraction_model", {})
             provider = tm.get("provider", "auto-detect")
             model_name = tm.get("name", "unknown")
-            self.console_print(
-                f"    - Provider: {provider.upper() if provider != 'auto-detect' else 'Auto-detect'}"
+            provider_label = (
+                provider.upper() if provider != "auto-detect" else "Auto-detect"
             )
+            self.console_print(f"    - Provider: {provider_label}")
             self.console_print(f"    - Model: {model_name}")
 
             # Show key model parameters (dimmed)
@@ -815,14 +831,16 @@ class UserInterface:
             reasoning = tm.get("reasoning", {})
             if reasoning.get("effort"):
                 self.console_print(
-                    f"    {self.DIM}- Reasoning effort: {reasoning['effort']}{self.RESET}"
+                    f"    {self.DIM}- Reasoning effort:"
+                    f" {reasoning['effort']}{self.RESET}"
                 )
 
             # Show text verbosity if present (GPT-5 specific)
             text_config = tm.get("text", {})
             if text_config.get("verbosity"):
                 self.console_print(
-                    f"    {self.DIM}- Text verbosity: {text_config['verbosity']}{self.RESET}"
+                    f"    {self.DIM}- Text verbosity:"
+                    f" {text_config['verbosity']}{self.RESET}"
                 )
 
         self.console_print(self.HORIZONTAL_LINE)
@@ -874,8 +892,9 @@ class UserInterface:
         if existing_output_count is not None and existing_output_count > 0:
             self.console_print("")
             self.console_print(
-                f"    {self.WARNING}Warning: {existing_output_count}/{len(files)} output file(s) already exist "
-                f"and will be overwritten.{self.RESET}"
+                f"    {self.WARNING}Warning:"
+                f" {existing_output_count}/{len(files)} output file(s)"
+                f" already exist and will be overwritten.{self.RESET}"
             )
 
         self.console_print("")  # Empty line
@@ -886,14 +905,16 @@ class UserInterface:
         Ask user to select a context mode for extraction.
 
         :param allow_back: Whether to allow going back to the previous step
-        :return: Dict with 'mode' ('auto', 'none', or 'manual') and optional 'path', or None on back
+        :return: Dict with 'mode' ('auto', 'none', or 'manual') and optional
+            'path', or None on back
         """
         self.print_section_header("Context Selection")
 
         context_options = [
             (
                 "auto",
-                "Automatic - Use hierarchical context resolution (file/folder/global fallback)",
+                "Automatic - Use hierarchical context resolution"
+                " (file/folder/global fallback)",
             ),
             ("manual", "Manual - Enter a specific context file path"),
             ("none", "No context - Disable context for this run"),
@@ -1007,10 +1028,12 @@ class UserInterface:
             self.console_print(f"\n  {self.BOLD}Next steps:{self.RESET}")
             self.console_print(self.HORIZONTAL_LINE)
             self.console_print(
-                f"    {self.DIM}- Check batch status: python main/check_batches.py{self.RESET}"
+                f"    {self.DIM}- Check batch status:"
+                f" python main/check_batches.py{self.RESET}"
             )
             self.console_print(
-                f"    {self.DIM}- Cancel pending batches: python main/cancel_batches.py{self.RESET}"
+                f"    {self.DIM}- Cancel pending batches:"
+                f" python main/cancel_batches.py{self.RESET}"
             )
             self.console_print(self.HORIZONTAL_LINE)
 
@@ -1147,6 +1170,5 @@ class UserInterface:
                 result += f": {message}"
             self.print_error(result)
 
-        self.log(
-            f"Batch operation: {operation} on {batch_id} - {'success' if success else 'failure'}"
-        )
+        outcome = "success" if success else "failure"
+        self.log(f"Batch operation: {operation} on {batch_id} - {outcome}")

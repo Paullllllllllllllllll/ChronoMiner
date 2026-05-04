@@ -255,7 +255,8 @@ async def _run_interactive_mode(
         sys.exit(1)
 
     # State machine for navigation
-    # States: schema -> chunking -> batch -> resume -> context -> image_detail -> chunk_slice -> files -> confirm
+    # States: schema -> chunking -> batch -> resume -> context
+    #         -> image_detail -> chunk_slice -> files -> confirm
     current_step = "schema"
     state: dict[str, Any] = {}
     prompt_template = None
@@ -273,7 +274,8 @@ async def _run_interactive_mode(
                 state["selected_schema_name"], schemas_paths, ui
             ):
                 logger.error(
-                    f"Exiting: No path configuration for schema '{state['selected_schema_name']}'"
+                    "Exiting: No path configuration for schema "
+                    f"'{state['selected_schema_name']}'"
                 )
                 sys.exit(1)
 
@@ -332,7 +334,8 @@ async def _run_interactive_mode(
                 [
                     (
                         "resume",
-                        "Skip / resume partial - skip fully processed files, resume partial ones",
+                        "Skip / resume partial - skip fully processed files, "
+                        "resume partial ones",
                     ),
                     (
                         "reprocess",
@@ -425,7 +428,8 @@ async def _run_interactive_mode(
                     "Line range adjustment complete. Proceeding with processing..."
                 )
                 logger.info(
-                    "Line range adjustment complete. Using adjusted line ranges for processing."
+                    "Line range adjustment complete. "
+                    "Using adjusted line ranges for processing."
                 )
                 state["global_chunking_method"] = "line_ranges.txt"
 
@@ -472,7 +476,8 @@ async def _run_interactive_mode(
             f"{stats['tokens_remaining']:,} tokens remaining today"
         )
         ui.print_info(
-            f"Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"Daily token usage: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
 
@@ -485,7 +490,8 @@ async def _run_interactive_mode(
     # Process files
     ui.print_section_header("Starting Processing")
     logger.info(
-        f"Processing {len(state['files'])} file(s) with schema '{state['selected_schema_name']}'."
+        f"Processing {len(state['files'])} file(s) "
+        f"with schema '{state['selected_schema_name']}'."
     )
 
     assert prompt_template is not None, "prompt_template must be set before processing"
@@ -499,15 +505,18 @@ async def _run_interactive_mode(
     if token_limit_enabled and not state["use_batch"]:
         # Sequential processing with token limit checks
         processed_count = 0
-        for index, file_path in enumerate(state["files"], start=1):
+        for processed_count, file_path in enumerate(state["files"], start=1):
             # Check token limit before starting each file
             if not await check_and_wait_for_token_limit(ui):
+                files_done = processed_count - 1
+                total = len(state["files"])
                 logger.info(
-                    f"Processing stopped by user. Processed {processed_count}/{len(state['files'])} files."
+                    f"Processing stopped by user. Processed {files_done}/{total} files."
                 )
                 ui.print_warning(
-                    f"\nProcessing stopped. Completed {processed_count}/{len(state['files'])} files."
+                    f"\nProcessing stopped. Completed {files_done}/{total} files."
                 )
+                processed_count = files_done
                 break
 
             # Process this file
@@ -526,13 +535,12 @@ async def _run_interactive_mode(
                 context_override=state.get("context_override"),
                 image_detail=state.get("image_detail"),
             )
-            processed_count += 1
 
             # Log token usage after each file
             token_tracker = get_token_tracker()
             stats = token_tracker.get_stats()
             logger.info(
-                f"Token usage after file {index}/{len(state['files'])}: "
+                f"Token usage after file {processed_count}/{len(state['files'])}: "
                 f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
                 f"({stats['usage_percentage']:.1f}%)"
             )
@@ -557,7 +565,8 @@ async def _run_interactive_mode(
                     image_detail=state.get("image_detail"),
                 )
             )
-        # CM-11: return_exceptions=True ensures all finally blocks complete on cancellation
+        # CM-11: return_exceptions=True ensures all finally blocks complete
+        # on cancellation
         _gather_results = await asyncio.gather(*tasks, return_exceptions=True)
         for _exc in _gather_results:
             if isinstance(_exc, Exception):
@@ -586,11 +595,13 @@ async def _run_interactive_mode(
         token_tracker = get_token_tracker()
         stats = token_tracker.get_stats()
         logger.info(
-            f"Final token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"Final token usage: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
         ui.print_info(
-            f"Final daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"Final daily token usage: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
 
@@ -666,7 +677,8 @@ async def _run_cli_mode(
         available_schemas = schema_manager.get_available_schemas()
         if args.schema not in available_schemas:
             logger.error(
-                f"Schema '{args.schema}' not found. Available: {list(available_schemas.keys())}"
+                f"Schema '{args.schema}' not found. "
+                f"Available: {list(available_schemas.keys())}"
             )
             print(f"[ERROR] Schema '{args.schema}' not found")
             sys.exit(1)
@@ -748,7 +760,8 @@ async def _run_cli_mode(
     logger.info(f"Found {len(files)} file(s) to process")
     if not args.quiet:
         print(
-            f"[INFO] Processing {len(files)} file(s) with schema '{selected_schema_name}'"
+            f"[INFO] Processing {len(files)} file(s) "
+            f"with schema '{selected_schema_name}'"
         )
 
     # Display initial token usage statistics if enabled
@@ -762,7 +775,8 @@ async def _run_cli_mode(
         )
         if not args.quiet:
             print(
-                f"[INFO] Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+                f"[INFO] Daily token usage: "
+                f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
                 f"({stats['usage_percentage']:.1f}%)"
             )
 
@@ -822,16 +836,20 @@ async def _run_cli_mode(
     if token_limit_enabled and not use_batch:
         # Sequential processing with token limit checks
         processed_count = 0
-        for index, file_path in enumerate(files, start=1):
+        for processed_count, file_path in enumerate(files, start=1):
             # Check token limit before starting each file
             if not await check_and_wait_for_token_limit(ui=None):
+                files_done = processed_count - 1
+                total = len(files)
                 logger.info(
-                    f"Processing stopped by user. Processed {processed_count}/{len(files)} files."
+                    f"Processing stopped by user. Processed {files_done}/{total} files."
                 )
                 if not args.quiet:
                     print(
-                        f"[WARNING] Processing stopped. Completed {processed_count}/{len(files)} files."
+                        f"[WARNING] Processing stopped. "
+                        f"Completed {files_done}/{total} files."
                     )
+                processed_count = files_done
                 break
 
             # Process this file
@@ -850,13 +868,12 @@ async def _run_cli_mode(
                 context_override=context_override,
                 image_detail=getattr(args, "image_detail", None),
             )
-            processed_count += 1
 
             # Log token usage after each file
             token_tracker = get_token_tracker()
             stats = token_tracker.get_stats()
             logger.info(
-                f"Token usage after file {index}/{len(files)}: "
+                f"Token usage after file {processed_count}/{len(files)}: "
                 f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
                 f"({stats['usage_percentage']:.1f}%)"
             )
@@ -881,7 +898,8 @@ async def _run_cli_mode(
                     image_detail=getattr(args, "image_detail", None),
                 )
             )
-        # CM-11: return_exceptions=True ensures all finally blocks complete on cancellation
+        # CM-11: return_exceptions=True ensures all finally blocks complete
+        # on cancellation
         _cli_results = await asyncio.gather(*tasks, return_exceptions=True)
         for _exc in _cli_results:
             if isinstance(_exc, Exception):
@@ -903,18 +921,20 @@ async def _run_cli_mode(
         token_tracker = get_token_tracker()
         stats = token_tracker.get_stats()
         logger.info(
-            f"Final token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"Final token usage: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
         if not args.quiet:
             print(
-                f"[INFO] Final daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+                f"[INFO] Final daily token usage: "
+                f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
                 f"({stats['usage_percentage']:.1f}%)"
             )
 
 
 class ProcessTextFilesScript(AsyncDualModeScript):
-    """Main script for processing text files with schema-based structured data extraction."""
+    """Main script for processing text files with schema-based extraction."""
 
     def __init__(self) -> None:
         super().__init__("process_text_files")

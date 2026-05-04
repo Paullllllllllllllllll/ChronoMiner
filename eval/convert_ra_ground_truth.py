@@ -184,7 +184,6 @@ def repair_json(text: str) -> str:
     # portion contains unescaped quotes that break JSON, escape them.
     lines = text.split("\n")
     for i, line in enumerate(lines):
-        stripped = line.strip()
         # Match "key": "value" lines
         m = re.match(r'^(\s*"[\w.]+"\s*:\s*)"(.+)"(\s*,?\s*)$', line)
         if not m:

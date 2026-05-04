@@ -224,7 +224,7 @@ def prompt_select(
     ui_print(f"\n{question}", PromptStyle.PROMPT)
     print_separator()
 
-    for idx, (value, description) in enumerate(options, 1):
+    for idx, (_value, description) in enumerate(options, 1):
         ui_print(f"  {idx}. {description}")
 
     if show_help:
@@ -371,7 +371,7 @@ def _match_items_by_name(
     matched_indices = set()
     search_lower = search_term.lower()
 
-    for idx, (identifier, description) in enumerate(items):
+    for idx, (_identifier, description) in enumerate(items):
         if search_lower in description.lower():
             matched_indices.add(idx)
 
@@ -400,8 +400,7 @@ def prompt_multiselect(
     ui_print(f"\n{question}", PromptStyle.PROMPT)
     print_separator()
 
-    for idx, (identifier, description) in enumerate(items, 1):
-        # Truncate long descriptions
+    for idx, (_identifier, description) in enumerate(items, 1):
         if len(description) > 75:
             description = description[:72] + "..."
         ui_print(f"  {idx}. {description}")
@@ -453,7 +452,8 @@ def prompt_multiselect(
                 selected_indices.update(matched)
             else:
                 print_error(
-                    f"No items found matching '{choice}'. Use numbers, ranges (e.g., 1-3), 'all', or a filename."
+                    f"No items found matching '{choice}'. "
+                    "Use numbers, ranges (e.g., 1-3), 'all', or a filename."
                 )
                 continue
         else:
@@ -470,7 +470,8 @@ def prompt_multiselect(
                         end_idx = int(end.strip())
                         if not (1 <= start_idx <= end_idx <= len(items)):
                             print_error(
-                                f"Range {part} is invalid. Must be between 1 and {len(items)}."
+                                f"Range {part} is invalid. "
+                                f"Must be between 1 and {len(items)}."
                             )
                             selected_indices.clear()
                             break
@@ -480,14 +481,16 @@ def prompt_multiselect(
                         idx = int(part)
                         if not (1 <= idx <= len(items)):
                             print_error(
-                                f"Selection {part} is out of range. Must be between 1 and {len(items)}."
+                                f"Selection {part} is out of range. "
+                                f"Must be between 1 and {len(items)}."
                             )
                             selected_indices.clear()
                             break
                         selected_indices.add(idx - 1)
             except ValueError:
                 print_error(
-                    f"Invalid input: '{choice}'. Use numbers, ranges (e.g., 1-3), 'all', or a filename."
+                    f"Invalid input: '{choice}'. "
+                    "Use numbers, ranges (e.g., 1-3), 'all', or a filename."
                 )
                 continue
 

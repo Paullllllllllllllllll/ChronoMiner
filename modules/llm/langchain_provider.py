@@ -13,6 +13,7 @@ Supports:
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import os
 from dataclasses import dataclass, field
@@ -143,10 +144,8 @@ def _build_reasoning_payload(
     # Handle explicit max_tokens override
     max_reasoning_tokens = reasoning_config.get("max_tokens")
     if max_reasoning_tokens is not None:
-        try:
+        with contextlib.suppress(ValueError, TypeError):
             reasoning_payload["max_tokens"] = int(max_reasoning_tokens)
-        except (ValueError, TypeError):
-            pass
 
     # Handle exclude flag
     exclude = reasoning_config.get("exclude")
@@ -230,7 +229,8 @@ class ProviderConfig:
                 "custom",
             ):
                 logger.warning(
-                    f"Unknown provider '{config_provider}', auto-detecting from model name"
+                    f"Unknown provider '{config_provider}', "
+                    "auto-detecting from model name"
                 )
                 provider = cls._detect_provider(model_name)
         else:
@@ -260,7 +260,6 @@ class ProviderConfig:
         extraction_cfg = (concurrency_config.get("concurrency", {}) or {}).get(
             "extraction", {}
         ) or {}
-        retry_cfg = extraction_cfg.get("retry", {}) or {}  # consumed by the outer loop
         max_retries = 0
 
         # Get timeout from config
@@ -412,7 +411,8 @@ class LangChainLLM:
             disabled["presence_penalty"] = None
             disabled["frequency_penalty"] = None
             logger.debug(
-                f"Model {self.config.model}: Disabled sampler controls (reasoning model)"
+                f"Model {self.config.model}: Disabled sampler controls "
+                "(reasoning model)"
             )
 
         # Some models don't support structured outputs via response_format
@@ -532,7 +532,8 @@ class LangChainLLM:
                         "structured-outputs-2025-11-13",
                     ]
                     logger.info(
-                        f"Anthropic extended thinking enabled: budget_tokens={budget}, effort={effort}"
+                        f"Anthropic extended thinking enabled: "
+                        f"budget_tokens={budget}, effort={effort}"
                     )
 
             return ChatAnthropic(
@@ -611,7 +612,8 @@ class LangChainLLM:
                 if reasoning_payload:
                     extra_body["reasoning"] = reasoning_payload
                     logger.info(
-                        f"Using OpenRouter reasoning={reasoning_payload} for model {model_name}"
+                        f"Using OpenRouter reasoning={reasoning_payload} "
+                        f"for model {model_name}"
                     )
 
             # Force vision-capable provider for models that need it
@@ -761,7 +763,8 @@ class LangChainLLM:
                     )
                     if anthropic_schema_limit:
                         logger.warning(
-                            "Anthropic structured output schema too complex; falling back to plain invocation: %s",
+                            "Anthropic structured output schema too complex; "
+                            "falling back to plain invocation: %s",
                             err_msg,
                         )
                         response_data["structured_output_fallback"] = True

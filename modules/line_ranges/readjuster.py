@@ -50,23 +50,44 @@ SEMANTIC_BOUNDARY_SCHEMA: dict[str, Any] = {
         "properties": {
             "contains_no_semantic_boundary": {
                 "type": "boolean",
-                "description": "Set to true when the provided text contains NO content of the required semantic type at all. Use this when you are confident no relevant content exists anywhere in the visible context.",
+                "description": (
+                    "Set to true when the provided text contains NO content of the"
+                    " required semantic type at all. Use this when you are confident"
+                    " no relevant content exists anywhere in the visible context."
+                ),
             },
             "needs_more_context": {
                 "type": "boolean",
-                "description": "Set to true when you believe the semantic boundary exists somewhere around the visible text but you need to see more surrounding content to accurately identify it.",
+                "description": (
+                    "Set to true when you believe the semantic boundary exists"
+                    " somewhere around the visible text but you need to see more"
+                    " surrounding content to accurately identify it."
+                ),
             },
             "boundary_already_on_target": {
                 "type": "boolean",
-                "description": "Set to true when the current range start is already positioned at a semantic boundary and no adjustment is needed. Leave semantic_marker empty when this is true.",
+                "description": (
+                    "Set to true when the current range start is already positioned"
+                    " at a semantic boundary and no adjustment is needed. Leave"
+                    " semantic_marker empty when this is true."
+                ),
             },
             "certainty": {
                 "type": "integer",
-                "description": "Your confidence level in this response as an integer from 0-100. Use 0-40 for low confidence, 41-70 for moderate confidence, 71-100 for high confidence. This applies to whatever decision you make (boundary found, no content, or needs more context).",
+                "description": (
+                    "Your confidence level in this response as an integer from 0-100."
+                    " Use 0-40 for low confidence, 41-70 for moderate confidence,"
+                    " 71-100 for high confidence. This applies to whatever decision"
+                    " you make (boundary found, no content, or needs more context)."
+                ),
             },
             "semantic_marker": {
                 "type": "string",
-                "description": "A precise 5-15 character verbatim substring that marks the semantic boundary. Leave empty if contains_no_semantic_boundary or needs_more_context is true.",
+                "description": (
+                    "A precise 5-15 character verbatim substring that marks the"
+                    " semantic boundary. Leave empty if contains_no_semantic_boundary"
+                    " or needs_more_context is true."
+                ),
             },
         },
         "required": [
@@ -144,7 +165,8 @@ class RangeResult:
 
 
 class LineRangeReadjuster:
-    """Adjust `_line_ranges.txt` files so that chunk boundaries align with semantic boundaries."""
+    """Adjust ``_line_ranges.txt`` files so chunk boundaries align with semantic
+    boundaries."""
 
     def __init__(
         self,
@@ -212,7 +234,8 @@ class LineRangeReadjuster:
                 self.max_gap_between_ranges = max(0, int(max_gap_setting))
             except (TypeError, ValueError):
                 logger.warning(
-                    "Invalid max_gap_between_ranges value '%s'; disabling gap enforcement.",
+                    "Invalid max_gap_between_ranges value '%s';"
+                    " disabling gap enforcement.",
                     max_gap_setting,
                 )
                 self.max_gap_between_ranges = None
@@ -269,7 +292,8 @@ class LineRangeReadjuster:
         api_key = ProviderConfig._get_api_key(provider)
         if not api_key:
             raise RuntimeError(
-                f"API key not found for provider {provider}. Set the appropriate environment variable."
+                f"API key not found for provider {provider}."
+                " Set the appropriate environment variable."
             )
 
         # Resolve unified context using hierarchical resolution
@@ -388,7 +412,8 @@ class LineRangeReadjuster:
 
                     if result.should_delete:
                         logger.warning(
-                            "[Range %d] Confirmed no semantic content of type '%s' exists; marking for deletion",
+                            "[Range %d] Confirmed no semantic content of type"
+                            " '%s' exists; marking for deletion",
                             index,
                             boundary_type,
                         )
@@ -397,13 +422,15 @@ class LineRangeReadjuster:
                         adjusted_ranges.append(result.adjusted_range)
                         if result.decision.boundary_already_on_target:
                             logger.info(
-                                "[Range %d] Boundary already on target; kept original %s",
+                                "[Range %d] Boundary already on target;"
+                                " kept original %s",
                                 index,
                                 result.adjusted_range,
                             )
                         elif result.decision.contains_no_semantic_boundary:
                             logger.info(
-                                "[Range %d] No semantic boundary detected in context; kept original %s",
+                                "[Range %d] No semantic boundary detected in"
+                                " context; kept original %s",
                                 index,
                                 result.adjusted_range,
                             )
@@ -516,7 +543,8 @@ class LineRangeReadjuster:
         1. Check certainty first - if below threshold, retry with different window
         2. Route by high-certainty decision:
            - needs_more_context: Expand window progressively
-           - contains_no_semantic_boundary: Verify with broad scan -> delete if confirmed
+           - contains_no_semantic_boundary: Verify with broad scan -> delete if
+             confirmed
            - Success (marker found): Validate and apply
 
         Returns:
@@ -572,7 +600,8 @@ class LineRangeReadjuster:
                     low_certainty_retries += 1
                     if low_certainty_retries <= self.max_low_certainty_retries:
                         logger.info(
-                            "[Range %d, Window %d] Low certainty (%d < %d); retry %d/%d",
+                            "[Range %d, Window %d] Low certainty"
+                            " (%d < %d); retry %d/%d",
                             range_index,
                             window_idx,
                             decision.certainty,
@@ -583,7 +612,8 @@ class LineRangeReadjuster:
                         break  # Move to next window
                     else:
                         logger.warning(
-                            "[Range %d] Certainty remains low after %d retries (best: %d)",
+                            "[Range %d] Certainty remains low after"
+                            " %d retries (best: %d)",
                             range_index,
                             self.max_low_certainty_retries,
                             decision.certainty,
@@ -637,7 +667,8 @@ class LineRangeReadjuster:
                         <= self.max_context_expansion_attempts
                     ):
                         logger.info(
-                            "[Range %d, Window %d] Requests more context (certainty: %d); expansion %d/%d",
+                            "[Range %d, Window %d] Requests more context"
+                            " (certainty: %d); expansion %d/%d",
                             range_index,
                             window_idx,
                             decision.certainty,
@@ -647,7 +678,8 @@ class LineRangeReadjuster:
                         break  # Move to next (larger) window
                     else:
                         logger.warning(
-                            "[Range %d] Max context expansions reached (%d); keeping original range",
+                            "[Range %d] Max context expansions reached (%d);"
+                            " keeping original range",
                             range_index,
                             self.max_context_expansion_attempts,
                         )
@@ -667,7 +699,8 @@ class LineRangeReadjuster:
                         }
                     )
                     logger.info(
-                        "[Range %d, Window %d] High-certainty no-content response (certainty: %d); triggering verification",
+                        "[Range %d, Window %d] High-certainty no-content response"
+                        " (certainty: %d); triggering verification",
                         range_index,
                         window_idx,
                         decision.certainty,
@@ -701,26 +734,30 @@ class LineRangeReadjuster:
                         if reanchored_range:
                             adjusted_range = reanchored_range
                             logger.info(
-                                "[Range %d] Re-anchored to %s using verify-interior marker",
+                                "[Range %d] Re-anchored to %s using"
+                                " verify-interior marker",
                                 range_index,
                                 reanchored_range,
                             )
                         else:
                             logger.info(
-                                "[Range %d] Verification found content but could not resolve marker; keeping range",
+                                "[Range %d] Verification found content but could"
+                                " not resolve marker; keeping range",
                                 range_index,
                             )
                         stop_processing = True
                         break
                     else:
                         logger.info(
-                            "[Range %d] No content detected but deletion disabled; keeping range",
+                            "[Range %d] No content detected but deletion disabled;"
+                            " keeping range",
                             range_index,
                         )
                         stop_processing = True
                         break
 
-                # ROUTE 3: Success -> Marker found with high certainty, validate and apply
+                # ROUTE 3: Success -> Marker found with high certainty, validate and
+                # apply
                 else:
                     candidate_range = self._validate_and_apply_decision(
                         decision=decision,
@@ -741,7 +778,8 @@ class LineRangeReadjuster:
                             }
                         )
                         logger.info(
-                            "[Range %d] Successfully adjusted to %s using marker '%s' (certainty: %d)",
+                            "[Range %d] Successfully adjusted to %s using"
+                            " marker '%s' (certainty: %d)",
                             range_index,
                             adjusted_range,
                             decision.semantic_marker,
@@ -767,7 +805,8 @@ class LineRangeReadjuster:
 
                     if marker_mismatch_retries <= self.max_marker_mismatch_retries:
                         logger.info(
-                            "[Range %d, Window %d] Semantic marker '%s' not matched; retry %d/%d",
+                            "[Range %d, Window %d] Semantic marker '%s'"
+                            " not matched; retry %d/%d",
                             range_index,
                             window_idx,
                             marker_text or "<empty>",
@@ -777,7 +816,8 @@ class LineRangeReadjuster:
                         continue  # Retry same window with additional guidance
 
                     logger.warning(
-                        "[Range %d, Window %d] Semantic marker not matched after %d retries; trying next window",
+                        "[Range %d, Window %d] Semantic marker not matched"
+                        " after %d retries; trying next window",
                         range_index,
                         window_idx,
                         self.max_marker_mismatch_retries,
@@ -805,7 +845,8 @@ class LineRangeReadjuster:
             not stop_processing or exhausted_at_low_certainty
         ) and self.delete_ranges_with_no_content:
             logger.info(
-                "[Range %d] All boundary windows exhausted; running fallback interior verification",
+                "[Range %d] All boundary windows exhausted; running fallback"
+                " interior verification",
                 range_index,
             )
             fb_delete, fb_reanchored, fb_attempts = await self._verify_no_content(
@@ -859,8 +900,9 @@ class LineRangeReadjuster:
         """
         Verify that no semantic content of the required type exists within the range.
 
-        Called after the initial model assessment returned contains_no_semantic_boundary.
-        Scans the range interior to confirm the absence of content before deletion.
+        Called after the initial model assessment returned
+        contains_no_semantic_boundary. Scans the range interior to confirm the
+        absence of content before deletion.
         When content is found with a resolvable marker, returns a re-anchored range
         so the caller can adjust the boundary to where the content actually is.
 
@@ -885,7 +927,8 @@ class LineRangeReadjuster:
             ]
 
         logger.info(
-            "[Range %d] Verifying no content: scanning %d interior window(s) within [%d-%d]",
+            "[Range %d] Verifying no content: scanning %d interior window(s)"
+            " within [%d-%d]",
             range_index,
             len(scan_windows),
             start,
@@ -928,14 +971,16 @@ class LineRangeReadjuster:
                 if matched_line is not None:
                     reanchored = (matched_line, original_range[1])
                     logger.info(
-                        "[Range %d] Interior scan found content at line %d via marker '%s'; re-anchoring",
+                        "[Range %d] Interior scan found content at line %d"
+                        " via marker '%s'; re-anchoring",
                         range_index,
                         matched_line,
                         decision.semantic_marker,
                     )
                 else:
                     logger.info(
-                        "[Range %d] Interior scan found content but marker '%s' could not be resolved; preserving range unchanged",
+                        "[Range %d] Interior scan found content but marker '%s'"
+                        " could not be resolved; preserving range unchanged",
                         range_index,
                         decision.semantic_marker,
                     )
@@ -943,7 +988,8 @@ class LineRangeReadjuster:
 
         # All interior scans confirmed no content — safe to delete
         logger.info(
-            "[Range %d] Verified no recipe content in range interior; confirming deletion",
+            "[Range %d] Verified no recipe content in range interior;"
+            " confirming deletion",
             range_index,
         )
         return True, None, verification_attempts
@@ -981,8 +1027,9 @@ class LineRangeReadjuster:
             if sanitized_failures:
                 bullet_list = "\n".join(f"- {marker}" for marker in sanitized_failures)
                 system_prompt += (
-                    "\n\nThe following semantic markers previously failed to match the source text. "
-                    "Do not reuse any of them. Provide a new 5-15 character substring that excludes these markers:\n"
+                    "\n\nThe following semantic markers previously failed to match"
+                    " the source text. Do not reuse any of them. Provide a new"
+                    " 5-15 character substring that excludes these markers:\n"
                     f"{bullet_list}"
                 )
 
@@ -998,7 +1045,8 @@ class LineRangeReadjuster:
         parsed = self._coerce_json(raw_output)
         if parsed is None:
             logger.warning(
-                "Model response could not be parsed as JSON; treating as unsure. Raw: %s",
+                "Model response could not be parsed as JSON; treating as"
+                " unsure. Raw: %s",
                 raw_output,
             )
             return {
@@ -1118,9 +1166,11 @@ class LineRangeReadjuster:
         search_range: tuple[int, int],
     ) -> list[int]:
         """
-        Collect line numbers where the needle matches, applying configured normalization.
+        Collect line numbers where the needle matches, applying configured
+        normalization.
 
-        Supports both exact line matching and substring matching based on configuration.
+        Supports both exact line matching and substring matching based on
+        configuration.
         """
         start_line, end_line = search_range
         end_line = min(len(raw_lines), max(start_line, end_line))
@@ -1189,7 +1239,8 @@ class LineRangeReadjuster:
             return matches[0]
         if len(matches) > 1:
             logger.debug(
-                "Expected unique semantic boundary for '%s', found multiple candidates at lines %s",
+                "Expected unique semantic boundary for '%s', found multiple"
+                " candidates at lines %s",
                 needle,
                 matches,
             )
@@ -1262,7 +1313,8 @@ class LineRangeReadjuster:
             for idx, (start, end) in enumerate(ranges)
         ]
 
-        # Sort by start (stable on original index) so out-of-order ranges are processed safely.
+        # Sort by start (stable on original index) so out-of-order ranges are
+        # processed safely.
         annotated.sort(key=lambda item: (item["start"], item["original_index"]))
 
         processed: list[dict[str, int]] = []
@@ -1275,7 +1327,8 @@ class LineRangeReadjuster:
 
             if current_start > current_end:
                 logger.warning(
-                    "Range (%d, %d) has end before start; clamping end to %d before overlap removal.",
+                    "Range (%d, %d) has end before start; clamping end to %d"
+                    " before overlap removal.",
                     original_start,
                     original_end,
                     current_start,
@@ -1292,7 +1345,8 @@ class LineRangeReadjuster:
 
                     if trimmed_prev_end < previous["end"]:
                         logger.info(
-                            "Overlap removed: range (%d, %d) trimmed to (%d, %d) to respect next range (%d, %d)",
+                            "Overlap removed: range (%d, %d) trimmed to"
+                            " (%d, %d) to respect next range (%d, %d)",
                             previous["original_start"],
                             previous["original_end"],
                             previous["start"],
@@ -1307,7 +1361,8 @@ class LineRangeReadjuster:
                     current_start = previous["end"] + 1
                     if shift_amount > 0:
                         logger.info(
-                            "Adjusted start of range (%d, %d) forward by %d line(s) after trimming to avoid overlap.",
+                            "Adjusted start of range (%d, %d) forward by %d"
+                            " line(s) after trimming to avoid overlap.",
                             original_start,
                             original_end,
                             shift_amount,
@@ -1315,7 +1370,8 @@ class LineRangeReadjuster:
 
             if current_start > current_end:
                 logger.warning(
-                    "Range (%d, %d) would invert after overlap handling; clamping end to %d.",
+                    "Range (%d, %d) would invert after overlap handling;"
+                    " clamping end to %d.",
                     original_start,
                     original_end,
                     current_start,

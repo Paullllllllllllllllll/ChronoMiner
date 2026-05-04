@@ -257,10 +257,11 @@ class WorkflowUI:
         print_separator()
         if error_count == 0:
             print_success(
-                f"Processing complete! {success_count}/{total_count} items processed successfully."
+                f"Processing complete! {success_count}/{total_count} items "
+                "processed successfully."
             )
         else:
             print_warning(
-                f"Processing complete with errors: {success_count} succeeded, {error_count} failed "
-                f"(out of {total_count} total)"
+                f"Processing complete with errors: {success_count} succeeded, "
+                f"{error_count} failed (out of {total_count} total)"
             )

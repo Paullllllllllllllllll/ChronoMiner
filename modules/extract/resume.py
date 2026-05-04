@@ -104,7 +104,8 @@ def detect_extraction_status(
         logger.warning("Could not parse %s; treating as NOT_STARTED", output_json)
         return FileStatus.NOT_STARTED, set()
 
-    # The output is a JSON object with a "records" list and metadata, or a bare list (legacy).
+    # The output is a JSON object with a "records" list and metadata,
+    # or a bare list (legacy).
     records: list[dict[str, Any]] = []
     if isinstance(data, dict):
         records = data.get("records", [])

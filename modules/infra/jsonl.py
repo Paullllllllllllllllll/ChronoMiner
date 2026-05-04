@@ -7,6 +7,7 @@ readjuster (temp JSONL for per-range boundary decisions).
 
 from __future__ import annotations
 
+import contextlib
 import datetime
 import hashlib
 import json
@@ -98,10 +99,8 @@ def extract_completed_ids(
             continue
         match = id_pattern.search(str(custom_id))
         if match:
-            try:
+            with contextlib.suppress(ValueError, IndexError):
                 completed.add(int(match.group(match.lastindex or 0)))
-            except (ValueError, IndexError):
-                pass
     return completed
 
 
@@ -208,13 +207,11 @@ def validate_jsonl_header(
         return False
     if retry_config is not None and header.get("retry_config") != retry_config:
         return False
-    if (
+    return not (
         prompt_hash is not None
         and header.get("prompt_hash") is not None
         and header.get("prompt_hash") != prompt_hash
-    ):
-        return False
-    return True
+    )
 
 
 def finalize_jsonl_header(
@@ -304,10 +301,7 @@ def is_jsonl_adjustment_complete(
         return False
     if matching_config is not None and header.get("matching_config") != matching_config:
         return False
-    if retry_config is not None and header.get("retry_config") != retry_config:
-        return False
-
-    return True
+    return not (retry_config is not None and header.get("retry_config") != retry_config)
 
 
 def compute_stats_from_jsonl(path: Path) -> dict[str, int]:

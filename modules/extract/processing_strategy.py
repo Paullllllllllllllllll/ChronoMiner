@@ -68,9 +68,11 @@ class ProcessingStrategy(ABC):
         :param file_path: Source file path
         :param temp_jsonl_path: Temporary JSONL file path
         :param console_print: Console print function
-        :param completed_chunk_indices: 1-based indices of chunks already processed (for resume)
-        :param image_chunks: Optional list of image chunk dicts with 'base64', 'mime_type', 'detail' keys.
-            When provided, process_image_chunk() is used instead of process_text_chunk().
+        :param completed_chunk_indices: 1-based indices of chunks already processed
+            (for resume)
+        :param image_chunks: Optional list of image chunk dicts with 'base64',
+            'mime_type', 'detail' keys. When provided, process_image_chunk() is
+            used instead of process_text_chunk().
         :return: List of processing results
         """
         pass
@@ -112,7 +114,10 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         api_key = ProviderConfig._get_api_key(provider)
 
         if not api_key:
-            error_msg = f"API key not found for provider {provider}. Set the appropriate environment variable."
+            error_msg = (
+                f"API key not found for provider {provider}. "
+                "Set the appropriate environment variable."
+            )
             logger.error(error_msg)
             console_print(f"[ERROR] {error_msg}")
             raise ValueError(error_msg)
@@ -125,11 +130,12 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         ]
         if skip_indices:
             console_print(
-                f"[INFO] Resuming: {len(chunks_to_process)} new chunks/pages to process "
-                f"({len(skip_indices)} already done)"
+                f"[INFO] Resuming: {len(chunks_to_process)} new chunks/pages "
+                f"to process ({len(skip_indices)} already done)"
             )
         console_print(
-            f"[INFO] Starting synchronous processing of {len(chunks_to_process)} chunks/pages..."
+            f"[INFO] Starting synchronous processing of "
+            f"{len(chunks_to_process)} chunks/pages..."
         )
         results: list[dict[str, Any]] = []
 
@@ -232,10 +238,13 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 tempf.flush()
 
                                 console_print(
-                                    f"[INFO] Processed {unit_label} {idx}/{total_chunks}"
+                                    f"[INFO] Processed {unit_label} "
+                                    f"{idx}/{total_chunks}"
                                 )
                                 return result
-                            except Exception as e:  # Intentionally broad: LangChain/API errors are diverse and unpredictable
+                            except (
+                                Exception
+                            ) as e:  # Broad: LangChain/API errors are diverse
                                 msg = str(e)
                                 is_429 = "429" in msg or "rate_limit" in msg.lower()
                                 if (
@@ -254,7 +263,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                     )
                                     wait_s = min(wait_max_seconds, base_wait + jitter)
                                     logger.warning(
-                                        "Rate-limited on chunk/page %s (attempt %s/%s). Waiting %.1fs and retrying.",
+                                        "Rate-limited on chunk/page %s "
+                                        "(attempt %s/%s). Waiting %.1fs "
+                                        "and retrying.",
                                         idx,
                                         attempt + 1,
                                         retry_attempts,
@@ -273,7 +284,10 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 return {"error": str(e)}
                         # If all retries exhausted without returning, return error
                         return {
-                            "error": f"Max retries ({retry_attempts}) exhausted for {unit_label} {idx}"
+                            "error": (
+                                f"Max retries ({retry_attempts}) exhausted "
+                                f"for {unit_label} {idx}"
+                            )
                         }
 
                 # Process chunks (skipping already-completed ones)
@@ -283,7 +297,8 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                 results = await asyncio.gather(*tasks, return_exceptions=False)
 
         console_print(
-            f"[SUCCESS] Completed synchronous processing of {len(chunks_to_process)} chunks/pages"
+            f"[SUCCESS] Completed synchronous processing of "
+            f"{len(chunks_to_process)} chunks/pages"
         )
         return results
 
@@ -302,7 +317,8 @@ class BatchProcessingStrategy(ProcessingStrategy):
         """
         Initialize batch processing strategy.
 
-        :param concurrency_config: Concurrency configuration (used for service_tier, etc.)
+        :param concurrency_config: Concurrency configuration (used for service_tier,
+            etc.)
         """
         self.concurrency_config = concurrency_config or {}
 
@@ -392,7 +408,8 @@ class BatchProcessingStrategy(ProcessingStrategy):
         # Extract schema name from handler if available
         schema_name = getattr(handler, "schema_name", None) or "ExtractionSchema"
 
-        # Inject service_tier from concurrency_config into model_config for the backend (CM-2)
+        # Inject service_tier from concurrency_config into model_config for the
+        # backend (CM-2)
         extraction_cfg = (self.concurrency_config.get("concurrency", {}) or {}).get(
             "extraction", {}
         ) or {}
@@ -452,7 +469,9 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 temp_jsonl_path,
             )
 
-        except Exception as e:  # Intentionally broad: batch backends can raise diverse provider-specific errors
+        except (
+            Exception
+        ) as e:  # Broad: batch backends raise diverse provider-specific errors
             logger.error(f"Error during batch submission: {e}", exc_info=True)
             console_print(f"[ERROR] Failed to submit batch: {e}")
             raise

@@ -86,7 +86,10 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--context-window",
         type=int,
-        help="Number of surrounding lines to send to the model when searching for boundaries.",
+        help=(
+            "Number of surrounding lines to send to the model "
+            "when searching for boundaries."
+        ),
     )
     parser.add_argument(
         "--prompt-path",
@@ -96,7 +99,9 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--resume",
         action="store_true",
-        help="Skip files whose line ranges were already adjusted with the same settings",
+        help=(
+            "Skip files whose line ranges were already adjusted with the same settings"
+        ),
     )
     parser.add_argument(
         "--force",
@@ -250,11 +255,13 @@ async def _adjust_files(
             ranges_fingerprint=ranges_fingerprint,
         ):
             notifier(
-                f"Skipping {text_file.name}: line ranges already adjusted with current settings.",
+                f"Skipping {text_file.name}: line ranges already adjusted "
+                f"with current settings.",
                 "info",
             )
             logger.info(
-                f"Resume: skipping {text_file.name} (completed JSONL matches current settings)"
+                f"Resume: skipping {text_file.name} "
+                f"(completed JSONL matches current settings)"
             )
             skipped.append(text_file)
             continue
@@ -278,15 +285,15 @@ async def _adjust_files(
             if delay_between > 0:
                 await asyncio.sleep(delay_between)
 
-            if token_limit_enabled:
-                if not await check_and_wait_for_token_limit(ui):
-                    logger.info(f"Processing stopped by user for {text_file.name}.")
-                    notifier("Processing stopped by user.", "warning")
-                    return
+            if token_limit_enabled and not await check_and_wait_for_token_limit(ui):
+                logger.info(f"Processing stopped by user for {text_file.name}.")
+                notifier("Processing stopped by user.", "warning")
+                return
 
             notifier(f"Adjusting line ranges for {text_file.name}...", "info")
             logger.info(
-                f"Adjusting {text_file.name} (context window: {context_window}, boundary: {boundary_type})"
+                f"Adjusting {text_file.name} (context window: {context_window}, "
+                f"boundary: {boundary_type})"
             )
 
             try:
@@ -303,7 +310,8 @@ async def _adjust_files(
                     f"Successfully adjusted line ranges for {text_file.name}", "success"
                 )
                 logger.info(
-                    f"Line ranges for {text_file.name} adjusted using {line_ranges_file.name}"
+                    f"Line ranges for {text_file.name} adjusted "
+                    f"using {line_ranges_file.name}"
                 )
                 successes.append((text_file, line_ranges_file))
 
@@ -425,11 +433,13 @@ async def _run_interactive_mode(
             # Validate schema has paths configured
             if not validate_schema_paths(selected_schema_name, schemas_paths, ui):
                 logger.error(
-                    f"Exiting: No path configuration for schema '{selected_schema_name}'"
+                    "Exiting: No path configuration for schema "
+                    f"'{selected_schema_name}'"
                 )
                 sys.exit(1)
 
-            # Determine base directory (validated above, so schema_name is in schemas_paths)
+            # Determine base directory
+            # (validated above, so schema_name is in schemas_paths)
             state["base_dir"] = Path(
                 schemas_paths[selected_schema_name].get("input", "")
             )
@@ -506,7 +516,8 @@ async def _run_interactive_mode(
             f"{stats['tokens_remaining']:,} tokens remaining today"
         )
         ui.print_info(
-            f"Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"Daily token usage: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
 
@@ -558,11 +569,13 @@ async def _run_interactive_mode(
         token_tracker = get_token_tracker()
         stats = token_tracker.get_stats()
         logger.info(
-            f"Final token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"Final token usage: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
         ui.print_info(
-            f"\nFinal daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"\nFinal daily token usage: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
 
@@ -661,7 +674,8 @@ async def _run_cli_mode(
             f"{stats['tokens_remaining']:,} tokens remaining today"
         )
         print(
-            f"[INFO] Daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"[INFO] Daily token usage: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
 
@@ -707,11 +721,13 @@ async def _run_cli_mode(
         token_tracker = get_token_tracker()
         stats = token_tracker.get_stats()
         logger.info(
-            f"Final token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"Final token usage: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
         print(
-            f"\n[INFO] Final daily token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
+            f"\n[INFO] Final daily token usage: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%)"
         )
 

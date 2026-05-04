@@ -344,6 +344,7 @@ def test_extract_entries_records_string_response(tmp_path):
 def test_extract_entries_records_mixed_content_no_content(tmp_path):
     """Records format with a mix of content and no-content chunks."""
     json_file = tmp_path / "records_mixed.json"
+    _no_content = json.dumps({"contains_no_content_of_requested_type": True})
     json_file.write_text(
         json.dumps(
             {
@@ -366,11 +367,7 @@ def test_extract_entries_records_mixed_content_no_content(tmp_path):
                             "choices": [
                                 {
                                     "message": {
-                                        "content": json.dumps(
-                                            {
-                                                "contains_no_content_of_requested_type": True
-                                            }
-                                        )
+                                        "content": _no_content,
                                     }
                                 }
                             ]

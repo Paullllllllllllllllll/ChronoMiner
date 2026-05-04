@@ -171,7 +171,8 @@ class CancelBatchesScript(DualModeScript):
 
         if not cancellable_batches:
             self.ui.print_info(
-                "No batches require cancellation. All batches are in terminal states or no batches found."
+                "No batches require cancellation. All batches are in "
+                "terminal states or no batches found."
             )
             self.logger.info("No batches require cancellation.")
             return
@@ -219,7 +220,8 @@ class CancelBatchesScript(DualModeScript):
             self.ui.print_warning(f"Failed to cancel {failed_count} batch(es)")
 
         self.logger.info(
-            f"Batch cancellation complete: {cancelled_count} cancelled, {failed_count} failed."
+            f"Batch cancellation complete: {cancelled_count} cancelled, "
+            f"{failed_count} failed."
         )
 
     def run_cli(self, args: Namespace) -> None:
@@ -233,14 +235,15 @@ class CancelBatchesScript(DualModeScript):
 
         if not cancellable_batches:
             print(
-                "[INFO] No batches require cancellation. All batches are in terminal states or no batches found."
+                "[INFO] No batches require cancellation. All batches are in "
+                "terminal states or no batches found."
             )
             self.logger.info("No batches require cancellation.")
             return
 
         # Group by provider for display
         by_provider: dict[str, int] = {}
-        for tracking, status in cancellable_batches:
+        for tracking, _status in cancellable_batches:
             provider = tracking.get("provider", "openai")
             by_provider[provider] = by_provider.get(provider, 0) + 1
 
@@ -258,7 +261,8 @@ class CancelBatchesScript(DualModeScript):
             return
 
         print(
-            f"[INFO] Processing cancellations for {len(cancellable_batches)} batch(es)..."
+            f"[INFO] Processing cancellations for "
+            f"{len(cancellable_batches)} batch(es)..."
         )
 
         # Cancel batches
@@ -270,7 +274,8 @@ class CancelBatchesScript(DualModeScript):
             print(f"[WARNING] Failed to cancel {failed_count} batch(es)")
 
         self.logger.info(
-            f"Batch cancellation complete: {cancelled_count} cancelled, {failed_count} failed."
+            f"Batch cancellation complete: {cancelled_count} cancelled, "
+            f"{failed_count} failed."
         )
 
     def _cancel_batches(
@@ -304,7 +309,8 @@ class CancelBatchesScript(DualModeScript):
                 print(f"[INFO] {msg}")
 
             self.logger.info(
-                f"Attempting to cancel batch {batch_id} ({provider}) with status '{status.value}'."
+                f"Attempting to cancel batch {batch_id} ({provider}) "
+                f"with status '{status.value}'."
             )
 
             try:
@@ -333,7 +339,8 @@ class CancelBatchesScript(DualModeScript):
                         )
                     else:
                         print(
-                            f"[WARNING] Batch {batch_id} cancellation may not have succeeded"
+                            f"[WARNING] Batch {batch_id} cancellation "
+                            f"may not have succeeded"
                         )
                     failed_count += 1
 

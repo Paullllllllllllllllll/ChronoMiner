@@ -67,7 +67,8 @@ class DailyTokenTracker:
         Args:
             daily_limit: Maximum tokens allowed per day.
             enabled: Whether token limiting is enabled.
-            state_file: Path to persistent state file (default: .chronominer_token_state.json).
+            state_file: Path to persistent state file
+                (default: .chronominer_token_state.json).
         """
         self.daily_limit = daily_limit
         self.enabled = enabled
@@ -341,10 +342,7 @@ async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> 
     """
     import asyncio
 
-    if logger is None:
-        _logger = globals().get("logger")
-    else:
-        _logger = logger
+    _logger = globals().get("logger") if logger is None else logger
 
     token_tracker = get_token_tracker()
 
@@ -358,21 +356,24 @@ async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> 
 
     if _logger:
         _logger.warning(
-            f"Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+            f"Daily token limit reached: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
         )
         _logger.info(
             f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} "
-            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m) "
-            "for token limit reset..."
+            f"({seconds_until_reset // 3600}h "
+            f"{(seconds_until_reset % 3600) // 60}m) for token limit reset..."
         )
 
     if ui:
         ui.print_warning(
-            f"\n⚠ Daily token limit reached: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
+            f"\n⚠ Daily token limit reached: "
+            f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
         )
         ui.print_info(
             f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
-            f"({seconds_until_reset // 3600}h {(seconds_until_reset % 3600) // 60}m remaining)"
+            f"({seconds_until_reset // 3600}h "
+            f"{(seconds_until_reset % 3600) // 60}m remaining)"
         )
         ui.print_info("Press Ctrl+C to cancel and exit.")
     elif _logger:

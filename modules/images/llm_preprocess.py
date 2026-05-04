@@ -58,14 +58,12 @@ def detect_model_type(provider: str, model_name: str | None = None) -> str:
 
 def get_image_config_section_name(model_type: str) -> str:
     """Get the image processing config section name for a model type."""
-    if model_type == "custom":
-        return "custom_image_processing"
-    elif model_type == "google":
-        return "google_image_processing"
-    elif model_type == "anthropic":
-        return "anthropic_image_processing"
-    else:
-        return "api_image_processing"
+    _SECTION_MAP = {
+        "custom": "custom_image_processing",
+        "google": "google_image_processing",
+        "anthropic": "anthropic_image_processing",
+    }
+    return _SECTION_MAP.get(model_type, "api_image_processing")
 
 
 class ImageProcessor:
@@ -101,13 +99,13 @@ class ImageProcessor:
 
     def handle_transparency(self, image: Image.Image) -> Image.Image:
         """Flatten transparency by pasting the image onto a white background."""
-        if self.img_cfg.get("handle_transparency", True):
-            if image.mode in ("RGBA", "LA") or (
-                image.mode == "P" and "transparency" in image.info
-            ):
-                background = Image.new("RGB", image.size, (255, 255, 255))
-                background.paste(image, mask=image.split()[-1])
-                return background
+        if self.img_cfg.get("handle_transparency", True) and (
+            image.mode in ("RGBA", "LA")
+            or (image.mode == "P" and "transparency" in image.info)
+        ):
+            background = Image.new("RGB", image.size, (255, 255, 255))
+            background.paste(image, mask=image.split()[-1])
+            return background
         return image
 
     def convert_to_grayscale(self, image: Image.Image) -> Image.Image:

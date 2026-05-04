@@ -105,7 +105,8 @@ class BaseConverter(ABC):
         """
         Format name variants for display.
 
-        :param variants: List of variant dictionaries with 'original' and 'modern_english' keys
+        :param variants: List of variant dictionaries with 'original' and
+            'modern_english' keys
         :return: Formatted string with variants
         """
         if not isinstance(variants, list):
@@ -188,9 +189,12 @@ class BaseConverter(ABC):
         if not isinstance(links, list):
             return ""
         return "; ".join(
-            f"{l.get('entity_type', '')}: {l.get('entity_label', '')} - {l.get('relationship', '')}"
-            for l in links
-            if isinstance(l, dict)
+            (
+                f"{link.get('entity_type', '')}: {link.get('entity_label', '')}"
+                f" - {link.get('relationship', '')}"
+            )
+            for link in links
+            if isinstance(link, dict)
         )
 
     @staticmethod

@@ -5,6 +5,7 @@ Uses OpenAI's Batch API with the /v1/responses endpoint for async text extractio
 
 from __future__ import annotations
 
+import contextlib
 import json
 import logging
 import tempfile
@@ -279,10 +280,8 @@ class OpenAIBatchBackend(BatchBackend):
             )
         finally:
             # Cleanup temp file
-            try:
+            with contextlib.suppress(Exception):
                 temp_path.unlink()
-            except Exception:
-                pass
 
     def get_status(self, handle: BatchHandle) -> BatchStatusInfo:
         """Get status of an OpenAI batch job."""

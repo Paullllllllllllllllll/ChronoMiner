@@ -275,7 +275,9 @@ async def process_image_chunk(
     system_message: str | None = None,
     json_schema: dict | None = None,
     image_detail: str | None = None,
-    user_instruction: str = "Extract structured data from this image according to the schema.",
+    user_instruction: str = (
+        "Extract structured data from this image according to the schema."
+    ),
     enable_cache_control: bool = False,
 ) -> dict[str, Any]:
     """

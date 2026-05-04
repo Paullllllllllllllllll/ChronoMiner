@@ -50,23 +50,7 @@ extend-exclude = ["data/", "outputs/", "scratch", ".claude", "backup", "deprecat
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM"]
-ignore = [
-    "E501",    # line-too-long (formatter handles what it can; remainder is in strings/docstrings)
-    "E731",    # lambda-assignment
-    "E741",    # ambiguous-variable-name
-    "B007",    # unused-loop-control-variable
-    "B904",    # raise-without-from-inside-except
-    "B905",    # zip-without-explicit-strict
-    "F841",    # unused-variable
-    "SIM102",  # collapsible-if
-    "SIM103",  # needless-bool
-    "SIM105",  # suppressible-exception
-    "SIM108",  # if-else-block-instead-of-if-exp
-    "SIM113",  # enumerate-for-loop
-    "SIM116",  # if-else-block-instead-of-dict-lookup
-    "SIM117",  # multiple-with-statements
-    "SIM118",  # in-dict-keys
-]
+ignore = []
 
 [tool.ruff.lint.per-file-ignores]
 "main/cancel_batches.py" = ["E402"]
