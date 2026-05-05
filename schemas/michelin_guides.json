@@ -1,6 +1,6 @@
 {
   "name": "MichelinGuides",
-  "schema_version": "3.2",
+  "schema_version": "3.3",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -95,9 +95,15 @@
                   "type": ["boolean", "null"],
                   "description": "Pleasant or charming establishment marker."
                 },
-                "comfort_covers": {
+                "hotel_class": {
                   "type": ["integer", "null"],
-                  "description": "Comfort rating (1-5) from crossed fork-and-spoon glyph count. Not a food quality rating.",
+                  "description": "Michelin hotel comfort class (1-5) from the count of consecutive hotel-pavilion glyphs at entry start. 1 = assez confortable (or printed simple-square 'simple mais convenable'), 2 = de bon confort, 3 = très confortable, 4 = luxe, 5 = grand luxe. Null if no hotel-pavilion glyph is visible.",
+                  "minimum": 1,
+                  "maximum": 5
+                },
+                "restaurant_class": {
+                  "type": ["integer", "null"],
+                  "description": "Michelin restaurant comfort class (1-5) from the count of consecutive cutlery glyphs at entry start. 1 = simple convenable, 2 = de bon confort, 3 = très confortable, 4 = luxe, 5 = grand luxe. Null if no cutlery glyph is visible.",
                   "minimum": 1,
                   "maximum": 5
                 }
@@ -109,7 +115,8 @@
                 "green_star",
                 "new_in_guide",
                 "pleasant_marker",
-                "comfort_covers"
+                "hotel_class",
+                "restaurant_class"
               ],
               "additionalProperties": false
             },

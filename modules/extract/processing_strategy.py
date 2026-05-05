@@ -101,6 +101,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         console_print: Any,
         completed_chunk_indices: set | None = None,
         image_chunks: list[dict[str, Any]] | None = None,
+        context_image_data: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Process chunks synchronously with concurrent API calls."""
         # Detect provider: prefer explicit config, fall back to auto-detection
@@ -212,6 +213,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                         json_schema=schema,
                                         image_detail=img_data.get("detail"),
                                         enable_cache_control=enable_cache,
+                                        context_image_data=context_image_data,
                                     )
                                 else:
                                     result = await process_text_chunk(
@@ -220,6 +222,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                         system_message=dev_message,
                                         json_schema=schema,
                                         enable_cache_control=enable_cache,
+                                        context_image_data=context_image_data,
                                     )
 
                                 # Write to temp file
@@ -334,8 +337,14 @@ class BatchProcessingStrategy(ProcessingStrategy):
         console_print: Any,
         completed_chunk_indices: set | None = None,
         image_chunks: list[dict[str, Any]] | None = None,
+        context_image_data: dict[str, Any] | None = None,
     ) -> list[dict[str, Any]]:
         """Prepare and submit batch processing job using provider-agnostic backend."""
+        if context_image_data is not None:
+            console_print(
+                "[WARNING] Context image is not yet supported in batch mode. Ignoring."
+            )
+
         # Detect provider from model config
         tm = model_config.get("extraction_model", {})
         provider = tm.get("provider")

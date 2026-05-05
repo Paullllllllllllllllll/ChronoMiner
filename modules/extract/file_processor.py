@@ -95,6 +95,56 @@ class _MessagingAdapter:
         ui_print(message)
 
 
+def _preprocess_context_image(
+    image_path: Path,
+    provider: str,
+    model_name: str,
+    image_detail: str,
+) -> dict[str, Any]:
+    """Preprocess and encode a context image for LLM injection.
+
+    Uses the same ImageProcessor pipeline as the visual extraction path
+    to normalize and resize the context image before base64 encoding.
+    """
+    import shutil
+    import tempfile
+
+    from modules.config.loader import get_config_loader
+    from modules.images import (
+        ImageProcessor,
+        detect_model_type,
+        encode_image_to_base64,
+        get_image_config_section_name,
+    )
+
+    image_config = get_config_loader().get_image_processing_config()
+    model_type = detect_model_type(provider, model_name)
+    section_name = get_image_config_section_name(model_type)
+    img_cfg = image_config.get(section_name, {})
+
+    temp_dir = Path(tempfile.mkdtemp(prefix="chronominer_ctx_img_"))
+    try:
+        temp_input = temp_dir / f"ctx_input{image_path.suffix}"
+        shutil.copy2(image_path, temp_input)
+
+        temp_output = temp_dir / "ctx_processed.jpg"
+        processor = ImageProcessor(
+            image_path=temp_input,
+            provider=provider,
+            model_name=model_name,
+            image_config=img_cfg,
+        )
+        processed_path = processor.process_image(temp_output)
+        b64_data, mime_type = encode_image_to_base64(processed_path)
+        return {
+            "base64": b64_data,
+            "mime_type": mime_type,
+            "detail": image_detail,
+        }
+    finally:
+        shutil.rmtree(temp_dir, ignore_errors=True)
+
+
 class FileProcessor:
     """
     Refactored file processor with modular architecture.
@@ -156,6 +206,7 @@ class FileProcessor:
         chunk_slice: ChunkSlice | None = None,
         context_override: dict[str, Any] | None = None,
         image_detail: str | None = None,
+        context_image_enabled: bool = False,
     ) -> None:
         """
         Process a single file with refactored architecture.
@@ -190,6 +241,7 @@ class FileProcessor:
                 chunk_slice=chunk_slice,
                 context_override=context_override,
                 image_detail=image_detail,
+                context_image_enabled=context_image_enabled,
             )
 
         # Create messaging adapter
@@ -278,6 +330,7 @@ class FileProcessor:
             resume=resume,
             chunk_slice=chunk_slice,
             context_override=context_override,
+            context_image_enabled=context_image_enabled,
         )
 
     async def _process_visual_file(
@@ -293,6 +346,7 @@ class FileProcessor:
         chunk_slice: ChunkSlice | None = None,
         context_override: dict[str, Any] | None = None,
         image_detail: str | None = None,
+        context_image_enabled: bool = False,
     ) -> None:
         """Process a visual input file (image or PDF) through the LLM vision
         pipeline."""
@@ -443,6 +497,8 @@ class FileProcessor:
             image_chunks=image_chunks,
             temp_image_dir=temp_dir,
             unit_label="page",
+            context_image_enabled=context_image_enabled,
+            image_detail=image_detail,
         )
 
     async def _execute_extraction(
@@ -463,6 +519,8 @@ class FileProcessor:
         image_chunks: list[dict[str, Any]] | None = None,
         temp_image_dir: Path | None = None,
         unit_label: str = "chunk",
+        context_image_enabled: bool = False,
+        image_detail: str | None = None,
     ) -> None:
         """Shared extraction orchestration for both text and visual pipelines.
 
@@ -500,6 +558,25 @@ class FileProcessor:
             messenger.info(f"Using context from: {context_path.name}")
         elif not context_path and override_mode == "auto":
             logger.debug(f"No extraction context found for '{file_path.name}'")
+
+        # Resolve context image if enabled
+        context_image_data: dict[str, Any] | None = None
+        if context_image_enabled and override_mode != "none":
+            from modules.config.context import resolve_context_image_for_extraction
+
+            ctx_img_path, _ = resolve_context_image_for_extraction(text_file=file_path)
+            if ctx_img_path is not None:
+                from modules.llm.langchain_provider import ProviderConfig
+
+                model_name = self.model_config["extraction_model"]["name"]
+                provider = ProviderConfig._detect_provider(model_name)
+                effective_detail = image_detail or "high"
+                context_image_data = _preprocess_context_image(
+                    ctx_img_path, provider, model_name, effective_detail
+                )
+                messenger.info(f"Using context image: {ctx_img_path.name}")
+            else:
+                logger.debug(f"No context image found for '{file_path.name}'")
 
         # Render system prompt
         schema_definition = selected_schema.get("schema", {})
@@ -567,6 +644,8 @@ class FileProcessor:
             }
             if image_chunks is not None:
                 process_kwargs["image_chunks"] = image_chunks
+            if context_image_data is not None:
+                process_kwargs["context_image_data"] = context_image_data
 
             await strategy.process_chunks(**process_kwargs)
         except asyncio.CancelledError:

@@ -48,8 +48,8 @@ Thumbs.db
 *.log
 logs/
 
-# Config files
-config/
+# Config files (root-level YAML configs only)
+/config/
 
 # Environment variables
 .env
@@ -60,4 +60,8 @@ config/
 .pytest_cache/
 .coverage
 
+# eval
 /eval/docs/
+
+# staging
+/staging

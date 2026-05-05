@@ -955,6 +955,20 @@ class UserInterface:
                     "Please enter a valid file path or press 'b' to go back."
                 )
 
+    def ask_context_image(self, allow_back: bool = False) -> bool | None:
+        """Ask whether to enable context image injection.
+
+        :param allow_back: Whether to allow going back to the previous step
+        :return: True/False, or None on back
+        """
+        self.print_section_header("Context Image")
+        return self.confirm(
+            "Enable context image? "
+            "(resolves {name}_extract_context.png/jpg/... next to input files)",
+            default=False,
+            allow_back=allow_back,
+        )
+
     def display_completion_summary(
         self,
         processed_count: int,
