@@ -213,6 +213,18 @@ Examples:
     )
 
     parser.add_argument(
+        "--context-image",
+        action="store_true",
+        default=False,
+        help=(
+            "Enable context image injection. Resolves a context image using "
+            "the hierarchical convention ({name}_extract_context.png/jpg/...) "
+            "and sends it in the user message before the input content. "
+            "Uses the same detail level as --image-detail."
+        ),
+    )
+
+    parser.add_argument(
         "--concurrency-limit",
         type=_positive_int,
         metavar="N",
