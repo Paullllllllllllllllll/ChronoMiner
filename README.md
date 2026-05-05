@@ -1,4 +1,4 @@
-# ChronoMiner v1.2.1
+# ChronoMiner v1.3.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -74,6 +74,10 @@ concurrency, and output.
   folder-specific, or project-wide extraction and adjustment context
   (`{name}_extract_context.txt` / `{name}_adjust_context.txt`
   convention)
+- **Context image injection** -- provide a visual reference image
+  alongside text context using the same hierarchical convention
+  (`{name}_extract_context.png/jpg/...`); the image is sent in the
+  user message before the input content (OpenAI, `--context-image`)
 - **Schema-based extraction** -- 12 built-in JSON schemas with
   structured LLM output; custom schemas supported
 - **Four chunking strategies** -- automatic, automatic with manual
@@ -241,6 +245,7 @@ python main/repair_extractions.py --schema BibliographicEntries
 --reasoning-effort LEVEL   none | low | medium | high | xhigh
 --chunk-size N             Override tokens per chunk
 --context MODE_OR_PATH     auto | none | /path/to/context.txt
+--context-image            Enable context image injection (see below)
 --first-n-chunks N         Process only the first N chunks/pages
 --last-n-chunks N          Process only the last N chunks/pages
 --resume / --force         Skip vs overwrite existing output
@@ -350,6 +355,21 @@ The same hierarchy applies for line-range adjustment using
 `_adjust_context.txt` suffixes. Context files should be plain text
 describing the document type, expected content, and domain-specific
 terminology. Keep under 4,000 characters.
+
+**Context images** follow the same hierarchy using image extensions
+instead of `.txt`:
+
+1. **File-specific**: `{input_stem}_extract_context.png` (or
+   `.jpg`, `.jpeg`, `.tiff`, `.bmp`, `.gif`, `.webp`)
+2. **Folder-specific**: `{parent_folder}_extract_context.png`
+3. **General fallback**: `context/extract_context.png`
+
+Enable with `--context-image` (CLI) or the interactive prompt. The
+context image is sent in the user message before the input content,
+labeled `"Context image:"`. It uses the same detail level as the
+main image (`--image-detail`). Useful for providing visual reference
+(e.g., a symbol legend, sample page layout, or annotation key).
+Currently supported for OpenAI and OpenRouter providers only.
 
 ### Custom Extraction Schemas
 
