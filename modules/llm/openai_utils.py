@@ -201,6 +201,7 @@ async def process_text_chunk(
     system_message: str | None = None,
     json_schema: dict | None = None,
     enable_cache_control: bool = False,
+    context_image_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Process a text chunk using LangChain with the configured provider.
@@ -209,6 +210,9 @@ async def process_text_chunk(
     :param extractor: An instance of LLMExtractor.
     :param system_message: Optional system message.
     :param json_schema: Optional JSON schema for response formatting.
+    :param context_image_data: Optional context image dict with 'base64',
+        'mime_type', and 'detail' keys. Injected into the user message
+        before the text chunk (OpenAI only).
     :return: Dictionary containing the model output text, raw response payload,
         and request metadata used for the call.
     :raises Exception: If the API call fails after all LangChain retries.
@@ -223,6 +227,28 @@ async def process_text_chunk(
     if enable_cache_control:
         system_content[-1]["cache_control"] = {"type": "ephemeral"}
 
+    # Build user content with optional context image
+    user_content: list[dict[str, Any]] = []
+    if context_image_data is not None:
+        if extractor.provider.lower() in ("openai", "openrouter"):
+            from modules.images.message_builder import build_image_content_block
+
+            ctx_block = build_image_content_block(
+                image_base64=context_image_data["base64"],
+                mime_type=context_image_data["mime_type"],
+                provider=extractor.provider,
+                detail=context_image_data.get("detail"),
+                supports_image_detail=extractor.caps.supports_image_detail,
+            )
+            user_content.append({"type": "text", "text": "Context image:"})
+            user_content.append(ctx_block)
+        else:
+            logger.warning(
+                "Context image injection not yet supported for "
+                f"provider '{extractor.provider}'. Skipping."
+            )
+    user_content.append({"type": "input_text", "text": text_chunk})
+
     # Build messages in LangChain format
     messages = [
         {
@@ -231,7 +257,7 @@ async def process_text_chunk(
         },
         {
             "role": "user",
-            "content": [{"type": "input_text", "text": text_chunk}],
+            "content": user_content,
         },
     ]
 
@@ -279,6 +305,7 @@ async def process_image_chunk(
         "Extract structured data from this image according to the schema."
     ),
     enable_cache_control: bool = False,
+    context_image_data: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """
     Process a single image using LangChain with the configured provider.
@@ -293,6 +320,9 @@ async def process_image_chunk(
     :param json_schema: Optional JSON schema for response formatting.
     :param image_detail: Image detail level ('low', 'high', 'auto', 'original').
     :param user_instruction: Text instruction accompanying the image.
+    :param context_image_data: Optional context image dict with 'base64',
+        'mime_type', and 'detail' keys. Injected into the user message
+        before the main image (OpenAI only).
     :return: Dictionary containing the model output text, raw response payload,
         and request metadata used for the call.
     """
@@ -317,6 +347,27 @@ async def process_image_chunk(
     if enable_cache_control:
         system_content[-1]["cache_control"] = {"type": "ephemeral"}
 
+    # Build user content with optional context image
+    user_content: list[dict[str, Any]] = []
+    if context_image_data is not None:
+        if extractor.provider.lower() in ("openai", "openrouter"):
+            ctx_block = build_image_content_block(
+                image_base64=context_image_data["base64"],
+                mime_type=context_image_data["mime_type"],
+                provider=extractor.provider,
+                detail=context_image_data.get("detail"),
+                supports_image_detail=extractor.caps.supports_image_detail,
+            )
+            user_content.append({"type": "text", "text": "Context image:"})
+            user_content.append(ctx_block)
+        else:
+            logger.warning(
+                "Context image injection not yet supported for "
+                f"provider '{extractor.provider}'. Skipping."
+            )
+    user_content.append({"type": "text", "text": user_instruction})
+    user_content.append(image_block)
+
     # Build multimodal messages
     messages = [
         {
@@ -325,10 +376,7 @@ async def process_image_chunk(
         },
         {
             "role": "user",
-            "content": [
-                {"type": "text", "text": user_instruction},
-                image_block,
-            ],
+            "content": user_content,
         },
     ]
 

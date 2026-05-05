@@ -256,7 +256,7 @@ async def _run_interactive_mode(
 
     # State machine for navigation
     # States: schema -> chunking -> batch -> resume -> context
-    #         -> image_detail -> chunk_slice -> files -> confirm
+    #         -> context_image -> image_detail -> chunk_slice -> files -> confirm
     current_step = "schema"
     state: dict[str, Any] = {}
     prompt_template = None
@@ -357,13 +357,24 @@ async def _run_interactive_mode(
                 current_step = "resume"
                 continue
             state["context_override"] = context_result
+            current_step = "context_image"
+
+        elif current_step == "context_image":
+            if state.get("is_visual"):
+                ctx_img_result = ui.ask_context_image(allow_back=True)
+                if ctx_img_result is None:
+                    current_step = "context"
+                    continue
+                state["context_image"] = ctx_img_result
+            else:
+                state["context_image"] = False
             current_step = "image_detail"
 
         elif current_step == "image_detail":
             if state.get("is_visual"):
                 image_detail_result = ui.ask_image_detail(allow_back=True)
                 if image_detail_result is None:
-                    current_step = "context"
+                    current_step = "context_image"
                     continue
                 state["image_detail"] = image_detail_result
             current_step = "chunk_slice"
@@ -534,6 +545,7 @@ async def _run_interactive_mode(
                 chunk_slice=state.get("chunk_slice"),
                 context_override=state.get("context_override"),
                 image_detail=state.get("image_detail"),
+                context_image_enabled=state.get("context_image", False),
             )
 
             # Log token usage after each file
@@ -563,6 +575,7 @@ async def _run_interactive_mode(
                     chunk_slice=state.get("chunk_slice"),
                     context_override=state.get("context_override"),
                     image_detail=state.get("image_detail"),
+                    context_image_enabled=state.get("context_image", False),
                 )
             )
         # CM-11: return_exceptions=True ensures all finally blocks complete
@@ -867,6 +880,7 @@ async def _run_cli_mode(
                 chunk_slice=chunk_slice,
                 context_override=context_override,
                 image_detail=getattr(args, "image_detail", None),
+                context_image_enabled=getattr(args, "context_image", False),
             )
 
             # Log token usage after each file
@@ -896,6 +910,7 @@ async def _run_cli_mode(
                     chunk_slice=chunk_slice,
                     context_override=context_override,
                     image_detail=getattr(args, "image_detail", None),
+                    context_image_enabled=getattr(args, "context_image", False),
                 )
             )
         # CM-11: return_exceptions=True ensures all finally blocks complete
