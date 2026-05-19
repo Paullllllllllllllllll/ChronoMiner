@@ -1,4 +1,4 @@
-# ChronoMiner v1.3.0
+# ChronoMiner v1.3.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -607,6 +607,19 @@ This project uses semantic versioning. The commit history was
 squashed to a single baseline commit at v1.0.0 on 25 April 2026.
 All prior development history was consolidated; version numbers
 before v1.0.0 do not exist.
+
+## Changelog
+
+- **v1.3.1** (19 May 2026) -- dependency refresh from
+    environment-wide CVE audit: bump `langchain-core`
+    1.3.2 -> 1.4.0 (RCE on deserialization); `langsmith`
+    0.7.36 -> 0.8.5 (unsafe deserialization; full fix to
+    1.0.x deferred pending upstream constraint relaxation);
+    `pip` 26.0.1 -> 26.1.1 (polyglot tar/ZIP confusion);
+    `urllib3` 2.6.3 -> 2.7.0 (audit-surface consolidation).
+    Relax the `pip` floor from `==26.0.1` to `>=26.1` so
+    the security update can be applied.
+- **v1.3.0** -- prior release.
 
 ## License
 
