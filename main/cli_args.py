@@ -97,6 +97,16 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
             "If not specified, uses config or input directory."
         ),
     )
+    parser.add_argument(
+        "--output-mode",
+        choices=["flat", "mirror"],
+        default=None,
+        help=(
+            "Output directory layout. 'flat' (default): all"
+            " output files in one directory. 'mirror':"
+            " replicate input hierarchy under output root."
+        ),
+    )
     parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument(
         "--quiet", action="store_true", help="Suppress non-essential output"

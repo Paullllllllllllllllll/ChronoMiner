@@ -157,6 +157,9 @@ class FileProcessor:
         model_config: dict[str, Any],
         chunking_config: dict[str, Any],
         concurrency_config: dict[str, Any] | None = None,
+        *,
+        input_root: Path | None = None,
+        output_mode: str = "flat",
     ):
         """
         Initialize file processor.
@@ -165,8 +168,12 @@ class FileProcessor:
         :param model_config: Model configuration
         :param chunking_config: Chunking configuration
         :param concurrency_config: Concurrency configuration
+        :param input_root: Resolved input root for mirror mode
+        :param output_mode: Output layout: "flat" or "mirror"
         """
         self.paths_config = paths_config
+        self.input_root = input_root
+        self.output_mode = output_mode
         self.model_config = model_config
         self.chunking_config = chunking_config
         self.concurrency_config = concurrency_config or {}
@@ -774,6 +781,23 @@ class FileProcessor:
                     "directory. Configure a specific output directory to avoid mixing "
                     "output with project files."
                 )
+            if self.output_mode == "mirror" and self.input_root is not None:
+                try:
+                    rel = file_path.relative_to(self.input_root)
+                except ValueError:
+                    rel = Path(file_path.name)
+                mirror_dir = ensure_path_safe(working_folder / rel.parent)
+                mirror_dir.mkdir(parents=True, exist_ok=True)
+                temp_folder = ensure_path_safe(mirror_dir / "temp_jsonl")
+                temp_folder.mkdir(parents=True, exist_ok=True)
+                output_json_path = ensure_path_safe(
+                    mirror_dir / f"{file_path.stem}_output.json"
+                )
+                temp_jsonl_path = ensure_path_safe(
+                    temp_folder / f"{file_path.stem}_temp.jsonl"
+                )
+                return mirror_dir, output_json_path, temp_jsonl_path
+
             temp_folder = ensure_path_safe(working_folder / "temp_jsonl")
             working_folder.mkdir(parents=True, exist_ok=True)
             temp_folder.mkdir(parents=True, exist_ok=True)
