@@ -1,4 +1,4 @@
-# ChronoMiner v1.3.2
+# ChronoMiner v1.4.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,10 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.4.0** (20 May 2026) -- add `--output-mode
+    {flat,mirror}` CLI flag: mirror mode replicates the input
+    directory hierarchy under the output root, preserving
+    edition/page structure for downstream consumers.
 - **v1.3.2** (20 May 2026) -- add `MichelinGuidesLight`
     schema (v3.3-light): minimal variant dropping amenities,
     opening, telephone, and three awards fields; update full

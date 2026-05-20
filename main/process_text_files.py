@@ -682,6 +682,8 @@ async def _run_cli_mode(
         model_config=effective_model_config,
         chunking_config=chunking_config,
         concurrency_config=concurrency_config,
+        input_root=(resolve_path(args.input) if getattr(args, "input", None) else None),
+        output_mode=getattr(args, "output_mode", None) or "flat",
     )
 
     # Get schema
