@@ -1,4 +1,4 @@
-# ChronoMiner v1.3.1
+# ChronoMiner v1.3.2
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -78,7 +78,7 @@ concurrency, and output.
   alongside text context using the same hierarchical convention
   (`{name}_extract_context.png/jpg/...`); the image is sent in the
   user message before the input content (OpenAI, `--context-image`)
-- **Schema-based extraction** -- 12 built-in JSON schemas with
+- **Schema-based extraction** -- 13 built-in JSON schemas with
   structured LLM output; custom schemas supported
 - **Four chunking strategies** -- automatic, automatic with manual
   adjustment, pre-defined line ranges, LLM-adjusted semantic
@@ -373,7 +373,7 @@ Currently supported for OpenAI and OpenRouter providers only.
 
 ### Custom Extraction Schemas
 
-Place JSON schemas in `schemas/`. Twelve schemas are included:
+Place JSON schemas in `schemas/`. Thirteen schemas are included:
 
 - `bibliographic_schema.json`, `summary_schema.json`,
   `address_schema.json`, `military_record_schema.json`,
@@ -381,7 +381,8 @@ Place JSON schemas in `schemas/`. Twelve schemas are included:
   `culinary_places.json`, `culinary_entities.json`,
   `cookbook_metadata_schema.json`,
   `historical_recipes_schema_production.json`,
-  `michelin_guides.json`, `historical_price_entries_schema.json`
+  `michelin_guides.json`, `michelin_guides_light.json`,
+  `historical_price_entries_schema.json`
 
 To add a custom schema: create the JSON schema file in `schemas/`,
 register it in `modules/extract/schema_handlers.py`, add context
@@ -610,6 +611,11 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.3.2** (20 May 2026) -- add `MichelinGuidesLight`
+    schema (v3.3-light): minimal variant dropping amenities,
+    opening, telephone, and three awards fields; update full
+    `MichelinGuides` schema with `bib_hotel` field,
+    `cuisine.styles` enum, and revised descriptions.
 - **v1.3.1** (19 May 2026) -- dependency refresh from
     environment-wide CVE audit: bump `langchain-core`
     1.3.2 -> 1.4.0 (RCE on deserialization); `langsmith`
