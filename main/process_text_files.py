@@ -360,7 +360,8 @@ async def _run_interactive_mode(
             current_step = "context_image"
 
         elif current_step == "context_image":
-            if state.get("is_visual"):
+            context_mode = (state.get("context_override") or {}).get("mode")
+            if state.get("is_visual") and context_mode != "none":
                 ctx_img_result = ui.ask_context_image(allow_back=True)
                 if ctx_img_result is None:
                     current_step = "context"

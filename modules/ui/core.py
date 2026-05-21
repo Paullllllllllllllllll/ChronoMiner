@@ -963,8 +963,9 @@ class UserInterface:
         """
         self.print_section_header("Context Image")
         return self.confirm(
-            "Enable context image? "
-            "(resolves {name}_extract_context.png/jpg/... next to input files)",
+            "Include context image alongside each page? "
+            "(resolves {name}_extract_context.png/jpg/... "
+            "via folder hierarchy)",
             default=False,
             allow_back=allow_back,
         )
