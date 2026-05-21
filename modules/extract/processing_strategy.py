@@ -248,13 +248,19 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             except (
                                 Exception
                             ) as e:  # Broad: LangChain/API errors are diverse
-                                msg = str(e)
-                                is_429 = "429" in msg or "rate_limit" in msg.lower()
-                                is_timeout = (
-                                    "timed out" in msg.lower()
-                                    or "timeout" in msg.lower()
+                                msg = str(e).lower()
+                                is_429 = "429" in msg or "rate_limit" in msg
+                                is_timeout = "timed out" in msg or "timeout" in msg
+                                is_server_error = (
+                                    "500" in msg
+                                    or "502" in msg
+                                    or "503" in msg
+                                    or "internalservererror" in msg
+                                    or "upstream" in msg
+                                    or "connection" in msg
+                                    and ("reset" in msg or "refused" in msg)
                                 )
-                                is_retryable = is_429 or is_timeout
+                                is_retryable = is_429 or is_timeout or is_server_error
 
                                 if is_retryable and attempt < (retry_attempts - 1):
                                     base_wait = min(
@@ -267,7 +273,12 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                         else 0.0
                                     )
                                     wait_s = min(wait_max_seconds, base_wait + jitter)
-                                    reason = "Rate-limited" if is_429 else "Timed out"
+                                    if is_429:
+                                        reason = "Rate-limited"
+                                    elif is_timeout:
+                                        reason = "Timed out"
+                                    else:
+                                        reason = "Server error"
                                     logger.warning(
                                         "%s on %s %s (attempt %s/%s). "
                                         "Waiting %.1fs and retrying.",
