@@ -1,4 +1,4 @@
-# ChronoMiner v1.6.2
+# ChronoMiner v1.6.3
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,11 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.6.3** (21 May 2026) -- add early resume check for
+    visual/PDF files: skip fully processed files before
+    expensive PDF rendering; compare output metadata
+    `total_chunks` against actual record count to correctly
+    distinguish complete from partial files.
 - **v1.6.2** (21 May 2026) -- suppress misleading "will be
     overwritten" warning in the processing summary when resume
     mode is active (existing files are skipped, not
