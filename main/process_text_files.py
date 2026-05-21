@@ -412,12 +412,16 @@ async def _run_interactive_mode(
 
         elif current_step == "confirm":
             # CM-10: count existing output files before showing confirmation
-            existing_output_count = _count_existing_outputs(
-                state["files"],
-                paths_config,
-                state["selected_schema_name"],
-                schemas_paths,
-            )
+            # In resume mode, existing files are skipped, not overwritten
+            if state.get("resume"):
+                existing_output_count = 0
+            else:
+                existing_output_count = _count_existing_outputs(
+                    state["files"],
+                    paths_config,
+                    state["selected_schema_name"],
+                    schemas_paths,
+                )
 
             # Handle line range adjustment workflow if selected
             if state["global_chunking_method"] == "adjust-line-ranges":
