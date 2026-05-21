@@ -250,11 +250,13 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             ) as e:  # Broad: LangChain/API errors are diverse
                                 msg = str(e)
                                 is_429 = "429" in msg or "rate_limit" in msg.lower()
-                                if (
-                                    provider == "anthropic"
-                                    and is_429
-                                    and attempt < (retry_attempts - 1)
-                                ):
+                                is_timeout = (
+                                    "timed out" in msg.lower()
+                                    or "timeout" in msg.lower()
+                                )
+                                is_retryable = is_429 or is_timeout
+
+                                if is_retryable and attempt < (retry_attempts - 1):
                                     base_wait = min(
                                         wait_max_seconds,
                                         wait_min_seconds * (2**attempt),
@@ -265,10 +267,12 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                         else 0.0
                                     )
                                     wait_s = min(wait_max_seconds, base_wait + jitter)
+                                    reason = "Rate-limited" if is_429 else "Timed out"
                                     logger.warning(
-                                        "Rate-limited on chunk/page %s "
-                                        "(attempt %s/%s). Waiting %.1fs "
-                                        "and retrying.",
+                                        "%s on %s %s (attempt %s/%s). "
+                                        "Waiting %.1fs and retrying.",
+                                        reason,
+                                        unit_label,
                                         idx,
                                         attempt + 1,
                                         retry_attempts,
@@ -278,8 +282,10 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                     continue
 
                                 logger.error(
-                                    f"Error processing {unit_label} {idx}: {e}",
-                                    exc_info=e,
+                                    "Error processing %s %s: %s",
+                                    unit_label,
+                                    idx,
+                                    e,
                                 )
                                 console_print(
                                     f"[ERROR] Failed to process {unit_label} {idx}: {e}"
