@@ -401,9 +401,9 @@ async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> 
             ui.print_success("\nToken limit has been reset. Resuming processing.")
         return True
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, asyncio.CancelledError):
         if _logger:
-            _logger.info("Wait cancelled by user (KeyboardInterrupt).")
+            _logger.info("Wait cancelled by user.")
         if ui:
             ui.print_warning("\nWait cancelled by user.")
         return False

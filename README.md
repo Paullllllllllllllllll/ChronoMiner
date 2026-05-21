@@ -1,4 +1,4 @@
-# ChronoMiner v1.6.0
+# ChronoMiner v1.6.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,22 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.6.1** (21 May 2026) -- fix Ctrl+C during daily token
+    limit wait raising unhandled `asyncio.CancelledError` on
+    Python 3.13; retry timeout errors for all providers
+    (previously only Anthropic 429s were retried); suppress
+    verbose tracebacks on permanent chunk failures.
+- **v1.6.0** (21 May 2026) -- add `--page-range START-END`
+    CLI argument and interactive prompt for processing a
+    specific 1-based inclusive page range; fix
+    `UserInterface.confirm()` missing `allow_back` parameter
+    that caused a TypeError on the context image prompt.
+- **v1.5.0** (21 May 2026) -- register `MichelinGuidesLight`
+    schema in handler registry; tie context image prompt to
+    text context selection (skip when context mode is "none");
+    rewrite award field descriptions in
+    `michelin_guides_light.json` to reference context image
+    symbol categories.
 - **v1.4.0** (20 May 2026) -- add `--output-mode
     {flat,mirror}` CLI flag: mirror mode replicates the input
     directory hierarchy under the output root, preserving
