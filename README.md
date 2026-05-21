@@ -1,4 +1,4 @@
-# ChronoMiner v1.6.4
+# ChronoMiner v1.6.5
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,10 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.6.5** (21 May 2026) -- demote LLM invocation error log
+    from `error` (with full traceback) to `debug`; transient
+    errors now only show the one-line retry warning from the
+    processing strategy, not the upstream traceback.
 - **v1.6.4** (21 May 2026) -- widen transient error retry to
     cover 5xx server errors and upstream connection resets in
     addition to timeouts and 429 rate limits.
