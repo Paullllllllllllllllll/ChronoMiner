@@ -403,7 +403,27 @@ class FileProcessor:
             else:
                 image_detail = img_cfg.get("llm_detail", "high") or "high"
 
-        # 3. Load and preprocess images
+        # 3. Early resume check — skip before expensive rendering
+        if resume and file_path.suffix.lower() in SUPPORTED_PDF_EXTENSIONS:
+            try:
+                early_output = self._setup_output_paths(file_path, schema_paths)
+                early_json = early_output[1]
+                if early_json.exists():
+                    with early_json.open("r", encoding="utf-8") as fh:
+                        meta = json.load(fh)
+                    if isinstance(meta, dict):
+                        total = meta.get(METADATA_KEY, {}).get("total_chunks", 0)
+                        records = meta.get("records", [])
+                        if total > 0 and len(records) >= total:
+                            messenger.info(
+                                f"Skipping {file_path.name}: already"
+                                f" fully processed ({total} pages)"
+                            )
+                            return
+            except Exception:
+                pass
+
+        # 4. Load and preprocess images
         pil_images: list = []
         temp_dir = None
         ext = file_path.suffix.lower()
