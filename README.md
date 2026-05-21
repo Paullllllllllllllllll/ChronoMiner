@@ -1,4 +1,4 @@
-# ChronoMiner v1.6.1
+# ChronoMiner v1.6.2
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,10 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.6.2** (21 May 2026) -- suppress misleading "will be
+    overwritten" warning in the processing summary when resume
+    mode is active (existing files are skipped, not
+    overwritten).
 - **v1.6.1** (21 May 2026) -- fix Ctrl+C during daily token
     limit wait raising unhandled `asyncio.CancelledError` on
     Python 3.13; retry timeout errors for all providers
