@@ -930,7 +930,7 @@ class LangChainLLM:
             }
 
         except Exception as e:
-            logger.error(f"Error invoking LLM: {e}", exc_info=True)
+            logger.debug("Error invoking LLM: %s", e, exc_info=True)
             raise
 
     async def _invoke_with_schema(
