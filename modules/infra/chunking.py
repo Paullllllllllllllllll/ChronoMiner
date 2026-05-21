@@ -255,20 +255,32 @@ def load_line_ranges(line_ranges_file: Path) -> list[tuple[int, int]]:
 class ChunkSlice:
     """Specifies which subset of chunks/pages to process.
 
-    Exactly one of *first_n* or *last_n* may be set (they are mutually
-    exclusive). When both are ``None`` the full chunk list is used.
+    Exactly one of *first_n*, *last_n*, or *page_range* may be
+    set. When all are ``None`` the full chunk list is used.
+    *page_range* is a (start, end) tuple of 1-based page numbers
+    (inclusive on both ends).
     """
 
     first_n: int | None = None
     last_n: int | None = None
+    page_range: tuple[int, int] | None = None
 
     def __post_init__(self) -> None:
-        if self.first_n is not None and self.last_n is not None:
-            raise ValueError("first_n and last_n are mutually exclusive")
+        active = sum(
+            x is not None for x in (self.first_n, self.last_n, self.page_range)
+        )
+        if active > 1:
+            raise ValueError("first_n, last_n, and page_range are mutually exclusive")
         if self.first_n is not None and self.first_n < 1:
             raise ValueError("first_n must be >= 1")
         if self.last_n is not None and self.last_n < 1:
             raise ValueError("last_n must be >= 1")
+        if self.page_range is not None:
+            start, end = self.page_range
+            if start < 1:
+                raise ValueError("page_range start must be >= 1")
+            if end < start:
+                raise ValueError("page_range end must be >= start")
 
 
 def apply_chunk_slice(
@@ -308,6 +320,21 @@ def apply_chunk_slice(
             )
             return chunks, ranges
         return chunks[-n:], ranges[-n:]
+
+    if chunk_slice.page_range is not None:
+        start, end = chunk_slice.page_range
+        # 1-based inclusive range → 0-based slice
+        i = max(start - 1, 0)
+        j = min(end, total)
+        if i >= total:
+            logger.warning(
+                "Page range %d-%d is beyond available %d pages; processing none",
+                start,
+                end,
+                total,
+            )
+            return [], []
+        return chunks[i:j], ranges[i:j]
 
     return chunks, ranges
 

@@ -173,15 +173,23 @@ class UserInterface:
 
         return result.value
 
-    def confirm(self, message: str, default: bool = False) -> bool:
+    def confirm(
+        self,
+        message: str,
+        default: bool = False,
+        allow_back: bool = False,
+    ) -> bool | None:
         """
         Ask for yes/no confirmation.
 
         :param message: Confirmation message
         :param default: Default value if user just presses Enter
-        :return: True if confirmed, False otherwise
+        :param allow_back: Whether to allow going back
+        :return: True/False, or None if back selected
         """
-        result = prompt_yes_no(message, default=default, allow_back=False)
+        result = prompt_yes_no(message, default=default, allow_back=allow_back)
+        if result.action == NavigationAction.BACK:
+            return None
         if result.action == NavigationAction.CONTINUE:
             return result.value
         return default
@@ -325,11 +333,12 @@ class UserInterface:
 
     def ask_chunk_slice(self, allow_back: bool = False) -> "ChunkSlice | None":
         """
-        Prompt user to optionally limit processing to first/last N chunks.
+        Prompt user to optionally limit processing to
+        first/last N chunks or a page range.
 
-        :param allow_back: Whether to allow going back to previous step
+        :param allow_back: Whether to allow going back
         :return: A ChunkSlice instance, or None on back navigation.
-                 Returns ChunkSlice() (both fields None) for 'all chunks'.
+                 Returns ChunkSlice() (all fields None) for 'all'.
         """
         from modules.infra.chunking import ChunkSlice
 
@@ -339,6 +348,10 @@ class UserInterface:
             ("all", "Process all chunks/pages (default)"),
             ("first", "Process only the first N chunks/pages"),
             ("last", "Process only the last N chunks/pages"),
+            (
+                "range",
+                "Process a page range (e.g. 70-337)",
+            ),
         ]
 
         choice = self.select_option(
@@ -349,10 +362,13 @@ class UserInterface:
         )
 
         if choice is None:
-            return None  # back navigation
+            return None
 
         if choice == "all":
             return ChunkSlice()
+
+        if choice == "range":
+            return self._ask_page_range(allow_back)
 
         label = "first" if choice == "first" else "last"
         while True:
@@ -362,7 +378,6 @@ class UserInterface:
                 allow_quit=True,
             )
             if n_input is None:
-                # User went back — re-show the range options
                 return self.ask_chunk_slice(allow_back=allow_back)
             try:
                 n = int(n_input)
@@ -375,6 +390,35 @@ class UserInterface:
                     return ChunkSlice(last_n=n)
             except ValueError:
                 self.print_error("Invalid number. Please enter a positive integer.")
+
+    def _ask_page_range(self, allow_back: bool = False) -> "ChunkSlice | None":
+        """Prompt for a start-end page range (1-based, inclusive)."""
+        from modules.infra.chunking import ChunkSlice
+
+        while True:
+            raw = self.get_input(
+                "Enter page range (start-end, e.g. 70-337):",
+                allow_back=True,
+                allow_quit=True,
+            )
+            if raw is None:
+                return self.ask_chunk_slice(allow_back=allow_back)
+            parts = raw.replace(" ", "").split("-", maxsplit=1)
+            if len(parts) != 2:
+                self.print_error("Expected format: START-END (e.g. 70-337).")
+                continue
+            try:
+                start, end = int(parts[0]), int(parts[1])
+            except ValueError:
+                self.print_error("Both values must be integers.")
+                continue
+            if start < 1:
+                self.print_error("Start page must be >= 1.")
+                continue
+            if end < start:
+                self.print_error("End page must be >= start.")
+                continue
+            return ChunkSlice(page_range=(start, end))
 
     def ask_image_detail(self, allow_back: bool = False) -> str | None:
         """Prompt user for image detail level for vision models."""
