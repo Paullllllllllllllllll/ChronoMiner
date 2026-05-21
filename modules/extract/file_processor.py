@@ -313,9 +313,11 @@ class FileProcessor:
             )
             return
 
-        # Apply chunk slice (first/last N) if requested
+        # Apply chunk slice (first/last N or page range) if requested
         if chunk_slice is not None and (
-            chunk_slice.first_n is not None or chunk_slice.last_n is not None
+            chunk_slice.first_n is not None
+            or chunk_slice.last_n is not None
+            or chunk_slice.page_range is not None
         ):
             original_count = len(chunks)
             chunks, ranges = apply_chunk_slice(chunks, ranges, chunk_slice)
@@ -434,6 +436,9 @@ class FileProcessor:
                     pil_images = pil_images[: chunk_slice.first_n]
                 elif chunk_slice.last_n is not None:
                     pil_images = pil_images[-chunk_slice.last_n :]
+                elif chunk_slice.page_range is not None:
+                    s, e = chunk_slice.page_range
+                    pil_images = pil_images[max(s - 1, 0) : min(e, original_count)]
                 if len(pil_images) != original_count:
                     messenger.info(
                         f"Chunk slice applied: processing"
@@ -675,12 +680,15 @@ class FileProcessor:
                         if chunk_slice is not None and (
                             chunk_slice.first_n is not None
                             or chunk_slice.last_n is not None
+                            or chunk_slice.page_range is not None
                         ):
                             _cs_info = {}
                             if chunk_slice.first_n is not None:
                                 _cs_info["first_n"] = chunk_slice.first_n
                             if chunk_slice.last_n is not None:
                                 _cs_info["last_n"] = chunk_slice.last_n
+                            if chunk_slice.page_range is not None:
+                                _cs_info["page_range"] = list(chunk_slice.page_range)
                         await asyncio.shield(
                             self._generate_output_files(
                                 temp_jsonl_path,

@@ -752,10 +752,15 @@ async def _run_cli_mode(
     chunk_slice = None
     first_n = getattr(args, "first_n_chunks", None)
     last_n = getattr(args, "last_n_chunks", None)
+    page_range_raw = getattr(args, "page_range", None)
     if first_n is not None:
         chunk_slice = ChunkSlice(first_n=first_n)
     elif last_n is not None:
         chunk_slice = ChunkSlice(last_n=last_n)
+    elif page_range_raw is not None:
+        parts = page_range_raw.replace(" ", "").split("-", 1)
+        start, end = int(parts[0]), int(parts[1])
+        chunk_slice = ChunkSlice(page_range=(start, end))
 
     # Collect files
     if is_visual:

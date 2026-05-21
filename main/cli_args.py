@@ -282,6 +282,11 @@ Examples:
         metavar="N",
         help="Process only the last N chunks/pages of each input file",
     )
+    chunk_slice_group.add_argument(
+        "--page-range",
+        metavar="START-END",
+        help="Process pages START through END (1-based, inclusive, e.g. 70-337)",
+    )
 
     return parser
 
