@@ -67,31 +67,31 @@
               "properties": {
                 "stars": {
                   "type": ["integer", "null"],
-                  "description": "Michelin Stars (0-3). Use 0 if no star glyph is visible on a complete entry.",
+                  "description": "Michelin Stars (0-3). Flower-shaped red rosettes on the name line (category 1 in context image). Count visible rosettes; 0 if none on a complete entry.",
                   "minimum": 0,
                   "maximum": 3
                 },
                 "bib_gourmand": {
                   "type": ["boolean", "null"],
-                  "description": "Bib Gourmand award (bibendum - delicious - face symbol/emoji)."
+                  "description": "Bib Gourmand. Round smiling Bibendum face on name line (category 4 in context image). Introduced 1997; false for earlier editions."
                 },
                 "michelin_plate": {
                   "type": ["boolean", "null"],
-                  "description": "Michelin Plate or Selected Restaurant (plate and fork symbol/emoji)."
+                  "description": "Michelin Plate (2016-2021) or Selected Restaurant (2022+). Plate-and-cutlery icon on name line. false outside active years."
                 },
                 "pleasant_marker": {
                   "type": ["boolean", "null"],
-                  "description": "Pleasant or charming establishment marker (birdlike symbol in guide pages; heart emoji in transcriptions)."
+                  "description": "Pleasant establishment marker. Stylized decorative mark (flower, bird, or small red symbol) on the name line."
                 },
                 "hotel_class": {
                   "type": ["integer", "null"],
-                  "description": "Michelin hotel comfort class (1-5); count of consecutive hotel-pavilion glyphs at entry start. Null if no hotel-pavilion glyph is visible.",
+                  "description": "Hotel comfort class (1-5). Count of hotel-pavilion glyphs — house/building icons of increasing complexity (category 2 in context image). Null if not a hotel.",
                   "minimum": 1,
                   "maximum": 5
                 },
                 "restaurant_class": {
                   "type": ["integer", "null"],
-                  "description": "Michelin restaurant comfort class (1-5); count of consecutive cutlery glyphs at entry start. Null if no cutlery glyph is visible.",
+                  "description": "Restaurant comfort class (1-5). Count of crossed fork-and-spoon glyphs (category 3 in context image). Comfort rating, not food quality. Null if not a restaurant.",
                   "minimum": 1,
                   "maximum": 5
                 }
