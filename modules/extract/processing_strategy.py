@@ -166,9 +166,6 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         wait_max_seconds = float(retry_cfg.get("wait_max_seconds", 60.0) or 60.0)
         jitter_max_seconds = float(retry_cfg.get("jitter_max_seconds", 0.0) or 0.0)
 
-        if provider == "anthropic":
-            concurrency_limit = 1
-
         # Detect prompt caching capability for Anthropic models
         caps = detect_capabilities(model_name, provider=provider)
         enable_cache = caps.supports_prompt_caching

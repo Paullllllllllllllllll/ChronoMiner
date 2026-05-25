@@ -429,3 +429,80 @@ async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(
 
     assert results[0].get("ok") is True
     assert calls["n"] == 2
+
+
+@pytest.mark.asyncio
+async def test_anthropic_respects_configured_concurrency_limit(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Anthropic should use the configured concurrency_limit,
+    not be hard-capped to 1."""
+    monkeypatch.setattr(
+        ps.ProviderConfig,
+        "_detect_provider",
+        staticmethod(lambda model: "anthropic"),
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig,
+        "_get_api_key",
+        staticmethod(lambda provider: "key"),
+    )
+    monkeypatch.setattr(
+        ps,
+        "open_extractor",
+        lambda **_kwargs: _AsyncExtractorCM(object()),
+    )
+
+    async def _process_text_chunk(**_kw: Any) -> dict[str, Any]:
+        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}}
+
+    monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
+
+    captured_semaphore_values: list[int] = []
+    _original_semaphore = ps.asyncio.Semaphore
+
+    class _CaptureSemaphore:
+        def __init__(self, value: int = 1):
+            captured_semaphore_values.append(value)
+            self._sem = _original_semaphore(value)
+
+        async def __aenter__(self):
+            return await self._sem.__aenter__()
+
+        async def __aexit__(
+            self,
+            exc_type: type[BaseException] | None,
+            exc: BaseException | None,
+            tb: object,
+        ) -> None:
+            await self._sem.__aexit__(exc_type, exc, tb)  # type: ignore[arg-type]
+
+    monkeypatch.setattr(ps.asyncio, "Semaphore", _CaptureSemaphore)
+
+    strat = ps.SynchronousProcessingStrategy(
+        concurrency_config={
+            "concurrency": {
+                "extraction": {
+                    "concurrency_limit": 10,
+                    "delay_between_tasks": 0,
+                }
+            }
+        }
+    )
+
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "input.txt"
+
+    await strat.process_chunks(
+        chunks=["c1", "c2", "c3"],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config={"extraction_model": {"name": "claude-sonnet"}},
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_args, **_kwargs: None,
+    )
+
+    assert len(captured_semaphore_values) == 1
+    assert captured_semaphore_values[0] == 3
