@@ -1,4 +1,4 @@
-# ChronoMiner v1.6.5
+# ChronoMiner v1.6.6
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,13 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.6.6** (25 May 2026) -- remove hard-coded Anthropic
+    concurrency cap (`concurrency_limit = 1`); Anthropic now
+    respects the configured `concurrency_limit` like all other
+    providers. Users on lower Anthropic API tiers should set a
+    conservative limit (e.g., 5) in
+    `concurrency_config.yaml`; the existing retry logic handles
+    transient 429s automatically.
 - **v1.6.5** (21 May 2026) -- demote LLM invocation error log
     from `error` (with full traceback) to `debug`; transient
     errors now only show the one-line retry warning from the
