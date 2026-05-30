@@ -420,8 +420,12 @@ class FileProcessor:
                                 f" fully processed ({total} pages)"
                             )
                             return
-            except Exception:
-                pass
+            except (OSError, json.JSONDecodeError) as exc:
+                # A malformed/locked existing output must not silently restart
+                # processing; log and fall through to a normal run.
+                logger.warning(
+                    "Early-resume check failed for %s: %s", file_path.name, exc
+                )
 
         # 4. Load and preprocess images
         pil_images: list = []

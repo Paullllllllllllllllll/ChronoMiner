@@ -296,6 +296,67 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
 
 
 @pytest.mark.asyncio
+async def test_synchronous_strategy_writes_chunk_index_for_ordering(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Regression (C4): sync temp records must carry ``chunk_index`` so the
+    final output can be ordered. Without it, ``_generate_output_files`` sorts
+    by ``None or 0`` (all equal) and records land in completion order."""
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object())
+    )
+
+    async def _process_text_chunk(
+        *,
+        text_chunk: str,
+        extractor: object,
+        system_message: str,
+        json_schema: dict[str, Any],
+        **kwargs,
+    ):
+        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}}
+
+    monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
+
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "input.txt"
+
+    strat = ps.SynchronousProcessingStrategy(
+        concurrency_config={"concurrency": {"extraction": {"concurrency_limit": 3}}}
+    )
+
+    await strat.process_chunks(
+        chunks=["c1", "c2", "c3"],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config={"extraction_model": {"name": "gpt-4o"}},
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_args, **_kwargs: None,
+    )
+
+    lines = [
+        json.loads(line)
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(lines) == 3
+    for rec in lines:
+        assert "chunk_index" in rec
+        idx_from_id = int(rec["custom_id"].rsplit("-chunk-", 1)[1])
+        assert rec["chunk_index"] == idx_from_id
+    # Sorting by chunk_index recovers ascending order regardless of write order.
+    assert sorted(rec["chunk_index"] for rec in lines) == [1, 2, 3]
+
+
+@pytest.mark.asyncio
 async def test_synchronous_processing_strategy_forwards_runtime_overrides(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

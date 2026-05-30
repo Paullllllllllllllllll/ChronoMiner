@@ -56,9 +56,14 @@ class SchemaManager:
                     )
                 else:
                     logger.warning(
-                        f"Schema file {schema_file.name} does not contain a 'name' field."
+                        f"Schema file {schema_file.name} has no 'name' field."
                     )
-            except Exception as e:
+            except json.JSONDecodeError as e:
+                logger.error(
+                    f"Invalid JSON in schema {schema_file.name} "
+                    f"at line {e.lineno}, column {e.colno}: {e.msg}"
+                )
+            except (OSError, UnicodeDecodeError) as e:
                 logger.error(f"Error loading schema from {schema_file}: {e}")
 
     def load_dev_messages(self) -> None:
@@ -77,7 +82,7 @@ class SchemaManager:
                     f"Loaded developer message for schema '{schema_name}' "
                     f"from {message_file.name}"
                 )
-            except Exception as e:
+            except (OSError, UnicodeDecodeError) as e:
                 logger.error(
                     f"Error loading developer message from {message_file}: {e}"
                 )
@@ -91,7 +96,7 @@ class SchemaManager:
                         safe_file = ensure_path_safe(file)
                         with safe_file.open("r", encoding="utf-8") as f:
                             parts.append(f.read().strip())
-                    except Exception as e:
+                    except (OSError, UnicodeDecodeError) as e:
                         logger.error(f"Error reading {file}: {e}")
                 if parts:
                     self.dev_messages[schema_name] = "\n".join(parts)

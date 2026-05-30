@@ -289,6 +289,28 @@ class TestAnthropicBackend:
             assert status.completed_requests == 3
             assert status.pending_requests == 5
 
+    @patch("anthropic.Anthropic")
+    def test_get_status_ended_without_counts_is_unknown(self, mock_anthropic_class):
+        """Regression (C6): an ``ended`` batch with absent/all-zero
+        request_counts must map to UNKNOWN, not FAILED. With total == 0 the
+        old `errored == total` check (0 == 0) mislabeled it FAILED."""
+        mock_client = MagicMock()
+        mock_anthropic_class.return_value = mock_client
+
+        mock_batch = MagicMock()
+        mock_batch.processing_status = "ended"
+        mock_batch.request_counts = None
+        mock_batch.results_url = None
+        mock_client.messages.batches.retrieve.return_value = mock_batch
+
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+            backend = get_batch_backend("anthropic")
+            handle = BatchHandle(provider="anthropic", batch_id="batch-123")
+
+            status = backend.get_status(handle)
+
+            assert status.status == BatchStatus.UNKNOWN
+
 
 class TestGoogleBackend:
     """Test Google batch backend."""
@@ -333,6 +355,53 @@ class TestGoogleBackend:
 
             assert status.status == BatchStatus.COMPLETED
             assert status.results_available is True
+
+    def test_download_results_empty_candidate_marks_failure(self):
+        """Regression (C7): a candidate with no text parts (e.g. a SAFETY or
+        MAX_TOKENS block) must be reported as a failure, not a successful empty
+        extraction that silently corrupts downstream aggregation."""
+        import json
+        import sys
+
+        mock_genai = MagicMock()
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        mock_batch_job = MagicMock()
+        mock_dest = MagicMock()
+        mock_dest.file_name = "result-file"
+        mock_batch_job.dest = mock_dest
+        mock_client.batches.get.return_value = mock_batch_job
+
+        result_line = json.dumps(
+            {
+                "key": "doc-chunk-1",
+                "response": {
+                    "candidates": [
+                        {"finishReason": "SAFETY", "content": {"parts": []}}
+                    ]
+                },
+            }
+        )
+        mock_client.files.download.return_value = result_line.encode("utf-8")
+
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}),
+            patch.dict(
+                sys.modules, {"google": mock_google, "google.genai": mock_genai}
+            ),
+        ):
+            backend = get_batch_backend("google")
+            handle = BatchHandle(provider="google", batch_id="batch-123")
+
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        assert results[0].success is False
+        assert "SAFETY" in (results[0].error or "")
 
 
 class TestOpenAIImageResponsesBody:

@@ -34,7 +34,10 @@ from modules.batch import (
     get_batch_backend,
 )
 from modules.config.loader import get_config_loader
+from modules.infra.logger import setup_logger
 from modules.ui.core import UserInterface
+
+logger = setup_logger(__name__)
 
 # Define terminal statuses where cancellation is not applicable
 TERMINAL_STATUSES: set[BatchStatus] = {
@@ -73,7 +76,10 @@ def _scan_for_batch_tracking(root_folders: list[Path]) -> list[dict[str, Any]]:
                                 tracking_records.append(tracking)
                         except json.JSONDecodeError:
                             continue
-            except Exception:
+            except (OSError, UnicodeDecodeError) as exc:
+                logger.warning(
+                    "Could not read batch-tracking file %s: %s", temp_file, exc
+                )
                 continue
 
     return tracking_records

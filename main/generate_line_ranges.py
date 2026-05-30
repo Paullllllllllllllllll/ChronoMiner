@@ -271,7 +271,7 @@ class GenerateLineRangesScript(DualModeScript):
                 success_count += 1
 
             except Exception as e:
-                self.logger.exception(f"Error processing {file_path}", exc_info=e)
+                self.logger.exception(f"Error processing {file_path}")
                 if self.ui:
                     self.ui.print_error(f"Failed to process {file_path.name}: {e}")
                 else:
