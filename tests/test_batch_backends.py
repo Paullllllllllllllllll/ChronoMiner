@@ -377,9 +377,7 @@ class TestGoogleBackend:
             {
                 "key": "doc-chunk-1",
                 "response": {
-                    "candidates": [
-                        {"finishReason": "SAFETY", "content": {"parts": []}}
-                    ]
+                    "candidates": [{"finishReason": "SAFETY", "content": {"parts": []}}]
                 },
             }
         )

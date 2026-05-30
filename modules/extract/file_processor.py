@@ -723,6 +723,7 @@ class FileProcessor:
                                 partial=processing_cancelled
                                 or processing_exception is not None,
                                 chunk_slice_info=_cs_info,
+                                merge_existing=bool(completed_chunk_indices),
                             )
                         )
                         wrote_output = True
@@ -852,8 +853,17 @@ class FileProcessor:
         *,
         partial: bool = False,
         chunk_slice_info: dict | None = None,
+        merge_existing: bool = False,
     ) -> None:
-        """Generate final output files from temporary JSONL."""
+        """Generate final output files from temporary JSONL.
+
+        When ``merge_existing`` is set (resume of a partial extraction), the
+        records already saved in ``output_json_path`` are merged with those
+        rebuilt from the temp JSONL, keyed by ``custom_id`` (freshly-processed
+        records win). This prevents data loss when the prior temp JSONL was not
+        retained: the temp file then holds only the newly-processed chunks,
+        while the skip-set was derived from the existing output.json.
+        """
         try:
             messenger.info("Constructing final output from temporary file...")
             results = []
@@ -880,6 +890,11 @@ class FileProcessor:
                         except json.JSONDecodeError as e:
                             logger.warning(f"Failed to parse line in temp file: {e}")
                             continue
+
+            if merge_existing:
+                results = self._merge_with_existing_output(
+                    output_json_path, results, messenger
+                )
 
             # Sort results by chunk_index, handling None values
             results.sort(key=lambda x: x.get("chunk_index") or 0)
@@ -920,6 +935,67 @@ class FileProcessor:
         self._generate_additional_formats(
             output_json_path, handler, schema_paths, messenger
         )
+
+    def _merge_with_existing_output(
+        self,
+        output_json_path: Path,
+        new_results: list[dict[str, Any]],
+        messenger: _MessagingAdapter,
+    ) -> list[dict[str, Any]]:
+        """Overlay freshly-generated records onto previously-saved ones.
+
+        Reads the records currently stored in ``output_json_path`` and merges
+        them with ``new_results`` keyed by ``custom_id``; newly-processed
+        records take precedence on conflict. Records without a ``custom_id``
+        cannot be deduplicated and are kept as-is.
+
+        :param output_json_path: Existing output JSON to read prior records from
+        :param new_results: Records rebuilt from the temp JSONL this run
+        :param messenger: Messaging adapter for user-facing notices
+        :return: Merged record list
+        """
+        if not output_json_path.exists():
+            return new_results
+
+        try:
+            with output_json_path.open("r", encoding="utf-8") as fh:
+                data = json.load(fh)
+        except (json.JSONDecodeError, OSError) as exc:
+            messenger.warning(
+                f"Could not read existing output for resume merge "
+                f"({output_json_path.name}): {exc}. Keeping new records only."
+            )
+            return new_results
+
+        prior_records: list[dict[str, Any]] = []
+        if isinstance(data, dict):
+            prior_records = data.get("records", []) or []
+        elif isinstance(data, list):
+            prior_records = data
+
+        merged: dict[str, dict[str, Any]] = {}
+        extras: list[dict[str, Any]] = []
+        for record in prior_records:
+            custom_id = record.get("custom_id") if isinstance(record, dict) else None
+            if custom_id:
+                merged[str(custom_id)] = record
+        new_cids: set[str] = set()
+        for record in new_results:
+            custom_id = record.get("custom_id")
+            if custom_id:
+                new_cids.add(str(custom_id))
+                merged[str(custom_id)] = record
+            else:
+                extras.append(record)
+
+        carried = sum(1 for cid in merged if cid not in new_cids)
+        if carried:
+            messenger.info(
+                f"Resume: preserved {carried} previously-saved record(s) "
+                "from existing output."
+            )
+
+        return list(merged.values()) + extras
 
     def _generate_additional_formats(
         self,

@@ -131,9 +131,7 @@ async def _adjust_line_ranges_workflow(
                     f"Successfully generated line ranges file: {line_ranges_file}"
                 )
             except Exception as e:
-                logger.exception(
-                    f"Failed to generate line ranges for {text_file}"
-                )
+                logger.exception(f"Failed to generate line ranges for {text_file}")
                 if ui:
                     ui.print_error(
                         f"Failed to generate line ranges for {text_file.name}: {e}"
@@ -155,9 +153,7 @@ async def _adjust_line_ranges_workflow(
                     f"Adjusted {len(adjusted_ranges)} range(s) for {text_file.name}"
                 )
         except Exception as e:
-            logger.exception(
-                f"Failed to adjust line ranges for {text_file}"
-            )
+            logger.exception(f"Failed to adjust line ranges for {text_file}")
             if ui:
                 ui.print_error(f"Failed to adjust {text_file.name}: {e}")
 

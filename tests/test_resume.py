@@ -419,3 +419,150 @@ class TestCliResumeFlags:
             ]
         )
         assert args.force is True
+
+
+class _StubHandler:
+    """Minimal schema handler: only ``schema_name`` is read by output gen."""
+
+    schema_name = "TestSchema"
+
+
+def _make_file_processor():
+    """Build a FileProcessor with the minimum config it needs offline."""
+    from modules.extract.file_processor import FileProcessor
+
+    return FileProcessor(
+        paths_config={"general": {"input_paths_is_output_path": True}},
+        model_config={"extraction_model": {"name": "gpt-4o"}},
+        chunking_config={"chunking": {"default_tokens_per_chunk": 10}},
+        concurrency_config={},
+    )
+
+
+def _read_records(output_json: Path) -> list[dict]:
+    data = json.loads(output_json.read_text(encoding="utf-8"))
+    return data["records"]
+
+
+def _completed_indices(records: list[dict]) -> set[int]:
+    indices: set[int] = set()
+    for rec in records:
+        cid = str(rec.get("custom_id", ""))
+        if "-chunk-" in cid:
+            indices.add(int(cid.rsplit("-chunk-", 1)[1]))
+    return indices
+
+
+class TestResumeMergePreservesPriorRecords:
+    """Regression: resume must not drop previously-saved records when the temp
+    JSONL no longer holds them (e.g. retain_temporary_jsonl is false)."""
+
+    def test_merge_existing_recovers_prior_records(self, tmp_path: Path):
+        import asyncio
+
+        from modules.extract.file_processor import _MessagingAdapter
+
+        fp = _make_file_processor()
+
+        # Prior run saved chunks 1-2 to output.json.
+        output_json = tmp_path / "doc_output.json"
+        prior_records = [
+            {
+                "custom_id": "doc-chunk-1",
+                "chunk_index": 1,
+                "chunk_range": None,
+                "response": {"entries": ["a"]},
+            },
+            {
+                "custom_id": "doc-chunk-2",
+                "chunk_index": 2,
+                "chunk_range": None,
+                "response": {"entries": ["b"]},
+            },
+        ]
+        output_json.write_text(
+            json.dumps({"_chronominer_metadata": {}, "records": prior_records}),
+            encoding="utf-8",
+        )
+
+        # Resume run: the temp JSONL was deleted after the prior run, so it now
+        # holds only the newly-processed chunk 3.
+        temp_jsonl = tmp_path / "doc_temp.jsonl"
+        temp_jsonl.write_text(
+            json.dumps(
+                {
+                    "custom_id": "doc-chunk-3",
+                    "chunk_index": 3,
+                    "response": {"body": {"entries": ["c"]}},
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        asyncio.run(
+            fp._generate_output_files(
+                temp_jsonl,
+                output_json,
+                _StubHandler(),
+                {},  # no csv/docx/txt outputs configured
+                _MessagingAdapter(),
+                partial=False,
+                merge_existing=True,
+            )
+        )
+
+        records = _read_records(output_json)
+        # All three chunks survive and are ordered by chunk_index.
+        assert _completed_indices(records) == {1, 2, 3}
+        assert [r["chunk_index"] for r in records] == [1, 2, 3]
+
+    def test_no_merge_overwrites_cleanly(self, tmp_path: Path):
+        """Without merge_existing (force / non-resume), output is rebuilt from
+        the temp JSONL alone — prior records are not reintroduced."""
+        import asyncio
+
+        from modules.extract.file_processor import _MessagingAdapter
+
+        fp = _make_file_processor()
+
+        output_json = tmp_path / "doc_output.json"
+        output_json.write_text(
+            json.dumps(
+                {
+                    "_chronominer_metadata": {},
+                    "records": [
+                        {"custom_id": "doc-chunk-1", "chunk_index": 1, "response": {}}
+                    ],
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        temp_jsonl = tmp_path / "doc_temp.jsonl"
+        temp_jsonl.write_text(
+            json.dumps(
+                {
+                    "custom_id": "doc-chunk-2",
+                    "chunk_index": 2,
+                    "response": {"body": {"entries": ["c"]}},
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        asyncio.run(
+            fp._generate_output_files(
+                temp_jsonl,
+                output_json,
+                _StubHandler(),
+                {},
+                _MessagingAdapter(),
+                partial=False,
+                merge_existing=False,
+            )
+        )
+
+        records = _read_records(output_json)
+        assert _completed_indices(records) == {2}
