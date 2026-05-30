@@ -1,4 +1,4 @@
-# ChronoMiner v1.6.7
+# ChronoMiner v1.6.8
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,17 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.6.8** (30 May 2026) -- fix a resume data-loss path in
+    synchronous extraction. The resume skip-set is derived from the
+    existing `output.json`, but the final records were rebuilt solely
+    from the temporary JSONL; when `retain_temporary_jsonl` is false the
+    prior temp file is deleted, so a resumed run regenerated
+    `output.json` from only the newly-processed chunks and dropped all
+    previously-completed records. On resume, ChronoMiner now merges the
+    records already saved in `output.json` with those rebuilt from the
+    temp file, keyed by `custom_id` (newly-processed records win), so no
+    prior record is lost regardless of the temp-retention setting. Force
+    and non-resume runs are unaffected and still overwrite cleanly.
 - **v1.6.7** (30 May 2026) -- full-repository code review fixes.
     Correctness: `--input-type mixed` no longer silently falls back to
     text mode; `--page-range` now reports an actionable error instead of
