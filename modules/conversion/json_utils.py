@@ -192,24 +192,25 @@ def _extract_entries_from_record(record: Any) -> list[Any]:
     if isinstance(response, str):
         return _parse_entries_from_text(response) or []
 
+    # Case 2: response is itself a list of entries. This must precede the dict
+    # guard below; otherwise list-form responses are silently dropped.
+    if isinstance(response, list):
+        return [e for e in response if e is not None]
+
     if not isinstance(response, dict):
         return []
 
-    # Case 2: response dict directly contains entries
+    # Case 3: response dict directly contains entries
     if response.get("contains_no_content_of_requested_type", False):
         logger.debug("Record response indicated no content of requested type")
         return []
     if "entries" in response:
         return [e for e in response["entries"] if e is not None]
 
-    # Case 3: response is a raw API body — extract text, then parse
+    # Case 4: response is a raw API body — extract text, then parse
     text = _extract_text_from_api_body(response)
     if text:
         return _parse_entries_from_text(text) or []
-
-    # Case 4: response is itself a list of entries
-    if isinstance(response, list):
-        return response
 
     return []
 

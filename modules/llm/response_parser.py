@@ -45,13 +45,14 @@ class ResponseParser:
         :param response: Parsed response dictionary
         :return: True if valid, False otherwise
         """
-        if "error" in response:
-            logger.warning(f"Response contains error: {response['error']}")
-            return False
-
-        # Basic validation - check for expected structure
+        # Type check must precede membership test: `"error" in response`
+        # raises TypeError for non-container types.
         if not isinstance(response, dict):
             logger.warning(f"Response is not a dictionary: {type(response)}")
+            return False
+
+        if "error" in response:
+            logger.warning(f"Response contains error: {response['error']}")
             return False
 
         return True

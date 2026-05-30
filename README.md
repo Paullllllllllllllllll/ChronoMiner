@@ -1,4 +1,4 @@
-# ChronoMiner v1.6.6
+# ChronoMiner v1.6.7
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,21 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.6.7** (30 May 2026) -- full-repository code review fixes.
+    Correctness: `--input-type mixed` no longer silently falls back to
+    text mode; `--page-range` now reports an actionable error instead of
+    a raw traceback on malformed input; the processing summary reports
+    the real failed-file count instead of always zero; synchronous
+    extraction records now carry `chunk_index`, so `output.json` records
+    are ordered rather than in completion order; list-form response
+    records are no longer silently dropped during conversion; an
+    Anthropic batch that ends with no request counts maps to `unknown`
+    rather than a false `failed`; a Gemini batch candidate with no text
+    content (e.g. a safety or length cutoff) is reported as a failure
+    rather than a successful empty extraction. Hardening: narrowed
+    several broad `except` blocks to surface previously-hidden read and
+    parse failures, removed redundant double-traceback logging, and
+    fixed a validation-order edge case in the response parser.
 - **v1.6.6** (25 May 2026) -- remove hard-coded Anthropic
     concurrency cap (`concurrency_limit = 1`); Anthropic now
     respects the configured `concurrency_limit` like all other

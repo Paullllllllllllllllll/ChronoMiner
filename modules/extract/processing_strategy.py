@@ -230,8 +230,13 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                     f"{file_path.stem}-chunk-{idx}"
                                 )
 
+                                # chunk_index drives ordering in
+                                # _generate_output_files; without it the final
+                                # records sort by `None or 0` (all equal) and
+                                # land in completion order.
                                 response_obj = {
                                     "custom_id": request_obj["custom_id"],
+                                    "chunk_index": idx,
                                     "response": {"body": result},
                                 }
                                 tempf.write(json.dumps(response_obj) + "\n")

@@ -325,7 +325,7 @@ class RepairExtractionsScript(DualModeScript):
                 except Exception as e:
                     self.ui.print_error(f"Failed to repair file {index + 1}: {e}")
                     self.logger.exception(
-                        f"Error repairing file at index {index}", exc_info=e
+                        f"Error repairing file at index {index}"
                     )
             else:
                 self.ui.print_warning(
@@ -448,7 +448,7 @@ class RepairExtractionsScript(DualModeScript):
                 success_count += 1
             except Exception as e:
                 self.logger.exception(
-                    f"Error repairing {candidate['temp_file'].name}", exc_info=e
+                    f"Error repairing {candidate['temp_file'].name}"
                 )
                 print(f"[ERROR] Failed to repair {candidate['temp_file'].name}: {e}")
                 fail_count += 1

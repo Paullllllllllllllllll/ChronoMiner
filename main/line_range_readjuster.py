@@ -324,7 +324,7 @@ async def _adjust_files(
                         f"({stats['usage_percentage']:.1f}%)"
                     )
             except Exception as exc:  # pragma: no cover - defensive logging
-                logger.exception("Error adjusting %s", text_file, exc_info=exc)
+                logger.exception("Error adjusting %s", text_file)
                 notifier(f"Failed to adjust {text_file.name}: {exc}", "error")
                 failures.append((text_file, exc))
 
@@ -741,7 +741,7 @@ def main() -> None:
         print("\n✓ Operation cancelled by user.")
         sys.exit(0)
     except Exception as exc:
-        logger.exception("Unexpected error in line_range_readjuster", exc_info=exc)
+        logger.exception("Unexpected error in line_range_readjuster")
         print(f"\n[ERROR] Unexpected error: {exc}")
         sys.exit(1)
 

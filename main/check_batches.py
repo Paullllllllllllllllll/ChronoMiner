@@ -472,7 +472,7 @@ def process_all_batches(
                     logger.info(f"Removed temporary file {temp_file}")
 
         except Exception as exc:
-            logger.exception(f"Error processing {base_identifier}", exc_info=exc)
+            logger.exception(f"Error processing {base_identifier}")
             _safe_print(ui, f"Failed to process {base_identifier}: {exc}", "error")
 
 

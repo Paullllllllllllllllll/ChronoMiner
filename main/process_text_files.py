@@ -132,7 +132,7 @@ async def _adjust_line_ranges_workflow(
                 )
             except Exception as e:
                 logger.exception(
-                    f"Failed to generate line ranges for {text_file}", exc_info=e
+                    f"Failed to generate line ranges for {text_file}"
                 )
                 if ui:
                     ui.print_error(
@@ -156,7 +156,7 @@ async def _adjust_line_ranges_workflow(
                 )
         except Exception as e:
             logger.exception(
-                f"Failed to adjust line ranges for {text_file}", exc_info=e
+                f"Failed to adjust line ranges for {text_file}"
             )
             if ui:
                 ui.print_error(f"Failed to adjust {text_file.name}: {e}")
@@ -588,6 +588,7 @@ async def _run_interactive_mode(
         _gather_results = await asyncio.gather(*tasks, return_exceptions=True)
         for _exc in _gather_results:
             if isinstance(_exc, Exception):
+                failed_count += 1
                 logger.error(
                     "Error in concurrent file processing: %s", _exc, exc_info=_exc
                 )
@@ -595,8 +596,8 @@ async def _run_interactive_mode(
     # Calculate duration and set counts for non-sequential processing
     duration_seconds = time.time() - start_time
     if not (token_limit_enabled and not state["use_batch"]):
-        # For concurrent/batch mode, assume all processed successfully
-        processed_count = len(state["files"])
+        # For concurrent/batch mode, count successes as total minus failures
+        processed_count = len(state["files"]) - failed_count
 
     # Display completion summary
     ui.display_completion_summary(
@@ -730,7 +731,7 @@ async def _run_cli_mode(
     # Apply --input-type override if provided
     if getattr(args, "input_type", None):
         input_type = args.input_type
-        is_visual = input_type in ("image", "pdf")
+        is_visual = input_type in ("image", "pdf", "mixed")
 
     # Load prompt template (visual or text)
     if is_visual:
@@ -763,7 +764,15 @@ async def _run_cli_mode(
         chunk_slice = ChunkSlice(last_n=last_n)
     elif page_range_raw is not None:
         parts = page_range_raw.replace(" ", "").split("-", 1)
-        start, end = int(parts[0]), int(parts[1])
+        try:
+            start, end = int(parts[0]), int(parts[1])
+        except (ValueError, IndexError):
+            logger.error(f"Invalid --page-range value: {page_range_raw!r}")
+            print(
+                f"[ERROR] Invalid --page-range '{page_range_raw}'. "
+                f"Expected START-END with positive integers, e.g. 70-337."
+            )
+            sys.exit(2)
         chunk_slice = ChunkSlice(page_range=(start, end))
 
     # Collect files

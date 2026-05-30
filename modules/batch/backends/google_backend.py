@@ -301,19 +301,33 @@ class GoogleBatchBackend(BatchBackend):
 
                 # Extract response
                 response = result_obj.get("response", {})
-                result_item.success = True
                 result_item.raw_response = response
 
                 # Extract text content
                 candidates = response.get("candidates", [])
+                finish_reason = ""
                 if candidates:
-                    content = candidates[0].get("content", {})
+                    candidate = candidates[0]
+                    finish_reason = candidate.get("finishReason", "")
+                    content = candidate.get("content", {})
                     parts = content.get("parts", [])
                     text_parts = []
                     for part in parts:
                         if "text" in part:
                             text_parts.append(part["text"])
                     result_item.content = "".join(text_parts)
+
+                # A candidate with no text parts (e.g. finishReason SAFETY or
+                # MAX_TOKENS) must not be reported as a successful empty
+                # extraction; doing so silently corrupts downstream aggregation.
+                if result_item.content:
+                    result_item.success = True
+                else:
+                    result_item.success = False
+                    result_item.error = (
+                        "No text content in Gemini response "
+                        f"(finishReason={finish_reason or 'unknown'})"
+                    )
 
                 # Try to parse as JSON
                 if result_item.content:
