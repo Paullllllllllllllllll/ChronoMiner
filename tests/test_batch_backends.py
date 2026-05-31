@@ -1,5 +1,6 @@
 """Tests for multi-provider batch backends."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -255,6 +256,96 @@ class TestOpenAIBackend:
             assert status.completed_requests == 10
             assert status.results_available is True
 
+    @patch("openai.OpenAI")
+    def test_download_results_deletes_input_and_output_files(self, mock_openai_class):
+        """Regression (A5): the uploaded input file and the result output file
+        must be deleted once the consumer finishes iterating."""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        mock_batch = MagicMock()
+        mock_batch.output_file_id = "output-file-1"
+        mock_client.batches.retrieve.return_value = mock_batch
+
+        result_line = json.dumps(
+            {
+                "custom_id": "req-1",
+                "response": {
+                    "status_code": 200,
+                    "body": {
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [
+                                    {"type": "output_text", "text": "{\"ok\": true}"}
+                                ],
+                            }
+                        ]
+                    },
+                },
+            }
+        )
+        mock_stream = MagicMock()
+        mock_stream.read.return_value = result_line.encode("utf-8")
+        mock_client.files.content.return_value = mock_stream
+
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+            backend = get_batch_backend("openai")
+            handle = BatchHandle(
+                provider="openai",
+                batch_id="batch-123",
+                metadata={"input_file_id": "input-file-1"},
+            )
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        deleted = {call.args[0] for call in mock_client.files.delete.call_args_list}
+        assert deleted == {"input-file-1", "output-file-1"}
+
+    @patch("openai.OpenAI")
+    def test_download_results_survives_delete_failure(self, mock_openai_class):
+        """Regression (A5): a delete failure must not crash the run."""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        mock_batch = MagicMock()
+        mock_batch.output_file_id = "output-file-1"
+        mock_client.batches.retrieve.return_value = mock_batch
+
+        mock_stream = MagicMock()
+        mock_stream.read.return_value = json.dumps(
+            {
+                "custom_id": "req-1",
+                "response": {
+                    "status_code": 200,
+                    "body": {
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [
+                                    {"type": "output_text", "text": "{\"ok\": true}"}
+                                ],
+                            }
+                        ]
+                    },
+                },
+            }
+        ).encode("utf-8")
+        mock_client.files.content.return_value = mock_stream
+        mock_client.files.delete.side_effect = RuntimeError("delete boom")
+
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+            backend = get_batch_backend("openai")
+            handle = BatchHandle(
+                provider="openai",
+                batch_id="batch-123",
+                metadata={"input_file_id": "input-file-1"},
+            )
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        assert results[0].success is True
+
 
 class TestAnthropicBackend:
     """Test Anthropic batch backend."""
@@ -400,6 +491,207 @@ class TestGoogleBackend:
         assert len(results) == 1
         assert results[0].success is False
         assert "SAFETY" in (results[0].error or "")
+
+    def test_submit_batch_wires_sanitized_response_schema(self):
+        """Regression (A4): the structured-output schema must reach Gemini's
+        generation_config as response_schema/response_mime_type, with keys
+        Gemini rejects (e.g. additionalProperties, $ref) stripped."""
+        import sys
+
+        mock_genai = MagicMock()
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        captured = {}
+
+        def _capture_create(*_args, **kwargs):
+            captured["src"] = kwargs.get("src")
+            return MagicMock()
+
+        mock_client.batches.create.side_effect = _capture_create
+
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+
+        schema = {
+            "name": "TestSchema",
+            "schema": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "ref_field": {"$ref": "#/$defs/Thing"},
+                    "name": {"type": "string", "title": "Name"},
+                },
+                "$defs": {"Thing": {"type": "string"}},
+            },
+        }
+
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}),
+            patch.dict(
+                sys.modules, {"google": mock_google, "google.genai": mock_genai}
+            ),
+        ):
+            backend = get_batch_backend("google")
+            backend.submit_batch(
+                [BatchRequest(custom_id="req-1", text="hello", order_index=1)],
+                {"extraction_model": {"name": "gemini-2.5-flash"}},
+                system_prompt="Extract data.",
+                schema=schema,
+                schema_name="TestSchema",
+            )
+
+        gen_config = captured["src"][0]["generation_config"]
+        assert gen_config["response_mime_type"] == "application/json"
+        response_schema = gen_config["response_schema"]
+        assert "additionalProperties" not in response_schema
+        assert "$defs" not in response_schema
+        assert "title" not in response_schema["properties"]["name"]
+        # The forbidden $ref is stripped from the nested property.
+        assert "$ref" not in response_schema["properties"]["ref_field"]
+
+    def test_submit_batch_skips_schema_when_unsupported(self):
+        """Regression (A4): when the model lacks structured-output support, no
+        response_schema is set (Gemini falls back to prompt-guided JSON)."""
+        import sys
+
+        mock_genai = MagicMock()
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        captured = {}
+
+        def _capture_create(*_args, **kwargs):
+            captured["src"] = kwargs.get("src")
+            return MagicMock()
+
+        mock_client.batches.create.side_effect = _capture_create
+
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+
+        unsupported = MagicMock()
+        unsupported.supports_structured_outputs = False
+
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}),
+            patch.dict(
+                sys.modules, {"google": mock_google, "google.genai": mock_genai}
+            ),
+            patch(
+                "modules.batch.backends.google_backend.detect_capabilities",
+                return_value=unsupported,
+            ),
+        ):
+            backend = get_batch_backend("google")
+            backend.submit_batch(
+                [BatchRequest(custom_id="req-1", text="hello", order_index=1)],
+                {"extraction_model": {"name": "gemini-2.5-flash"}},
+                system_prompt="Extract data.",
+                schema={"schema": {"type": "object"}},
+                schema_name="TestSchema",
+            )
+
+        gen_config = captured["src"][0]["generation_config"]
+        assert gen_config is None or "response_schema" not in gen_config
+
+    def test_download_results_deletes_remote_files(self):
+        """Regression (A5): the uploaded input file and the result file must be
+        deleted after the consumer finishes iterating."""
+        import json
+        import sys
+
+        mock_genai = MagicMock()
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        mock_batch_job = MagicMock()
+        mock_dest = MagicMock()
+        mock_dest.file_name = "files/result-file"
+        mock_batch_job.dest = mock_dest
+        mock_client.batches.get.return_value = mock_batch_job
+
+        result_line = json.dumps(
+            {
+                "key": "doc-chunk-1",
+                "response": {
+                    "candidates": [
+                        {"content": {"parts": [{"text": "{\"ok\": true}"}]}}
+                    ]
+                },
+            }
+        )
+        mock_client.files.download.return_value = result_line.encode("utf-8")
+
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}),
+            patch.dict(
+                sys.modules, {"google": mock_google, "google.genai": mock_genai}
+            ),
+        ):
+            backend = get_batch_backend("google")
+            handle = BatchHandle(
+                provider="google",
+                batch_id="batch-123",
+                metadata={"input_file_name": "files/input-file"},
+            )
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        deleted = {
+            call.kwargs.get("name") for call in mock_client.files.delete.call_args_list
+        }
+        assert deleted == {"files/input-file", "files/result-file"}
+
+    def test_download_results_survives_delete_failure(self):
+        """Regression (A5): a failure deleting a remote file must not crash the
+        run; results are still yielded."""
+        import json
+        import sys
+
+        mock_genai = MagicMock()
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        mock_batch_job = MagicMock()
+        mock_dest = MagicMock()
+        mock_dest.file_name = "files/result-file"
+        mock_batch_job.dest = mock_dest
+        mock_client.batches.get.return_value = mock_batch_job
+        mock_client.files.download.return_value = json.dumps(
+            {
+                "key": "doc-chunk-1",
+                "response": {
+                    "candidates": [
+                        {"content": {"parts": [{"text": "{\"ok\": true}"}]}}
+                    ]
+                },
+            }
+        ).encode("utf-8")
+        mock_client.files.delete.side_effect = RuntimeError("delete boom")
+
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}),
+            patch.dict(
+                sys.modules, {"google": mock_google, "google.genai": mock_genai}
+            ),
+        ):
+            backend = get_batch_backend("google")
+            handle = BatchHandle(
+                provider="google",
+                batch_id="batch-123",
+                metadata={"input_file_name": "files/input-file"},
+            )
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        assert results[0].success is True
 
 
 class TestOpenAIImageResponsesBody:

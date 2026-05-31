@@ -49,6 +49,45 @@ def test_clear_config_cache_allows_reinit(tmp_config_dir, monkeypatch):
     assert loader.get_model_config()["extraction_model"]["name"] == "gpt-4o"
 
 
+@pytest.mark.unit
+def test_get_config_loader_is_idempotent_under_threads(tmp_config_dir, monkeypatch):
+    """Regression (hygiene): concurrent first-callers must not each construct a
+    ConfigLoader. The lock + double-checked cache guarantees a single build."""
+    import threading
+
+    import modules.config.loader as loader_module
+    from modules.config.loader import ConfigLoader
+
+    loader_module._config_cache = None
+
+    constructed: list[ConfigLoader] = []
+    lock = threading.Lock()
+
+    def _factory():
+        instance = ConfigLoader(config_dir=tmp_config_dir)
+        with lock:
+            constructed.append(instance)
+        return instance
+
+    monkeypatch.setattr(loader_module, "ConfigLoader", _factory)
+
+    results: list[ConfigLoader] = []
+    barrier = threading.Barrier(8)
+
+    def _worker():
+        barrier.wait()
+        results.append(loader_module.get_config_loader())
+
+    threads = [threading.Thread(target=_worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    assert len(constructed) == 1
+    assert all(r is constructed[0] for r in results)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

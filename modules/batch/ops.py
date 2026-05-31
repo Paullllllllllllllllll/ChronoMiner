@@ -14,8 +14,6 @@ import re
 from pathlib import Path
 from typing import Any
 
-from openai import OpenAI
-
 from modules.batch.backends import (
     BatchHandle,
     BatchStatus,
@@ -136,33 +134,6 @@ def _resolve_file_id_by_keys(batch: dict[str, Any], keys: list[str]) -> str | No
             file_id = coerce_file_id(batch.get(key))
             if file_id:
                 return file_id
-    return None
-
-
-def _download_error_file(
-    client: OpenAI, error_file_id: str, target_dir: Path, batch_id: str
-) -> Path | None:
-    """Download an error file for diagnostics if available."""
-    try:
-        response = client.files.content(error_file_id)
-        blob = response.read()
-        error_text = (
-            blob.decode("utf-8") if isinstance(blob, (bytes, bytearray)) else str(blob)
-        )
-        target_dir.mkdir(parents=True, exist_ok=True)
-        short_batch = batch_id.replace("batch_", "")[:16]
-        error_path = target_dir / f"errors_{short_batch}.jsonl"
-        with error_path.open("w", encoding="utf-8") as handle:
-            handle.write(error_text)
-        logger.info("Saved error details for batch %s to %s", batch_id, error_path)
-        return error_path
-    except Exception as exc:
-        logger.warning(
-            "Failed to download error file %s for batch %s: %s",
-            error_file_id,
-            batch_id,
-            exc,
-        )
     return None
 
 

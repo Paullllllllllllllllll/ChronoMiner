@@ -357,6 +357,140 @@ async def test_synchronous_strategy_writes_chunk_index_for_ordering(
 
 
 @pytest.mark.asyncio
+async def test_synchronous_strategy_concurrent_writes_are_not_interleaved(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Regression (A1): concurrent coroutines share one temp-file handle.
+    Without the write lock, ``write``+``flush`` from different coroutines can
+    interleave and corrupt lines. Every persisted line must parse as JSON and
+    the line count must equal the chunk count."""
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object())
+    )
+
+    async def _process_text_chunk(
+        *,
+        text_chunk: str,
+        extractor: object,
+        system_message: str,
+        json_schema: dict[str, Any],
+        **kwargs,
+    ):
+        # Yield control so coroutines reach the write section concurrently,
+        # maximizing the chance of an interleave without the lock.
+        await ps.asyncio.sleep(0)
+        return {
+            "ok": True,
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+            "payload": text_chunk * 50,
+        }
+
+    monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
+
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "input.txt"
+    chunks = [f"c{i}" for i in range(40)]
+
+    strat = ps.SynchronousProcessingStrategy(
+        concurrency_config={
+            "concurrency": {"extraction": {"concurrency_limit": 16}}
+        }
+    )
+
+    await strat.process_chunks(
+        chunks=chunks,
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config={"extraction_model": {"name": "gpt-4o"}},
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_args, **_kwargs: None,
+    )
+
+    raw_lines = [
+        line
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert len(raw_lines) == len(chunks)
+    parsed = [json.loads(line) for line in raw_lines]
+    assert sorted(rec["chunk_index"] for rec in parsed) == list(
+        range(1, len(chunks) + 1)
+    )
+
+
+@pytest.mark.asyncio
+async def test_synchronous_strategy_error_dict_carries_chunk_index(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Regression (A2): a failed chunk writes no temp record, so its result
+    dict must carry ``chunk_index`` for the caller to identify which chunk
+    failed (gather order cannot be trusted for that)."""
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object())
+    )
+
+    async def _process_text_chunk(
+        *,
+        text_chunk: str,
+        extractor: object,
+        system_message: str,
+        json_schema: dict[str, Any],
+        **kwargs,
+    ):
+        if text_chunk == "c2":
+            raise RuntimeError("permanent failure: bad request 400")
+        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}}
+
+    monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
+
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "input.txt"
+
+    strat = ps.SynchronousProcessingStrategy(
+        concurrency_config={"concurrency": {"extraction": {"concurrency_limit": 3}}}
+    )
+
+    results = await strat.process_chunks(
+        chunks=["c1", "c2", "c3"],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config={"extraction_model": {"name": "gpt-4o"}},
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_args, **_kwargs: None,
+    )
+
+    errors = [
+        r for r in results if isinstance(r, dict) and "error" in r
+    ]
+    assert len(errors) == 1
+    # c2 is the second chunk -> 1-based index 2.
+    assert errors[0]["chunk_index"] == 2
+    # The failed chunk wrote no temp record.
+    lines = [
+        json.loads(line)
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert sorted(rec["chunk_index"] for rec in lines) == [1, 3]
+
+
+@pytest.mark.asyncio
 async def test_synchronous_processing_strategy_forwards_runtime_overrides(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

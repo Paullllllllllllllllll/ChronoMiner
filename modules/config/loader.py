@@ -4,6 +4,7 @@
 
 import logging
 import re
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -11,8 +12,11 @@ import yaml
 
 logger = logging.getLogger(__name__)
 
-# Module-level cache for loaded configurations
+# Module-level cache for loaded configurations, guarded by a lock so the
+# asyncio fan-out (which dispatches work across threads) cannot construct and
+# load multiple ConfigLoader instances or hand out a half-loaded one.
 _config_cache: "ConfigLoader | None" = None
+_config_cache_lock = threading.Lock()
 
 
 class ConfigLoader:
@@ -258,12 +262,15 @@ def get_config_loader(force_reload: bool = False) -> ConfigLoader:
         model_config = config.get_model_config()
     """
     global _config_cache
-    
+
     if _config_cache is None or force_reload:
-        _config_cache = ConfigLoader()
-        _config_cache.load_configs()
-        logger.debug("Configuration loaded and cached")
-    
+        with _config_cache_lock:
+            if _config_cache is None or force_reload:
+                loader = ConfigLoader()
+                loader.load_configs()
+                _config_cache = loader
+                logger.debug("Configuration loaded and cached")
+
     return _config_cache
 
 
@@ -275,5 +282,6 @@ def clear_config_cache() -> None:
     to be reloaded.
     """
     global _config_cache
-    _config_cache = None
+    with _config_cache_lock:
+        _config_cache = None
     logger.debug("Configuration cache cleared")

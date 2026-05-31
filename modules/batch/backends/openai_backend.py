@@ -330,7 +330,12 @@ class OpenAIBatchBackend(BatchBackend):
         )
 
     def download_results(self, handle: BatchHandle) -> Iterator[BatchResultItem]:
-        """Download and parse OpenAI batch results."""
+        """Download and parse OpenAI batch results.
+
+        The uploaded input file and the result output file are deleted once the
+        consumer has finished iterating, so batch runs do not leak server-side
+        storage.
+        """
         client = self._get_client()
 
         # Get batch to find output file
@@ -345,6 +350,29 @@ class OpenAIBatchBackend(BatchBackend):
         content = file_stream.read()
         text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
 
+        try:
+            yield from self._iter_results(text)
+        finally:
+            self._delete_remote_files(
+                client,
+                handle.metadata.get("input_file_id"),
+                output_file_id,
+            )
+
+    @staticmethod
+    def _delete_remote_files(client: Any, *file_ids: str | None) -> None:
+        """Best-effort deletion of remote OpenAI files; never raises."""
+        for file_id in file_ids:
+            if not file_id:
+                continue
+            try:
+                client.files.delete(file_id)
+                logger.debug("Deleted remote OpenAI file: %s", file_id)
+            except Exception as exc:
+                logger.warning("Failed to delete OpenAI file %s: %s", file_id, exc)
+
+    def _iter_results(self, text: str) -> Iterator[BatchResultItem]:
+        """Yield parsed result items from the downloaded JSONL text."""
         # Parse JSONL lines
         for line in text.strip().split("\n"):
             if not line.strip():

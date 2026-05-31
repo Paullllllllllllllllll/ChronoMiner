@@ -17,7 +17,29 @@ from modules.line_ranges.readjuster import (
     BoundaryDecision,
     LineRangeReadjuster,
     RangeResult,
+    clamp_ranges_to_length,
 )
+
+# ---------------------------------------------------------------------------
+# clamp_ranges_to_length (A3: out-of-range guard)
+# ---------------------------------------------------------------------------
+
+
+def test_clamp_ranges_to_length_clamps_and_drops() -> None:
+    """An `end` past the file length is clamped; a `start` below 1 is raised
+    to 1; a wholly out-of-bounds (inverted-after-clamp) range is dropped."""
+    ranges = [(0, 5), (3, 9999), (8, 4)]
+    assert clamp_ranges_to_length(ranges, total_lines=10) == [(1, 5), (3, 10)]
+
+
+def test_clamp_ranges_to_length_passthrough_when_in_bounds() -> None:
+    ranges = [(1, 4), (5, 10)]
+    assert clamp_ranges_to_length(ranges, total_lines=10) == [(1, 4), (5, 10)]
+
+
+def test_clamp_ranges_to_length_all_out_of_bounds_returns_empty() -> None:
+    # start beyond the file length collapses to start>end and is dropped.
+    assert clamp_ranges_to_length([(20, 30)], total_lines=10) == []
 
 # ---------------------------------------------------------------------------
 # RangeResult

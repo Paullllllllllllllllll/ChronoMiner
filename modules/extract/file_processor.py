@@ -665,6 +665,7 @@ class FileProcessor:
 
         processing_cancelled = False
         processing_exception: Exception | None = None
+        failed_indices: list[int] = []
 
         try:
             process_kwargs: dict[str, Any] = {
@@ -683,7 +684,16 @@ class FileProcessor:
             if context_image_data is not None:
                 process_kwargs["context_image_data"] = context_image_data
 
-            await strategy.process_chunks(**process_kwargs)
+            results = await strategy.process_chunks(**process_kwargs)
+            # Synchronous strategy returns per-chunk results; failed chunks
+            # surface as {"error": ..., "chunk_index": N} and write no temp
+            # record. Collect their indices so the output is correctly marked
+            # partial rather than reported as a full success.
+            failed_indices = sorted(
+                r["chunk_index"]
+                for r in (results or [])
+                if isinstance(r, dict) and "error" in r and "chunk_index" in r
+            )
         except asyncio.CancelledError:
             processing_cancelled = True
             messenger.warning(
@@ -721,7 +731,9 @@ class FileProcessor:
                                 schema_paths,
                                 messenger,
                                 partial=processing_cancelled
-                                or processing_exception is not None,
+                                or processing_exception is not None
+                                or bool(failed_indices),
+                                failed_chunks=failed_indices,
                                 chunk_slice_info=_cs_info,
                                 merge_existing=bool(completed_chunk_indices),
                             )
@@ -852,6 +864,7 @@ class FileProcessor:
         messenger: _MessagingAdapter,
         *,
         partial: bool = False,
+        failed_chunks: list[int] | None = None,
         chunk_slice_info: dict | None = None,
         merge_existing: bool = False,
     ) -> None:
@@ -912,6 +925,8 @@ class FileProcessor:
                     chunking_method=chunking_method,
                     total_chunks=len(results),
                     chunk_slice_info=chunk_slice_info,
+                    partial=partial,
+                    failed_chunks=failed_chunks,
                 ),
                 "records": results,
             }
@@ -920,9 +935,15 @@ class FileProcessor:
                 json.dump(output_data, outf, indent=2)
 
             if partial:
-                messenger.warning(
-                    f"Partial structured JSON output saved to {output_json_path}"
-                )
+                if failed_chunks:
+                    messenger.warning(
+                        f"Partial output: {len(failed_chunks)} chunk(s) failed "
+                        f"{failed_chunks}. Saved to {output_json_path}"
+                    )
+                else:
+                    messenger.warning(
+                        f"Partial structured JSON output saved to {output_json_path}"
+                    )
             else:
                 messenger.success(
                     f"Final structured JSON output saved to {output_json_path}"

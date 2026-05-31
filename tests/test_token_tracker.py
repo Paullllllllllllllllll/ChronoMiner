@@ -8,11 +8,25 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+import modules.infra.token_tracker as _tt_module
 from modules.infra.token_tracker import (
     DailyTokenTracker,
     check_and_wait_for_token_limit,
     check_token_limit_enabled,
 )
+
+# Captured at import time, before the autouse _reset_token_tracker fixture
+# rebinds the module attribute to a tmp-path lambda.
+_REAL_DEFAULT_STATE_FILE = _tt_module._default_token_tracker_file
+
+
+@pytest.mark.unit
+def test_default_state_file_resolves_cwd_at_call_time(tmp_path, monkeypatch):
+    """Regression (hygiene): the default state-file directory must be resolved
+    when requested, not anchored to the cwd at import time."""
+    monkeypatch.chdir(tmp_path)
+    resolved = _REAL_DEFAULT_STATE_FILE()
+    assert resolved == tmp_path / _tt_module._TOKEN_TRACKER_FILENAME
 
 
 class TestTokenTrackerPersistence:
