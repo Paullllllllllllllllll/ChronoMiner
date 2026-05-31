@@ -574,13 +574,21 @@ class UserInterface:
                         # User went back - break to mode selection
                         break
 
+                    # Containment base: user input is fed to rglob as a glob
+                    # pattern, so guard each match against escaping the schema's
+                    # configured input directory (e.g. via "../" or an absolute
+                    # path).
+                    resolved_base = raw_text_dir.resolve()
+
                     if is_visual:
                         normalized_input = file_input
                         # Search by exact name across valid extensions
                         file_candidates = [
                             f
                             for f in raw_text_dir.rglob(normalized_input)
-                            if f.is_file() and f.suffix.lower() in valid_exts
+                            if f.is_file()
+                            and f.suffix.lower() in valid_exts
+                            and f.resolve().is_relative_to(resolved_base)
                         ]
                     else:
                         normalized_input = (
@@ -599,7 +607,8 @@ class UserInterface:
                         file_candidates = [
                             f
                             for f in raw_text_dir.rglob(normalized_input)
-                            if not any(
+                            if f.resolve().is_relative_to(resolved_base)
+                            and not any(
                                 f.name.endswith(suffix) for suffix in excluded_suffixes
                             )
                         ]

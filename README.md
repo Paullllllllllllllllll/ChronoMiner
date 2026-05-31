@@ -1,4 +1,4 @@
-# ChronoMiner v1.6.8
+# ChronoMiner v1.6.9
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,23 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.6.9** (31 May 2026) -- Tier 3 latent-correctness and hygiene
+    fixes. Correctness: the shared synchronous temp-file writer is now
+    guarded by a lock so concurrent chunks can no longer interleave and
+    corrupt JSONL lines; a run in which some chunks fail is marked partial
+    and records the failed chunk indices in the output metadata instead of
+    reporting a full success; line ranges read from a `_line_ranges.txt`
+    are clamped to the file length before use, so an out-of-range end no
+    longer raises an `IndexError`; the Google batch backend now wires the
+    structured-output schema into Gemini's `response_schema`
+    (capability-gated and sanitized for Gemini's restrictions) rather than
+    ignoring it; and the OpenAI and Google batch backends delete their
+    uploaded input and result files after download, so batch runs no
+    longer leak remote storage. Hygiene: removed dead code; the token
+    tracker resolves its state-file directory at first use rather than at
+    import time; the configuration cache is guarded by a lock under the
+    asyncio fan-out; and the interactive file picker constrains filename
+    globbing to the configured input directory.
 - **v1.6.8** (30 May 2026) -- fix a resume data-loss path in
     synchronous extraction. The resume skip-set is derived from the
     existing `output.json`, but the final records were rebuilt solely

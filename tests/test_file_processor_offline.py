@@ -37,6 +37,44 @@ class DummyStrategy:
         return [{"ok": True} for _ in chunks]
 
 
+class PartialFailureStrategy:
+    """Writes temp records for every chunk except index 2, which "fails" and
+    returns an error dict carrying its ``chunk_index`` (and writes nothing)."""
+
+    async def process_chunks(
+        self,
+        *,
+        chunks,
+        handler,
+        dev_message,
+        model_config,
+        schema,
+        file_path,
+        temp_jsonl_path,
+        console_print,
+        completed_chunk_indices=None,
+    ):
+        results = []
+        with temp_jsonl_path.open("w", encoding="utf-8") as f:
+            for idx, _chunk in enumerate(chunks, 1):
+                if idx == 2:
+                    results.append({"error": "boom 400", "chunk_index": idx})
+                    continue
+                f.write(
+                    json.dumps(
+                        {
+                            "custom_id": f"{file_path.stem}-chunk-{idx}",
+                            "chunk_index": idx,
+                            "chunk_range": [idx, idx],
+                            "response": {"body": {"output_text": "ok"}},
+                        }
+                    )
+                    + "\n"
+                )
+                results.append({"ok": True})
+        return results
+
+
 class DummyHandler:
     schema_name = "TestSchema"
 
@@ -175,6 +213,64 @@ def test_file_processor_chunk_slice_last_n(tmp_path, config_loader, monkeypatch)
     assert len(records) == 1
     meta = data["_chronominer_metadata"]
     assert meta.get("chunk_slice") == {"last_n": 1}
+
+
+@pytest.mark.integration
+def test_file_processor_marks_partial_on_failed_chunk(
+    tmp_path, config_loader, monkeypatch
+):
+    """Regression (A2): when a chunk fails, the output metadata must record
+    ``partial: true`` and the failed chunk index instead of reporting success."""
+    from modules.extract.file_processor import FileProcessor
+
+    monkeypatch.setattr(
+        "modules.extract.file_processor.create_processing_strategy",
+        lambda use_batch, concurrency_config=None: PartialFailureStrategy(),
+    )
+    monkeypatch.setattr(
+        "modules.extract.file_processor.get_schema_handler",
+        lambda schema_name: DummyHandler(),
+    )
+
+    # 200 lines at 10 tokens/chunk guarantees more than 2 chunks.
+    input_file = tmp_path / "partial.txt"
+    input_file.write_text("\n".join(f"line {i}" for i in range(200)), encoding="utf-8")
+
+    paths_config = config_loader.get_paths_config()
+    schemas_paths = config_loader.get_schemas_paths()
+    schema_paths = schemas_paths["TestSchema"]
+
+    fp = FileProcessor(
+        paths_config=paths_config,
+        model_config=config_loader.get_model_config(),
+        chunking_config={"chunking": {"default_tokens_per_chunk": 10}},
+        concurrency_config=config_loader.get_concurrency_config(),
+    )
+
+    async def _run():
+        await fp.process_file(
+            file_path=input_file,
+            use_batch=False,
+            selected_schema={"schema": {"type": "object"}},
+            prompt_template="Schema={{TRANSCRIPTION_SCHEMA}}",
+            schema_name="TestSchema",
+            inject_schema=True,
+            schema_paths=schema_paths,
+            global_chunking_method="auto",
+            ui=None,
+        )
+
+    asyncio.run(_run())
+
+    output_dir = Path(schema_paths["output"])
+    out_json = output_dir / f"{input_file.stem}_output.json"
+    assert out_json.exists()
+    data = json.loads(out_json.read_text(encoding="utf-8"))
+    meta = data["_chronominer_metadata"]
+    assert meta.get("partial") is True
+    assert meta.get("failed_chunks") == [2]
+    # The surviving records exclude the failed chunk.
+    assert all(rec["chunk_index"] != 2 for rec in data["records"])
 
 
 @pytest.mark.integration

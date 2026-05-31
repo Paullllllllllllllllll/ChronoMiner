@@ -188,6 +188,10 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         ) as extractor:
             with temp_jsonl_path.open(file_mode, encoding="utf-8") as tempf:
                 semaphore = asyncio.Semaphore(concurrency_limit)
+                # Serialize writes to the shared handle: concurrent coroutines
+                # otherwise interleave write+flush on one file object. Created
+                # here (inside the running loop), never at module scope.
+                write_lock = asyncio.Lock()
 
                 async def process_single_chunk(idx: int, chunk: str) -> dict[str, Any]:
                     """Process a single chunk with semaphore control."""
@@ -239,8 +243,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                     "chunk_index": idx,
                                     "response": {"body": result},
                                 }
-                                tempf.write(json.dumps(response_obj) + "\n")
-                                tempf.flush()
+                                async with write_lock:
+                                    tempf.write(json.dumps(response_obj) + "\n")
+                                    tempf.flush()
 
                                 console_print(
                                     f"[INFO] Processed {unit_label} "
@@ -303,13 +308,17 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 console_print(
                                     f"[ERROR] Failed to process {unit_label} {idx}: {e}"
                                 )
-                                return {"error": str(e)}
+                                # Carry chunk_index: failed chunks write no
+                                # temp record, so the caller cannot recover the
+                                # index from gather order otherwise.
+                                return {"error": str(e), "chunk_index": idx}
                         # If all retries exhausted without returning, return error
                         return {
                             "error": (
                                 f"Max retries ({retry_attempts}) exhausted "
                                 f"for {unit_label} {idx}"
-                            )
+                            ),
+                            "chunk_index": idx,
                         }
 
                 # Process chunks (skipping already-completed ones)

@@ -42,6 +42,33 @@ from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_sc
 logger = logging.getLogger(__name__)
 
 
+def clamp_ranges_to_length(
+    ranges: Iterable[tuple[int, int]], total_lines: int
+) -> list[tuple[int, int]]:
+    """Clamp ``(start, end)`` line ranges to ``[1, total_lines]``.
+
+    A ``_line_ranges.txt`` whose ``end`` exceeds the file length would
+    otherwise raise ``IndexError`` deep in the context formatter. Ranges that
+    are wholly out of bounds (``start > end`` after clamping) are dropped with
+    a warning rather than silently producing an empty or reversed slice.
+    """
+    clamped: list[tuple[int, int]] = []
+    for start, end in ranges:
+        clamped_start = max(1, start)
+        clamped_end = min(total_lines, end)
+        if clamped_start > clamped_end:
+            logger.warning(
+                "Dropping out-of-bounds line range (%d, %d): file has %d "
+                "line(s)",
+                start,
+                end,
+                total_lines,
+            )
+            continue
+        clamped.append((clamped_start, clamped_end))
+    return clamped
+
+
 SEMANTIC_BOUNDARY_SCHEMA: dict[str, Any] = {
     "name": "SemanticBoundaryResponse",
     "strict": True,
@@ -286,6 +313,19 @@ class LineRangeReadjuster:
         safe_text_file = ensure_path_safe(text_file)
         with safe_text_file.open("r", encoding="utf-8") as handle:
             raw_lines = handle.readlines()
+
+        # Clamp ranges to the actual file length before any indexing. An `end`
+        # past the line count would otherwise raise IndexError in the context
+        # formatter; out-of-bounds ranges are dropped.
+        ranges = clamp_ranges_to_length(ranges, len(raw_lines))
+        if not ranges:
+            logger.warning(
+                "All ranges fell outside the file bounds (%d lines); nothing "
+                "to readjust in %s",
+                len(raw_lines),
+                line_ranges_file,
+            )
+            return []
 
         # Detect provider from model name and get appropriate API key
         provider = ProviderConfig._detect_provider(self.model_name)

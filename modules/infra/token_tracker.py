@@ -39,8 +39,16 @@ from modules.infra.logger import setup_logger
 
 logger = setup_logger(__name__)
 
-# Default path for token tracker state file
-_TOKEN_TRACKER_FILE = Path.cwd() / ".chronominer_token_state.json"
+# Default token tracker state-file name. The directory is resolved lazily at
+# first use (see _default_token_tracker_file) rather than anchored to the cwd
+# at import time, which would bind the path to whatever directory happened to
+# be current when this module was first imported.
+_TOKEN_TRACKER_FILENAME = ".chronominer_token_state.json"
+
+
+def _default_token_tracker_file() -> Path:
+    """Resolve the default state-file path against the current directory."""
+    return Path.cwd() / _TOKEN_TRACKER_FILENAME
 
 # Singleton instance
 _tracker_instance: DailyTokenTracker | None = None
@@ -72,7 +80,7 @@ class DailyTokenTracker:
         """
         self.daily_limit = daily_limit
         self.enabled = enabled
-        self.state_file = state_file or _TOKEN_TRACKER_FILE
+        self.state_file = state_file or _default_token_tracker_file()
 
         # Thread safety
         self._lock = threading.Lock()

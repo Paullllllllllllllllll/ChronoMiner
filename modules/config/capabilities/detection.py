@@ -53,10 +53,6 @@ def detect_provider(model_name: str) -> ProviderType:
     return "unknown"
 
 
-# Backward compatibility alias
-_detect_provider = detect_provider
-
-
 def _build_caps(
     model_name: str, family: str, base: dict, overrides: dict
 ) -> Capabilities:

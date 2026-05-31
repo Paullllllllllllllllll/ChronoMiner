@@ -122,7 +122,8 @@ def _reset_token_tracker(tmp_path: Path):
     import modules.infra.token_tracker as token_tracker
 
     token_tracker._tracker_instance = None
-    token_tracker._TOKEN_TRACKER_FILE = tmp_path / "token_state.json"
+    state_file = tmp_path / "token_state.json"
+    token_tracker._default_token_tracker_file = lambda: state_file
     yield
     token_tracker._tracker_instance = None
 

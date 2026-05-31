@@ -23,6 +23,7 @@ from modules.batch.backends.base import (
     BatchStatus,
     BatchStatusInfo,
 )
+from modules.config.capabilities import detect_capabilities
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +31,39 @@ logger = logging.getLogger(__name__)
 MAX_BATCH_REQUESTS = 50000
 MAX_BATCH_BYTES = 2 * 1024 * 1024 * 1024  # 2 GB for file input
 MAX_INLINE_BYTES = 20 * 1024 * 1024  # 20 MB for inline requests
+
+# JSON-Schema keywords Gemini's ``response_schema`` rejects. Stripped before
+# the schema is forwarded so a standard ChronoMiner schema (which carries
+# ``additionalProperties: false``) does not 400 at submit time. Schemas that
+# rely on ``$ref`` cannot be fully expressed this way; the reference is dropped
+# and Gemini falls back to looser, prompt-guided JSON (flagged for follow-up).
+_GEMINI_UNSUPPORTED_SCHEMA_KEYS = frozenset(
+    {
+        "$schema",
+        "$id",
+        "$ref",
+        "$defs",
+        "definitions",
+        "additionalProperties",
+        "title",
+        "examples",
+        "default",
+        "const",
+    }
+)
+
+
+def _sanitize_gemini_schema(node: Any) -> Any:
+    """Recursively drop schema keywords Gemini's ``response_schema`` rejects."""
+    if isinstance(node, dict):
+        return {
+            key: _sanitize_gemini_schema(value)
+            for key, value in node.items()
+            if key not in _GEMINI_UNSUPPORTED_SCHEMA_KEYS
+        }
+    if isinstance(node, list):
+        return [_sanitize_gemini_schema(item) for item in node]
+    return node
 
 
 class GoogleBatchBackend(BatchBackend):
@@ -88,6 +122,23 @@ class GoogleBatchBackend(BatchBackend):
         if temperature is not None:
             generation_config["temperature"] = float(temperature)
 
+        # Wire structured-output schema when the model supports it. Without
+        # this, Gemini batch jobs run unconstrained and only emit JSON because
+        # the schema is embedded in the system prompt. Gate on the capability
+        # registry so reasoning/unsupported models are left unconstrained, and
+        # sanitize the schema for Gemini's response_schema restrictions.
+        caps = detect_capabilities(model_name, provider="google")
+        if schema and caps.supports_structured_outputs:
+            if "schema" in schema and isinstance(schema["schema"], dict):
+                response_schema = schema["schema"]
+            else:
+                response_schema = schema
+            if response_schema:
+                generation_config["response_mime_type"] = "application/json"
+                generation_config["response_schema"] = _sanitize_gemini_schema(
+                    response_schema
+                )
+
         # Build inline requests
         # Each request is a GenerateContentRequest
         inline_requests = []
@@ -130,6 +181,10 @@ class GoogleBatchBackend(BatchBackend):
 
         # Check if we should use file-based submission (larger batches)
         total_size = sum(len(json.dumps(r)) for r in inline_requests)
+
+        # Remote input file uploaded in file-mode (None for inline). Stored on
+        # the handle so download_results can delete it and avoid leaking files.
+        uploaded_file_name: str | None = None
 
         if total_size < MAX_INLINE_BYTES:
             # Use inline requests
@@ -182,6 +237,7 @@ class GoogleBatchBackend(BatchBackend):
                         mime_type="jsonl",
                     ),
                 )
+                uploaded_file_name = uploaded_file.name
                 logger.info("Uploaded batch file: %s", uploaded_file.name)
 
                 # Create batch job from file
@@ -205,6 +261,7 @@ class GoogleBatchBackend(BatchBackend):
             metadata={
                 "request_count": len(requests),
                 "custom_id_map": {req.custom_id: i for i, req in enumerate(requests)},
+                "input_file_name": uploaded_file_name,
             },
         )
 
@@ -260,15 +317,47 @@ class GoogleBatchBackend(BatchBackend):
         )
 
     def download_results(self, handle: BatchHandle) -> Iterator[BatchResultItem]:
-        """Download and parse Google batch results."""
-        client = self._get_client()
+        """Download and parse Google batch results.
 
+        The remote input file (file-mode submissions) and the result file are
+        deleted once the consumer has finished iterating, so batch runs do not
+        leak server-side storage.
+        """
+        client = self._get_client()
         batch_job = client.batches.get(name=handle.batch_id)
         dest = getattr(batch_job, "dest", None)
 
         if not dest:
             raise RuntimeError(f"Batch {handle.batch_id} has no results")
 
+        output_file_name = (
+            dest.file_name if hasattr(dest, "file_name") and dest.file_name else None
+        )
+        try:
+            yield from self._iter_results(handle, client, dest)
+        finally:
+            self._delete_remote_files(
+                client,
+                handle.metadata.get("input_file_name"),
+                output_file_name,
+            )
+
+    @staticmethod
+    def _delete_remote_files(client: Any, *file_names: str | None) -> None:
+        """Best-effort deletion of remote Google files; never raises."""
+        for name in file_names:
+            if not name:
+                continue
+            try:
+                client.files.delete(name=name)
+                logger.debug("Deleted remote Google file: %s", name)
+            except Exception as exc:
+                logger.warning("Failed to delete Google file %s: %s", name, exc)
+
+    def _iter_results(
+        self, handle: BatchHandle, client: Any, dest: Any
+    ) -> Iterator[BatchResultItem]:
+        """Yield parsed results from a completed batch's destination."""
         # Check for file-based results
         if hasattr(dest, "file_name") and dest.file_name:
             # Download result file

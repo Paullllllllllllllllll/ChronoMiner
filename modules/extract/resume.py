@@ -52,6 +52,8 @@ def build_extraction_metadata(
     total_chunks: int,
     timestamp: str | None = None,
     chunk_slice_info: dict[str, Any] | None = None,
+    partial: bool = False,
+    failed_chunks: list[int] | None = None,
 ) -> dict[str, Any]:
     """Build a metadata dict to embed in extraction output JSON."""
     meta: dict[str, Any] = {
@@ -64,6 +66,10 @@ def build_extraction_metadata(
     }
     if chunk_slice_info:
         meta["chunk_slice"] = chunk_slice_info
+    if partial:
+        meta["partial"] = True
+    if failed_chunks:
+        meta["failed_chunks"] = list(failed_chunks)
     return meta
 
 
