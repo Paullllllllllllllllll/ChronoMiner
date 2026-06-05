@@ -24,6 +24,7 @@ from modules.extract.resume import (
     FileStatus,
     build_extraction_metadata,
     detect_extraction_status,
+    metadata_indicates_complete,
 )
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.chunking import (
@@ -411,16 +412,18 @@ class FileProcessor:
                 early_json = early_output[1]
                 if early_json.exists():
                     with early_json.open("r", encoding="utf-8") as fh:
-                        meta = json.load(fh)
-                    if isinstance(meta, dict):
-                        total = meta.get(METADATA_KEY, {}).get("total_chunks", 0)
-                        records = meta.get("records", [])
-                        if total > 0 and len(records) >= total:
-                            messenger.info(
-                                f"Skipping {file_path.name}: already"
-                                f" fully processed ({total} pages)"
-                            )
-                            return
+                        existing = json.load(fh)
+                    # Skip only a self-declared full success. A partial output
+                    # (partial flag or failed_chunks) falls through to the
+                    # authoritative detect_extraction_status after rendering, so
+                    # its failed pages are re-queued instead of silently kept.
+                    if metadata_indicates_complete(existing):
+                        total = existing.get(METADATA_KEY, {}).get("total_chunks", 0)
+                        messenger.info(
+                            f"Skipping {file_path.name}: already"
+                            f" fully processed ({total} pages)"
+                        )
+                        return
             except (OSError, json.JSONDecodeError) as exc:
                 # A malformed/locked existing output must not silently restart
                 # processing; log and fall through to a normal run.
@@ -731,6 +734,7 @@ class FileProcessor:
                                 handler,
                                 schema_paths,
                                 messenger,
+                                total_units=len(chunks),
                                 partial=processing_cancelled
                                 or processing_exception is not None
                                 or bool(failed_indices),
@@ -864,6 +868,7 @@ class FileProcessor:
         schema_paths: dict[str, Any],
         messenger: _MessagingAdapter,
         *,
+        total_units: int,
         partial: bool = False,
         failed_chunks: list[int] | None = None,
         chunk_slice_info: dict | None = None,
@@ -877,6 +882,11 @@ class FileProcessor:
         records win). This prevents data loss when the prior temp JSONL was not
         retained: the temp file then holds only the newly-processed chunks,
         while the skip-set was derived from the existing output.json.
+
+        ``total_units`` is the true number of units the file was chunked into
+        (``len(chunks)``). It is stamped verbatim as ``total_chunks`` in the
+        metadata so the value reflects the full denominator rather than the
+        success count, even when the run ends partial or cancelled.
         """
         try:
             messenger.info("Constructing final output from temporary file...")
@@ -932,7 +942,7 @@ class FileProcessor:
                     schema_name=schema_name_for_meta,
                     model_name=model_name,
                     chunking_method=chunking_method,
-                    total_chunks=len(results),
+                    total_chunks=total_units,
                     chunk_slice_info=chunk_slice_info,
                     partial=partial,
                     failed_chunks=failed_chunks,

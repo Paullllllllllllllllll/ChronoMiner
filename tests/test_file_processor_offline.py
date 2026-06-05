@@ -271,6 +271,9 @@ def test_file_processor_marks_partial_on_failed_chunk(
     assert meta.get("failed_chunks") == [2]
     # The surviving records exclude the failed chunk.
     assert all(rec["chunk_index"] != 2 for rec in data["records"])
+    # total_chunks reflects the true unit count (successes + failures), not
+    # the success count, so a resume gate sees the file as partial.
+    assert meta["total_chunks"] == len(data["records"]) + len(meta["failed_chunks"])
 
 
 @pytest.mark.integration

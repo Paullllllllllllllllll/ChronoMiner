@@ -139,6 +139,35 @@ def detect_extraction_status(
     return FileStatus.PARTIAL, completed
 
 
+def metadata_indicates_complete(data: dict[str, Any]) -> bool:
+    """Best-effort completeness check from persisted metadata alone.
+
+    Used by the early visual-resume gate, which runs before images are
+    rendered and therefore cannot know the true chunk count. Returns ``True``
+    only for a self-declared full success: the output is not flagged
+    ``partial``, lists no ``failed_chunks``, and holds at least
+    ``total_chunks`` records (with ``total_chunks`` > 0). Any partial or
+    failed output returns ``False`` so the caller falls through to the
+    authoritative :func:`detect_extraction_status` after rendering, which
+    re-queues the missing pages.
+
+    A non-dict payload (e.g. a legacy bare-list output) or one missing
+    metadata also returns ``False`` and is left to the authoritative gate.
+    """
+    if not isinstance(data, dict):
+        return False
+    meta = data.get(METADATA_KEY)
+    if not isinstance(meta, dict):
+        return False
+    if meta.get("partial") is True or meta.get("failed_chunks"):
+        return False
+    total = meta.get("total_chunks", 0)
+    if not isinstance(total, int) or total <= 0:
+        return False
+    records = data.get("records", [])
+    return isinstance(records, list) and len(records) >= total
+
+
 def get_output_json_path(
     file_path: Path,
     paths_config: dict[str, Any],
