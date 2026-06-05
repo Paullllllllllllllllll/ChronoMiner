@@ -277,7 +277,7 @@ class TestOpenAIBackend:
                             {
                                 "type": "message",
                                 "content": [
-                                    {"type": "output_text", "text": "{\"ok\": true}"}
+                                    {"type": "output_text", "text": '{"ok": true}'}
                                 ],
                             }
                         ]
@@ -323,7 +323,7 @@ class TestOpenAIBackend:
                             {
                                 "type": "message",
                                 "content": [
-                                    {"type": "output_text", "text": "{\"ok\": true}"}
+                                    {"type": "output_text", "text": '{"ok": true}'}
                                 ],
                             }
                         ]
@@ -615,9 +615,7 @@ class TestGoogleBackend:
             {
                 "key": "doc-chunk-1",
                 "response": {
-                    "candidates": [
-                        {"content": {"parts": [{"text": "{\"ok\": true}"}]}}
-                    ]
+                    "candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}]
                 },
             }
         )
@@ -665,9 +663,7 @@ class TestGoogleBackend:
             {
                 "key": "doc-chunk-1",
                 "response": {
-                    "candidates": [
-                        {"content": {"parts": [{"text": "{\"ok\": true}"}]}}
-                    ]
+                    "candidates": [{"content": {"parts": [{"text": '{"ok": true}'}]}}]
                 },
             }
         ).encode("utf-8")

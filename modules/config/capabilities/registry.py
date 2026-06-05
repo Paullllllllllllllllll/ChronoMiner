@@ -178,125 +178,306 @@ _CUSTOM_BASE: dict = dict(
 
 _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
     # --- OpenAI GPT-5.4 family ---
-    (("gpt-5.4-pro",), "gpt-5.4-pro", _OPENAI_REASONING_BASE, dict(
-        supports_chat_completions=False, max_context_tokens=1050000,
-        supports_structured_outputs=False,
-    )),
-    (("gpt-5.4-mini",), "gpt-5.4-mini", _OPENAI_REASONING_BASE, dict(
-        max_context_tokens=400000,
-    )),
-    (("gpt-5.4-nano",), "gpt-5.4-nano", _OPENAI_REASONING_BASE, dict(
-        max_context_tokens=400000,
-    )),
-    (("gpt-5.4",), "gpt-5.4", _OPENAI_REASONING_BASE, dict(
-        supports_chat_completions=False, max_context_tokens=1050000,
-    )),
+    (
+        ("gpt-5.4-pro",),
+        "gpt-5.4-pro",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            max_context_tokens=1050000,
+            supports_structured_outputs=False,
+        ),
+    ),
+    (
+        ("gpt-5.4-mini",),
+        "gpt-5.4-mini",
+        _OPENAI_REASONING_BASE,
+        dict(
+            max_context_tokens=400000,
+        ),
+    ),
+    (
+        ("gpt-5.4-nano",),
+        "gpt-5.4-nano",
+        _OPENAI_REASONING_BASE,
+        dict(
+            max_context_tokens=400000,
+        ),
+    ),
+    (
+        ("gpt-5.4",),
+        "gpt-5.4",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            max_context_tokens=1050000,
+        ),
+    ),
     # --- OpenAI GPT-5.3 family ---
-    (("gpt-5.3-chat",), "gpt-5.3-chat", _OPENAI_STANDARD_BASE, dict(
-        max_context_tokens=128000,
-    )),
-    (("gpt-5.3-codex",), "gpt-5.3-codex", _OPENAI_REASONING_BASE, dict(
-        supports_chat_completions=False, max_context_tokens=400000,
-    )),
-    (("gpt-5.3",), "gpt-5.3", _OPENAI_REASONING_BASE, dict(
-        supports_chat_completions=False, max_context_tokens=400000,
-    )),
+    (
+        ("gpt-5.3-chat",),
+        "gpt-5.3-chat",
+        _OPENAI_STANDARD_BASE,
+        dict(
+            max_context_tokens=128000,
+        ),
+    ),
+    (
+        ("gpt-5.3-codex",),
+        "gpt-5.3-codex",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            max_context_tokens=400000,
+        ),
+    ),
+    (
+        ("gpt-5.3",),
+        "gpt-5.3",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            max_context_tokens=400000,
+        ),
+    ),
     # --- OpenAI GPT-5.2 family ---
-    (("gpt-5.2",), "gpt-5.2", _OPENAI_REASONING_BASE, dict(
-        supports_chat_completions=False, max_context_tokens=400000,
-    )),
+    (
+        ("gpt-5.2",),
+        "gpt-5.2",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            max_context_tokens=400000,
+        ),
+    ),
     # --- OpenAI GPT-5.1 family ---
-    (("gpt-5.1",), "gpt-5.1", _OPENAI_REASONING_BASE, dict(
-        supports_chat_completions=False, max_context_tokens=400000,
-    )),
+    (
+        ("gpt-5.1",),
+        "gpt-5.1",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            max_context_tokens=400000,
+        ),
+    ),
     # --- OpenAI GPT-5 family ---
-    (("gpt-5",), "gpt-5", _OPENAI_REASONING_BASE, dict(
-        supports_chat_completions=False, max_context_tokens=400000,
-    )),
+    (
+        ("gpt-5",),
+        "gpt-5",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            max_context_tokens=400000,
+        ),
+    ),
     # --- OpenAI o-series reasoning models ---
     (("o4-mini",), "o4-mini", _OPENAI_REASONING_BASE, {}),
     (("o4",), "o4", _OPENAI_REASONING_BASE, {}),
     (("o3-pro",), "o3-pro", _OPENAI_REASONING_BASE, {}),
-    (("o3-mini",), "o3-mini", _OPENAI_REASONING_BASE, dict(
-        supports_image_input=False, supports_image_detail=False,
-    )),
+    (
+        ("o3-mini",),
+        "o3-mini",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_image_input=False,
+            supports_image_detail=False,
+        ),
+    ),
     # o3 (not o3-mini, not o3-pro) — uses a custom match function below
-    (("o1-mini",), "o1-mini", _OPENAI_REASONING_BASE, dict(
-        supports_responses_api=False, api_preference="chat_completions",
-        supports_reasoning_effort=False, supports_developer_messages=False,
-        supports_image_input=False, supports_image_detail=False,
-        supports_structured_outputs=False, supports_function_calling=False,
-    )),
+    (
+        ("o1-mini",),
+        "o1-mini",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_responses_api=False,
+            api_preference="chat_completions",
+            supports_reasoning_effort=False,
+            supports_developer_messages=False,
+            supports_image_input=False,
+            supports_image_detail=False,
+            supports_structured_outputs=False,
+            supports_function_calling=False,
+        ),
+    ),
     # o1 (not o1-mini) — uses a custom match function below
     # --- OpenAI GPT-4o / GPT-4.1 ---
     (("gpt-4o",), "gpt-4o", _OPENAI_STANDARD_BASE, {}),
-    (("gpt-4.1-mini",), "gpt-4.1-mini", _OPENAI_STANDARD_BASE, dict(
-        max_context_tokens=1050000,
-    )),
-    (("gpt-4.1-nano",), "gpt-4.1-nano", _OPENAI_STANDARD_BASE, dict(
-        max_context_tokens=1050000,
-    )),
-    (("gpt-4.1",), "gpt-4.1", _OPENAI_STANDARD_BASE, dict(
-        api_preference="langchain", max_context_tokens=1050000,
-    )),
+    (
+        ("gpt-4.1-mini",),
+        "gpt-4.1-mini",
+        _OPENAI_STANDARD_BASE,
+        dict(
+            max_context_tokens=1050000,
+        ),
+    ),
+    (
+        ("gpt-4.1-nano",),
+        "gpt-4.1-nano",
+        _OPENAI_STANDARD_BASE,
+        dict(
+            max_context_tokens=1050000,
+        ),
+    ),
+    (
+        ("gpt-4.1",),
+        "gpt-4.1",
+        _OPENAI_STANDARD_BASE,
+        dict(
+            api_preference="langchain",
+            max_context_tokens=1050000,
+        ),
+    ),
     # --- Anthropic Claude models (most-specific first) ---
-    (("claude-opus-4-7", "claude-opus-4.7"), "claude-opus-4.7", _ANTHROPIC_BASE, dict(
-        max_context_tokens=1000000,
-    )),
+    (
+        ("claude-opus-4-7", "claude-opus-4.7"),
+        "claude-opus-4.7",
+        _ANTHROPIC_BASE,
+        dict(
+            max_context_tokens=1000000,
+        ),
+    ),
     (("claude-opus-4-6", "claude-opus-4.6"), "claude-opus-4.6", _ANTHROPIC_BASE, {}),
     (("claude-opus-4-5", "claude-opus-4.5"), "claude-opus-4.5", _ANTHROPIC_BASE, {}),
     (("claude-opus-4-1", "claude-opus-4.1"), "claude-opus-4.1", _ANTHROPIC_BASE, {}),
     (("claude-opus-4",), "claude-opus-4", _ANTHROPIC_BASE, {}),
-    (("claude-sonnet-4-6", "claude-sonnet-4.6"), "claude-sonnet-4.6", _ANTHROPIC_BASE, {}),
-    (("claude-sonnet-4-5", "claude-sonnet-4.5"), "claude-sonnet-4.5", _ANTHROPIC_BASE, {}),
+    (
+        ("claude-sonnet-4-6", "claude-sonnet-4.6"),
+        "claude-sonnet-4.6",
+        _ANTHROPIC_BASE,
+        {},
+    ),
+    (
+        ("claude-sonnet-4-5", "claude-sonnet-4.5"),
+        "claude-sonnet-4.5",
+        _ANTHROPIC_BASE,
+        {},
+    ),
     (("claude-sonnet-4",), "claude-sonnet-4", _ANTHROPIC_BASE, {}),
     (("claude-haiku-4-5", "claude-haiku-4.5"), "claude-haiku-4.5", _ANTHROPIC_BASE, {}),
-    (("claude-3-7-sonnet", "claude-3.7-sonnet"), "claude-3.7-sonnet", _ANTHROPIC_BASE, {}),
-    (("claude-3-5-sonnet", "claude-3.5-sonnet"), "claude-3.5-sonnet", _ANTHROPIC_BASE, {}),
+    (
+        ("claude-3-7-sonnet", "claude-3.7-sonnet"),
+        "claude-3.7-sonnet",
+        _ANTHROPIC_BASE,
+        {},
+    ),
+    (
+        ("claude-3-5-sonnet", "claude-3.5-sonnet"),
+        "claude-3.5-sonnet",
+        _ANTHROPIC_BASE,
+        {},
+    ),
     (("claude-3-5-haiku", "claude-3.5-haiku"), "claude-3.5-haiku", _ANTHROPIC_BASE, {}),
     (("claude-3-opus",), "claude-3-opus", _ANTHROPIC_BASE, {}),
     (("claude-3-sonnet",), "claude-3-sonnet", _ANTHROPIC_BASE, {}),
     (("claude-3-haiku",), "claude-3-haiku", _ANTHROPIC_BASE, {}),
     (("claude",), "claude", _ANTHROPIC_BASE, {}),
     # --- Google Gemma models (via Gemini API) ---
-    (("gemma-4-31b-it",), "gemma-4-31b", _GOOGLE_BASE, dict(
-        is_reasoning_model=True, supports_reasoning_effort=True,
-        max_context_tokens=262144,
-    )),
-    (("gemma-4-26b-a4b-it",), "gemma-4-26b-moe", _GOOGLE_BASE, dict(
-        is_reasoning_model=True, supports_reasoning_effort=True,
-        max_context_tokens=262144,
-    )),
-    (("gemma",), "gemma", _GOOGLE_BASE, dict(
-        is_reasoning_model=True, supports_reasoning_effort=True,
-        max_context_tokens=262144,
-    )),
+    (
+        ("gemma-4-31b-it",),
+        "gemma-4-31b",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            supports_reasoning_effort=True,
+            max_context_tokens=262144,
+        ),
+    ),
+    (
+        ("gemma-4-26b-a4b-it",),
+        "gemma-4-26b-moe",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            supports_reasoning_effort=True,
+            max_context_tokens=262144,
+        ),
+    ),
+    (
+        ("gemma",),
+        "gemma",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            supports_reasoning_effort=True,
+            max_context_tokens=262144,
+        ),
+    ),
     # --- Google Gemini models (most-specific first) ---
-    (("gemini-3.1-pro-preview", "gemini-3.1-pro"), "gemini-3.1-pro", _GOOGLE_BASE, dict(
-        is_reasoning_model=True, max_context_tokens=1048576,
-    )),
-    (("gemini-3.1-flash-lite-preview", "gemini-3.1-flash-lite"), "gemini-3.1-flash-lite", _GOOGLE_BASE, dict(
-        max_context_tokens=1048576,
-    )),
-    (("gemini-3-pro", "gemini-3.0-pro"), "gemini-3-pro", _GOOGLE_BASE, dict(
-        is_reasoning_model=True, max_context_tokens=1048576,
-    )),
-    (("gemini-3-flash-preview", "gemini-3.0-flash-preview", "gemini-3-flash"), "gemini-3-flash", _GOOGLE_BASE, dict(
-        is_reasoning_model=True, max_context_tokens=1048576,
-    )),
-    (("gemini-2.5-pro", "gemini-2-5-pro"), "gemini-2.5-pro", _GOOGLE_BASE, dict(
-        is_reasoning_model=True, max_context_tokens=1048576,
-    )),
-    (("gemini-2.5-flash-lite", "gemini-2-5-flash-lite"), "gemini-2.5-flash-lite", _GOOGLE_BASE, dict(
-        max_context_tokens=1048576,
-    )),
-    (("gemini-2.5-flash", "gemini-2-5-flash"), "gemini-2.5-flash", _GOOGLE_BASE, dict(
-        is_reasoning_model=True, max_context_tokens=1048576,
-    )),
-    (("gemini-2.0-flash", "gemini-2-flash", "gemini-2.0"), "gemini-2.0-flash", _GOOGLE_BASE, {}),
-    (("gemini-1.5-pro", "gemini-1-5-pro"), "gemini-1.5-pro", _GOOGLE_BASE, dict(
-        max_context_tokens=2000000,
-    )),
+    (
+        ("gemini-3.1-pro-preview", "gemini-3.1-pro"),
+        "gemini-3.1-pro",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            max_context_tokens=1048576,
+        ),
+    ),
+    (
+        ("gemini-3.1-flash-lite-preview", "gemini-3.1-flash-lite"),
+        "gemini-3.1-flash-lite",
+        _GOOGLE_BASE,
+        dict(
+            max_context_tokens=1048576,
+        ),
+    ),
+    (
+        ("gemini-3-pro", "gemini-3.0-pro"),
+        "gemini-3-pro",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            max_context_tokens=1048576,
+        ),
+    ),
+    (
+        ("gemini-3-flash-preview", "gemini-3.0-flash-preview", "gemini-3-flash"),
+        "gemini-3-flash",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            max_context_tokens=1048576,
+        ),
+    ),
+    (
+        ("gemini-2.5-pro", "gemini-2-5-pro"),
+        "gemini-2.5-pro",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            max_context_tokens=1048576,
+        ),
+    ),
+    (
+        ("gemini-2.5-flash-lite", "gemini-2-5-flash-lite"),
+        "gemini-2.5-flash-lite",
+        _GOOGLE_BASE,
+        dict(
+            max_context_tokens=1048576,
+        ),
+    ),
+    (
+        ("gemini-2.5-flash", "gemini-2-5-flash"),
+        "gemini-2.5-flash",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            max_context_tokens=1048576,
+        ),
+    ),
+    (
+        ("gemini-2.0-flash", "gemini-2-flash", "gemini-2.0"),
+        "gemini-2.0-flash",
+        _GOOGLE_BASE,
+        {},
+    ),
+    (
+        ("gemini-1.5-pro", "gemini-1-5-pro"),
+        "gemini-1.5-pro",
+        _GOOGLE_BASE,
+        dict(
+            max_context_tokens=2000000,
+        ),
+    ),
     (("gemini-1.5-flash", "gemini-1-5-flash"), "gemini-1.5-flash", _GOOGLE_BASE, {}),
     (("gemini",), "gemini", _GOOGLE_BASE, {}),
 ]

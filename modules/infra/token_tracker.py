@@ -50,6 +50,7 @@ def _default_token_tracker_file() -> Path:
     """Resolve the default state-file path against the current directory."""
     return Path.cwd() / _TOKEN_TRACKER_FILENAME
 
+
 # Singleton instance
 _tracker_instance: DailyTokenTracker | None = None
 _tracker_lock = threading.Lock()

@@ -58,8 +58,7 @@ def clamp_ranges_to_length(
         clamped_end = min(total_lines, end)
         if clamped_start > clamped_end:
             logger.warning(
-                "Dropping out-of-bounds line range (%d, %d): file has %d "
-                "line(s)",
+                "Dropping out-of-bounds line range (%d, %d): file has %d line(s)",
                 start,
                 end,
                 total_lines,

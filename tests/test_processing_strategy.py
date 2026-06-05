@@ -398,9 +398,7 @@ async def test_synchronous_strategy_concurrent_writes_are_not_interleaved(
     chunks = [f"c{i}" for i in range(40)]
 
     strat = ps.SynchronousProcessingStrategy(
-        concurrency_config={
-            "concurrency": {"extraction": {"concurrency_limit": 16}}
-        }
+        concurrency_config={"concurrency": {"extraction": {"concurrency_limit": 16}}}
     )
 
     await strat.process_chunks(
@@ -475,9 +473,7 @@ async def test_synchronous_strategy_error_dict_carries_chunk_index(
         console_print=lambda *_args, **_kwargs: None,
     )
 
-    errors = [
-        r for r in results if isinstance(r, dict) and "error" in r
-    ]
+    errors = [r for r in results if isinstance(r, dict) and "error" in r]
     assert len(errors) == 1
     # c2 is the second chunk -> 1-based index 2.
     assert errors[0]["chunk_index"] == 2
