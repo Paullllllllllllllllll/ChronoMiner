@@ -153,6 +153,79 @@ class TestDetectExtractionStatus:
         assert completed == {1, 2, 3}
 
 
+class TestMetadataIndicatesComplete:
+    """Tests for the early visual-resume gate predicate.
+
+    The early gate runs before images are rendered, so it cannot consult
+    detect_extraction_status (which needs the true chunk count). It must
+    skip only a self-declared full success and let any partial output fall
+    through to be resumed.
+    """
+
+    def test_skips_complete_output(self):
+        from modules.extract.resume import metadata_indicates_complete
+
+        data = {
+            "_chronominer_metadata": {"total_chunks": 3},
+            "records": [
+                {"custom_id": "f-chunk-1"},
+                {"custom_id": "f-chunk-2"},
+                {"custom_id": "f-chunk-3"},
+            ],
+        }
+        assert metadata_indicates_complete(data) is True
+
+    def test_does_not_skip_partial_flag(self):
+        """Regression for mg_deutschland_2014: a partial output whose
+        total_chunks equals its own success count must NOT be skipped."""
+        from modules.extract.resume import metadata_indicates_complete
+
+        data = {
+            "_chronominer_metadata": {
+                "total_chunks": 1234,
+                "partial": True,
+                "failed_chunks": [3, 5, 15],
+            },
+            "records": [{"custom_id": f"f-chunk-{i}"} for i in range(1, 1235)],
+        }
+        assert metadata_indicates_complete(data) is False
+
+    def test_does_not_skip_when_failed_chunks_present(self):
+        """Even without the partial flag, a non-empty failed_chunks list
+        means the output is not a full success."""
+        from modules.extract.resume import metadata_indicates_complete
+
+        data = {
+            "_chronominer_metadata": {"total_chunks": 2, "failed_chunks": [2]},
+            "records": [{"custom_id": "f-chunk-1"}, {"custom_id": "f-chunk-2"}],
+        }
+        assert metadata_indicates_complete(data) is False
+
+    def test_does_not_skip_when_total_zero(self):
+        from modules.extract.resume import metadata_indicates_complete
+
+        data = {
+            "_chronominer_metadata": {"total_chunks": 0},
+            "records": [{"custom_id": "f-chunk-1"}],
+        }
+        assert metadata_indicates_complete(data) is False
+
+    def test_does_not_skip_when_records_short(self):
+        from modules.extract.resume import metadata_indicates_complete
+
+        data = {
+            "_chronominer_metadata": {"total_chunks": 3},
+            "records": [{"custom_id": "f-chunk-1"}],
+        }
+        assert metadata_indicates_complete(data) is False
+
+    def test_does_not_skip_bare_list_or_missing_metadata(self):
+        from modules.extract.resume import metadata_indicates_complete
+
+        assert metadata_indicates_complete([]) is False
+        assert metadata_indicates_complete({"records": []}) is False
+
+
 class TestGetOutputJsonPath:
     """Tests for get_output_json_path."""
 
@@ -507,6 +580,7 @@ class TestResumeMergePreservesPriorRecords:
                 _StubHandler(),
                 {},  # no csv/docx/txt outputs configured
                 _MessagingAdapter(),
+                total_units=3,
                 partial=False,
                 merge_existing=True,
             )
@@ -559,6 +633,7 @@ class TestResumeMergePreservesPriorRecords:
                 _StubHandler(),
                 {},
                 _MessagingAdapter(),
+                total_units=1,
                 partial=False,
                 merge_existing=False,
             )

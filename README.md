@@ -1,4 +1,4 @@
-# ChronoMiner v1.7.0
+# ChronoMiner v1.7.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,22 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.7.1** (5 June 2026) -- fix a resume bug that skipped partial
+    visual (PDF/image) extractions as if complete, so their failed pages
+    were never recovered. The early resume gate in `_process_visual_file`
+    skipped any output whose record count met its `total_chunks`, ignoring
+    the `partial` flag and `failed_chunks` list; because a partial run
+    stamped `total_chunks` as its own success count, the file looked
+    complete and the failed pages were never re-queued. The gate now skips
+    only a self-declared full success (the new `metadata_indicates_complete`
+    predicate in `modules/extract/resume.py`), so partial outputs fall
+    through to the authoritative `detect_extraction_status` and resume.
+    Separately, `total_chunks` is now stamped from the true unit count
+    (`len(chunks)`) rather than the number of successful records, so the
+    persisted metadata is no longer self-contradictory and stays correct
+    even when a run ends partial or is cancelled. Existing partial outputs
+    need no migration: the flags drive correct resume, and the recovery run
+    re-stamps the true total.
 - **v1.7.0** (5 June 2026) -- lean extraction output. The final
     `_output.json` now carries only the response side of each record
     (`output_text` and `response_data`); the request side
