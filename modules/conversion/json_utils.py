@@ -12,6 +12,32 @@ logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
+# Public helpers
+# ---------------------------------------------------------------------------
+
+
+def lean_response(response_body: Any) -> Any:
+    """Return a response payload with the request-side metadata removed.
+
+    The ``_temp.jsonl`` written during extraction preserves the *entire* API
+    call (input messages, including base64 image data) for reproducibility.
+    The final ``_output.json`` should carry only the responses used by
+    downstream processing, so this strips ``request_metadata`` (which holds
+    the input ``messages`` and embedded base64 images) while keeping
+    ``output_text``, ``response_data``, and any other response-side fields.
+
+    Non-dict inputs are returned unchanged.
+
+    :param response_body: A response dict (e.g. the ``response`` field of an
+        output record, or the ``response.body`` value from a temp record).
+    :return: A new dict without ``request_metadata``, or the input unchanged.
+    """
+    if not isinstance(response_body, dict):
+        return response_body
+    return {k: v for k, v in response_body.items() if k != "request_metadata"}
+
+
+# ---------------------------------------------------------------------------
 # Internal helpers — keep parsing logic DRY across response formats
 # ---------------------------------------------------------------------------
 
