@@ -195,6 +195,99 @@ async def open_extractor(
         await extractor.close()
 
 
+def _build_messages(
+    system_message: str | None,
+    user_blocks: list[dict[str, Any]],
+    *,
+    extractor: LLMExtractor,
+    enable_cache_control: bool,
+    context_image_data: dict[str, Any] | None,
+) -> list[dict[str, Any]]:
+    """
+    Assemble the system and user messages in the provider-agnostic format.
+
+    Builds the system block (with optional Anthropic ``cache_control``),
+    injects an optional context image ahead of the caller's ``user_blocks``
+    (OpenAI and OpenRouter only), and wraps both into the role envelope.
+
+    :param system_message: Optional system prompt; treated as empty when None.
+    :param user_blocks: The caller's trailing user-content blocks (text chunk,
+        or instruction plus image), appended after any context image.
+    :param extractor: The active extractor, used for provider gating.
+    :param enable_cache_control: Whether to mark the system block ephemeral.
+    :param context_image_data: Optional context image dict with 'base64',
+        'mime_type', and 'detail' keys.
+    :return: The two-element system/user message list.
+    """
+    system_content: list[dict[str, Any]] = [
+        {"type": "input_text", "text": system_message or ""}
+    ]
+    if enable_cache_control:
+        system_content[-1]["cache_control"] = {"type": "ephemeral"}
+
+    user_content: list[dict[str, Any]] = []
+    if context_image_data is not None:
+        if extractor.provider.lower() in ("openai", "openrouter"):
+            from modules.images.message_builder import build_image_content_block
+
+            ctx_block = build_image_content_block(
+                image_base64=context_image_data["base64"],
+                mime_type=context_image_data["mime_type"],
+                provider=extractor.provider,
+                detail=context_image_data.get("detail"),
+                supports_image_detail=extractor.caps.supports_image_detail,
+            )
+            user_content.append({"type": "text", "text": "Context image:"})
+            user_content.append(ctx_block)
+        else:
+            logger.warning(
+                "Context image injection not yet supported for "
+                f"provider '{extractor.provider}'. Skipping."
+            )
+    user_content.extend(user_blocks)
+
+    return [
+        {"role": "system", "content": system_content},
+        {"role": "user", "content": user_content},
+    ]
+
+
+def _normalize_structured_schema(
+    json_schema: dict[str, Any] | None, caps: Any
+) -> dict[str, Any] | None:
+    """
+    Coerce a wrapped or bare JSON schema into the structured-output form.
+
+    Accepts both the wrapped ``{"name", "schema", "strict"}`` shape and a
+    bare JSON Schema. Returns None when no schema is supplied or the model
+    does not support structured outputs.
+    """
+    if not json_schema or not caps.supports_structured_outputs:
+        return None
+    if "schema" in json_schema and isinstance(json_schema.get("schema"), dict):
+        return {
+            "name": json_schema.get("name", "TranscriptionSchema"),
+            "schema": json_schema.get("schema", {}),
+            "strict": bool(json_schema.get("strict", True)),
+        }
+    return {
+        "name": "TranscriptionSchema",
+        "schema": json_schema,
+        "strict": True,
+    }
+
+
+def _pack_result(result: dict[str, Any]) -> dict[str, Any]:
+    """Extract the public response fields from a raw LLM result."""
+    response_data = result.get("response_data", {})
+    return {
+        "output_text": result.get("output_text", ""),
+        "response_data": response_data,
+        "request_metadata": result.get("request_metadata", {}),
+        "usage": response_data.get("usage", {}),
+    }
+
+
 async def process_text_chunk(
     text_chunk: str,
     extractor: LLMExtractor,
@@ -217,81 +310,23 @@ async def process_text_chunk(
         and request metadata used for the call.
     :raises Exception: If the API call fails after all LangChain retries.
     """
-    if system_message is None:
-        system_message = ""
+    user_blocks: list[dict[str, Any]] = [{"type": "input_text", "text": text_chunk}]
+    messages = _build_messages(
+        system_message,
+        user_blocks,
+        extractor=extractor,
+        enable_cache_control=enable_cache_control,
+        context_image_data=context_image_data,
+    )
+    structured_schema = _normalize_structured_schema(json_schema, extractor.caps)
 
-    # Build system content block with optional cache_control for Anthropic
-    system_content: list[dict[str, Any]] = [
-        {"type": "input_text", "text": system_message}
-    ]
-    if enable_cache_control:
-        system_content[-1]["cache_control"] = {"type": "ephemeral"}
-
-    # Build user content with optional context image
-    user_content: list[dict[str, Any]] = []
-    if context_image_data is not None:
-        if extractor.provider.lower() in ("openai", "openrouter"):
-            from modules.images.message_builder import build_image_content_block
-
-            ctx_block = build_image_content_block(
-                image_base64=context_image_data["base64"],
-                mime_type=context_image_data["mime_type"],
-                provider=extractor.provider,
-                detail=context_image_data.get("detail"),
-                supports_image_detail=extractor.caps.supports_image_detail,
-            )
-            user_content.append({"type": "text", "text": "Context image:"})
-            user_content.append(ctx_block)
-        else:
-            logger.warning(
-                "Context image injection not yet supported for "
-                f"provider '{extractor.provider}'. Skipping."
-            )
-    user_content.append({"type": "input_text", "text": text_chunk})
-
-    # Build messages in LangChain format
-    messages = [
-        {
-            "role": "system",
-            "content": system_content,
-        },
-        {
-            "role": "user",
-            "content": user_content,
-        },
-    ]
-
-    # Build structured output schema if provided
-    # NOTE: LangChain's with_structured_output() handles schema validation internally
-    structured_schema = None
-    if json_schema and extractor.caps.supports_structured_outputs:
-        # Handle both wrapped {"name", "schema", "strict"} and bare JSON Schema formats
-        if "schema" in json_schema and isinstance(json_schema.get("schema"), dict):
-            structured_schema = {
-                "name": json_schema.get("name", "TranscriptionSchema"),
-                "schema": json_schema.get("schema", {}),
-                "strict": bool(json_schema.get("strict", True)),
-            }
-        elif isinstance(json_schema, dict) and json_schema:
-            structured_schema = {
-                "name": "TranscriptionSchema",
-                "schema": json_schema,
-                "strict": True,
-            }
-
-    # LangChain handles retries internally via max_retries parameter
-    # Token tracking is handled via usage_metadata on the response
+    # LangChain handles retries internally via max_retries; token tracking is
+    # handled via usage_metadata on the response.
     result = await extractor.llm.ainvoke_with_structured_output(
         messages=messages,
         json_schema=structured_schema,
     )
-
-    return {
-        "output_text": result.get("output_text", ""),
-        "response_data": result.get("response_data", {}),
-        "request_metadata": result.get("request_metadata", {}),
-        "usage": result.get("response_data", {}).get("usage", {}),
-    }
+    return _pack_result(result)
 
 
 async def process_image_chunk(
@@ -328,9 +363,6 @@ async def process_image_chunk(
     """
     from modules.images.message_builder import build_image_content_block
 
-    if system_message is None:
-        system_message = ""
-
     # Build provider-specific image content block
     image_block = build_image_content_block(
         image_base64=image_base64,
@@ -339,74 +371,24 @@ async def process_image_chunk(
         detail=image_detail,
         supports_image_detail=extractor.caps.supports_image_detail,
     )
-
-    # Build system content block with optional cache_control for Anthropic
-    system_content: list[dict[str, Any]] = [
-        {"type": "input_text", "text": system_message}
+    user_blocks: list[dict[str, Any]] = [
+        {"type": "text", "text": user_instruction},
+        image_block,
     ]
-    if enable_cache_control:
-        system_content[-1]["cache_control"] = {"type": "ephemeral"}
-
-    # Build user content with optional context image
-    user_content: list[dict[str, Any]] = []
-    if context_image_data is not None:
-        if extractor.provider.lower() in ("openai", "openrouter"):
-            ctx_block = build_image_content_block(
-                image_base64=context_image_data["base64"],
-                mime_type=context_image_data["mime_type"],
-                provider=extractor.provider,
-                detail=context_image_data.get("detail"),
-                supports_image_detail=extractor.caps.supports_image_detail,
-            )
-            user_content.append({"type": "text", "text": "Context image:"})
-            user_content.append(ctx_block)
-        else:
-            logger.warning(
-                "Context image injection not yet supported for "
-                f"provider '{extractor.provider}'. Skipping."
-            )
-    user_content.append({"type": "text", "text": user_instruction})
-    user_content.append(image_block)
-
-    # Build multimodal messages
-    messages = [
-        {
-            "role": "system",
-            "content": system_content,
-        },
-        {
-            "role": "user",
-            "content": user_content,
-        },
-    ]
-
-    # Build structured output schema if provided
-    structured_schema = None
-    if json_schema and extractor.caps.supports_structured_outputs:
-        if "schema" in json_schema and isinstance(json_schema.get("schema"), dict):
-            structured_schema = {
-                "name": json_schema.get("name", "TranscriptionSchema"),
-                "schema": json_schema.get("schema", {}),
-                "strict": bool(json_schema.get("strict", True)),
-            }
-        elif isinstance(json_schema, dict) and json_schema:
-            structured_schema = {
-                "name": "TranscriptionSchema",
-                "schema": json_schema,
-                "strict": True,
-            }
+    messages = _build_messages(
+        system_message,
+        user_blocks,
+        extractor=extractor,
+        enable_cache_control=enable_cache_control,
+        context_image_data=context_image_data,
+    )
+    structured_schema = _normalize_structured_schema(json_schema, extractor.caps)
 
     result = await extractor.llm.ainvoke_with_structured_output(
         messages=messages,
         json_schema=structured_schema,
     )
-
-    return {
-        "output_text": result.get("output_text", ""),
-        "response_data": result.get("response_data", {}),
-        "request_metadata": result.get("request_metadata", {}),
-        "usage": result.get("response_data", {}).get("usage", {}),
-    }
+    return _pack_result(result)
 
 
 async def process_text_chunk_with_provider(

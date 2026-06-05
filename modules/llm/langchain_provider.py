@@ -668,23 +668,14 @@ class LangChainLLM:
         caps = self._get_capabilities()
         return bool(caps.supports_structured_outputs)
 
-    async def ainvoke_with_structured_output(
-        self,
-        messages: list[dict[str, Any]],
-        json_schema: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
+    @staticmethod
+    def _to_lc_messages(messages: list[dict[str, Any]]) -> list[Any]:
+        """Convert role/content message dicts into LangChain message objects.
+
+        Text-only content is flattened to a string; multimodal or
+        cache-annotated content keeps its list form, with ``input_text`` blocks
+        rewritten to ``text`` for Anthropic compatibility.
         """
-        Invoke the model asynchronously with optional structured output.
-
-        Args:
-            messages: List of message dicts with 'role' and 'content' keys
-            json_schema: Optional JSON schema for structured output
-
-        Returns:
-            Dict with 'output_text', 'response_data', and 'request_metadata'
-        """
-        self._ensure_initialized()
-
         from langchain_core.messages import (
             AIMessage,
             BaseMessage,
@@ -692,7 +683,6 @@ class LangChainLLM:
             SystemMessage,
         )
 
-        # Convert message dicts to LangChain message objects
         lc_messages: list[BaseMessage] = []
         for msg in messages:
             role = msg.get("role", "user")
@@ -741,6 +731,121 @@ class LangChainLLM:
                 lc_messages.append(AIMessage(content=content))
             else:
                 lc_messages.append(HumanMessage(content=content))
+
+        return lc_messages
+
+    @staticmethod
+    def _extract_usage(raw_response: Any) -> dict[str, int]:
+        """Parse provider usage metadata into normalized token counts.
+
+        Scans both ``usage_metadata`` and ``response_metadata.token_usage`` on
+        the raw response, tolerating dict- and attribute-style containers and
+        the differing OpenAI/Anthropic field names, and logs any prompt-cache
+        hit or miss. Returns zeros when no usage information is present.
+        """
+        usage_candidates: list[Any] = []
+        usage_metadata = getattr(raw_response, "usage_metadata", None)
+        if usage_metadata:
+            usage_candidates.append(usage_metadata)
+
+        response_metadata = getattr(raw_response, "response_metadata", None)
+        if isinstance(response_metadata, dict):
+            token_usage = response_metadata.get("token_usage")
+            if token_usage:
+                usage_candidates.append(token_usage)
+        elif response_metadata is not None:
+            token_usage = getattr(response_metadata, "token_usage", None)
+            if token_usage:
+                usage_candidates.append(token_usage)
+
+        input_tokens = 0
+        output_tokens = 0
+        total_tokens = 0
+        for usage in usage_candidates:
+            if isinstance(usage, dict):
+                input_tokens = input_tokens or int(
+                    usage.get("input_tokens") or usage.get("prompt_tokens") or 0
+                )
+                output_tokens = output_tokens or int(
+                    usage.get("output_tokens") or usage.get("completion_tokens") or 0
+                )
+                total_tokens = total_tokens or int(usage.get("total_tokens") or 0)
+            else:
+                input_tokens = input_tokens or int(
+                    getattr(usage, "input_tokens", 0)
+                    or getattr(usage, "prompt_tokens", 0)
+                    or 0
+                )
+                output_tokens = output_tokens or int(
+                    getattr(usage, "output_tokens", 0)
+                    or getattr(usage, "completion_tokens", 0)
+                    or 0
+                )
+                total_tokens = total_tokens or int(
+                    getattr(usage, "total_tokens", 0) or 0
+                )
+
+        if total_tokens <= 0 and (input_tokens > 0 or output_tokens > 0):
+            total_tokens = input_tokens + output_tokens
+
+        # Extract cache-specific token counts (Anthropic prompt caching)
+        cache_creation_tokens = 0
+        cache_read_tokens = 0
+        for usage in usage_candidates:
+            if isinstance(usage, dict):
+                cache_creation_tokens = cache_creation_tokens or int(
+                    usage.get("cache_creation_input_tokens", 0) or 0
+                )
+                cache_read_tokens = cache_read_tokens or int(
+                    usage.get("cache_read_input_tokens", 0) or 0
+                )
+            else:
+                cache_creation_tokens = cache_creation_tokens or int(
+                    getattr(usage, "cache_creation_input_tokens", 0) or 0
+                )
+                cache_read_tokens = cache_read_tokens or int(
+                    getattr(usage, "cache_read_input_tokens", 0) or 0
+                )
+
+        if cache_creation_tokens > 0 or cache_read_tokens > 0:
+            if cache_read_tokens > 0:
+                logger.info(
+                    "[CACHE] Hit: %s tokens read from cache, %s written",
+                    f"{cache_read_tokens:,}",
+                    f"{cache_creation_tokens:,}",
+                )
+            else:
+                logger.info(
+                    "[CACHE] Miss: %s tokens written to cache",
+                    f"{cache_creation_tokens:,}",
+                )
+
+        return {
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "total_tokens": total_tokens,
+            "cache_creation_tokens": cache_creation_tokens,
+            "cache_read_tokens": cache_read_tokens,
+        }
+
+    async def ainvoke_with_structured_output(
+        self,
+        messages: list[dict[str, Any]],
+        json_schema: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        """
+        Invoke the model asynchronously with optional structured output.
+
+        Args:
+            messages: List of message dicts with 'role' and 'content' keys
+            json_schema: Optional JSON schema for structured output
+
+        Returns:
+            Dict with 'output_text', 'response_data', and 'request_metadata'
+        """
+        self._ensure_initialized()
+
+        lc_messages = self._to_lc_messages(messages)
 
         chat_model = self._chat_model
         response_data: dict[str, Any] = {}
@@ -807,86 +912,12 @@ class LangChainLLM:
                     ) or str(content)
                 output_text = content
 
-            # Track token usage from provider-specific metadata containers.
-            usage_candidates: list[Any] = []
-            usage_metadata = getattr(raw_response, "usage_metadata", None)
-            if usage_metadata:
-                usage_candidates.append(usage_metadata)
-
-            response_metadata = getattr(raw_response, "response_metadata", None)
-            if isinstance(response_metadata, dict):
-                token_usage = response_metadata.get("token_usage")
-                if token_usage:
-                    usage_candidates.append(token_usage)
-            elif response_metadata is not None:
-                token_usage = getattr(response_metadata, "token_usage", None)
-                if token_usage:
-                    usage_candidates.append(token_usage)
-
-            input_tokens = 0
-            output_tokens = 0
-            total_tokens = 0
-
-            for usage in usage_candidates:
-                if isinstance(usage, dict):
-                    input_tokens = input_tokens or int(
-                        usage.get("input_tokens") or usage.get("prompt_tokens") or 0
-                    )
-                    output_tokens = output_tokens or int(
-                        usage.get("output_tokens")
-                        or usage.get("completion_tokens")
-                        or 0
-                    )
-                    total_tokens = total_tokens or int(usage.get("total_tokens") or 0)
-                else:
-                    input_tokens = input_tokens or int(
-                        getattr(usage, "input_tokens", 0)
-                        or getattr(usage, "prompt_tokens", 0)
-                        or 0
-                    )
-                    output_tokens = output_tokens or int(
-                        getattr(usage, "output_tokens", 0)
-                        or getattr(usage, "completion_tokens", 0)
-                        or 0
-                    )
-                    total_tokens = total_tokens or int(
-                        getattr(usage, "total_tokens", 0) or 0
-                    )
-
-            if total_tokens <= 0 and (input_tokens > 0 or output_tokens > 0):
-                total_tokens = input_tokens + output_tokens
-
-            # Extract cache-specific token counts (Anthropic prompt caching)
-            cache_creation_tokens = 0
-            cache_read_tokens = 0
-            for usage in usage_candidates:
-                if isinstance(usage, dict):
-                    cache_creation_tokens = cache_creation_tokens or int(
-                        usage.get("cache_creation_input_tokens", 0) or 0
-                    )
-                    cache_read_tokens = cache_read_tokens or int(
-                        usage.get("cache_read_input_tokens", 0) or 0
-                    )
-                else:
-                    cache_creation_tokens = cache_creation_tokens or int(
-                        getattr(usage, "cache_creation_input_tokens", 0) or 0
-                    )
-                    cache_read_tokens = cache_read_tokens or int(
-                        getattr(usage, "cache_read_input_tokens", 0) or 0
-                    )
-
-            if cache_creation_tokens > 0 or cache_read_tokens > 0:
-                if cache_read_tokens > 0:
-                    logger.info(
-                        "[CACHE] Hit: %s tokens read from cache, %s written",
-                        f"{cache_read_tokens:,}",
-                        f"{cache_creation_tokens:,}",
-                    )
-                else:
-                    logger.info(
-                        "[CACHE] Miss: %s tokens written to cache",
-                        f"{cache_creation_tokens:,}",
-                    )
+            usage_counts = self._extract_usage(raw_response)
+            input_tokens = usage_counts["input_tokens"]
+            output_tokens = usage_counts["output_tokens"]
+            total_tokens = usage_counts["total_tokens"]
+            cache_creation_tokens = usage_counts["cache_creation_tokens"]
+            cache_read_tokens = usage_counts["cache_read_tokens"]
 
             if total_tokens > 0 or input_tokens > 0 or output_tokens > 0:
                 response_data["usage"] = {
