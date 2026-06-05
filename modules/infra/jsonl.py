@@ -179,6 +179,31 @@ def read_jsonl_header(path: Path) -> dict[str, Any] | None:
         return None
 
 
+def _header_fields_match(
+    header: dict[str, Any],
+    *,
+    boundary_type: str,
+    model_name: str,
+    context_window: int,
+    matching_config: dict[str, Any] | None = None,
+    retry_config: dict[str, Any] | None = None,
+) -> bool:
+    """Compare the config fields shared by both JSONL header checks.
+
+    ``matching_config`` and ``retry_config`` are compared only when the caller
+    supplies a non-None value.
+    """
+    if header.get("boundary_type") != boundary_type:
+        return False
+    if header.get("model_name") != model_name:
+        return False
+    if header.get("context_window") != context_window:
+        return False
+    if matching_config is not None and header.get("matching_config") != matching_config:
+        return False
+    return not (retry_config is not None and header.get("retry_config") != retry_config)
+
+
 def validate_jsonl_header(
     header: dict[str, Any],
     *,
@@ -197,15 +222,14 @@ def validate_jsonl_header(
     """
     if header.get("ranges_fingerprint") != ranges_fingerprint:
         return False
-    if header.get("boundary_type") != boundary_type:
-        return False
-    if header.get("model_name") != model_name:
-        return False
-    if header.get("context_window") != context_window:
-        return False
-    if matching_config is not None and header.get("matching_config") != matching_config:
-        return False
-    if retry_config is not None and header.get("retry_config") != retry_config:
+    if not _header_fields_match(
+        header,
+        boundary_type=boundary_type,
+        model_name=model_name,
+        context_window=context_window,
+        matching_config=matching_config,
+        retry_config=retry_config,
+    ):
         return False
     return not (
         prompt_hash is not None
@@ -293,15 +317,14 @@ def is_jsonl_adjustment_complete(
     if header.get("completed_at") is None:
         return False
 
-    if header.get("boundary_type") != boundary_type:
-        return False
-    if header.get("model_name") != model_name:
-        return False
-    if header.get("context_window") != context_window:
-        return False
-    if matching_config is not None and header.get("matching_config") != matching_config:
-        return False
-    return not (retry_config is not None and header.get("retry_config") != retry_config)
+    return _header_fields_match(
+        header,
+        boundary_type=boundary_type,
+        model_name=model_name,
+        context_window=context_window,
+        matching_config=matching_config,
+        retry_config=retry_config,
+    )
 
 
 def compute_stats_from_jsonl(path: Path) -> dict[str, int]:
