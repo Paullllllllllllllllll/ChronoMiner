@@ -170,8 +170,10 @@ def _repair_temp_file(
 
     for track in completed_batches:
         batch_responses = retrieve_responses_from_batch(
-            track, temp_file.parent, local_batch_cache
-        )  # type: ignore[arg-type]
+            track,
+            temp_file.parent,
+            local_batch_cache,  # type: ignore[arg-type]
+        )
         responses.extend(batch_responses)
 
     if not responses:
@@ -443,8 +445,11 @@ class RepairExtractionsScript(DualModeScript):
                 if args.verbose:
                     print(f"[INFO] Repairing {candidate['temp_file'].name}...")
                 _repair_temp_file(
-                    candidate, self.processing_settings, self.client, mock_ui
-                )  # type: ignore[arg-type]
+                    candidate,
+                    self.processing_settings,
+                    self.client,
+                    mock_ui,  # type: ignore[arg-type]
+                )
                 success_count += 1
             except Exception as e:
                 self.logger.exception(f"Error repairing {candidate['temp_file'].name}")
