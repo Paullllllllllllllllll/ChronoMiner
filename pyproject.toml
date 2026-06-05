@@ -7,30 +7,30 @@ license = "MIT"
 readme = "README.md"
 
 dependencies = [
-    "anthropic>=0.94",
+    "anthropic>=0.105",
+    "charset-normalizer>=3.4",
     "colorama>=0.4.6",
-    "google-genai>=1.73",
+    "google-genai>=1.75,<2",
     "langchain-anthropic>=1.4",
-    "langchain-core>=1.2",
+    "langchain-core>=1.4",
     "langchain-google-genai>=4.2",
-    "langchain-openai>=1.1",
-    "openai>=2.31",
+    "langchain-openai>=1.2",
+    "openai>=2.41",
     "pandas>=3.0",
     "Pillow>=12.0",
-    "pip>=26.1",
     "PyMuPDF>=1.27",
     "python-docx>=1.2",
     "PyYAML>=6.0",
-    "tiktoken>=0.12",
+    "tiktoken>=0.13",
 ]
 
 [project.optional-dependencies]
 dev = [
     "pytest>=9.0",
-    "pytest-asyncio>=1.3",
-    "pytest-cov>=7.0",
-    "coverage>=7.13",
-    "mypy>=1.20",
+    "pytest-asyncio>=1.4",
+    "pytest-cov>=7.1",
+    "coverage>=7.14",
+    "mypy>=1.20,<2",
     "ruff>=0.15",
     "types-PyYAML>=6.0",
 ]
@@ -66,3 +66,20 @@ ignore = []
 [tool.ruff.format]
 quote-style = "double"
 docstring-code-format = false
+
+[tool.deptry]
+# Treat the dev extra as development dependencies (CLI tools and plugins
+# such as pytest, mypy, and ruff are not imported in the source tree).
+pep621_dev_dependency_groups = ["dev"]
+# eval/ and tests/ carry their own analysis-only imports (matplotlib,
+# IPython, local eval helpers) that are intentionally undeclared.
+extend_exclude = ["eval", "tests"]
+
+[tool.deptry.package_module_name_map]
+# Distributions whose import name differs from the package name; declaring
+# these keeps scans accurate even when deptry runs outside the project venv.
+google-genai = ["google"]
+PyYAML = ["yaml"]
+python-docx = ["docx"]
+Pillow = ["PIL"]
+PyMuPDF = ["fitz"]
