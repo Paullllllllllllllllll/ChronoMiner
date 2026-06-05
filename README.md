@@ -1,4 +1,4 @@
-# ChronoMiner v1.7.1
+# ChronoMiner v1.8.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,23 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.8.0** (5 June 2026) -- dependency cleanup and a limited
+    deep-module refactor. Removed the unused `pip` runtime dependency
+    and declared `charset-normalizer` explicitly, since it is imported
+    directly in `modules/infra/chunking.py` but was previously present
+    only transitively via `requests`. Refreshed the remaining
+    dependencies to their latest compatible versions under a
+    conservative policy that holds the two risky majors, `mypy` and
+    `google-genai`, at their current major line, and added a
+    `[tool.deptry]` configuration so dependency scans run clean.
+    Internally, extracted cohesive helpers behind narrow interfaces:
+    `_build_messages`, `_normalize_structured_schema`, and
+    `_pack_result` in `openai_utils.py`; `_to_lc_messages` and
+    `_extract_usage` in `langchain_provider.py`, which drops
+    `ainvoke_with_structured_output` from cyclomatic grade F to D; and
+    `_header_fields_match` in `jsonl.py`. No public interface or
+    extraction behavior changed. Also completed a repository-wide ruff
+    and mypy cleanup so both now run without warnings.
 - **v1.7.1** (5 June 2026) -- fix a resume bug that skipped partial
     visual (PDF/image) extractions as if complete, so their failed pages
     were never recovered. The early resume gate in `_process_visual_file`
