@@ -200,7 +200,9 @@ def _repair_temp_file(
     if custom_id_map:
         final_results["custom_id_map"] = custom_id_map
 
-    final_json_path.write_text(json.dumps(final_results, indent=2), encoding="utf-8")
+    final_json_path.write_text(
+        json.dumps(final_results, indent=2, ensure_ascii=False), encoding="utf-8"
+    )
     ui.print_success(f"Final output regenerated: {final_json_path.name}")
     logger.info("Repaired extraction written to %s", final_json_path)
 

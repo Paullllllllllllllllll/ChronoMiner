@@ -1,4 +1,4 @@
-# ChronoMiner v1.6.9
+# ChronoMiner v1.7.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -611,6 +611,14 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.7.0** (5 June 2026) -- lean extraction output. The final
+    `_output.json` now carries only the response side of each record
+    (`output_text` and `response_data`); the request side
+    (`request_metadata`, whose `messages` embed the per-page base64
+    images) is stripped when the output is assembled, shrinking
+    image-based guides roughly 150x. The complete API call is preserved
+    in the sibling `_temp.jsonl` for reproducibility. Output is now
+    written with `ensure_ascii=False`.
 - **v1.6.9** (31 May 2026) -- Tier 3 latent-correctness and hygiene
     fixes. Correctness: the shared synchronous temp-file writer is now
     guarded by a lock so concurrent chunks can no longer interleave and

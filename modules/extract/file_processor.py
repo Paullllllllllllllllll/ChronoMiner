@@ -17,6 +17,7 @@ from modules.config.constants import (
     SUPPORTED_VISUAL_EXTENSIONS,
 )
 from modules.config.context import resolve_context_for_extraction
+from modules.conversion.json_utils import lean_response
 from modules.extract.processing_strategy import create_processing_strategy
 from modules.extract.resume import (
     METADATA_KEY,
@@ -909,6 +910,14 @@ class FileProcessor:
                     output_json_path, results, messenger
                 )
 
+            # Keep only the response side in the final output. The full API
+            # call (input messages + base64 images) remains in the temp JSONL
+            # for reproducibility; downstream consumers read output_text and
+            # response_data only. Applies to both temp-derived and merged
+            # records so resumed/cleaned partials stay lean.
+            for record in results:
+                record["response"] = lean_response(record.get("response", {}))
+
             # Sort results by chunk_index, handling None values
             results.sort(key=lambda x: x.get("chunk_index") or 0)
 
@@ -932,7 +941,7 @@ class FileProcessor:
             }
 
             with output_json_path.open("w", encoding="utf-8") as outf:
-                json.dump(output_data, outf, indent=2)
+                json.dump(output_data, outf, indent=2, ensure_ascii=False)
 
             if partial:
                 if failed_chunks:
