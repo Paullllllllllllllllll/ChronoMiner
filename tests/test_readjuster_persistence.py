@@ -41,6 +41,7 @@ def test_clamp_ranges_to_length_all_out_of_bounds_returns_empty() -> None:
     # start beyond the file length collapses to start>end and is dropped.
     assert clamp_ranges_to_length([(20, 30)], total_lines=10) == []
 
+
 # ---------------------------------------------------------------------------
 # RangeResult
 # ---------------------------------------------------------------------------

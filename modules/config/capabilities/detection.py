@@ -8,12 +8,12 @@ computation lives in :mod:`modules.config.capabilities.params`.
 from __future__ import annotations
 
 from modules.config.capabilities.registry import (
-    Capabilities,
-    ProviderType,
     _CUSTOM_BASE,
     _MODEL_REGISTRY,
     _OPENAI_REASONING_BASE,
     _OPENROUTER_BASE,
+    Capabilities,
+    ProviderType,
     _norm,
 )
 
@@ -84,19 +84,31 @@ def detect_capabilities(
         and not m.startswith("o3-mini")
         and not m.startswith("o3-pro")
     ):
-        return _build_caps(model_name, "o3", _OPENAI_REASONING_BASE, dict(
-            supports_structured_outputs=False,
-        ))
+        return _build_caps(
+            model_name,
+            "o3",
+            _OPENAI_REASONING_BASE,
+            dict(
+                supports_structured_outputs=False,
+            ),
+        )
 
     # --- o1 (not o1-mini) — requires negative-prefix logic ------------------
-    if m == "o1" or m.startswith("o1-20") or (
-        m.startswith("o1") and not m.startswith("o1-mini")
+    if (
+        m == "o1"
+        or m.startswith("o1-20")
+        or (m.startswith("o1") and not m.startswith("o1-mini"))
     ):
-        return _build_caps(model_name, "o1", _OPENAI_REASONING_BASE, dict(
-            api_preference="either",
-            supports_reasoning_effort=False,
-            supports_structured_outputs=False,
-        ))
+        return _build_caps(
+            model_name,
+            "o1",
+            _OPENAI_REASONING_BASE,
+            dict(
+                api_preference="either",
+                supports_reasoning_effort=False,
+                supports_structured_outputs=False,
+            ),
+        )
 
     # --- OpenRouter models (dynamic matching on underlying model) -----------
     if m.startswith("openrouter/") or "/" in m:
@@ -106,97 +118,147 @@ def detect_capabilities(
         if "deepseek" in m:
             is_r1 = "deepseek-r1" in m
             is_terminus = "terminus" in m
-            return _build_caps(model_name, "openrouter-deepseek", _OPENROUTER_BASE, dict(
-                is_reasoning_model=is_r1 or is_terminus,
-                supports_reasoning_effort=True,
-                supports_sampler_controls=not is_r1,
-            ))
+            return _build_caps(
+                model_name,
+                "openrouter-deepseek",
+                _OPENROUTER_BASE,
+                dict(
+                    is_reasoning_model=is_r1 or is_terminus,
+                    supports_reasoning_effort=True,
+                    supports_sampler_controls=not is_r1,
+                ),
+            )
 
         # GPT-OSS-120b via OpenRouter (DeepInfra fp4)
         if "gpt-oss" in m:
-            return _build_caps(model_name, "openrouter-gpt-oss", _OPENROUTER_BASE, dict(
-                is_reasoning_model=True,
-                supports_reasoning_effort=True,
-                supports_sampler_controls=False,
-                supports_structured_outputs=True,
-                supports_function_calling=True,
-                max_context_tokens=131072,
-            ))
+            return _build_caps(
+                model_name,
+                "openrouter-gpt-oss",
+                _OPENROUTER_BASE,
+                dict(
+                    is_reasoning_model=True,
+                    supports_reasoning_effort=True,
+                    supports_sampler_controls=False,
+                    supports_structured_outputs=True,
+                    supports_function_calling=True,
+                    max_context_tokens=131072,
+                ),
+            )
 
         # GPT-5 via OpenRouter
         if "gpt-5" in m:
-            return _build_caps(model_name, "openrouter-gpt5", _OPENROUTER_BASE, dict(
-                is_reasoning_model=True,
-                supports_reasoning_effort=True,
-                supports_image_detail=True,
-                supports_sampler_controls=False,
-                max_context_tokens=256000,
-            ))
+            return _build_caps(
+                model_name,
+                "openrouter-gpt5",
+                _OPENROUTER_BASE,
+                dict(
+                    is_reasoning_model=True,
+                    supports_reasoning_effort=True,
+                    supports_image_detail=True,
+                    supports_sampler_controls=False,
+                    max_context_tokens=256000,
+                ),
+            )
 
         # o-series via OpenRouter
-        if any(x in m for x in ("/o1", "/o3", "/o4", "openai/o1", "openai/o3", "openai/o4")):
-            return _build_caps(model_name, "openrouter-o-series", _OPENROUTER_BASE, dict(
-                is_reasoning_model=True,
-                supports_reasoning_effort=True,
-                supports_image_input="mini" not in m,
-                supports_image_detail=True,
-                supports_sampler_controls=False,
-                max_context_tokens=200000,
-            ))
+        if any(
+            x in m for x in ("/o1", "/o3", "/o4", "openai/o1", "openai/o3", "openai/o4")
+        ):
+            return _build_caps(
+                model_name,
+                "openrouter-o-series",
+                _OPENROUTER_BASE,
+                dict(
+                    is_reasoning_model=True,
+                    supports_reasoning_effort=True,
+                    supports_image_input="mini" not in m,
+                    supports_image_detail=True,
+                    supports_sampler_controls=False,
+                    max_context_tokens=200000,
+                ),
+            )
 
         # Claude via OpenRouter
         if "claude" in underlying or "anthropic/" in m:
-            return _build_caps(model_name, "openrouter-claude", _OPENROUTER_BASE, dict(
-                is_reasoning_model=True,
-                supports_reasoning_effort=True,
-                supports_prompt_caching=True,
-                max_context_tokens=200000,
-            ))
+            return _build_caps(
+                model_name,
+                "openrouter-claude",
+                _OPENROUTER_BASE,
+                dict(
+                    is_reasoning_model=True,
+                    supports_reasoning_effort=True,
+                    supports_prompt_caching=True,
+                    max_context_tokens=200000,
+                ),
+            )
 
         # Gemma via OpenRouter (must come before Gemini — both match "google/")
         if "gemma" in m:
-            return _build_caps(model_name, "openrouter-gemma", _OPENROUTER_BASE, dict(
-                is_reasoning_model=True,
-                supports_reasoning_effort=True,
-                supports_image_input=True,
-                supports_structured_outputs=True,
-                max_context_tokens=256000,
-            ))
+            return _build_caps(
+                model_name,
+                "openrouter-gemma",
+                _OPENROUTER_BASE,
+                dict(
+                    is_reasoning_model=True,
+                    supports_reasoning_effort=True,
+                    supports_image_input=True,
+                    supports_structured_outputs=True,
+                    max_context_tokens=256000,
+                ),
+            )
 
         # Gemini via OpenRouter
         if "gemini" in underlying or "google/" in m:
             is_thinking = any(
-                x in m for x in (
-                    "gemini-2.5", "gemini-3", "gemini-2-5", "gemini-3-"
-                )
+                x in m for x in ("gemini-2.5", "gemini-3", "gemini-2-5", "gemini-3-")
             )
-            return _build_caps(model_name, "openrouter-gemini", _OPENROUTER_BASE, dict(
-                is_reasoning_model=is_thinking,
-                supports_reasoning_effort=True,
-                max_context_tokens=1000000,
-            ))
+            return _build_caps(
+                model_name,
+                "openrouter-gemini",
+                _OPENROUTER_BASE,
+                dict(
+                    is_reasoning_model=is_thinking,
+                    supports_reasoning_effort=True,
+                    max_context_tokens=1000000,
+                ),
+            )
 
         # Llama via OpenRouter
         if "llama" in underlying or "meta/" in m:
-            return _build_caps(model_name, "openrouter-llama", _OPENROUTER_BASE, dict(
-                supports_image_input="vision" in m or "llama-3.2" in m,
-            ))
+            return _build_caps(
+                model_name,
+                "openrouter-llama",
+                _OPENROUTER_BASE,
+                dict(
+                    supports_image_input="vision" in m or "llama-3.2" in m,
+                ),
+            )
 
         # Mistral via OpenRouter
         if "mistral" in underlying or "mixtral" in m:
-            return _build_caps(model_name, "openrouter-mistral", _OPENROUTER_BASE, dict(
-                supports_image_input="pixtral" in m,
-            ))
+            return _build_caps(
+                model_name,
+                "openrouter-mistral",
+                _OPENROUTER_BASE,
+                dict(
+                    supports_image_input="pixtral" in m,
+                ),
+            )
 
         # Qwen via OpenRouter
         if "qwen" in underlying or "qwen" in m:
-            return _build_caps(model_name, "openrouter-qwen", _OPENROUTER_BASE, dict(
-                is_reasoning_model=True,
-                supports_reasoning_effort=True,
-                supports_image_input=True,
-                supports_structured_outputs=True,
-                max_context_tokens=131072,
-            ))
+            return _build_caps(
+                model_name,
+                "openrouter-qwen",
+                _OPENROUTER_BASE,
+                dict(
+                    is_reasoning_model=True,
+                    supports_reasoning_effort=True,
+                    supports_image_input=True,
+                    supports_structured_outputs=True,
+                    max_context_tokens=131072,
+                ),
+            )
 
         # Generic OpenRouter fallback
         return _build_caps(model_name, "openrouter", _OPENROUTER_BASE, {})

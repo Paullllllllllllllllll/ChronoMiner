@@ -29,6 +29,7 @@ class ConfigLoader:
       - chunking_and_context.yaml
       - concurrency_config.yaml
     """
+
     _REQUIRED_KEYS: dict[str, list] = {
         "paths_config.yaml": ["general", "schemas_paths"],
         "model_config.yaml": ["extraction_model"],
@@ -37,7 +38,7 @@ class ConfigLoader:
     }
 
     def __init__(self, config_dir: Path | None = None) -> None:
-        self.config_dir = config_dir or Path(__file__).resolve().parents[2] / 'config'
+        self.config_dir = config_dir or Path(__file__).resolve().parents[2] / "config"
         self.paths_config: dict[str, Any] | None = None
         self.model_config: dict[str, Any] | None = None
         self.concurrency_config: dict[str, Any] | None = None
@@ -48,11 +49,10 @@ class ConfigLoader:
         """
         Load and validate the configuration files.
         """
-        self.paths_config = self._load_yaml('paths_config.yaml')
-        self.model_config = self._load_yaml('model_config.yaml')
-        self.concurrency_config = self._load_yaml('concurrency_config.yaml')
-        self.chunking_and_context_config = self._load_yaml(
-            'chunking_and_context.yaml')
+        self.paths_config = self._load_yaml("paths_config.yaml")
+        self.model_config = self._load_yaml("model_config.yaml")
+        self.concurrency_config = self._load_yaml("concurrency_config.yaml")
+        self.chunking_and_context_config = self._load_yaml("chunking_and_context.yaml")
 
         configs = {
             "paths_config.yaml": self.paths_config,
@@ -61,8 +61,7 @@ class ConfigLoader:
             "chunking_and_context.yaml": self.chunking_and_context_config,
         }
         for filename, config in configs.items():
-            self._validate_config(
-                config, self._REQUIRED_KEYS[filename], filename)
+            self._validate_config(config, self._REQUIRED_KEYS[filename], filename)
 
         self._resolve_paths(self.paths_config)
 
@@ -85,23 +84,25 @@ class ConfigLoader:
         if not config_path.exists():
             logger.error(f"Configuration file not found: {config_path}")
             raise FileNotFoundError(f"Missing configuration file: {config_path}")
-        
-        with config_path.open('r', encoding='utf-8') as f:
+
+        with config_path.open("r", encoding="utf-8") as f:
             content = f.read()
             try:
                 # Normalize Windows paths in paths_config.yaml
-                if filename == 'paths_config.yaml':
+                if filename == "paths_config.yaml":
                     content = re.sub(
                         r'"([^"]*)"',
-                        lambda m: '"' + m.group(1).replace('\\', '/') + '"',
-                        content
+                        lambda m: '"' + m.group(1).replace("\\", "/") + '"',
+                        content,
                     )
                 return yaml.safe_load(content)
             except yaml.YAMLError as e:
                 logger.error(f"Error parsing YAML file {filename}: {e}")
                 raise
 
-    def _validate_config(self, config: dict[str, Any], required_keys: list, config_name: str) -> None:
+    def _validate_config(
+        self, config: dict[str, Any], required_keys: list, config_name: str
+    ) -> None:
         """
         Validate configuration for required keys.
 
@@ -134,42 +135,48 @@ class ConfigLoader:
 
         if not base_path.exists():
             logger.warning(
-                f"Base directory '{base_directory}' does not exist. Using current directory.")
+                f"Base directory '{base_directory}' does not exist. "
+                "Using current directory."
+            )
             base_path = Path.cwd()
 
         # Resolve logs_dir if it's a relative path
-        if "logs_dir" in general and not Path(
-                general["logs_dir"]).is_absolute():
-            general["logs_dir"] = str(
-                (base_path / general["logs_dir"]).resolve())
+        if "logs_dir" in general and not Path(general["logs_dir"]).is_absolute():
+            general["logs_dir"] = str((base_path / general["logs_dir"]).resolve())
             logger.info(f"Resolved logs_dir to: {general['logs_dir']}")
 
         # Resolve schema paths
         schemas_paths = config.get("schemas_paths", {})
         for schema, schema_config in schemas_paths.items():
             for path_key in ["input", "output"]:
-                if path_key in schema_config and not Path(
-                        schema_config[path_key]).is_absolute():
+                if (
+                    path_key in schema_config
+                    and not Path(schema_config[path_key]).is_absolute()
+                ):
                     schema_config[path_key] = str(
-                        (base_path / schema_config[path_key]).resolve())
+                        (base_path / schema_config[path_key]).resolve()
+                    )
                     logger.info(
-                        f"Resolved {schema}.{path_key} to: {schema_config[path_key]}")
+                        f"Resolved {schema}.{path_key} to: {schema_config[path_key]}"
+                    )
 
     def _ensure_image_support(self, model_name: str, expects_images: bool) -> None:
         """
         Validate that the model supports image inputs if expects_image_inputs is True.
-        
+
         :param model_name: The model identifier.
         :param expects_images: Whether image inputs are expected.
-        :raises ValueError: If model doesn't support images but expects_image_inputs is True.
+        :raises ValueError: If model doesn't support images but
+            expects_image_inputs is True.
         """
         if not expects_images:
             return
-        
+
         try:
             from modules.config.capabilities import detect_capabilities
+
             caps = detect_capabilities(model_name)
-            
+
             if not caps.supports_image_input:
                 error_msg = (
                     f"Model '{model_name}' does not support image inputs, "
@@ -178,12 +185,14 @@ class ConfigLoader:
                 )
                 logger.error(error_msg)
                 raise ValueError(error_msg)
-                
+
             logger.debug(f"Model '{model_name}' supports image inputs (validated)")
-            
+
         except ImportError:
             # If model_capabilities is not available, skip validation
-            logger.warning("Could not validate image support - model_capabilities not available")
+            logger.warning(
+                "Could not validate image support - model_capabilities not available"
+            )
 
     def get_paths_config(self) -> dict[str, Any]:
         """
@@ -229,7 +238,9 @@ class ConfigLoader:
         if self._image_processing_config is None:
             path = self.config_dir / "image_processing_config.yaml"
             if path.exists():
-                self._image_processing_config = self._load_yaml("image_processing_config.yaml")
+                self._image_processing_config = self._load_yaml(
+                    "image_processing_config.yaml"
+                )
             else:
                 self._image_processing_config = {}
         return self._image_processing_config
@@ -246,18 +257,18 @@ class ConfigLoader:
 def get_config_loader(force_reload: bool = False) -> ConfigLoader:
     """
     Get a cached ConfigLoader instance.
-    
+
     Uses module-level caching to avoid redundant config file reads.
     This is the recommended way to access configuration throughout
     the application.
-    
+
     :param force_reload: If True, reload configs even if cached
     :return: Configured ConfigLoader instance
-    
+
     Example::
-    
+
         from modules.config.loader import get_config_loader
-        
+
         config = get_config_loader()
         model_config = config.get_model_config()
     """
@@ -277,7 +288,7 @@ def get_config_loader(force_reload: bool = False) -> ConfigLoader:
 def clear_config_cache() -> None:
     """
     Clear the configuration cache.
-    
+
     Use this when configuration files have been modified and need
     to be reloaded.
     """

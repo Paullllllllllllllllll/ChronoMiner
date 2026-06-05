@@ -1,15 +1,15 @@
 # modules/config/manager.py
 
+import logging
 from pathlib import Path
 from typing import Any
-import logging
-import sys
 
 logger = logging.getLogger(__name__)
 
 
 class ConfigValidationError(Exception):
     """Raised when configuration validation fails."""
+
     pass
 
 
@@ -24,7 +24,9 @@ class ConfigManager:
         self.config_loader = config_loader
         self._validation_errors: list[str] = []
 
-    def validate_paths(self, paths_config: dict[str, Any], raise_on_error: bool = True) -> bool:
+    def validate_paths(
+        self, paths_config: dict[str, Any], raise_on_error: bool = True
+    ) -> bool:
         """
         Validate path configurations based on the allow_relative_paths setting.
 
@@ -32,7 +34,8 @@ class ConfigManager:
         Otherwise, verify that all paths are absolute.
 
         :param paths_config: The loaded paths configuration
-        :param raise_on_error: If True, raises ConfigValidationError; if False, returns False
+        :param raise_on_error: If True, raises ConfigValidationError;
+            if False, returns False
         :return: True if validation passes, False otherwise
         :raises ConfigValidationError: If validation fails and raise_on_error is True
         """
@@ -40,7 +43,8 @@ class ConfigManager:
         general = paths_config.get("general", {})
         allow_relative_paths = general.get("allow_relative_paths", False)
 
-        # Skip validation if using relative paths - they should have been resolved by ConfigLoader
+        # Skip validation if using relative paths - they should have
+        # been resolved by ConfigLoader
         if allow_relative_paths:
             return True
 
@@ -49,7 +53,8 @@ class ConfigManager:
         if logs_dir and not Path(logs_dir).is_absolute():
             self._add_error(
                 f"The 'logs_dir' path '{logs_dir}' is not absolute. "
-                f"Please use an absolute path or enable allow_relative_paths in paths_config.yaml."
+                "Please use an absolute path or enable "
+                "allow_relative_paths in paths_config.yaml."
             )
 
         # Validate each schema's input and output paths
@@ -59,13 +64,15 @@ class ConfigManager:
             output_path = schema_config.get("output")
             if input_path and not Path(input_path).is_absolute():
                 self._add_error(
-                    f"The input path for schema '{schema}' ('{input_path}') is not absolute. "
-                    f"Please use absolute paths or enable allow_relative_paths in paths_config.yaml."
+                    f"The input path for schema '{schema}' ('{input_path}') "
+                    "is not absolute. Please use absolute paths or enable "
+                    "allow_relative_paths in paths_config.yaml."
                 )
             if output_path and not Path(output_path).is_absolute():
                 self._add_error(
-                    f"The output path for schema '{schema}' ('{output_path}') is not absolute. "
-                    f"Please use absolute paths or enable allow_relative_paths in paths_config.yaml."
+                    f"The output path for schema '{schema}' ('{output_path}') "
+                    "is not absolute. Please use absolute paths or enable "
+                    "allow_relative_paths in paths_config.yaml."
                 )
 
         if self._validation_errors:
@@ -84,7 +91,9 @@ class ConfigManager:
         """Return list of validation errors."""
         return self._validation_errors.copy()
 
-    def load_developer_message(self, schema_name: str, raise_on_error: bool = True) -> str | None:
+    def load_developer_message(
+        self, schema_name: str, raise_on_error: bool = True
+    ) -> str | None:
         """
         Load the developer message corresponding to the given schema.
 
@@ -94,9 +103,12 @@ class ConfigManager:
         lookup that previously caused divergence with SchemaManager.
 
         :param schema_name: The name of the extraction schema
-        :param raise_on_error: If True, raises FileNotFoundError; if False, returns None
-        :return: The contents of the corresponding developer message file, or None if not found
-        :raises FileNotFoundError: If the file cannot be read and raise_on_error is True
+        :param raise_on_error: If True, raises FileNotFoundError; if False,
+            returns None
+        :return: The contents of the corresponding developer message file,
+            or None if not found
+        :raises FileNotFoundError: If the file cannot be read and
+            raise_on_error is True
         """
         from modules.config.schema_manager import SchemaManager
 
