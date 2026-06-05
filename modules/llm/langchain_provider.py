@@ -458,7 +458,7 @@ class LangChainLLM:
         if provider == "openai":
             from langchain_openai import ChatOpenAI
 
-            params = {
+            params: dict[str, Any] = {
                 "model": self.config.model,
                 "api_key": self.config.api_key,
                 "timeout": self.config.timeout,
@@ -489,7 +489,7 @@ class LangChainLLM:
                 if verbosity:
                     params.setdefault("model_kwargs", {})["text"] = {
                         "verbosity": verbosity
-                    }  # type: ignore[call-overload]
+                    }
 
             return ChatOpenAI(**params)
 

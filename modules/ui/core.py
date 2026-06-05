@@ -951,7 +951,7 @@ class UserInterface:
             )
 
         self.console_print("")  # Empty line
-        return self.confirm("Proceed with processing?", default=True)
+        return bool(self.confirm("Proceed with processing?", default=True))
 
     def ask_context_selection(self, allow_back: bool = False) -> dict[str, Any] | None:
         """
