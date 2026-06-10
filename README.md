@@ -1,4 +1,4 @@
-# ChronoMiner v1.9.0
+# ChronoMiner v1.9.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -621,6 +621,18 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.9.1** (10 June 2026) -- retry Cloudflare 5xx edge errors. The
+    transient-error check enumerated only 500/502/503, so Cloudflare
+    edge codes in front of provider APIs (520-526, observed as
+    HTTP 520 from api.openai.com in production) failed pages
+    immediately without a single retry, despite the response body
+    declaring itself retryable. Error classification is extracted
+    into `classify_transient_error`, which now treats any standalone
+    5xx status code as a transient server error and additionally
+    honors self-declared `'retryable': true` markers in error
+    bodies. Affected pages were correctly recorded in
+    `failed_chunks` and remain recoverable via `--resume`; with this
+    fix they retry with exponential backoff instead of failing.
 - **v1.9.0** (10 June 2026) -- streaming visual pipeline. PDF pages
     are now rendered, preprocessed, and base64-encoded one at a time
     through a bounded producer-consumer queue instead of loading every

@@ -459,6 +459,107 @@ async def test_consume_image_source_bounded_queue() -> None:
 
 
 # ---------------------------------------------------------------------------
+# Transient-error classification and retry
+# ---------------------------------------------------------------------------
+
+# Abridged real Cloudflare 520 error from a production run (June 2026):
+# pages failed without retry because 520 matched no enumerated code.
+_CLOUDFLARE_520 = (
+    "Error code: 520 - {'type': 'https://developers.cloudflare.com/"
+    "support/troubleshooting/http-status-codes/cloudflare-5xx-errors/"
+    "error-520/', 'title': 'Error 520: Web server is returning an "
+    "unknown error', 'status': 520, 'cloudflare_error': True, "
+    "'retryable': True, 'retry_after': 60}"
+)
+
+
+def test_classify_transient_error_5xx_codes() -> None:
+    from modules.extract.processing_strategy import classify_transient_error
+
+    # Cloudflare edge codes are server errors now
+    for code in (500, 502, 503, 520, 521, 522, 524, 526):
+        _, _, server = classify_transient_error(f"Error code: {code} - boom")
+        assert server, f"{code} should classify as server error"
+
+    # The real production message classifies as retryable
+    is_429, is_timeout, server = classify_transient_error(_CLOUDFLARE_520)
+    assert server and not is_429
+
+    # Self-declared retryability is honored even without a code match
+    _, _, server = classify_transient_error("weird failure 'retryable': True")
+    assert server
+
+    # Non-retryable errors stay non-retryable
+    is_429, is_timeout, server = classify_transient_error(
+        "Error code: 400 - invalid request body"
+    )
+    assert not (is_429 or is_timeout or server)
+    is_429, is_timeout, server = classify_transient_error(
+        "Error code: 401 - invalid API key"
+    )
+    assert not (is_429 or is_timeout or server)
+
+
+@pytest.mark.asyncio
+async def test_streaming_retries_cloudflare_520(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A 520 on the first attempt is retried and the page completes."""
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object())
+    )
+
+    attempts = 0
+
+    async def _process_image_chunk(**_kwargs: Any) -> dict:
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError(_CLOUDFLARE_520)
+        return {"output_text": "ok after retry"}
+
+    monkeypatch.setattr(ps, "process_image_chunk", _process_image_chunk)
+
+    async def _source() -> Any:
+        yield _dummy_payload(1)
+
+    strat = ps.SynchronousProcessingStrategy(
+        concurrency_config={
+            "concurrency": {
+                "extraction": {
+                    "concurrency_limit": 1,
+                    "retry": {"attempts": 3, "wait_min_seconds": 0.01,
+                              "wait_max_seconds": 0.02},
+                }
+            }
+        }
+    )
+    results = await strat.process_chunks(
+        chunks=[""],
+        handler=None,
+        dev_message="dev",
+        model_config={"extraction_model": {"name": "gpt-5-mini"}},
+        schema={"type": "object"},
+        file_path=tmp_path / "doc.pdf",
+        temp_jsonl_path=tmp_path / "temp.jsonl",
+        console_print=lambda *_a, **_k: None,
+        image_source=_source(),
+    )
+
+    assert attempts == 2
+    assert results == [{"output_text": "ok after retry"}]
+    assert '"chunk_index": 1' in (tmp_path / "temp.jsonl").read_text(
+        encoding="utf-8"
+    )
+
+
+# ---------------------------------------------------------------------------
 # File-level concurrency cap
 # ---------------------------------------------------------------------------
 

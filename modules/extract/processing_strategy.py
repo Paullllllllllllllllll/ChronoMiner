@@ -19,6 +19,7 @@ import contextlib
 import json
 import logging
 import random
+import re
 import time
 from abc import ABC, abstractmethod
 from collections.abc import AsyncIterator
@@ -42,6 +43,34 @@ from modules.llm.openai_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Any standalone 5xx status code counts as a transient server error. This
+# deliberately covers Cloudflare edge codes (520-526) in front of provider
+# APIs, which previously slipped past an enumerated 500/502/503 check and
+# failed pages without a single retry.
+_SERVER_ERROR_CODE_RE = re.compile(r"\b5\d{2}\b")
+
+
+def classify_transient_error(message: str) -> tuple[bool, bool, bool]:
+    """Classify an API error message for retry purposes.
+
+    :param message: The stringified exception, in any casing.
+    :return: Tuple ``(is_429, is_timeout, is_server_error)``. The error is
+        retryable if any element is True.
+    """
+    msg = message.lower()
+    is_429 = "429" in msg or "rate_limit" in msg
+    is_timeout = "timed out" in msg or "timeout" in msg
+    is_server_error = (
+        bool(_SERVER_ERROR_CODE_RE.search(msg))
+        or "internalservererror" in msg
+        or "upstream" in msg
+        # Cloudflare-style bodies self-declare retryability.
+        or "'retryable': true" in msg
+        or '"retryable": true' in msg
+        or ("connection" in msg and ("reset" in msg or "refused" in msg))
+    )
+    return is_429, is_timeout, is_server_error
 
 
 class ProcessingStrategy(ABC):
@@ -265,17 +294,8 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                         except (
                             Exception
                         ) as e:  # Broad: LangChain/API errors are diverse
-                            msg = str(e).lower()
-                            is_429 = "429" in msg or "rate_limit" in msg
-                            is_timeout = "timed out" in msg or "timeout" in msg
-                            is_server_error = (
-                                "500" in msg
-                                or "502" in msg
-                                or "503" in msg
-                                or "internalservererror" in msg
-                                or "upstream" in msg
-                                or "connection" in msg
-                                and ("reset" in msg or "refused" in msg)
+                            is_429, is_timeout, is_server_error = (
+                                classify_transient_error(str(e))
                             )
                             is_retryable = is_429 or is_timeout or is_server_error
 
