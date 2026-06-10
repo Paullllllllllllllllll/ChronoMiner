@@ -36,6 +36,27 @@ def encode_image_to_base64(image_path: Path) -> tuple[str, str]:
     return data, mime_type
 
 
+def encode_bytes_to_base64(data: bytes, mime_type: str = "image/jpeg") -> str:
+    """Encode raw image bytes to base64.
+
+    Counterpart of :func:`encode_image_to_base64` for in-memory pipelines
+    that never touch disk (see ``modules.images.page_stream``).
+
+    Args:
+        data: Raw image bytes (e.g., an encoded JPEG).
+        mime_type: MIME type of the image data.
+
+    Returns:
+        Base64-encoded string.
+
+    Raises:
+        ValueError: If the MIME type is not a supported image type.
+    """
+    if mime_type not in SUPPORTED_IMAGE_FORMATS.values():
+        raise ValueError(f"Unsupported image MIME type: {mime_type}")
+    return base64.b64encode(data).decode("utf-8")
+
+
 def create_data_url(base64_data: str, mime_type: str) -> str:
     """Create a data URL from base64 data.
 

@@ -72,6 +72,21 @@ class PDFProcessor:
         Returns:
             PIL Image in RGB mode.
         """
+        img, _ = self.render_page_with_dpi(page_index, dpi, max_pixels=max_pixels)
+        return img
+
+    def render_page_with_dpi(
+        self, page_index: int, dpi: int = 300, max_pixels: int = 0
+    ) -> tuple[Image.Image, int]:
+        """Render a single PDF page and report the DPI actually used.
+
+        Same as :meth:`render_page_to_pil`, but additionally returns the
+        effective DPI after any ``max_pixels`` reduction — needed for
+        provenance records in the streaming pipeline.
+
+        Returns:
+            Tuple of (PIL Image in RGB mode, effective DPI).
+        """
         if self.doc is None:
             self.open_pdf()
         assert self.doc is not None
@@ -95,7 +110,10 @@ class PDFProcessor:
             matrix=fitz.Matrix(effective_dpi / 72, effective_dpi / 72), alpha=False
         )
         img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
-        return img
+        # Image.frombytes copies the buffer; drop the pixmap immediately so
+        # only one full-resolution copy of the page stays alive.
+        del pix
+        return img, effective_dpi
 
     def extract_pages_as_images(
         self,

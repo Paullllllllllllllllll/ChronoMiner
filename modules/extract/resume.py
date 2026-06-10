@@ -54,8 +54,15 @@ def build_extraction_metadata(
     chunk_slice_info: dict[str, Any] | None = None,
     partial: bool = False,
     failed_chunks: list[int] | None = None,
+    image_provenance: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    """Build a metadata dict to embed in extraction output JSON."""
+    """Build a metadata dict to embed in extraction output JSON.
+
+    ``image_provenance`` (visual runs only) records the source-file hash,
+    rendering library versions, and effective preprocessing parameters so
+    the exact images sent to the model can be re-derived and verified
+    against the per-record image hashes.
+    """
     meta: dict[str, Any] = {
         "schema_name": schema_name,
         "model_name": model_name,
@@ -70,6 +77,8 @@ def build_extraction_metadata(
         meta["partial"] = True
     if failed_chunks:
         meta["failed_chunks"] = list(failed_chunks)
+    if image_provenance:
+        meta["image_provenance"] = image_provenance
     return meta
 
 

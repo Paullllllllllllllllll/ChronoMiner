@@ -15,11 +15,13 @@ OpenRouter does not support batch processing.
 """
 
 import asyncio
+import contextlib
 import json
 import logging
 import random
 import time
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from pathlib import Path
 from typing import Any
 
@@ -30,6 +32,8 @@ from modules.batch.backends import (
     supports_batch,
 )
 from modules.config.capabilities import detect_capabilities
+from modules.conversion.json_utils import strip_image_payloads
+from modules.images.page_stream import PageError
 from modules.llm.langchain_provider import ProviderConfig
 from modules.llm.openai_utils import (
     open_extractor,
@@ -102,8 +106,19 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         completed_chunk_indices: set | None = None,
         image_chunks: list[dict[str, Any]] | None = None,
         context_image_data: dict[str, Any] | None = None,
+        image_source: AsyncIterator[Any] | None = None,
     ) -> list[dict[str, Any]]:
-        """Process chunks synchronously with concurrent API calls."""
+        """Process chunks synchronously with concurrent API calls.
+
+        Two execution modes:
+
+        - List mode (text chunks, or a pre-materialized ``image_chunks``
+          list): one task per chunk, bounded by a semaphore.
+        - Streaming mode (``image_source`` given): a producer task pulls
+          page payloads from the async iterator into a bounded queue and
+          ``concurrency_limit`` workers consume it, so only a small,
+          constant number of page payloads is in memory at any time.
+        """
         # Detect provider: prefer explicit config, fall back to auto-detection
         model_name = model_config["extraction_model"]["name"]
         config_provider = model_config["extraction_model"].get("provider")
@@ -129,14 +144,14 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
             for idx, chunk in enumerate(chunks, 1)
             if idx not in skip_indices
         ]
+        pending_count = len(chunks_to_process)
         if skip_indices:
             console_print(
-                f"[INFO] Resuming: {len(chunks_to_process)} new chunks/pages "
+                f"[INFO] Resuming: {pending_count} new chunks/pages "
                 f"to process ({len(skip_indices)} already done)"
             )
         console_print(
-            f"[INFO] Starting synchronous processing of "
-            f"{len(chunks_to_process)} chunks/pages..."
+            f"[INFO] Starting synchronous processing of {pending_count} chunks/pages..."
         )
         results: list[dict[str, Any]] = []
 
@@ -170,7 +185,8 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         caps = detect_capabilities(model_name, provider=provider)
         enable_cache = caps.supports_prompt_caching
 
-        is_visual = image_chunks is not None and len(image_chunks) > 0
+        is_visual = image_source is not None or bool(image_chunks)
+        unit_label = "page" if is_visual else "chunk"
         prompt_path = (
             Path("prompts/image_extraction_prompt.txt")
             if is_visual
@@ -187,151 +203,237 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
             concurrency_config_override=self.concurrency_config,
         ) as extractor:
             with temp_jsonl_path.open(file_mode, encoding="utf-8") as tempf:
-                semaphore = asyncio.Semaphore(concurrency_limit)
                 # Serialize writes to the shared handle: concurrent coroutines
                 # otherwise interleave write+flush on one file object. Created
                 # here (inside the running loop), never at module scope.
                 write_lock = asyncio.Lock()
 
-                async def process_single_chunk(idx: int, chunk: str) -> dict[str, Any]:
-                    """Process a single chunk with semaphore control."""
-                    # Pre-compute unit_label so it is available to exception
-                    # branches that fire before the success path has defined it.
-                    unit_label = "page" if is_visual else "chunk"
-                    if delay_between_tasks > 0:
-                        await asyncio.sleep(delay_between_tasks)
-                    async with semaphore:
-                        for attempt in range(retry_attempts):
-                            try:
-                                # Route to image or text processing
-                                if is_visual and image_chunks is not None:
-                                    img_data = image_chunks[idx - 1]
-                                    result = await process_image_chunk(
-                                        image_base64=img_data["base64"],
-                                        mime_type=img_data["mime_type"],
-                                        extractor=extractor,
-                                        system_message=dev_message,
-                                        json_schema=schema,
-                                        image_detail=img_data.get("detail"),
-                                        enable_cache_control=enable_cache,
-                                        context_image_data=context_image_data,
-                                    )
+                async def call_and_record(
+                    idx: int, chunk: str, img_data: dict[str, Any] | None
+                ) -> dict[str, Any]:
+                    """Run one unit through the retry loop and persist it."""
+                    for attempt in range(retry_attempts):
+                        try:
+                            # Route to image or text processing
+                            if img_data is not None:
+                                result = await process_image_chunk(
+                                    image_base64=img_data["base64"],
+                                    mime_type=img_data["mime_type"],
+                                    extractor=extractor,
+                                    system_message=dev_message,
+                                    json_schema=schema,
+                                    image_detail=img_data.get("detail"),
+                                    enable_cache_control=enable_cache,
+                                    context_image_data=context_image_data,
+                                )
+                            else:
+                                result = await process_text_chunk(
+                                    text_chunk=chunk,
+                                    extractor=extractor,
+                                    system_message=dev_message,
+                                    json_schema=schema,
+                                    enable_cache_control=enable_cache,
+                                    context_image_data=context_image_data,
+                                )
+
+                            # Drop base64 payloads from the persisted request
+                            # metadata; they grew temp files to ~1 GB on large
+                            # PDFs and pinned every page's image in RAM via
+                            # the results list.
+                            result = strip_image_payloads(result)
+
+                            # chunk_index drives ordering in
+                            # _generate_output_files; without it the final
+                            # records sort by `None or 0` (all equal) and
+                            # land in completion order.
+                            response_obj: dict[str, Any] = {
+                                "custom_id": f"{file_path.stem}-chunk-{idx}",
+                                "chunk_index": idx,
+                                "response": {"body": result},
+                            }
+                            provenance = (img_data or {}).get("image_provenance")
+                            if provenance:
+                                response_obj["image_provenance"] = provenance
+                            async with write_lock:
+                                tempf.write(json.dumps(response_obj) + "\n")
+                                tempf.flush()
+
+                            console_print(
+                                f"[INFO] Processed {unit_label} {idx}/{total_chunks}"
+                            )
+                            return result
+                        except (
+                            Exception
+                        ) as e:  # Broad: LangChain/API errors are diverse
+                            msg = str(e).lower()
+                            is_429 = "429" in msg or "rate_limit" in msg
+                            is_timeout = "timed out" in msg or "timeout" in msg
+                            is_server_error = (
+                                "500" in msg
+                                or "502" in msg
+                                or "503" in msg
+                                or "internalservererror" in msg
+                                or "upstream" in msg
+                                or "connection" in msg
+                                and ("reset" in msg or "refused" in msg)
+                            )
+                            is_retryable = is_429 or is_timeout or is_server_error
+
+                            if is_retryable and attempt < (retry_attempts - 1):
+                                base_wait = min(
+                                    wait_max_seconds,
+                                    wait_min_seconds * (2**attempt),
+                                )
+                                jitter = (
+                                    random.uniform(0.0, jitter_max_seconds)
+                                    if jitter_max_seconds > 0
+                                    else 0.0
+                                )
+                                wait_s = min(wait_max_seconds, base_wait + jitter)
+                                if is_429:
+                                    reason = "Rate-limited"
+                                elif is_timeout:
+                                    reason = "Timed out"
                                 else:
-                                    result = await process_text_chunk(
-                                        text_chunk=chunk,
-                                        extractor=extractor,
-                                        system_message=dev_message,
-                                        json_schema=schema,
-                                        enable_cache_control=enable_cache,
-                                        context_image_data=context_image_data,
-                                    )
-
-                                # Write to temp file
-                                request_obj = handler.prepare_payload(
-                                    chunk, dev_message, model_config, schema
-                                )
-                                request_obj["custom_id"] = (
-                                    f"{file_path.stem}-chunk-{idx}"
-                                )
-
-                                # chunk_index drives ordering in
-                                # _generate_output_files; without it the final
-                                # records sort by `None or 0` (all equal) and
-                                # land in completion order.
-                                response_obj = {
-                                    "custom_id": request_obj["custom_id"],
-                                    "chunk_index": idx,
-                                    "response": {"body": result},
-                                }
-                                async with write_lock:
-                                    tempf.write(json.dumps(response_obj) + "\n")
-                                    tempf.flush()
-
-                                console_print(
-                                    f"[INFO] Processed {unit_label} "
-                                    f"{idx}/{total_chunks}"
-                                )
-                                return result
-                            except (
-                                Exception
-                            ) as e:  # Broad: LangChain/API errors are diverse
-                                msg = str(e).lower()
-                                is_429 = "429" in msg or "rate_limit" in msg
-                                is_timeout = "timed out" in msg or "timeout" in msg
-                                is_server_error = (
-                                    "500" in msg
-                                    or "502" in msg
-                                    or "503" in msg
-                                    or "internalservererror" in msg
-                                    or "upstream" in msg
-                                    or "connection" in msg
-                                    and ("reset" in msg or "refused" in msg)
-                                )
-                                is_retryable = is_429 or is_timeout or is_server_error
-
-                                if is_retryable and attempt < (retry_attempts - 1):
-                                    base_wait = min(
-                                        wait_max_seconds,
-                                        wait_min_seconds * (2**attempt),
-                                    )
-                                    jitter = (
-                                        random.uniform(0.0, jitter_max_seconds)
-                                        if jitter_max_seconds > 0
-                                        else 0.0
-                                    )
-                                    wait_s = min(wait_max_seconds, base_wait + jitter)
-                                    if is_429:
-                                        reason = "Rate-limited"
-                                    elif is_timeout:
-                                        reason = "Timed out"
-                                    else:
-                                        reason = "Server error"
-                                    logger.warning(
-                                        "%s on %s %s (attempt %s/%s). "
-                                        "Waiting %.1fs and retrying.",
-                                        reason,
-                                        unit_label,
-                                        idx,
-                                        attempt + 1,
-                                        retry_attempts,
-                                        wait_s,
-                                    )
-                                    await asyncio.sleep(wait_s)
-                                    continue
-
-                                logger.error(
-                                    "Error processing %s %s: %s",
+                                    reason = "Server error"
+                                logger.warning(
+                                    "%s on %s %s (attempt %s/%s). "
+                                    "Waiting %.1fs and retrying.",
+                                    reason,
                                     unit_label,
                                     idx,
-                                    e,
+                                    attempt + 1,
+                                    retry_attempts,
+                                    wait_s,
                                 )
-                                console_print(
-                                    f"[ERROR] Failed to process {unit_label} {idx}: {e}"
-                                )
-                                # Carry chunk_index: failed chunks write no
-                                # temp record, so the caller cannot recover the
-                                # index from gather order otherwise.
-                                return {"error": str(e), "chunk_index": idx}
-                        # If all retries exhausted without returning, return error
-                        return {
-                            "error": (
-                                f"Max retries ({retry_attempts}) exhausted "
-                                f"for {unit_label} {idx}"
-                            ),
-                            "chunk_index": idx,
-                        }
+                                await asyncio.sleep(wait_s)
+                                continue
 
-                # Process chunks (skipping already-completed ones)
-                tasks = [
-                    process_single_chunk(idx, chunk) for idx, chunk in chunks_to_process
-                ]
-                results = await asyncio.gather(*tasks, return_exceptions=False)
+                            logger.error(
+                                "Error processing %s %s: %s",
+                                unit_label,
+                                idx,
+                                e,
+                            )
+                            console_print(
+                                f"[ERROR] Failed to process {unit_label} {idx}: {e}"
+                            )
+                            # Carry chunk_index: failed chunks write no
+                            # temp record, so the caller cannot recover the
+                            # index from gather order otherwise.
+                            return {"error": str(e), "chunk_index": idx}
+                    # If all retries exhausted without returning, return error
+                    return {
+                        "error": (
+                            f"Max retries ({retry_attempts}) exhausted "
+                            f"for {unit_label} {idx}"
+                        ),
+                        "chunk_index": idx,
+                    }
+
+                if image_source is not None:
+                    results = await self._consume_image_source(
+                        image_source=image_source,
+                        call_and_record=call_and_record,
+                        console_print=console_print,
+                        concurrency_limit=concurrency_limit,
+                        delay_between_tasks=delay_between_tasks,
+                        unit_label=unit_label,
+                    )
+                else:
+                    semaphore = asyncio.Semaphore(concurrency_limit)
+
+                    async def process_single_chunk(
+                        idx: int, chunk: str
+                    ) -> dict[str, Any]:
+                        """Process a single chunk with semaphore control."""
+                        if delay_between_tasks > 0:
+                            await asyncio.sleep(delay_between_tasks)
+                        async with semaphore:
+                            img_data = (
+                                image_chunks[idx - 1]
+                                if is_visual and image_chunks is not None
+                                else None
+                            )
+                            return await call_and_record(idx, chunk, img_data)
+
+                    # Process chunks (skipping already-completed ones)
+                    tasks = [
+                        process_single_chunk(idx, chunk)
+                        for idx, chunk in chunks_to_process
+                    ]
+                    results = await asyncio.gather(*tasks, return_exceptions=False)
 
         console_print(
-            f"[SUCCESS] Completed synchronous processing of "
-            f"{len(chunks_to_process)} chunks/pages"
+            f"[SUCCESS] Completed synchronous processing of {len(results)} chunks/pages"
         )
         return results
+
+    @staticmethod
+    async def _consume_image_source(
+        *,
+        image_source: AsyncIterator[Any],
+        call_and_record: Any,
+        console_print: Any,
+        concurrency_limit: int,
+        delay_between_tasks: float,
+        unit_label: str,
+    ) -> list[dict[str, Any]]:
+        """Producer-consumer execution over a streaming page source.
+
+        A single producer task drains ``image_source`` (which renders and
+        preprocesses one page at a time) into a bounded queue; exactly
+        ``concurrency_limit`` workers consume it. Peak memory is the queue
+        buffer of compact JPEG payloads plus one full-resolution page
+        inside the producer, regardless of document length.
+        """
+        queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=max(2, 2 * concurrency_limit))
+        sentinel = object()
+        producer_errors: list[BaseException] = []
+
+        async def producer() -> None:
+            try:
+                async for item in image_source:
+                    await queue.put(item)
+            except Exception as e:  # Surface after workers drain the queue
+                producer_errors.append(e)
+            finally:
+                for _ in range(concurrency_limit):
+                    await queue.put(sentinel)
+
+        async def worker(worker_id: int) -> list[dict[str, Any]]:
+            # Stagger worker start-up like the per-task delay in list mode.
+            if delay_between_tasks > 0 and worker_id > 0:
+                await asyncio.sleep(delay_between_tasks * worker_id)
+            collected: list[dict[str, Any]] = []
+            while True:
+                item = await queue.get()
+                if item is sentinel:
+                    break
+                if isinstance(item, PageError):
+                    console_print(
+                        f"[ERROR] Failed to render {unit_label} "
+                        f"{item.index}: {item.error}"
+                    )
+                    collected.append({"error": item.error, "chunk_index": item.index})
+                    continue
+                collected.append(await call_and_record(item.index, "", item.as_chunk()))
+            return collected
+
+        producer_task = asyncio.create_task(producer())
+        try:
+            worker_results = await asyncio.gather(
+                *(worker(i) for i in range(concurrency_limit))
+            )
+        finally:
+            # No-op when the producer already finished; on cancellation or a
+            # worker crash this unblocks a producer stuck on a full queue.
+            producer_task.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await producer_task
+        if producer_errors:
+            raise producer_errors[0]
+        return [record for batch in worker_results for record in batch]
 
 
 class BatchProcessingStrategy(ProcessingStrategy):

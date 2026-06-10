@@ -75,13 +75,20 @@ class ImageProcessor:
 
     def __init__(
         self,
-        image_path: Path,
+        image_path: Path | None = None,
         provider: str = "openai",
         model_name: str = "",
         image_config: dict[str, Any] | None = None,
     ) -> None:
-        """Initialize ImageProcessor with provider-specific config."""
-        if image_path.suffix.lower() not in SUPPORTED_IMAGE_EXTENSIONS:
+        """Initialize ImageProcessor with provider-specific config.
+
+        ``image_path`` may be omitted for in-memory use via
+        :meth:`process_pil`; it is required only by :meth:`process_image`.
+        """
+        if (
+            image_path is not None
+            and image_path.suffix.lower() not in SUPPORTED_IMAGE_EXTENSIONS
+        ):
             raise ValueError(f"Unsupported image format: {image_path.suffix}")
         self.image_path = image_path
         self.provider = provider.lower()
@@ -212,40 +219,68 @@ class ImageProcessor:
             final_img.paste(resized_img, (paste_x, paste_y))
             return final_img
 
+    def _effective_detail(self) -> str:
+        """Resolve the configured detail level for the current model type."""
+        if self.model_type == "google":
+            return self.img_cfg.get("media_resolution", "high") or "high"
+        if self.model_type == "anthropic":
+            return self.img_cfg.get("resize_profile", "auto") or "auto"
+        return self.img_cfg.get("llm_detail", "high") or "high"
+
+    def _apply_transforms(self, img: Image.Image) -> Image.Image:
+        """Run the full transform chain on an open PIL image."""
+        detail = self._effective_detail()
+        img = self.handle_transparency(img)
+        img = self.convert_to_grayscale(img)
+        img = ImageProcessor.resize_for_detail(
+            img, detail, self.img_cfg, self.model_type
+        )
+        if img.mode not in ("RGB", "L"):
+            img = img.convert("RGB")
+        return img
+
+    def process_pil(self, img: Image.Image) -> bytes:
+        """Process an in-memory PIL image and return encoded JPEG bytes.
+
+        Applies the same transform chain as :meth:`process_image`
+        (transparency flattening, optional grayscale, provider-specific
+        resize, mode coercion) without any disk round-trip. Used by the
+        streaming page pipeline (``modules.images.page_stream``).
+
+        Args:
+            img: Source PIL image.
+
+        Returns:
+            JPEG-encoded bytes of the processed image.
+        """
+        import io
+
+        processed = self._apply_transforms(img)
+        jpeg_quality = int(self.img_cfg.get("jpeg_quality", 95))
+        buffer = io.BytesIO()
+        processed.save(buffer, format="JPEG", quality=jpeg_quality)
+        return buffer.getvalue()
+
     def process_image(self, output_path: Path) -> Path:
         """Process the image and save it to the given output path as JPEG.
 
         Returns:
             Path to the saved processed image (with .jpg extension).
         """
+        if self.image_path is None:
+            raise ValueError("process_image() requires an image_path")
         try:
             with Image.open(self.image_path) as _raw_img:
-                img: Image.Image = _raw_img
-                if self.model_type == "google":
-                    detail = self.img_cfg.get("media_resolution", "high") or "high"
-                elif self.model_type == "anthropic":
-                    detail = self.img_cfg.get("resize_profile", "auto") or "auto"
-                else:
-                    detail = self.img_cfg.get("llm_detail", "high") or "high"
-
-                img = self.handle_transparency(img)
-                img = self.convert_to_grayscale(img)
-                img = ImageProcessor.resize_for_detail(
-                    img, detail, self.img_cfg, self.model_type
-                )
-
-                if img.mode not in ("RGB", "L"):
-                    img = img.convert("RGB")
+                img = self._apply_transforms(_raw_img)
 
                 jpg_output_path = output_path.with_suffix(".jpg")
                 jpeg_quality = int(self.img_cfg.get("jpeg_quality", 95))
                 img.save(jpg_output_path, format="JPEG", quality=jpeg_quality)
                 logger.debug(
-                    "Saved processed image %s size=%s quality=%d detail=%s",
+                    "Saved processed image %s size=%s quality=%d",
                     jpg_output_path.name,
                     img.size,
                     jpeg_quality,
-                    detail,
                 )
             return jpg_output_path
         except Exception as e:

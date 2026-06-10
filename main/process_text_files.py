@@ -198,6 +198,30 @@ from modules.extract.config_builder import (
     _build_effective_model_config,
     _build_effective_paths_config,
 )
+from modules.extract.file_processor import is_visual_input
+
+
+def _file_concurrency_limit(
+    concurrency_config: dict[str, Any], files: list[Path]
+) -> int:
+    """Resolve how many files may be processed concurrently.
+
+    Reads ``concurrency.extraction.max_concurrent_files`` (default 4) and
+    clamps to 2 when any selected file is visual: each file then streams
+    its own pages with up to ``concurrency_limit`` in-flight API calls, so
+    the file-level cap bounds total memory and request pressure.
+    """
+    extraction_cfg = (concurrency_config.get("concurrency", {}) or {}).get(
+        "extraction", {}
+    ) or {}
+    try:
+        limit = int(extraction_cfg.get("max_concurrent_files", 4))
+    except (ValueError, TypeError):
+        limit = 4
+    limit = max(1, limit)
+    if any(is_visual_input(f) for f in files):
+        limit = min(limit, 2)
+    return limit
 
 
 async def _run_interactive_mode(
@@ -558,11 +582,15 @@ async def _run_interactive_mode(
                 f"({stats['usage_percentage']:.1f}%)"
             )
     else:
-        # Concurrent processing (original behavior)
-        tasks = []
-        for file_path in state["files"]:
-            tasks.append(
-                file_processor.process_file(
+        # Concurrent processing, capped at the file level so a large batch
+        # cannot stream every file's pages (and 25 API calls each) at once.
+        file_semaphore = asyncio.Semaphore(
+            _file_concurrency_limit(concurrency_config, state["files"])
+        )
+
+        async def _process_file_capped(file_path: Path) -> None:
+            async with file_semaphore:
+                await file_processor.process_file(
                     file_path=file_path,
                     use_batch=state["use_batch"],
                     selected_schema=state["selected_schema"],
@@ -578,7 +606,8 @@ async def _run_interactive_mode(
                     image_detail=state.get("image_detail"),
                     context_image_enabled=state.get("context_image", False),
                 )
-            )
+
+        tasks = [_process_file_capped(file_path) for file_path in state["files"]]
         # CM-11: return_exceptions=True ensures all finally blocks complete
         # on cancellation
         _gather_results = await asyncio.gather(*tasks, return_exceptions=True)
@@ -909,11 +938,15 @@ async def _run_cli_mode(
                 f"({stats['usage_percentage']:.1f}%)"
             )
     else:
-        # Concurrent processing (original behavior)
-        tasks = []
-        for file_path in files:
-            tasks.append(
-                file_processor.process_file(
+        # Concurrent processing, capped at the file level so a large batch
+        # cannot stream every file's pages (and 25 API calls each) at once.
+        file_semaphore = asyncio.Semaphore(
+            _file_concurrency_limit(concurrency_config, files)
+        )
+
+        async def _process_file_capped(file_path: Path) -> None:
+            async with file_semaphore:
+                await file_processor.process_file(
                     file_path=file_path,
                     use_batch=use_batch,
                     selected_schema=selected_schema,
@@ -929,7 +962,8 @@ async def _run_cli_mode(
                     image_detail=getattr(args, "image_detail", None),
                     context_image_enabled=getattr(args, "context_image", False),
                 )
-            )
+
+        tasks = [_process_file_capped(file_path) for file_path in files]
         # CM-11: return_exceptions=True ensures all finally blocks complete
         # on cancellation
         _cli_results = await asyncio.gather(*tasks, return_exceptions=True)

@@ -1,4 +1,4 @@
-# ChronoMiner v1.8.0
+# ChronoMiner v1.9.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -320,7 +320,14 @@ anthropic_image_processing:
 google_image_processing:
   media_resolution: high    # Google Gemini
 target_dpi: 300             # PDF-to-image rendering
+max_pixels_per_page: 24000000  # Per-page render budget (auto DPI
+                               # reduction above this)
 ```
+
+PDF pages are rendered, preprocessed, and encoded one at a time
+(streaming), so memory usage stays constant regardless of document
+length. Each output records the preprocessing parameters and a
+SHA-256 of every image sent to the model for reproducibility.
 
 ### 5. Concurrency Configuration (`concurrency_config.yaml`)
 
@@ -328,6 +335,7 @@ target_dpi: 300             # PDF-to-image rendering
 concurrency:
   extraction:
     concurrency_limit: 20
+    max_concurrent_files: 4
     delay_between_tasks: 0.1
     retry:
       attempts: 150
@@ -338,6 +346,8 @@ daily_token_limit:
 
 Controls concurrent task limits, exponential backoff retry, and
 daily token budgets (automatic reset at local midnight).
+`max_concurrent_files` caps how many files run at once when the
+daily token limit is disabled (visual runs are clamped to 2).
 
 ### Context Resolution
 
@@ -599,7 +609,7 @@ uv run ruff format --check .
 uv run mypy .
 ```
 
-The suite contains 930+ tests (unit and integration) covering all
+The suite contains 980+ tests (unit and integration) covering all
 modules, providers, batch backends, and CLI parsers.
 
 ## Versioning
@@ -611,6 +621,37 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.9.0** (10 June 2026) -- streaming visual pipeline. PDF pages
+    are now rendered, preprocessed, and base64-encoded one at a time
+    through a bounded producer-consumer queue instead of loading every
+    page into memory up front; peak memory is one full-resolution page
+    plus a small payload buffer, independent of document length (a
+    2,000-page guide previously required ~40 GB and crashed; it now
+    runs in well under 1 GB). Preprocessing happens fully in memory
+    (`ImageProcessor.process_pil`), eliminating the per-page PNG/JPEG
+    disk round-trip. The resume skip-set and `--page-range`/
+    `--first-n-chunks` slices are resolved before rendering, so
+    completed and out-of-slice pages are never rendered; page indices
+    in records are now absolute page numbers, and pages that fail to
+    render surface as failed chunks (re-queued on resume) instead of
+    silently shifting page numbering. Synchronous temp JSONL records
+    no longer embed base64 images in `request_metadata` (replaced by
+    `image_omitted` placeholders), shrinking temp files ~40x; the new
+    `main/slim_temp_jsonl.py` utility retrofits existing temp files,
+    and skips files modified within the last 10 minutes to avoid
+    touching active runs. Visual outputs now carry reproducibility
+    provenance: source-file SHA-256, PyMuPDF/Pillow versions, and the
+    effective preprocessing config at file level, plus per-page
+    SHA-256, dimensions, byte size, and effective DPI. New
+    `concurrency.extraction.max_concurrent_files` key (default 4,
+    clamped to 2 for visual runs) bounds file-level fan-out when the
+    daily token limit is disabled. `max_pixels_per_page` default
+    lowered from 150 MP to 24 MP (no quality effect: well above the
+    10.24 MP send cap). Fixed a context-image bug where the provider
+    config section was resolved twice, silently applying default
+    preprocessing (e.g. grayscale) instead of the configured values.
+    Batch submission reuses the streaming producer, freeing raw pages
+    per page during request building.
 - **v1.8.0** (5 June 2026) -- dependency cleanup and a limited
     deep-module refactor. Removed the unused `pip` runtime dependency
     and declared `charset-normalizer` explicitly, since it is imported
