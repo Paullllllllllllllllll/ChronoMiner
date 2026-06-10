@@ -19,11 +19,11 @@ logger = logging.getLogger(__name__)
 def lean_response(response_body: Any) -> Any:
     """Return a response payload with the request-side metadata removed.
 
-    The ``_temp.jsonl`` written during extraction preserves the *entire* API
-    call (input messages, including base64 image data) for reproducibility.
-    The final ``_output.json`` should carry only the responses used by
-    downstream processing, so this strips ``request_metadata`` (which holds
-    the input ``messages`` and embedded base64 images) while keeping
+    The ``_temp.jsonl`` written during extraction keeps lean request
+    metadata (messages with image payloads already stripped; see
+    :func:`strip_image_payloads`) for debuggability. The final
+    ``_output.json`` should carry only the responses used by downstream
+    processing, so this strips ``request_metadata`` entirely while keeping
     ``output_text``, ``response_data``, and any other response-side fields.
 
     Non-dict inputs are returned unchanged.
@@ -35,6 +35,86 @@ def lean_response(response_body: Any) -> Any:
     if not isinstance(response_body, dict):
         return response_body
     return {k: v for k, v in response_body.items() if k != "request_metadata"}
+
+
+_IMAGE_OMITTED_MARKER = "image_omitted"
+
+
+def _strip_image_from_block(block: Any) -> Any:
+    """Replace one image content block with a lean placeholder.
+
+    Recognizes the three provider shapes built by
+    :func:`modules.images.message_builder.build_image_content_block`:
+    OpenAI/OpenRouter ``image_url`` (data URL, possibly nested under
+    ``url``), Anthropic ``image`` with base64 ``source``, and Google
+    ``image_url`` string. Non-image blocks are returned unchanged.
+    """
+    if not isinstance(block, dict):
+        return block
+
+    block_type = block.get("type")
+    if block_type == "image_url":
+        image_url = block.get("image_url")
+        if isinstance(image_url, dict):
+            url = image_url.get("url", "")
+        else:
+            url = image_url or ""
+        if isinstance(url, str) and url.startswith("data:"):
+            return {"type": _IMAGE_OMITTED_MARKER, "byte_size": len(url)}
+        return block
+    if block_type == "image":
+        source = block.get("source")
+        if isinstance(source, dict) and source.get("type") == "base64":
+            data = source.get("data", "")
+            return {
+                "type": _IMAGE_OMITTED_MARKER,
+                "byte_size": len(data) if isinstance(data, str) else 0,
+            }
+        return block
+    return block
+
+
+def strip_image_payloads(response_body: Any) -> Any:
+    """Strip base64 image payloads from a result's request metadata.
+
+    The sync temp JSONL keeps ``request_metadata`` for debuggability
+    (model, provider, schema, text blocks), but embedding the base64
+    images made each record ~0.5 MB and grew temp files to ~1 GB per
+    large PDF. This replaces every image content block in
+    ``request_metadata.messages`` with
+    ``{"type": "image_omitted", "byte_size": N}`` while leaving all other
+    fields untouched. Idempotent; non-dict inputs are returned unchanged.
+
+    :param response_body: A result dict as returned by
+        ``process_text_chunk``/``process_image_chunk`` (or any dict that
+        may carry ``request_metadata.messages``).
+    :return: The same structure with image payloads replaced.
+    """
+    if not isinstance(response_body, dict):
+        return response_body
+    request_metadata = response_body.get("request_metadata")
+    if not isinstance(request_metadata, dict):
+        return response_body
+    messages = request_metadata.get("messages")
+    if not isinstance(messages, list):
+        return response_body
+
+    new_messages = []
+    for message in messages:
+        if isinstance(message, dict) and isinstance(message.get("content"), list):
+            new_messages.append(
+                {
+                    **message,
+                    "content": [_strip_image_from_block(b) for b in message["content"]],
+                }
+            )
+        else:
+            new_messages.append(message)
+
+    return {
+        **response_body,
+        "request_metadata": {**request_metadata, "messages": new_messages},
+    }
 
 
 # ---------------------------------------------------------------------------

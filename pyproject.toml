@@ -1,6 +1,6 @@
 [project]
 name = "chronominer"
-version = "1.8.0"
+version = "1.9.0"
 description = "Structured data extraction from text, images, and PDFs using schema-based LLM processing"
 requires-python = ">=3.12"
 license = "MIT"
@@ -59,6 +59,7 @@ ignore = []
 "main/line_range_readjuster.py" = ["E402"]
 "main/process_text_files.py" = ["E402"]
 "main/repair_extractions.py" = ["E402"]
+"main/slim_temp_jsonl.py" = ["E402"]
 "eval/*.py" = ["E402"]
 "eval/*.ipynb" = ["E402"]
 "tests/test_remaining_extensions.py" = ["E402"]
