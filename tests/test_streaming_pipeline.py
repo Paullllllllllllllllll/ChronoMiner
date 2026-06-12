@@ -534,8 +534,11 @@ async def test_streaming_retries_cloudflare_520(
             "concurrency": {
                 "extraction": {
                     "concurrency_limit": 1,
-                    "retry": {"attempts": 3, "wait_min_seconds": 0.01,
-                              "wait_max_seconds": 0.02},
+                    "retry": {
+                        "attempts": 3,
+                        "wait_min_seconds": 0.01,
+                        "wait_max_seconds": 0.02,
+                    },
                 }
             }
         }
@@ -554,9 +557,7 @@ async def test_streaming_retries_cloudflare_520(
 
     assert attempts == 2
     assert results == [{"output_text": "ok after retry"}]
-    assert '"chunk_index": 1' in (tmp_path / "temp.jsonl").read_text(
-        encoding="utf-8"
-    )
+    assert '"chunk_index": 1' in (tmp_path / "temp.jsonl").read_text(encoding="utf-8")
 
 
 # ---------------------------------------------------------------------------
