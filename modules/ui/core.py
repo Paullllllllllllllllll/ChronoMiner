@@ -200,7 +200,6 @@ class UserInterface:
         options: list[tuple[str, str]],
         allow_back: bool = False,
         allow_quit: bool = True,
-        show_numbers: bool = True,
     ) -> str | None:
         """
         Display a menu with options and return the user's choice.
@@ -209,7 +208,6 @@ class UserInterface:
         :param options: List of (value, description) tuples
         :param allow_back: Whether to allow going back to previous step
         :param allow_quit: Whether to allow quitting
-        :param show_numbers: Whether to show option numbers (True) or letters (False)
         :return: The selected option value or None if back selected
         """
         result = prompt_select(prompt, options, allow_back=allow_back)

@@ -608,6 +608,25 @@ def parse_indices(indices_str: str) -> list[int]:
     return sorted(result)
 
 
+def _passes_dir_filters(file: Path, path: Path, exclude_patterns: list[str]) -> bool:
+    """Return True if a discovered file should be kept during directory walk.
+
+    Excludes files under a top-level ``output``/``*_outputs`` directory and any
+    file matching one of *exclude_patterns*.
+    """
+    try:
+        rel_parts = file.relative_to(path).parts
+    except Exception:
+        rel_parts = file.parts
+
+    if rel_parts:
+        top = str(rel_parts[0]).lower()
+        if top == "output" or top.endswith("_outputs"):
+            return False
+
+    return not any(file.match(excl) for excl in exclude_patterns)
+
+
 def get_files_from_path(
     path: Path,
     pattern: str = "*.txt",
@@ -650,18 +669,7 @@ def get_files_from_path(
                     continue
                 if file.suffix.lower() not in valid_exts:
                     continue
-
-                try:
-                    rel_parts = file.relative_to(path).parts
-                except Exception:
-                    rel_parts = file.parts
-
-                if rel_parts:
-                    top = str(rel_parts[0]).lower()
-                    if top == "output" or top.endswith("_outputs"):
-                        continue
-
-                if not any(file.match(excl) for excl in exclude_patterns):
+                if _passes_dir_filters(file, path, exclude_patterns):
                     files.append(file)
             return files
 
@@ -670,18 +678,7 @@ def get_files_from_path(
         for file in path.rglob(pattern):
             if not file.is_file():
                 continue
-
-            try:
-                rel_parts = file.relative_to(path).parts
-            except Exception:
-                rel_parts = file.parts
-
-            if rel_parts:
-                top = str(rel_parts[0]).lower()
-                if top == "output" or top.endswith("_outputs"):
-                    continue
-
-            if not any(file.match(excl) for excl in exclude_patterns):
+            if _passes_dir_filters(file, path, exclude_patterns):
                 files.append(file)
         return files
 

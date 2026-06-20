@@ -30,6 +30,31 @@ logger = logging.getLogger(__name__)
 MAX_BATCH_REQUESTS = 50000
 MAX_BATCH_BYTES = 150 * 1024 * 1024  # 150 MB safety margin (limit is 200MB)
 
+_ALLOWED_SERVICE_TIERS = {"auto", "default", "priority"}
+
+
+def _apply_service_tier(body: dict[str, Any], tm: dict[str, Any]) -> None:
+    """Set ``service_tier`` on a Responses body from model config, if valid.
+
+    The Batch API rejects ``flex``; it is mapped to ``auto``. Any other value
+    outside the allowed set is ignored.
+    """
+    effective_service_tier = tm.get("service_tier")
+    if not effective_service_tier:
+        return
+    tier_str = str(effective_service_tier)
+    if tier_str == "flex":
+        logger.info("Batch API does not support service_tier='flex'. Using 'auto'.")
+        body["service_tier"] = "auto"
+    elif tier_str in _ALLOWED_SERVICE_TIERS:
+        body["service_tier"] = tier_str
+
+
+def _apply_reasoning(body: dict[str, Any], tm: dict[str, Any], caps: Any) -> None:
+    """Attach reasoning controls to a Responses body for reasoning models."""
+    if caps.supports_reasoning_effort and tm.get("reasoning"):
+        body["reasoning"] = tm["reasoning"]
+
 
 def _build_responses_body(
     *,
@@ -67,15 +92,7 @@ def _build_responses_body(
     }
 
     # Service tier handling
-    effective_service_tier = tm.get("service_tier")
-    if effective_service_tier:
-        allowed_service_tiers = {"auto", "default", "priority"}
-        tier_str = str(effective_service_tier)
-        if tier_str == "flex":
-            logger.info("Batch API does not support service_tier='flex'. Using 'auto'.")
-            body["service_tier"] = "auto"
-        elif tier_str in allowed_service_tiers:
-            body["service_tier"] = tier_str
+    _apply_service_tier(body, tm)
 
     # Structured outputs
     if schema and caps.supports_structured_outputs:
@@ -87,8 +104,7 @@ def _build_responses_body(
             body["text"]["format"] = fmt
 
     # Reasoning controls for reasoning models
-    if caps.supports_reasoning_effort and tm.get("reasoning"):
-        body["reasoning"] = tm["reasoning"]
+    _apply_reasoning(body, tm, caps)
 
     # Sampler controls
     if caps.supports_sampler_controls:
@@ -143,14 +159,7 @@ def _build_image_responses_body(
     }
 
     # Service tier handling (same logic as text)
-    effective_service_tier = tm.get("service_tier")
-    if effective_service_tier:
-        tier_str = str(effective_service_tier)
-        if tier_str == "flex":
-            logger.info("Batch API does not support service_tier='flex'. Using 'auto'.")
-            body["service_tier"] = "auto"
-        elif tier_str in {"auto", "default", "priority"}:
-            body["service_tier"] = tier_str
+    _apply_service_tier(body, tm)
 
     # Structured outputs
     if schema and caps.supports_structured_outputs:
@@ -162,8 +171,7 @@ def _build_image_responses_body(
             body["text"]["format"] = fmt
 
     # Reasoning controls for reasoning models
-    if caps.supports_reasoning_effort and tm.get("reasoning"):
-        body["reasoning"] = tm["reasoning"]
+    _apply_reasoning(body, tm, caps)
 
     return body
 

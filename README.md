@@ -1,4 +1,4 @@
-# ChronoMiner v1.10.0
+# ChronoMiner v1.11.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -621,6 +621,18 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.11.0** (20 June 2026) -- Removed the unused show_numbers parameter from
+    UserInterface.select_option in modules/ui/core.py (dead since the modular
+    prompts system never consumed it). Consolidated three within-module
+    duplication clones behind new private helpers without altering behavior:
+    modules/batch/backends/openai_backend.py now shares service-tier and
+    reasoning-control wiring across the text and image Responses body builders via
+    _apply_service_tier and _apply_reasoning; modules/images/llm_preprocess.py
+    routes the low-detail and Anthropic high-detail branches of resize_for_detail
+    through a single_cap_longest_side helper; and main/cli_args.py extracts the
+    repeated output-directory and exclude-pattern filtering from get_files_from_path
+    into _passes_dir_filters, called from both the visual and text-mode discovery
+    loops.
 - **v1.10.0** (20 June 2026) -- Refreshed runtime and dev dependencies under a
     conservative, majors-gated policy. No dependencies were removed (deptry reported
     no unused or missing imports) and none were added. Within-major upgrades raised
