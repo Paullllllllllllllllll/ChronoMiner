@@ -621,7 +621,7 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
-- **v1.10.0** (20 Juni 2026) -- Refreshed runtime and dev dependencies under a
+- **v1.10.0** (20 June 2026) -- Refreshed runtime and dev dependencies under a
     conservative, majors-gated policy. No dependencies were removed (deptry reported
     no unused or missing imports) and none were added. Within-major upgrades raised
     anthropic 0.105.2 to 0.111.0, langchain-anthropic 1.4.4 to 1.4.6, langchain-core
