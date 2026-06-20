@@ -1,4 +1,4 @@
-# ChronoMiner v1.9.1
+# ChronoMiner v1.10.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -621,6 +621,16 @@ before v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.10.0** (20 Juni 2026) -- Refreshed runtime and dev dependencies under a
+    conservative, majors-gated policy. No dependencies were removed (deptry reported
+    no unused or missing imports) and none were added. Within-major upgrades raised
+    anthropic 0.105.2 to 0.111.0, langchain-anthropic 1.4.4 to 1.4.6, langchain-core
+    1.4.1 to 1.4.8, langchain-google-genai 4.2.4 to 4.2.5, langchain-openai 1.2.2 to
+    1.3.2, openai 2.41.0 to 2.43.0, pytest 9.0.3 to 9.1.1, and ruff 0.15.16 to
+    0.15.18, with matching >= floors lifted in pyproject. Two major bumps were held:
+    google-genai stays on 1.75.0 (2.9.0 available) and mypy stays on 1.20.2 (2.1.0
+    available), each already at the latest release within its current major and
+    pinned below the next major.
 - **v1.9.1** (10 June 2026) -- retry Cloudflare 5xx edge errors. The
     transient-error check enumerated only 500/502/503, so Cloudflare
     edge codes in front of provider APIs (520-526, observed as
