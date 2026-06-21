@@ -53,7 +53,7 @@ class BaseSchemaHandler:
 
 
 # Registry for schema handlers
-schema_handlers_registry = {}
+schema_handlers_registry: dict[str, BaseSchemaHandler] = {}
 
 
 def register_schema_handler(schema_name: str, handler_class: type) -> None:

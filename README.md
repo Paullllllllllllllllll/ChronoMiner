@@ -1,4 +1,4 @@
-# ChronoMiner v1.11.0
+# ChronoMiner v1.12.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -620,6 +620,13 @@ All prior development history was consolidated; version numbers
 before v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.12.0** (21 June 2026) -- Adopted mypy 2.x for static type checking.
+    Relaxed the dev pin from `mypy>=1.20,<2` to `mypy>=2.1` and refreshed the
+    lockfile. Added one type annotation (`schema_handlers_registry` in
+    `modules/extract/schema_handlers.py`) that mypy 2.x's stricter
+    var-annotation check requires; the tree type-checks clean under mypy 2.1.0
+    and all 991 tests pass. No runtime behavior changed.
 
 - **v1.11.0** (20 June 2026) -- Removed the unused show_numbers parameter from
     UserInterface.select_option in modules/ui/core.py (dead since the modular
