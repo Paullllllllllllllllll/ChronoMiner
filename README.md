@@ -1,4 +1,4 @@
-# ChronoMiner v1.12.0
+# ChronoMiner v1.13.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -620,6 +620,14 @@ All prior development history was consolidated; version numbers
 before v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.13.0** (21 June 2026) -- Adopted the google-genai 2.x SDK major.
+    Relaxed the runtime pin from `google-genai>=1.75,<2` to `google-genai>=2`
+    and refreshed the lockfile (`google-genai` 1.75.0 -> 2.9.0;
+    `langchain-google-genai` unchanged and compatible). The Google batch backend
+    imports clean, the tree type-checks under mypy 2.1.0, and all 991 tests pass.
+    Live Google batch API calls are not exercised by the test suite; validate a
+    real Google run before relying on it.
 
 - **v1.12.0** (21 June 2026) -- Adopted mypy 2.x for static type checking.
     Relaxed the dev pin from `mypy>=1.20,<2` to `mypy>=2.1` and refreshed the
