@@ -8,7 +8,7 @@ Uses modular components with simplified orchestration and separated concerns.
 import asyncio
 import json
 import logging
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Any
 
@@ -33,6 +33,7 @@ from modules.infra.chunking import (
     apply_chunk_slice,
 )
 from modules.infra.paths import ensure_path_safe
+from modules.infra.token_tracker import check_and_wait_for_token_limit
 from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
 from modules.ui import (
     print_error,
@@ -47,6 +48,35 @@ from modules.ui import (
 _METADATA_KEY = METADATA_KEY
 
 logger = logging.getLogger(__name__)
+
+
+def _completed_indices_from_temp(temp_jsonl_path: Path) -> set[int]:
+    """Read the chunk/page indices already written to the live temp JSONL.
+
+    The temp JSONL is the authoritative record of finished units within a run:
+    every successfully processed chunk writes one line carrying its
+    ``chunk_index``. Deferred (budget-skipped) and errored units write no line,
+    so they are naturally excluded and re-attempted on the next pass.
+    """
+    done: set[int] = set()
+    if not temp_jsonl_path.exists():
+        return done
+    try:
+        with temp_jsonl_path.open(encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    continue
+                idx = record.get("chunk_index")
+                if isinstance(idx, int):
+                    done.add(idx)
+    except OSError as exc:
+        logger.warning(f"Could not read temp JSONL {temp_jsonl_path}: {exc}")
+    return done
 
 
 def is_visual_input(file_path: Path) -> bool:
@@ -327,6 +357,7 @@ class FileProcessor:
             chunk_slice=chunk_slice,
             context_override=context_override,
             context_image_enabled=context_image_enabled,
+            ui=ui,
         )
 
     async def _process_visual_file(
@@ -483,33 +514,36 @@ class FileProcessor:
             image_detail,
         )
 
-        # 7. Build the streaming source over the needed pages only
-        page_source: AsyncIterator[Any] = stream_page_payloads(
-            file_path=file_path,
-            page_indices=needed_indices,
-            image_config=image_config,
-            provider=provider,
-            model_name=model_name,
-            image_detail=image_detail,
-        )
+        # 7. Factory for streaming page sources. Synchronous runs rebuild the
+        # source over the still-pending pages on each budget re-pass, so the
+        # one-shot async iterator is created lazily rather than once.
+        def make_page_source(indices: list[int]) -> AsyncIterator[Any]:
+            return stream_page_payloads(
+                file_path=file_path,
+                page_indices=indices,
+                image_config=image_config,
+                provider=provider,
+                model_name=model_name,
+                image_detail=image_detail,
+            )
 
         # Placeholder chunks: len() provides the unit total for progress and
         # metadata (the selected page count, matching prior behavior).
         chunks = [""] * len(sliced_indices)
 
         image_chunks: list[dict[str, Any]] | None = None
-        image_source: AsyncIterator[Any] | None = None
+        source_factory: Callable[[list[int]], AsyncIterator[Any]] | None = None
         if use_batch:
             # Batch submission needs the materialized request set; raw pages
             # are still rendered/freed one at a time by the producer.
             image_chunks = [
                 payload.as_chunk()
-                async for payload in page_source
+                async for payload in make_page_source(needed_indices)
                 if isinstance(payload, PagePayload)
             ]
             messenger.info(f"Preprocessed {len(image_chunks)} page(s) for batch")
         else:
-            image_source = page_source
+            source_factory = make_page_source
 
         # Delegate shared orchestration to _execute_extraction
         await self._execute_extraction(
@@ -526,12 +560,14 @@ class FileProcessor:
             chunk_slice=chunk_slice,
             context_override=context_override,
             image_chunks=image_chunks,
-            image_source=image_source,
+            source_factory=source_factory,
+            needed_indices=needed_indices,
             unit_label="page",
             context_image_enabled=context_image_enabled,
             image_detail=image_detail,
             precomputed_completed=completed,
             image_provenance=file_provenance,
+            ui=ui,
         )
 
     async def _execute_extraction(
@@ -550,12 +586,14 @@ class FileProcessor:
         chunk_slice: ChunkSlice | None,
         context_override: dict[str, Any] | None,
         image_chunks: list[dict[str, Any]] | None = None,
-        image_source: Any = None,
+        source_factory: Callable[[list[int]], Any] | None = None,
+        needed_indices: list[int] | None = None,
         unit_label: str = "chunk",
         context_image_enabled: bool = False,
         image_detail: str | None = None,
         precomputed_completed: set[int] | None = None,
         image_provenance: dict[str, Any] | None = None,
+        ui: Any = None,
     ) -> None:
         """Shared extraction orchestration for both text and visual pipelines.
 
@@ -566,8 +604,16 @@ class FileProcessor:
         ``precomputed_completed`` carries a resume skip-set already resolved
         by the caller (visual path, where detection happens before
         rendering); when given, the in-method detection is bypassed.
-        ``image_source`` streams page payloads for the synchronous visual
-        path; ``image_chunks`` is the materialized list used by batch mode.
+        ``source_factory`` builds a fresh streaming page source over a given
+        list of page indices for the synchronous visual path (rebuilt each
+        pass so a budget-interrupted run can resume the still-pending pages);
+        ``image_chunks`` is the materialized list used by batch mode.
+
+        When the daily token limit is enabled, the synchronous strategy gates
+        each chunk/page on the budget. If it is exhausted mid-file, this method
+        drains in-flight work, waits for the daily reset (via
+        ``check_and_wait_for_token_limit``), and re-passes over the pending
+        units, reusing the temp-JSONL resume record.
         """
         # Resolve context — honour context_override if provided (CM-8)
         context: str | None
@@ -675,6 +721,11 @@ class FileProcessor:
         processing_cancelled = False
         processing_exception: Exception | None = None
         failed_indices: list[int] = []
+        budget_incomplete = False
+        # Whether a prior (resumed) output exists to merge the temp records
+        # into. Captured before the budget re-pass loop so intra-run passes,
+        # which grow completed_chunk_indices, do not spuriously flip it on.
+        merge_existing_flag = bool(completed_chunk_indices)
 
         try:
             process_kwargs: dict[str, Any] = {
@@ -690,12 +741,81 @@ class FileProcessor:
             }
             if image_chunks is not None:
                 process_kwargs["image_chunks"] = image_chunks
-            if image_source is not None:
-                process_kwargs["image_source"] = image_source
             if context_image_data is not None:
                 process_kwargs["context_image_data"] = context_image_data
 
-            results = await strategy.process_chunks(**process_kwargs)
+            # Pages still needing work on the visual streaming path; rebuilt
+            # into a fresh one-shot source each pass.
+            remaining_indices = (
+                list(needed_indices) if needed_indices is not None else None
+            )
+            results: list[dict[str, Any]] = []
+            stalled_resets = 0
+
+            # Chunk-level token-budget loop: each pass admits chunks/pages
+            # until the daily budget is exhausted, then drains in-flight work
+            # and waits for the daily reset before re-passing over the still-
+            # pending units. A single pass when the limit is disabled or in
+            # batch mode (which never defers).
+            while True:
+                if source_factory is not None:
+                    process_kwargs["image_source"] = source_factory(
+                        remaining_indices or []
+                    )
+                process_kwargs["completed_chunk_indices"] = completed_chunk_indices
+
+                results = await strategy.process_chunks(**process_kwargs)
+
+                # Units skipped because the daily token budget was exhausted
+                # mid-file (synchronous strategy only; batch never defers).
+                deferred_indices = sorted(
+                    r["chunk_index"]
+                    for r in (results or [])
+                    if isinstance(r, dict) and r.get("budget_deferred")
+                )
+                if use_batch or not deferred_indices:
+                    break
+
+                # Recompute the completed set from the live temp JSONL (union
+                # with any prior resume set) so the next pass skips finished
+                # units; deferred/errored units are absent and re-attempted.
+                before = len(completed_chunk_indices)
+                completed_chunk_indices = (
+                    completed_chunk_indices
+                    | _completed_indices_from_temp(temp_jsonl_path)
+                )
+                made_progress = len(completed_chunk_indices) > before
+                if remaining_indices is not None and needed_indices is not None:
+                    remaining_indices = [
+                        i for i in needed_indices if i not in completed_chunk_indices
+                    ]
+
+                messenger.warning(
+                    f"Daily token budget reached after "
+                    f"{len(completed_chunk_indices)} {unit_label}(s); "
+                    f"{len(deferred_indices)} {unit_label}(s) deferred. "
+                    f"Waiting for daily reset..."
+                )
+                if not await check_and_wait_for_token_limit(ui):
+                    budget_incomplete = True
+                    break
+
+                # Safeguard: if even a full day's reset yields no progress
+                # twice running, a single unit exceeds the entire daily budget;
+                # stop rather than wait forever.
+                if not made_progress:
+                    stalled_resets += 1
+                    if stalled_resets >= 2:
+                        messenger.warning(
+                            f"A single {unit_label} appears to exceed the entire "
+                            f"daily token budget; stopping. Raise daily_tokens to "
+                            f"process the remaining {unit_label}s."
+                        )
+                        budget_incomplete = True
+                        break
+                else:
+                    stalled_resets = 0
+
             # Synchronous strategy returns per-chunk results; failed chunks
             # surface as {"error": ..., "chunk_index": N} and write no temp
             # record. Collect their indices so the output is correctly marked
@@ -744,10 +864,11 @@ class FileProcessor:
                                 total_units=len(chunks),
                                 partial=processing_cancelled
                                 or processing_exception is not None
-                                or bool(failed_indices),
+                                or bool(failed_indices)
+                                or budget_incomplete,
                                 failed_chunks=failed_indices,
                                 chunk_slice_info=_cs_info,
-                                merge_existing=bool(completed_chunk_indices),
+                                merge_existing=merge_existing_flag,
                                 image_provenance=image_provenance,
                             )
                         )

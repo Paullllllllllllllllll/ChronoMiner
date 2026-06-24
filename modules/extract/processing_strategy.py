@@ -35,6 +35,8 @@ from modules.batch.backends import (
 from modules.config.capabilities import detect_capabilities
 from modules.conversion.json_utils import strip_image_payloads
 from modules.images.page_stream import PageError
+from modules.infra.chunking import TextProcessor
+from modules.infra.token_tracker import get_token_tracker
 from modules.llm.langchain_provider import ProviderConfig
 from modules.llm.openai_utils import (
     open_extractor,
@@ -43,6 +45,13 @@ from modules.llm.openai_utils import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _budget_deferred(idx: int) -> dict[str, Any]:
+    """Marker for a chunk/page skipped because the daily token budget was
+    exhausted. Deferred units are never written to the temp JSONL, so the
+    existing resume path re-processes them on the next pass."""
+    return {"budget_deferred": True, "chunk_index": idx}
 
 # Any standalone 5xx status code counts as a transient server error. This
 # deliberately covers Cloudflare edge codes (520-526) in front of provider
@@ -351,6 +360,15 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                         "chunk_index": idx,
                     }
 
+                # Chunk-level token-budget gate. The tracker is a no-op when
+                # the daily limit is disabled (try_reserve returns 0); when
+                # enabled, the first reservation that cannot fit sets
+                # ``exhausted`` so no new units are admitted, in-flight units
+                # drain, and the caller (_execute_extraction) waits for reset
+                # and re-passes over the still-pending units.
+                tracker = get_token_tracker()
+                exhausted = asyncio.Event()
+
                 if image_source is not None:
                     results = await self._consume_image_source(
                         image_source=image_source,
@@ -359,6 +377,8 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                         concurrency_limit=concurrency_limit,
                         delay_between_tasks=delay_between_tasks,
                         unit_label=unit_label,
+                        tracker=tracker,
+                        exhausted=exhausted,
                     )
                 else:
                     semaphore = asyncio.Semaphore(concurrency_limit)
@@ -366,16 +386,36 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                     async def process_single_chunk(
                         idx: int, chunk: str
                     ) -> dict[str, Any]:
-                        """Process a single chunk with semaphore control."""
+                        """Process a single chunk with semaphore control and a
+                        chunk-level token-budget gate."""
+                        if exhausted.is_set():
+                            return _budget_deferred(idx)
                         if delay_between_tasks > 0:
                             await asyncio.sleep(delay_between_tasks)
                         async with semaphore:
+                            if exhausted.is_set():
+                                return _budget_deferred(idx)
                             img_data = (
                                 image_chunks[idx - 1]
                                 if is_visual and image_chunks is not None
                                 else None
                             )
-                            return await call_and_record(idx, chunk, img_data)
+                            # Seed the reservation with the chunk's tiktoken
+                            # input count for text; image payloads have no cheap
+                            # pre-count, so they fall back to the rolling EWMA.
+                            estimate = (
+                                None
+                                if img_data is not None
+                                else TextProcessor.estimate_tokens(chunk)
+                            )
+                            reserved = tracker.try_reserve(estimate)
+                            if reserved is None:
+                                exhausted.set()
+                                return _budget_deferred(idx)
+                            try:
+                                return await call_and_record(idx, chunk, img_data)
+                            finally:
+                                tracker.release(reserved)
 
                     # Process chunks (skipping already-completed ones)
                     tasks = [
@@ -398,6 +438,8 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         concurrency_limit: int,
         delay_between_tasks: float,
         unit_label: str,
+        tracker: Any,
+        exhausted: asyncio.Event,
     ) -> list[dict[str, Any]]:
         """Producer-consumer execution over a streaming page source.
 
@@ -406,6 +448,11 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         ``concurrency_limit`` workers consume it. Peak memory is the queue
         buffer of compact JPEG payloads plus one full-resolution page
         inside the producer, regardless of document length.
+
+        Each page passes the chunk-level token-budget gate before its API
+        call: when a reservation cannot fit, ``exhausted`` is set, the
+        producer stops rendering new pages, and remaining queued pages are
+        returned as deferred markers for the caller to re-pass after a reset.
         """
         queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=max(2, 2 * concurrency_limit))
         sentinel = object()
@@ -414,6 +461,8 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         async def producer() -> None:
             try:
                 async for item in image_source:
+                    if exhausted.is_set():
+                        break
                     await queue.put(item)
             except Exception as e:  # Surface after workers drain the queue
                 producer_errors.append(e)
@@ -437,7 +486,20 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                     )
                     collected.append({"error": item.error, "chunk_index": item.index})
                     continue
-                collected.append(await call_and_record(item.index, "", item.as_chunk()))
+                if exhausted.is_set():
+                    collected.append(_budget_deferred(item.index))
+                    continue
+                reserved = tracker.try_reserve()
+                if reserved is None:
+                    exhausted.set()
+                    collected.append(_budget_deferred(item.index))
+                    continue
+                try:
+                    collected.append(
+                        await call_and_record(item.index, "", item.as_chunk())
+                    )
+                finally:
+                    tracker.release(reserved)
             return collected
 
         producer_task = asyncio.create_task(producer())

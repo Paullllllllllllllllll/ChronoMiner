@@ -1,4 +1,4 @@
-# ChronoMiner v1.13.0
+# ChronoMiner v1.14.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -621,6 +621,18 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.14.0** (24 June 2026) -- The daily token limit is now enforced at the
+    chunk/page level, not just between files. When the limit is enabled, the
+    synchronous strategy reserves an estimated cost (a tiktoken input count for
+    text, a self-calibrating rolling EWMA for images) before each unit, so
+    concurrent workers cannot collectively overshoot; once the budget is
+    exhausted mid-file it drains in-flight work, waits for the daily reset, and
+    re-passes over the still-pending units using the existing temp-JSONL resume
+    record. Configured concurrency and per-task delay are unchanged when budget
+    is plentiful. Batch mode stays exempt (it is pre-priced and submitted whole).
+    Two optional `daily_token_limit` settings tune the estimate
+    (`chunk_estimate_seed`, `estimate_smoothing`). All 999 tests pass.
 
 - **v1.13.0** (21 June 2026) -- Adopted the google-genai 2.x SDK major.
     Relaxed the runtime pin from `google-genai>=1.75,<2` to `google-genai>=2`

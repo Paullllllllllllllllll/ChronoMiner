@@ -1,0 +1,111 @@
+# =============================================================================
+# Concurrency Configuration
+# =============================================================================
+# Controls parallel processing across ChronoMiner's two main workflows:
+#
+#   1. Extraction  — schema-based LLM extraction from text chunks/pages.
+#      Each chunk is an independent API call; many can run in parallel.
+#      Controlled by: concurrency.extraction.*
+#
+#   2. Line-range readjustment — LLM-driven semantic boundary alignment.
+#      Within each file, ranges are processed sequentially (each call
+#      depends on prior decisions). Parallelism is at the *file* level:
+#      multiple files can be readjusted concurrently.
+#      Controlled by: concurrency.readjustment.*
+#
+# Also configures API retry behavior and daily token limits.
+# =============================================================================
+
+concurrency:
+  # -------------------------------------------------------------------------
+  # Extraction (chunk-level concurrency)
+  # -------------------------------------------------------------------------
+  # Governs how many LLM API calls run simultaneously during schema-based
+  # extraction (main/process_text_files.py). Each text chunk or image page
+  # is one API call; this limit caps how many are in flight at once.
+  #
+  # Used by: modules/core/processing_strategy.py, modules/llm/langchain_provider.py
+  extraction:
+    # How many chunks/pages to extract concurrently.
+    # Recommended: 20-50 for moderate workloads; higher for bulk runs.
+    # All providers respect this value. Anthropic users on lower
+    # API tiers may need a smaller limit (e.g., 5) to avoid 429
+    # rate limits; the retry logic handles transient 429s
+    # automatically.
+    concurrency_limit: 35
+
+    # How many FILES may be processed at the same time when the daily token
+    # limit is disabled (with the token limit enabled, files always run
+    # sequentially). Caps total in-flight API calls at
+    # max_concurrent_files x concurrency_limit. Visual (image/PDF) runs are
+    # clamped to at most 2 concurrent files regardless of this value.
+    max_concurrent_files: 4
+
+    # Seconds to wait before launching each successive chunk task.
+    # 0 = fire all at once (up to concurrency_limit).
+    delay_between_tasks: 0.5
+
+    # OpenAI service tier for synchronous extraction.
+    # 'auto' | 'default' | 'flex' | 'priority'
+    # 'flex' is cheaper but synchronous-only; batch mode may need 'auto'.
+    service_tier: flex
+
+    # Request-level timeout (seconds). Covers the full HTTP round-trip.
+    timeouts:
+      total: 3600
+
+    # Retry policy for transient errors (HTTP 429 / 5xx / timeouts).
+    # LangChain applies exponential backoff within these bounds.
+    retry:
+      attempts: 25
+      wait_min_seconds: 2.5
+      wait_max_seconds: 180
+      jitter_max_seconds: 15
+
+  # -------------------------------------------------------------------------
+  # Line-Range Readjustment (file-level concurrency)
+  # -------------------------------------------------------------------------
+  # Governs how many files are readjusted in parallel during
+  # main/line_range_readjuster.py runs. Each file opens its own LLM
+  # connection and processes its ranges sequentially, so there is no
+  # cross-file dependency. Increasing this value speeds up large batches.
+  #
+  # Used by: main/line_range_readjuster.py
+  readjustment:
+    # How many files to readjust at the same time.
+    # 1 = sequential (safe default). 10-20 is a good range for bulk runs.
+    max_concurrent_files: 10
+
+    # Seconds to wait before launching each successive file task.
+    # Useful for staggering API load when max_concurrent_files is high.
+    delay_between_files: 5.00
+
+# =============================================================================
+# Daily Token Limit
+# =============================================================================
+# Tracks cumulative token usage (input + output) across all LLM calls and
+# pauses processing when the cap is reached. Resets at midnight UTC.
+#
+# Used by: modules/core/token_tracker.py, modules/operations/extraction/run.py
+# =============================================================================
+
+daily_token_limit:
+  enabled: true
+  daily_tokens: 950_000_000
+
+  # Chunk-level enforcement: when the limit is enabled, the budget is checked
+  # before each chunk/page (not just between files), so a single large file
+  # cannot overshoot by a whole file's worth. A reservation is made per unit
+  # using a rolling estimate of tokens-per-call; the two settings below tune
+  # that estimate. Batch mode is exempt (it is pre-priced and submitted whole).
+
+  # Cold-start guess (tokens) for one chunk/page before any usage is observed
+  # this run. Text chunks additionally use their tiktoken input count as a
+  # floor. A higher value is more conservative (stops slightly earlier);
+  # a lower value approaches the limit more tightly. Self-calibrates after the
+  # first calls via the EWMA below.
+  chunk_estimate_seed: 25_000
+
+  # EWMA smoothing factor (0-1) for the per-call estimate: higher reacts faster
+  # to recent calls, lower is steadier.
+  estimate_smoothing: 0.3

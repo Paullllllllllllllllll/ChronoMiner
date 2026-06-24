@@ -444,6 +444,12 @@ async def test_consume_image_source_bounded_queue() -> None:
         in_flight_high_water = max(in_flight_high_water, produced - consumed)
         return {"ok": idx}
 
+    from modules.infra.token_tracker import DailyTokenTracker
+
+    # A disabled tracker makes the chunk-level gate a transparent no-op
+    # (try_reserve returns 0), isolating the bounded-queue behavior.
+    disabled_tracker = DailyTokenTracker(daily_limit=0, enabled=False)
+
     results = await ps.SynchronousProcessingStrategy._consume_image_source(
         image_source=_source(),
         call_and_record=_call_and_record,
@@ -451,6 +457,8 @@ async def test_consume_image_source_bounded_queue() -> None:
         concurrency_limit=2,
         delay_between_tasks=0.0,
         unit_label="page",
+        tracker=disabled_tracker,
+        exhausted=asyncio.Event(),
     )
 
     assert len(results) == 40
@@ -603,6 +611,10 @@ async def test_visual_file_end_to_end_with_resume(
     class _FakeLoader:
         def get_image_processing_config(self) -> dict[str, Any]:
             return _IMAGE_CONFIG
+
+        def get_concurrency_config(self) -> dict[str, Any]:
+            # Token limiting disabled -> the chunk-level gate is a no-op here.
+            return {"daily_token_limit": {"enabled": False}}
 
     monkeypatch.setattr(
         "modules.config.loader.get_config_loader", lambda: _FakeLoader()

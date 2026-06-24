@@ -623,6 +623,88 @@ async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(
 
 
 @pytest.mark.asyncio
+async def test_sync_strategy_defers_chunks_when_budget_exhausted(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Chunk-level gate: with a small daily budget, the synchronous strategy
+    processes chunks until the budget is exhausted, then returns the remaining
+    chunks as budget-deferred markers that are never written to the temp JSONL
+    (so the resume path re-processes exactly them)."""
+    import modules.infra.token_tracker as tt
+    from modules.infra.token_tracker import DailyTokenTracker
+
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object())
+    )
+
+    # Enabled tracker with a tiny budget; each call commits 30 tokens (as the
+    # real provider layer would), so the budget is exhausted after a few units.
+    tracker = DailyTokenTracker(
+        daily_limit=100,
+        enabled=True,
+        state_file=tmp_path / "state.json",
+        chunk_estimate_seed=10,
+        estimate_smoothing=0.3,
+    )
+    tt._tracker_instance = tracker
+
+    async def _process_text_chunk(*, text_chunk: str, **_kwargs):
+        tt.get_token_tracker().add_tokens(30)
+        return {"ok": True, "usage": {"input_tokens": 10, "output_tokens": 20}}
+
+    monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
+
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "input.txt"
+    n = 8
+
+    # concurrency_limit=1 makes admission deterministic and sequential.
+    strat = ps.SynchronousProcessingStrategy(
+        concurrency_config={
+            "concurrency": {
+                "extraction": {"concurrency_limit": 1, "delay_between_tasks": 0}
+            }
+        }
+    )
+
+    results = await strat.process_chunks(
+        chunks=[f"c{i}" for i in range(1, n + 1)],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config={"extraction_model": {"name": "gpt-4o"}},
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_a, **_k: None,
+    )
+
+    deferred_indices = {
+        r["chunk_index"] for r in results if r.get("budget_deferred")
+    }
+    processed_indices = {
+        json.loads(line)["chunk_index"]
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    }
+
+    # Some chunks were deferred and some processed.
+    assert deferred_indices
+    assert processed_indices
+    # Deferred chunks were never written to the temp JSONL.
+    assert processed_indices.isdisjoint(deferred_indices)
+    # Every chunk is accounted for exactly once (none lost or duplicated).
+    assert processed_indices | deferred_indices == set(range(1, n + 1))
+    # Deferral happens at the tail: the deferred indices are the highest ones.
+    assert min(deferred_indices) > max(processed_indices)
+
+
+@pytest.mark.asyncio
 async def test_anthropic_respects_configured_concurrency_limit(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

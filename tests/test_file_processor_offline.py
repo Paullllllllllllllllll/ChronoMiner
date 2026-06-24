@@ -276,6 +276,127 @@ def test_file_processor_marks_partial_on_failed_chunk(
     assert meta["total_chunks"] == len(data["records"]) + len(meta["failed_chunks"])
 
 
+class BudgetThenResumeStrategy:
+    """First pass defers every chunk beyond index 2 (budget exhausted mid-file);
+    later passes process all still-pending chunks (a simulated daily reset).
+    Mirrors the real strategy: deferred chunks write no temp record, and the
+    skip-set arrives via ``completed_chunk_indices``."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    async def process_chunks(
+        self,
+        *,
+        chunks,
+        handler,
+        dev_message,
+        model_config,
+        schema,
+        file_path,
+        temp_jsonl_path,
+        console_print,
+        completed_chunk_indices=None,
+    ):
+        completed = set(completed_chunk_indices or ())
+        self.calls += 1
+        results = []
+        mode = "a" if completed else "w"
+        with temp_jsonl_path.open(mode, encoding="utf-8") as f:
+            for idx, _chunk in enumerate(chunks, 1):
+                if idx in completed:
+                    continue
+                if self.calls == 1 and idx > 2:
+                    results.append({"budget_deferred": True, "chunk_index": idx})
+                    continue
+                f.write(
+                    json.dumps(
+                        {
+                            "custom_id": f"{file_path.stem}-chunk-{idx}",
+                            "chunk_index": idx,
+                            "chunk_range": [idx, idx],
+                            "response": {"body": {"output_text": "ok"}},
+                        }
+                    )
+                    + "\n"
+                )
+                results.append({"ok": True})
+        return results
+
+
+@pytest.mark.integration
+def test_file_processor_resumes_after_budget_reset(
+    tmp_path, config_loader, monkeypatch
+):
+    """When the daily budget is exhausted mid-file, _execute_extraction drains,
+    waits for the reset, and re-passes over the pending chunks, producing a
+    complete output with every chunk present exactly once."""
+    from modules.extract.file_processor import FileProcessor
+
+    strategy = BudgetThenResumeStrategy()
+    monkeypatch.setattr(
+        "modules.extract.file_processor.create_processing_strategy",
+        lambda use_batch, concurrency_config=None: strategy,
+    )
+    monkeypatch.setattr(
+        "modules.extract.file_processor.get_schema_handler",
+        lambda schema_name: DummyHandler(),
+    )
+
+    waits = {"n": 0}
+
+    async def _fake_wait(ui=None):
+        waits["n"] += 1
+        return True  # simulate the daily reset having occurred
+
+    monkeypatch.setattr(
+        "modules.extract.file_processor.check_and_wait_for_token_limit", _fake_wait
+    )
+
+    input_file = tmp_path / "multi.txt"
+    input_file.write_text("\n".join(f"line {i}" for i in range(200)), encoding="utf-8")
+
+    paths_config = config_loader.get_paths_config()
+    schema_paths = config_loader.get_schemas_paths()["TestSchema"]
+
+    fp = FileProcessor(
+        paths_config=paths_config,
+        model_config=config_loader.get_model_config(),
+        chunking_config={"chunking": {"default_tokens_per_chunk": 10}},
+        concurrency_config=config_loader.get_concurrency_config(),
+    )
+
+    async def _run():
+        await fp.process_file(
+            file_path=input_file,
+            use_batch=False,
+            selected_schema={"schema": {"type": "object"}},
+            prompt_template="Schema={{TRANSCRIPTION_SCHEMA}}",
+            schema_name="TestSchema",
+            inject_schema=True,
+            schema_paths=schema_paths,
+            global_chunking_method="auto",
+            ui=None,
+        )
+
+    asyncio.run(_run())
+
+    # The loop waited for a reset and re-passed.
+    assert waits["n"] >= 1
+    assert strategy.calls >= 2
+
+    out_json = Path(schema_paths["output"]) / f"{input_file.stem}_output.json"
+    assert out_json.exists()
+    data = json.loads(out_json.read_text(encoding="utf-8"))
+    indices = [rec["chunk_index"] for rec in data["records"]]
+    # Every chunk present exactly once: no duplicates from the re-pass, none
+    # lost from the deferral.
+    assert len(indices) == len(set(indices))
+    assert sorted(indices) == list(range(1, len(indices) + 1))
+    # A fully completed run is not marked partial.
+    assert data["_chronominer_metadata"].get("partial") in (False, None)
+
+
 @pytest.mark.integration
 def test_file_processor_no_chunk_slice(tmp_path, config_loader, monkeypatch):
     out_json = _run_with_slice(tmp_path, config_loader, monkeypatch, None)
