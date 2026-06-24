@@ -235,7 +235,7 @@ wheels = [
 
 [[package]]
 name = "chronominer"
-version = "1.13.0"
+version = "1.15.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },

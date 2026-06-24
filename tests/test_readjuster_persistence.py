@@ -13,6 +13,7 @@ from modules.infra.jsonl import (
     compute_ranges_fingerprint,
     read_jsonl_records,
 )
+from modules.infra.token_tracker import DailyTokenTracker
 from modules.line_ranges.readjuster import (
     BoundaryDecision,
     LineRangeReadjuster,
@@ -533,6 +534,155 @@ class TestReadjusterCleanup:
 
         temp_jsonl = tmp_path / "sample_line_ranges_adjust_temp.jsonl"
         assert not temp_jsonl.exists(), "Temp JSONL should have been cleaned up"
+
+
+class TestReadjusterBudgetGate:
+    """Range-level token-budget gate: stop and resume at the daily limit."""
+
+    @staticmethod
+    def _setup(tmp_path: Path) -> tuple[Path, Path, str, LineRangeReadjuster]:
+        text_file = tmp_path / "s.txt"
+        text_file.write_text(
+            "\n".join(f"Line {i}" for i in range(1, 31)) + "\n", encoding="utf-8"
+        )
+        lr_file = tmp_path / "s_line_ranges.txt"
+        original_lr = "(1, 10)\n(11, 20)\n(21, 30)\n"
+        lr_file.write_text(original_lr, encoding="utf-8")
+        return text_file, lr_file, original_lr, _make_readjuster()
+
+    @pytest.mark.asyncio
+    async def test_budget_cancel_preserves_line_ranges_file(
+        self, tmp_path: Path
+    ) -> None:
+        """When the budget is exhausted mid-file and the user cancels the wait,
+        the line-ranges file is left unchanged and the temp JSONL is kept so a
+        later resume run can continue."""
+        text_file, lr_file, original_lr, readjuster = self._setup(tmp_path)
+        # limit=100, 60 tokens/range -> range 3 cannot be admitted.
+        tracker = DailyTokenTracker(
+            daily_limit=100,
+            enabled=True,
+            state_file=tmp_path / "tok.json",
+            chunk_estimate_seed=10,
+            estimate_smoothing=0.3,
+        )
+        processed: list[int] = []
+
+        async def mock_process_range(**kwargs: Any) -> RangeResult:
+            processed.append(kwargs["range_index"])
+            tracker.add_tokens(60)
+            return _fake_range_result(
+                kwargs["range_index"],
+                kwargs["original_range"],
+                kwargs["original_range"],
+            )
+
+        async def fake_wait(**_kwargs: Any) -> bool:
+            return False  # user cancels the wait
+
+        with (
+            patch.object(
+                readjuster, "_process_single_range", side_effect=mock_process_range
+            ),
+            patch("modules.line_ranges.readjuster.ProviderConfig") as mock_provider,
+            patch(
+                "modules.line_ranges.readjuster.open_extractor",
+                new_callable=lambda: _async_noop_context,
+            ),
+            patch(
+                "modules.line_ranges.readjuster.resolve_context_for_readjustment",
+                return_value=(None, None),
+            ),
+            patch(
+                "modules.line_ranges.readjuster.get_token_tracker", return_value=tracker
+            ),
+            patch(
+                "modules.line_ranges.readjuster.check_and_wait_for_token_limit",
+                side_effect=fake_wait,
+            ),
+        ):
+            mock_provider._detect_provider.return_value = "openai"
+            mock_provider._get_api_key.return_value = "fake-key"
+            await readjuster.ensure_adjusted_line_ranges(
+                text_file=text_file,
+                line_ranges_file=lr_file,
+                boundary_type="TestSchema",
+            )
+
+        # Range 3 hit the exhausted budget; the cancelled wait stopped the run.
+        assert processed == [1, 2]
+        # The line-ranges file was NOT truncated to the partial set.
+        assert lr_file.read_text(encoding="utf-8") == original_lr
+        # The temp JSONL is retained (header + 2 completed ranges) for resume.
+        temp_jsonl = tmp_path / "s_line_ranges_adjust_temp.jsonl"
+        assert temp_jsonl.exists()
+        records = list(read_jsonl_records(temp_jsonl))
+        assert len(records) == 3  # header + range 1 + range 2
+
+    @pytest.mark.asyncio
+    async def test_budget_wait_then_reset_completes(self, tmp_path: Path) -> None:
+        """When the budget is exhausted mid-file but the daily reset occurs, the
+        run resumes and processes the remaining range, writing the full file."""
+        text_file, lr_file, _original_lr, readjuster = self._setup(tmp_path)
+        tracker = DailyTokenTracker(
+            daily_limit=100,
+            enabled=True,
+            state_file=tmp_path / "tok.json",
+            chunk_estimate_seed=10,
+            estimate_smoothing=0.3,
+        )
+        processed: list[int] = []
+        reset = {"done": False}
+
+        async def mock_process_range(**kwargs: Any) -> RangeResult:
+            processed.append(kwargs["range_index"])
+            tracker.add_tokens(60)
+            return _fake_range_result(
+                kwargs["range_index"],
+                kwargs["original_range"],
+                kwargs["original_range"],
+            )
+
+        async def fake_wait(**_kwargs: Any) -> bool:
+            # Simulate the midnight reset clearing today's usage.
+            tracker._tokens_used_today = 0
+            reset["done"] = True
+            return True
+
+        with (
+            patch.object(
+                readjuster, "_process_single_range", side_effect=mock_process_range
+            ),
+            patch("modules.line_ranges.readjuster.ProviderConfig") as mock_provider,
+            patch(
+                "modules.line_ranges.readjuster.open_extractor",
+                new_callable=lambda: _async_noop_context,
+            ),
+            patch(
+                "modules.line_ranges.readjuster.resolve_context_for_readjustment",
+                return_value=(None, None),
+            ),
+            patch(
+                "modules.line_ranges.readjuster.get_token_tracker", return_value=tracker
+            ),
+            patch(
+                "modules.line_ranges.readjuster.check_and_wait_for_token_limit",
+                side_effect=fake_wait,
+            ),
+        ):
+            mock_provider._detect_provider.return_value = "openai"
+            mock_provider._get_api_key.return_value = "fake-key"
+            await readjuster.ensure_adjusted_line_ranges(
+                text_file=text_file,
+                line_ranges_file=lr_file,
+                boundary_type="TestSchema",
+            )
+
+        # The wait fired, the reset cleared the budget, and all ranges completed.
+        assert reset["done"] is True
+        assert processed == [1, 2, 3]
+        # The full, adjusted line-ranges file was written (3 ranges).
+        assert lr_file.read_text(encoding="utf-8").count("(") == 3
 
 
 # ---------------------------------------------------------------------------

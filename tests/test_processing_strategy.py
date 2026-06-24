@@ -684,9 +684,7 @@ async def test_sync_strategy_defers_chunks_when_budget_exhausted(
         console_print=lambda *_a, **_k: None,
     )
 
-    deferred_indices = {
-        r["chunk_index"] for r in results if r.get("budget_deferred")
-    }
+    deferred_indices = {r["chunk_index"] for r in results if r.get("budget_deferred")}
     processed_indices = {
         json.loads(line)["chunk_index"]
         for line in temp_jsonl.read_text(encoding="utf-8").splitlines()

@@ -1,4 +1,4 @@
-# ChronoMiner v1.14.0
+# ChronoMiner v1.15.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -621,6 +621,18 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.15.0** (24 June 2026) -- Extended chunk-level token-limit enforcement to
+    the line-range readjustment workflow, so the daily budget is applied
+    consistently across both of ChronoMiner's LLM workflows. Readjustment now
+    reserves the budget before each range (which may make several LLM calls),
+    waits for the daily reset when exhausted, and resumes the still-pending
+    ranges via the existing temp-JSONL resume; a budget-cancelled run leaves the
+    line-ranges file untouched so it can be continued. File concurrency is
+    clamped to one when the limit is enabled (matching extraction), so
+    concurrent files cannot collectively overshoot. Token accounting was already
+    shared; this closes the gap where a single file's ranges could overshoot the
+    budget. All 1001 tests pass.
 
 - **v1.14.0** (24 June 2026) -- The daily token limit is now enforced at the
     chunk/page level, not just between files. When the limit is enabled, the

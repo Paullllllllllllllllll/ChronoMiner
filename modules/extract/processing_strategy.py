@@ -53,6 +53,7 @@ def _budget_deferred(idx: int) -> dict[str, Any]:
     existing resume path re-processes them on the next pass."""
     return {"budget_deferred": True, "chunk_index": idx}
 
+
 # Any standalone 5xx status code counts as a transient server error. This
 # deliberately covers Cloudflare edge codes (520-526) in front of provider
 # APIs, which previously slipped past an enumerated 500/502/503 check and

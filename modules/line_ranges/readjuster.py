@@ -35,6 +35,10 @@ from modules.infra.jsonl import (
     validate_jsonl_header,
 )
 from modules.infra.paths import ensure_path_safe
+from modules.infra.token_tracker import (
+    check_and_wait_for_token_limit,
+    get_token_tracker,
+)
 from modules.llm.langchain_provider import ProviderConfig
 from modules.llm.openai_utils import LLMExtractor, open_extractor, process_text_chunk
 from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
@@ -404,6 +408,13 @@ class LineRangeReadjuster:
         ranges_to_delete: list[int] = []  # Track indices of ranges with no content
         total_llm_calls = 0
 
+        # Range-level token-budget gate state. The tracker is a no-op when the
+        # daily limit is disabled (try_reserve returns 0, check_and_wait returns
+        # True immediately). budget_cancelled records a user-cancelled wait so
+        # the line-ranges file is left untouched for a later resume.
+        tracker = get_token_tracker()
+        budget_cancelled = False
+
         async with open_extractor(
             api_key=api_key,
             prompt_path=self.prompt_path,
@@ -436,14 +447,38 @@ class LineRangeReadjuster:
                         adjusted_ranges.append(original_range)
                         continue
 
-                    result = await self._process_single_range(
-                        extractor=extractor,
-                        raw_lines=raw_lines,
-                        original_range=original_range,
-                        range_index=index,
-                        boundary_type=boundary_type,
-                        context=context,
-                    )
+                    # Range-level token-budget gate (mirrors the extraction
+                    # path). A range may make several LLM calls, so reserve once
+                    # before it and release afterward; when the daily budget is
+                    # exhausted, wait for the midnight reset and retry the same
+                    # range. Ranges run sequentially, so no cross-range
+                    # coordination is needed. No-op when the limit is disabled.
+                    reserved = tracker.try_reserve()
+                    while reserved is None:
+                        if not tracker.is_limit_reached():
+                            # Remaining budget is positive but below the
+                            # per-range estimate; waiting cannot help until
+                            # midnight and the estimate may exceed this range's
+                            # actual cost, so proceed (overshoot <= one range).
+                            break
+                        if not await check_and_wait_for_token_limit(logger=logger):
+                            budget_cancelled = True
+                            break
+                        reserved = tracker.try_reserve()
+                    if budget_cancelled:
+                        break
+
+                    try:
+                        result = await self._process_single_range(
+                            extractor=extractor,
+                            raw_lines=raw_lines,
+                            original_range=original_range,
+                            range_index=index,
+                            boundary_type=boundary_type,
+                            context=context,
+                        )
+                    finally:
+                        tracker.release(reserved or 0)
                     total_llm_calls += result.total_llm_calls
 
                     # Persist to temp JSONL immediately
@@ -480,6 +515,19 @@ class LineRangeReadjuster:
                                 result.adjusted_range,
                                 result.decision.semantic_marker,
                             )
+
+        # Budget-interrupted run: leave the line-ranges file and temp JSONL
+        # untouched so a later resume run continues from the ranges already
+        # completed. Persisting now would truncate the file to the partial set
+        # and drop the not-yet-processed ranges.
+        if budget_cancelled:
+            logger.warning(
+                "Line-range readjustment stopped before completion for %s "
+                "(daily token budget / user cancel); the line-ranges file was "
+                "left unchanged. Re-run with resume to continue.",
+                text_file.name,
+            )
+            return adjusted_ranges
 
         # If we resumed, re-read the full temp JSONL to reconstruct
         # accurate adjusted_ranges (the placeholders above are stale).

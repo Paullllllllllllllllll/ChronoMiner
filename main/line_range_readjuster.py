@@ -228,6 +228,17 @@ async def _adjust_files(
         "readjustment", {}
     ) or {}
     max_concurrent = max(1, int(readjustment_cfg.get("max_concurrent_files", 1)))
+    # When the daily token limit is enabled, process files sequentially so the
+    # per-range budget gate bounds overshoot to a single range. Concurrent files
+    # would each pass the under-limit check and then collectively overshoot.
+    # Mirrors the extraction path, which also serializes files under the limit.
+    if token_limit_enabled and max_concurrent > 1:
+        logger.info(
+            "Daily token limit enabled; clamping readjustment file concurrency "
+            "from %d to 1 for accurate budget enforcement.",
+            max_concurrent,
+        )
+        max_concurrent = 1
     delay_between = float(readjustment_cfg.get("delay_between_files", 0.0) or 0.0)
 
     # Phase 1: Pre-filter files (sequential, fast)
