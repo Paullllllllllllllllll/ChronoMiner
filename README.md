@@ -614,10 +614,11 @@ modules, providers, batch backends, and CLI parsers.
 
 ## Versioning
 
-This project uses semantic versioning. The commit history was
-squashed to a single baseline commit at v1.0.0 on 25 April 2026.
-All prior development history was consolidated; version numbers
-before v1.0.0 do not exist.
+This project follows semantic versioning (`MAJOR.MINOR.PATCH`). The version in
+`pyproject.toml` is the single source of truth; it is mirrored in the title
+heading above and tagged in git as `vX.Y.Z`. The commit history was squashed to
+a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
+v1.0.0 do not exist.
 
 ## Changelog
 
@@ -638,8 +639,8 @@ before v1.0.0 do not exist.
 
 - **v1.11.0** (20 June 2026) -- Removed the unused show_numbers parameter from
     UserInterface.select_option in modules/ui/core.py (dead since the modular
-    prompts system never consumed it). Consolidated three within-module
-    duplication clones behind new private helpers without altering behavior:
+    prompts system never consumed it). Consolidated three within-module duplication
+    clones behind new private helpers without altering behavior:
     modules/batch/backends/openai_backend.py now shares service-tier and
     reasoning-control wiring across the text and image Responses body builders via
     _apply_service_tier and _apply_reasoning; modules/images/llm_preprocess.py
@@ -648,6 +649,7 @@ before v1.0.0 do not exist.
     repeated output-directory and exclude-pattern filtering from get_files_from_path
     into _passes_dir_filters, called from both the visual and text-mode discovery
     loops.
+
 - **v1.10.0** (20 June 2026) -- Refreshed runtime and dev dependencies under a
     conservative, majors-gated policy. No dependencies were removed (deptry reported
     no unused or missing imports) and none were added. Within-major upgrades raised
@@ -658,191 +660,192 @@ before v1.0.0 do not exist.
     google-genai stays on 1.75.0 (2.9.0 available) and mypy stays on 1.20.2 (2.1.0
     available), each already at the latest release within its current major and
     pinned below the next major.
-- **v1.9.1** (10 June 2026) -- retry Cloudflare 5xx edge errors. The
-    transient-error check enumerated only 500/502/503, so Cloudflare
-    edge codes in front of provider APIs (520-526, observed as
-    HTTP 520 from api.openai.com in production) failed pages
-    immediately without a single retry, despite the response body
-    declaring itself retryable. Error classification is extracted
-    into `classify_transient_error`, which now treats any standalone
-    5xx status code as a transient server error and additionally
-    honors self-declared `'retryable': true` markers in error
-    bodies. Affected pages were correctly recorded in
-    `failed_chunks` and remain recoverable via `--resume`; with this
-    fix they retry with exponential backoff instead of failing.
-- **v1.9.0** (10 June 2026) -- streaming visual pipeline. PDF pages
-    are now rendered, preprocessed, and base64-encoded one at a time
-    through a bounded producer-consumer queue instead of loading every
-    page into memory up front; peak memory is one full-resolution page
-    plus a small payload buffer, independent of document length (a
-    2,000-page guide previously required ~40 GB and crashed; it now
-    runs in well under 1 GB). Preprocessing happens fully in memory
-    (`ImageProcessor.process_pil`), eliminating the per-page PNG/JPEG
-    disk round-trip. The resume skip-set and `--page-range`/
-    `--first-n-chunks` slices are resolved before rendering, so
-    completed and out-of-slice pages are never rendered; page indices
-    in records are now absolute page numbers, and pages that fail to
-    render surface as failed chunks (re-queued on resume) instead of
-    silently shifting page numbering. Synchronous temp JSONL records
-    no longer embed base64 images in `request_metadata` (replaced by
-    `image_omitted` placeholders), shrinking temp files ~40x; the new
-    `main/slim_temp_jsonl.py` utility retrofits existing temp files,
-    and skips files modified within the last 10 minutes to avoid
-    touching active runs. Visual outputs now carry reproducibility
-    provenance: source-file SHA-256, PyMuPDF/Pillow versions, and the
-    effective preprocessing config at file level, plus per-page
-    SHA-256, dimensions, byte size, and effective DPI. New
-    `concurrency.extraction.max_concurrent_files` key (default 4,
-    clamped to 2 for visual runs) bounds file-level fan-out when the
-    daily token limit is disabled. `max_pixels_per_page` default
-    lowered from 150 MP to 24 MP (no quality effect: well above the
-    10.24 MP send cap). Fixed a context-image bug where the provider
-    config section was resolved twice, silently applying default
-    preprocessing (e.g. grayscale) instead of the configured values.
-    Batch submission reuses the streaming producer, freeing raw pages
-    per page during request building.
-- **v1.8.0** (5 June 2026) -- dependency cleanup and a limited
-    deep-module refactor. Removed the unused `pip` runtime dependency
-    and declared `charset-normalizer` explicitly, since it is imported
-    directly in `modules/infra/chunking.py` but was previously present
-    only transitively via `requests`. Refreshed the remaining
-    dependencies to their latest compatible versions under a
-    conservative policy that holds the two risky majors, `mypy` and
-    `google-genai`, at their current major line, and added a
-    `[tool.deptry]` configuration so dependency scans run clean.
-    Internally, extracted cohesive helpers behind narrow interfaces:
-    `_build_messages`, `_normalize_structured_schema`, and
-    `_pack_result` in `openai_utils.py`; `_to_lc_messages` and
-    `_extract_usage` in `langchain_provider.py`, which drops
+
+- **v1.9.1** (10 June 2026) -- Retry Cloudflare 5xx edge errors. The
+    transient-error check enumerated only 500/502/503, so Cloudflare edge codes in
+    front of provider APIs (520-526, observed as HTTP 520 from api.openai.com in
+    production) failed pages immediately without a single retry, despite the response
+    body declaring itself retryable. Error classification is extracted into
+    `classify_transient_error`, which now treats any standalone 5xx status code as a
+    transient server error and additionally honors self-declared `'retryable': true`
+    markers in error bodies. Affected pages were correctly recorded in `failed_chunks`
+    and remain recoverable via `--resume`; with this fix they retry with exponential
+    backoff instead of failing.
+
+- **v1.9.0** (10 June 2026) -- Streaming visual pipeline. PDF pages are now
+    rendered, preprocessed, and base64-encoded one at a time through a bounded
+    producer-consumer queue instead of loading every page into memory up front; peak
+    memory is one full-resolution page plus a small payload buffer, independent of
+    document length (a 2,000-page guide previously required ~40 GB and crashed; it
+    now runs in well under 1 GB). Preprocessing happens fully in memory
+    (`ImageProcessor.process_pil`), eliminating the per-page PNG/JPEG disk
+    round-trip. The resume skip-set and `--page-range`/`--first-n-chunks` slices are
+    resolved before rendering, so completed and out-of-slice pages are never
+    rendered; page indices in records are now absolute page numbers, and pages that
+    fail to render surface as failed chunks (re-queued on resume) instead of silently
+    shifting page numbering. Synchronous temp JSONL records no longer embed base64
+    images in `request_metadata` (replaced by `image_omitted` placeholders),
+    shrinking temp files ~40x; the new `main/slim_temp_jsonl.py` utility retrofits
+    existing temp files, and skips files modified within the last 10 minutes to avoid
+    touching active runs. Visual outputs now carry reproducibility provenance:
+    source-file SHA-256, PyMuPDF/Pillow versions, and the effective preprocessing
+    config at file level, plus per-page SHA-256, dimensions, byte size, and effective
+    DPI. New `concurrency.extraction.max_concurrent_files` key (default 4, clamped to
+    2 for visual runs) bounds file-level fan-out when the daily token limit is
+    disabled. `max_pixels_per_page` default lowered from 150 MP to 24 MP (no quality
+    effect: well above the 10.24 MP send cap). Fixed a context-image bug where the
+    provider config section was resolved twice, silently applying default
+    preprocessing (e.g. grayscale) instead of the configured values. Batch submission
+    reuses the streaming producer, freeing raw pages per page during request building.
+
+- **v1.8.0** (5 June 2026) -- Dependency cleanup and a limited deep-module
+    refactor. Removed the unused `pip` runtime dependency and declared
+    `charset-normalizer` explicitly, since it is imported directly in
+    `modules/infra/chunking.py` but was previously present only transitively via
+    `requests`. Refreshed the remaining dependencies to their latest compatible
+    versions under a conservative policy that holds the two risky majors, `mypy` and
+    `google-genai`, at their current major line, and added a `[tool.deptry]`
+    configuration so dependency scans run clean. Internally, extracted cohesive
+    helpers behind narrow interfaces: `_build_messages`,
+    `_normalize_structured_schema`, and `_pack_result` in `openai_utils.py`;
+    `_to_lc_messages` and `_extract_usage` in `langchain_provider.py`, which drops
     `ainvoke_with_structured_output` from cyclomatic grade F to D; and
-    `_header_fields_match` in `jsonl.py`. No public interface or
-    extraction behavior changed. Also completed a repository-wide ruff
-    and mypy cleanup so both now run without warnings.
-- **v1.7.1** (5 June 2026) -- fix a resume bug that skipped partial
-    visual (PDF/image) extractions as if complete, so their failed pages
-    were never recovered. The early resume gate in `_process_visual_file`
-    skipped any output whose record count met its `total_chunks`, ignoring
-    the `partial` flag and `failed_chunks` list; because a partial run
-    stamped `total_chunks` as its own success count, the file looked
-    complete and the failed pages were never re-queued. The gate now skips
-    only a self-declared full success (the new `metadata_indicates_complete`
-    predicate in `modules/extract/resume.py`), so partial outputs fall
-    through to the authoritative `detect_extraction_status` and resume.
-    Separately, `total_chunks` is now stamped from the true unit count
-    (`len(chunks)`) rather than the number of successful records, so the
-    persisted metadata is no longer self-contradictory and stays correct
-    even when a run ends partial or is cancelled. Existing partial outputs
-    need no migration: the flags drive correct resume, and the recovery run
-    re-stamps the true total.
-- **v1.7.0** (5 June 2026) -- lean extraction output. The final
-    `_output.json` now carries only the response side of each record
-    (`output_text` and `response_data`); the request side
-    (`request_metadata`, whose `messages` embed the per-page base64
-    images) is stripped when the output is assembled, shrinking
-    image-based guides roughly 150x. The complete API call is preserved
-    in the sibling `_temp.jsonl` for reproducibility. Output is now
-    written with `ensure_ascii=False`.
-- **v1.6.9** (31 May 2026) -- Tier 3 latent-correctness and hygiene
-    fixes. Correctness: the shared synchronous temp-file writer is now
-    guarded by a lock so concurrent chunks can no longer interleave and
-    corrupt JSONL lines; a run in which some chunks fail is marked partial
-    and records the failed chunk indices in the output metadata instead of
-    reporting a full success; line ranges read from a `_line_ranges.txt`
-    are clamped to the file length before use, so an out-of-range end no
-    longer raises an `IndexError`; the Google batch backend now wires the
-    structured-output schema into Gemini's `response_schema`
-    (capability-gated and sanitized for Gemini's restrictions) rather than
-    ignoring it; and the OpenAI and Google batch backends delete their
-    uploaded input and result files after download, so batch runs no
-    longer leak remote storage. Hygiene: removed dead code; the token
-    tracker resolves its state-file directory at first use rather than at
-    import time; the configuration cache is guarded by a lock under the
-    asyncio fan-out; and the interactive file picker constrains filename
-    globbing to the configured input directory.
-- **v1.6.8** (30 May 2026) -- fix a resume data-loss path in
-    synchronous extraction. The resume skip-set is derived from the
-    existing `output.json`, but the final records were rebuilt solely
-    from the temporary JSONL; when `retain_temporary_jsonl` is false the
-    prior temp file is deleted, so a resumed run regenerated
-    `output.json` from only the newly-processed chunks and dropped all
-    previously-completed records. On resume, ChronoMiner now merges the
-    records already saved in `output.json` with those rebuilt from the
-    temp file, keyed by `custom_id` (newly-processed records win), so no
-    prior record is lost regardless of the temp-retention setting. Force
-    and non-resume runs are unaffected and still overwrite cleanly.
-- **v1.6.7** (30 May 2026) -- full-repository code review fixes.
-    Correctness: `--input-type mixed` no longer silently falls back to
-    text mode; `--page-range` now reports an actionable error instead of
-    a raw traceback on malformed input; the processing summary reports
-    the real failed-file count instead of always zero; synchronous
-    extraction records now carry `chunk_index`, so `output.json` records
-    are ordered rather than in completion order; list-form response
-    records are no longer silently dropped during conversion; an
-    Anthropic batch that ends with no request counts maps to `unknown`
-    rather than a false `failed`; a Gemini batch candidate with no text
-    content (e.g. a safety or length cutoff) is reported as a failure
-    rather than a successful empty extraction. Hardening: narrowed
-    several broad `except` blocks to surface previously-hidden read and
-    parse failures, removed redundant double-traceback logging, and
-    fixed a validation-order edge case in the response parser.
-- **v1.6.6** (25 May 2026) -- remove hard-coded Anthropic
-    concurrency cap (`concurrency_limit = 1`); Anthropic now
-    respects the configured `concurrency_limit` like all other
-    providers. Users on lower Anthropic API tiers should set a
-    conservative limit (e.g., 5) in
-    `concurrency_config.yaml`; the existing retry logic handles
-    transient 429s automatically.
-- **v1.6.5** (21 May 2026) -- demote LLM invocation error log
-    from `error` (with full traceback) to `debug`; transient
-    errors now only show the one-line retry warning from the
-    processing strategy, not the upstream traceback.
-- **v1.6.4** (21 May 2026) -- widen transient error retry to
-    cover 5xx server errors and upstream connection resets in
-    addition to timeouts and 429 rate limits.
-- **v1.6.3** (21 May 2026) -- add early resume check for
-    visual/PDF files: skip fully processed files before
-    expensive PDF rendering; compare output metadata
-    `total_chunks` against actual record count to correctly
-    distinguish complete from partial files.
-- **v1.6.2** (21 May 2026) -- suppress misleading "will be
-    overwritten" warning in the processing summary when resume
-    mode is active (existing files are skipped, not
-    overwritten).
-- **v1.6.1** (21 May 2026) -- fix Ctrl+C during daily token
-    limit wait raising unhandled `asyncio.CancelledError` on
-    Python 3.13; retry timeout errors for all providers
-    (previously only Anthropic 429s were retried); suppress
-    verbose tracebacks on permanent chunk failures.
-- **v1.6.0** (21 May 2026) -- add `--page-range START-END`
-    CLI argument and interactive prompt for processing a
-    specific 1-based inclusive page range; fix
-    `UserInterface.confirm()` missing `allow_back` parameter
-    that caused a TypeError on the context image prompt.
-- **v1.5.0** (21 May 2026) -- register `MichelinGuidesLight`
-    schema in handler registry; tie context image prompt to
-    text context selection (skip when context mode is "none");
-    rewrite award field descriptions in
-    `michelin_guides_light.json` to reference context image
-    symbol categories.
-- **v1.4.0** (20 May 2026) -- add `--output-mode
-    {flat,mirror}` CLI flag: mirror mode replicates the input
-    directory hierarchy under the output root, preserving
+    `_header_fields_match` in `jsonl.py`. No public interface or extraction behavior
+    changed. Also completed a repository-wide ruff and mypy cleanup so both now run
+    without warnings.
+
+- **v1.7.1** (5 June 2026) -- Fix a resume bug that skipped partial visual
+    (PDF/image) extractions as if complete, so their failed pages were never
+    recovered. The early resume gate in `_process_visual_file` skipped any output
+    whose record count met its `total_chunks`, ignoring the `partial` flag and
+    `failed_chunks` list; because a partial run stamped `total_chunks` as its own
+    success count, the file looked complete and the failed pages were never re-queued.
+    The gate now skips only a self-declared full success (the new
+    `metadata_indicates_complete` predicate in `modules/extract/resume.py`), so
+    partial outputs fall through to the authoritative `detect_extraction_status` and
+    resume. Separately, `total_chunks` is now stamped from the true unit count
+    (`len(chunks)`) rather than the number of successful records, so the persisted
+    metadata is no longer self-contradictory and stays correct even when a run ends
+    partial or is cancelled. Existing partial outputs need no migration: the flags
+    drive correct resume, and the recovery run re-stamps the true total.
+
+- **v1.7.0** (5 June 2026) -- Lean extraction output. The final `_output.json` now
+    carries only the response side of each record (`output_text` and
+    `response_data`); the request side (`request_metadata`, whose `messages` embed
+    the per-page base64 images) is stripped when the output is assembled, shrinking
+    image-based guides roughly 150x. The complete API call is preserved in the
+    sibling `_temp.jsonl` for reproducibility. Output is now written with
+    `ensure_ascii=False`.
+
+- **v1.6.9** (31 May 2026) -- Tier 3 latent-correctness and hygiene fixes.
+    Correctness: the shared synchronous temp-file writer is now guarded by a lock so
+    concurrent chunks can no longer interleave and corrupt JSONL lines; a run in
+    which some chunks fail is marked partial and records the failed chunk indices in
+    the output metadata instead of reporting a full success; line ranges read from a
+    `_line_ranges.txt` are clamped to the file length before use, so an out-of-range
+    end no longer raises an `IndexError`; the Google batch backend now wires the
+    structured-output schema into Gemini's `response_schema` (capability-gated and
+    sanitized for Gemini's restrictions) rather than ignoring it; and the OpenAI and
+    Google batch backends delete their uploaded input and result files after download,
+    so batch runs no longer leak remote storage. Hygiene: removed dead code; the
+    token tracker resolves its state-file directory at first use rather than at
+    import time; the configuration cache is guarded by a lock under the asyncio
+    fan-out; and the interactive file picker constrains filename globbing to the
+    configured input directory.
+
+- **v1.6.8** (30 May 2026) -- Fix a resume data-loss path in synchronous
+    extraction. The resume skip-set is derived from the existing `output.json`, but
+    the final records were rebuilt solely from the temporary JSONL; when
+    `retain_temporary_jsonl` is false the prior temp file is deleted, so a resumed
+    run regenerated `output.json` from only the newly-processed chunks and dropped
+    all previously-completed records. On resume, ChronoMiner now merges the records
+    already saved in `output.json` with those rebuilt from the temp file, keyed by
+    `custom_id` (newly-processed records win), so no prior record is lost regardless
+    of the temp-retention setting. Force and non-resume runs are unaffected and still
+    overwrite cleanly.
+
+- **v1.6.7** (30 May 2026) -- Full-repository code review fixes. Correctness:
+    `--input-type mixed` no longer silently falls back to text mode; `--page-range`
+    now reports an actionable error instead of a raw traceback on malformed input;
+    the processing summary reports the real failed-file count instead of always zero;
+    synchronous extraction records now carry `chunk_index`, so `output.json` records
+    are ordered rather than in completion order; list-form response records are no
+    longer silently dropped during conversion; an Anthropic batch that ends with no
+    request counts maps to `unknown` rather than a false `failed`; a Gemini batch
+    candidate with no text content (e.g. a safety or length cutoff) is reported as a
+    failure rather than a successful empty extraction. Hardening: narrowed several
+    broad `except` blocks to surface previously-hidden read and parse failures,
+    removed redundant double-traceback logging, and fixed a validation-order edge
+    case in the response parser.
+
+- **v1.6.6** (25 May 2026) -- Remove hard-coded Anthropic concurrency cap
+    (`concurrency_limit = 1`); Anthropic now respects the configured
+    `concurrency_limit` like all other providers. Users on lower Anthropic API tiers
+    should set a conservative limit (e.g., 5) in `concurrency_config.yaml`; the
+    existing retry logic handles transient 429s automatically.
+
+- **v1.6.5** (21 May 2026) -- Demote LLM invocation error log from `error` (with
+    full traceback) to `debug`; transient errors now only show the one-line retry
+    warning from the processing strategy, not the upstream traceback.
+
+- **v1.6.4** (21 May 2026) -- Widen transient error retry to cover 5xx server
+    errors and upstream connection resets in addition to timeouts and 429 rate
+    limits.
+
+- **v1.6.3** (21 May 2026) -- Add early resume check for visual/PDF files: skip
+    fully processed files before expensive PDF rendering; compare output metadata
+    `total_chunks` against actual record count to correctly distinguish complete from
+    partial files.
+
+- **v1.6.2** (21 May 2026) -- Suppress misleading "will be overwritten" warning in
+    the processing summary when resume mode is active (existing files are skipped,
+    not overwritten).
+
+- **v1.6.1** (21 May 2026) -- Fix Ctrl+C during daily token limit wait raising
+    unhandled `asyncio.CancelledError` on Python 3.13; retry timeout errors for all
+    providers (previously only Anthropic 429s were retried); suppress verbose
+    tracebacks on permanent chunk failures.
+
+- **v1.6.0** (21 May 2026) -- Add `--page-range START-END` CLI argument and
+    interactive prompt for processing a specific 1-based inclusive page range; fix
+    `UserInterface.confirm()` missing `allow_back` parameter that caused a TypeError
+    on the context image prompt.
+
+- **v1.5.0** (21 May 2026) -- Register `MichelinGuidesLight` schema in handler
+    registry; tie context image prompt to text context selection (skip when context
+    mode is "none"); rewrite award field descriptions in `michelin_guides_light.json`
+    to reference context image symbol categories.
+
+- **v1.4.0** (20 May 2026) -- Add `--output-mode {flat,mirror}` CLI flag: mirror
+    mode replicates the input directory hierarchy under the output root, preserving
     edition/page structure for downstream consumers.
-- **v1.3.2** (20 May 2026) -- add `MichelinGuidesLight`
-    schema (v3.3-light): minimal variant dropping amenities,
-    opening, telephone, and three awards fields; update full
-    `MichelinGuides` schema with `bib_hotel` field,
-    `cuisine.styles` enum, and revised descriptions.
-- **v1.3.1** (19 May 2026) -- dependency refresh from
-    environment-wide CVE audit: bump `langchain-core`
-    1.3.2 -> 1.4.0 (RCE on deserialization); `langsmith`
-    0.7.36 -> 0.8.5 (unsafe deserialization; full fix to
-    1.0.x deferred pending upstream constraint relaxation);
-    `pip` 26.0.1 -> 26.1.1 (polyglot tar/ZIP confusion);
-    `urllib3` 2.6.3 -> 2.7.0 (audit-surface consolidation).
-    Relax the `pip` floor from `==26.0.1` to `>=26.1` so
-    the security update can be applied.
-- **v1.3.0** -- prior release.
+
+- **v1.3.2** (20 May 2026) -- Add `MichelinGuidesLight` schema (v3.3-light):
+    minimal variant dropping amenities, opening, telephone, and three awards fields;
+    update full `MichelinGuides` schema with `bib_hotel` field, `cuisine.styles`
+    enum, and revised descriptions.
+
+- **v1.3.1** (19 May 2026) -- Dependency refresh from environment-wide CVE audit:
+    bump `langchain-core` 1.3.2 -> 1.4.0 (RCE on deserialization); `langsmith`
+    0.7.36 -> 0.8.5 (unsafe deserialization; full fix to 1.0.x deferred pending
+    upstream constraint relaxation); `pip` 26.0.1 -> 26.1.1 (polyglot tar/ZIP
+    confusion); `urllib3` 2.6.3 -> 2.7.0 (audit-surface consolidation). Relax the
+    `pip` floor from `==26.0.1` to `>=26.1` so the security update can be applied.
+
+- **v1.3.0** (5 May 2026) -- Added context-image injection for visual extraction.
+
+- **v1.2.1** (5 May 2026) -- Resolved all remaining ruff lint violations.
+
+- **v1.2.0** (4 May 2026) -- Added ruff as a dev dependency with per-file E402
+    ignores, applied ruff auto-fixes and formatting across the codebase, and updated
+    the README.
+
+- **v1.1.1** (4 May 2026) -- Added the `InequalityBenchmarks` schema.
+
+- **v1.1.0** (4 May 2026) -- Migrated dependency management to `pyproject.toml`
+    and `uv`.
+
+- **v1.0.0** (25 April 2026) -- Initial public release; squashed baseline.
 
 ## License
 
