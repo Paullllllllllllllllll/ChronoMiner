@@ -89,6 +89,34 @@ def test_get_config_loader_is_idempotent_under_threads(tmp_config_dir, monkeypat
 
 
 # ---------------------------------------------------------------------------
+# ConfigLoader — get_api_keys_config (optional)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_get_api_keys_config_absent_returns_empty(tmp_config_dir):
+    """The optional api_keys_config.yaml is absent -> empty mapping (default
+    env var names apply), preserving backward compatibility."""
+    loader = ConfigLoader(config_dir=tmp_config_dir)
+    loader.load_configs()
+
+    assert not (tmp_config_dir / "api_keys_config.yaml").exists()
+    assert loader.get_api_keys_config() == {}
+
+
+@pytest.mark.unit
+def test_get_api_keys_config_reads_mapping_when_present(tmp_config_dir):
+    """When present, the file is read as a flat provider -> env var mapping."""
+    (tmp_config_dir / "api_keys_config.yaml").write_text(
+        "openai: OPENAI_API_KEY_2\n", encoding="utf-8"
+    )
+    loader = ConfigLoader(config_dir=tmp_config_dir)
+    loader.load_configs()
+
+    assert loader.get_api_keys_config() == {"openai": "OPENAI_API_KEY_2"}
+
+
+# ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
 

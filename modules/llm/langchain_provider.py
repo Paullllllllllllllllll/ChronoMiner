@@ -20,7 +20,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from modules.config.capabilities import detect_provider as _canonical_detect_provider
-from modules.config.loader import get_config_loader
+from modules.config.loader import get_config_loader, resolve_api_key
 from modules.infra.logger import setup_logger
 from modules.infra.token_tracker import get_token_tracker
 
@@ -321,13 +321,12 @@ class ProviderConfig:
 
     @staticmethod
     def _get_api_key(provider: ProviderType) -> str | None:
-        """Get API key for the specified provider."""
-        key_mapping = {
-            "openai": "OPENAI_API_KEY",
-            "anthropic": "ANTHROPIC_API_KEY",
-            "google": "GOOGLE_API_KEY",
-            "openrouter": "OPENROUTER_API_KEY",
-        }
+        """Get API key for the specified provider.
+
+        Standard providers resolve through the api_keys_config.yaml mapping
+        (override or default env var name). The custom-endpoint branch keeps
+        reading its dedicated ``api_key_env_var`` from model config.
+        """
         if provider == "custom":
             model_cfg = get_config_loader().get_model_config()
             tm = model_cfg.get("extraction_model", {})
@@ -341,10 +340,7 @@ class ProviderConfig:
                 f"Custom endpoint API key not found. Set env var: {env_var!r}"
             )
             return None
-        env_var = key_mapping.get(provider)
-        if env_var:
-            return os.getenv(env_var, "").strip() or None
-        return None
+        return resolve_api_key(provider)
 
 
 class LangChainLLM:
@@ -1190,27 +1186,27 @@ class LLMProvider:
 
 
 def get_default_provider() -> ProviderType:
-    """Get the default provider based on available API keys."""
-    if os.getenv("OPENAI_API_KEY"):
+    """Get the default provider based on available (possibly remapped) keys."""
+    if resolve_api_key("openai"):
         return "openai"
-    if os.getenv("ANTHROPIC_API_KEY"):
+    if resolve_api_key("anthropic"):
         return "anthropic"
-    if os.getenv("GOOGLE_API_KEY"):
+    if resolve_api_key("google"):
         return "google"
-    if os.getenv("OPENROUTER_API_KEY"):
+    if resolve_api_key("openrouter"):
         return "openrouter"
     return "openai"  # Default fallback
 
 
 def list_available_providers() -> list[ProviderType]:
-    """List providers with configured API keys."""
+    """List providers with configured (possibly remapped) API keys."""
     available: list[ProviderType] = []
-    if os.getenv("OPENAI_API_KEY"):
+    if resolve_api_key("openai"):
         available.append("openai")
-    if os.getenv("ANTHROPIC_API_KEY"):
+    if resolve_api_key("anthropic"):
         available.append("anthropic")
-    if os.getenv("GOOGLE_API_KEY"):
+    if resolve_api_key("google"):
         available.append("google")
-    if os.getenv("OPENROUTER_API_KEY"):
+    if resolve_api_key("openrouter"):
         available.append("openrouter")
     return available

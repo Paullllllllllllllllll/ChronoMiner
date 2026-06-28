@@ -187,6 +187,30 @@ class TestProviderConfig:
         with patch.dict("os.environ", {}, clear=True):
             assert ProviderConfig._get_api_key("openai") is None
 
+    @pytest.mark.unit
+    def test_get_api_key_honors_remap(self):
+        """A provider remapped via api_keys_config reads the custom env var."""
+        with (
+            patch.dict("os.environ", {"OPENAI_API_KEY_2": "remapped-key"}, clear=True),
+            patch(
+                "modules.config.loader.ConfigLoader.get_api_keys_config",
+                return_value={"openai": "OPENAI_API_KEY_2"},
+            ),
+        ):
+            assert ProviderConfig._get_api_key("openai") == "remapped-key"
+
+    @pytest.mark.unit
+    def test_get_api_key_falls_back_to_default_env_var(self):
+        """With no remap entry, the default env var name is used."""
+        with (
+            patch.dict("os.environ", {"OPENAI_API_KEY": "default-key"}, clear=True),
+            patch(
+                "modules.config.loader.ConfigLoader.get_api_keys_config",
+                return_value={},
+            ),
+        ):
+            assert ProviderConfig._get_api_key("openai") == "default-key"
+
 
 class TestNormalizeSchemaForAnthropic:
     """Test schema normalization for Anthropic."""

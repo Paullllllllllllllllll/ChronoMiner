@@ -7,7 +7,6 @@ Supports two execution modes:
 """
 
 import json
-import os
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -29,6 +28,7 @@ from modules.batch.ops import (
     process_batch_output_file,
     retrieve_responses_from_batch,
 )
+from modules.config.loader import resolve_api_key, resolve_api_key_env_var
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.logger import setup_logger
 from modules.llm.openai_sdk_utils import list_all_batches, sdk_to_dict
@@ -239,11 +239,10 @@ class RepairExtractionsScript(DualModeScript):
 
     def __init__(self) -> None:
         super().__init__("repair_extractions")
-        api_key = os.getenv("OPENAI_API_KEY", "").strip()
+        api_key = resolve_api_key("openai")
         if not api_key:
-            raise ValueError(
-                "OPENAI_API_KEY environment variable is not set or is empty"
-            )
+            env_var = resolve_api_key_env_var("openai") or "OPENAI_API_KEY"
+            raise ValueError(f"{env_var} environment variable is not set or is empty")
         self.client: OpenAI = OpenAI(api_key=api_key)
         self.repo_info_list: list[tuple[str, Path, dict[str, Any]]] = []
         self.processing_settings: dict[str, Any] = {}

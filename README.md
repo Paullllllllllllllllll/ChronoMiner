@@ -1,4 +1,4 @@
-# ChronoMiner v1.15.0
+# ChronoMiner v1.16.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -255,7 +255,8 @@ Run `python main/process_text_files.py --help` for the full list.
 
 ## Configuration
 
-ChronoMiner uses five YAML files in `config/`.
+ChronoMiner uses five YAML files in `config/`, plus one optional file
+(`api_keys_config.yaml`) for remapping API-key environment variables.
 
 ### 1. Model Configuration (`model_config.yaml`)
 
@@ -348,6 +349,23 @@ Controls concurrent task limits, exponential backoff retry, and
 daily token budgets (automatic reset at local midnight).
 `max_concurrent_files` caps how many files run at once when the
 daily token limit is disabled (visual runs are clamped to 2).
+
+### 6. API Key Mapping (`api_keys_config.yaml`, optional)
+
+```yaml
+openai: OPENAI_API_KEY
+anthropic: ANTHROPIC_API_KEY
+google: GOOGLE_API_KEY
+openrouter: OPENROUTER_API_KEY
+```
+
+Maps each provider to the name of the environment variable that holds
+its API key. Change a value (for example `openai: OPENAI_API_KEY_2`) to
+swap which key a provider uses without touching your environment. The
+file is optional and fully backward-compatible: a missing file or any
+omitted provider falls back to the default env var name shown above. The
+remap applies to synchronous extraction and batch processing alike.
+Values are env var names, not keys, so no secrets are stored here.
 
 ### Context Resolution
 
@@ -621,6 +639,16 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.16.0** (28 June 2026) -- Added an optional `config/api_keys_config.yaml`
+    that maps each LLM provider to the name of the environment variable holding
+    its API key, so a key can be swapped between runs (for example
+    `openai: OPENAI_API_KEY_2`) by editing one file instead of changing the
+    environment. The mapping is fully backward-compatible: a missing file or any
+    omitted provider falls back to the existing default env var name. The remap
+    is applied uniformly through a single resolver, so it reaches synchronous
+    extraction, the provider-availability probes, the repair utility, and the
+    OpenAI, Anthropic, and Google batch backends alike.
 
 - **v1.15.0** (24 June 2026) -- Extended chunk-level token-limit enforcement to
     the line-range readjustment workflow, so the daily budget is applied

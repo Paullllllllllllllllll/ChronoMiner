@@ -20,6 +20,7 @@ from modules.batch.backends.base import (
     BatchStatusInfo,
 )
 from modules.config.capabilities import detect_capabilities
+from modules.config.loader import resolve_api_key
 
 logger = logging.getLogger(__name__)
 
@@ -39,7 +40,10 @@ class AnthropicBatchBackend(BatchBackend):
         if self._client is None:
             import anthropic
 
-            self._client = anthropic.Anthropic()
+            # api_key resolves via the api_keys_config.yaml mapping (override or
+            # default); None falls back to the SDK's own env lookup, so behavior
+            # is identical when no mapping is configured.
+            self._client = anthropic.Anthropic(api_key=resolve_api_key("anthropic"))
         return self._client
 
     @property

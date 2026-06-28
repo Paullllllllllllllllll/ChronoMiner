@@ -3,6 +3,7 @@
 """Configuration loading and validation for ChronoMiner."""
 
 import logging
+import os
 import re
 import threading
 from pathlib import Path
@@ -11,6 +12,17 @@ from typing import Any
 import yaml
 
 logger = logging.getLogger(__name__)
+
+# Default environment-variable name holding each provider's API key. The
+# optional config/api_keys_config.yaml may remap any provider to a different
+# env var name (e.g. OPENAI_API_KEY_2); defaults apply when a provider is
+# omitted or the file is absent.
+DEFAULT_API_KEY_ENV_VARS: dict[str, str] = {
+    "openai": "OPENAI_API_KEY",
+    "anthropic": "ANTHROPIC_API_KEY",
+    "google": "GOOGLE_API_KEY",
+    "openrouter": "OPENROUTER_API_KEY",
+}
 
 # Module-level cache for loaded configurations, guarded by a lock so the
 # asyncio fan-out (which dispatches work across threads) cannot construct and
@@ -44,6 +56,7 @@ class ConfigLoader:
         self.concurrency_config: dict[str, Any] | None = None
         self.chunking_and_context_config: dict[str, Any] | None = None
         self._image_processing_config: dict[str, Any] | None = None
+        self._api_keys_config: dict[str, Any] | None = None
 
     def load_configs(self) -> None:
         """
@@ -245,6 +258,26 @@ class ConfigLoader:
                 self._image_processing_config = {}
         return self._image_processing_config
 
+    def get_api_keys_config(self) -> dict[str, Any]:
+        """
+        Get the API-key environment-variable mapping.
+
+        Loaded lazily from api_keys_config.yaml. Returns an empty dict if the
+        file does not exist (the mapping is optional; default env var names
+        apply). Each value is the NAME of the environment variable holding the
+        provider's API key, allowing a key to be swapped between runs without
+        changing the environment.
+
+        :return: The API-key environment-variable mapping.
+        """
+        if self._api_keys_config is None:
+            path = self.config_dir / "api_keys_config.yaml"
+            if path.exists():
+                self._api_keys_config = self._load_yaml("api_keys_config.yaml") or {}
+            else:
+                self._api_keys_config = {}
+        return self._api_keys_config
+
     def get_schemas_paths(self) -> dict[str, Any]:
         """
         Get the schema-specific paths from the configuration.
@@ -296,3 +329,30 @@ def clear_config_cache() -> None:
     with _config_cache_lock:
         _config_cache = None
     logger.debug("Configuration cache cleared")
+
+
+def resolve_api_key_env_var(provider: str) -> str | None:
+    """
+    Resolve the environment-variable NAME holding a provider's API key.
+
+    Honors an optional remap in config/api_keys_config.yaml; falls back to the
+    built-in default for the provider when no override is configured.
+
+    :param provider: Provider key (e.g. "openai", "anthropic").
+    :return: The environment-variable name, or None if the provider is unknown.
+    """
+    override = get_config_loader().get_api_keys_config().get(provider)
+    return override or DEFAULT_API_KEY_ENV_VARS.get(provider)
+
+
+def resolve_api_key(provider: str) -> str | None:
+    """
+    Resolve a provider's API key value from its (possibly remapped) env var.
+
+    :param provider: Provider key (e.g. "openai", "anthropic").
+    :return: The API key, or None when the resolved env var is unset or empty.
+    """
+    env_var = resolve_api_key_env_var(provider)
+    if not env_var:
+        return None
+    return os.getenv(env_var, "").strip() or None
