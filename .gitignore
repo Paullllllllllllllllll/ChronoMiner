@@ -48,8 +48,9 @@ Thumbs.db
 *.log
 logs/
 
-# Config files (root-level YAML configs only)
-/config/
+# Config files: ignore real configs, track only scrubbed example templates
+/config/*
+!/config/*.example.yaml
 
 # Environment variables
 .env

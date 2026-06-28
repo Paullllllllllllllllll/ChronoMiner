@@ -1,4 +1,4 @@
-# ChronoMiner v1.16.0
+# ChronoMiner v1.17.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -167,8 +167,21 @@ export OPENAI_API_KEY="your_key_here"
 ```
 
 For persistent configuration, add to system environment variables or
-shell profile. Edit `config/paths_config.yaml` to set input/output
-directories for each schema.
+shell profile.
+
+**Configure paths and model:** on a fresh clone, ChronoMiner
+automatically loads the bundled `*.example.yaml` templates from
+`config/` and prints one INFO line for each file used as a default.
+Copy any example to its real name and edit it to set your own values:
+
+```bash
+cp config/paths_config.example.yaml config/paths_config.yaml
+cp config/model_config.example.yaml config/model_config.yaml
+# repeat for other config files as needed
+```
+
+Real config files are gitignored; only the scrubbed example templates
+are tracked.
 
 ## Quick Start
 
@@ -257,6 +270,29 @@ Run `python main/process_text_files.py --help` for the full list.
 
 ChronoMiner uses five YAML files in `config/`, plus one optional file
 (`api_keys_config.yaml`) for remapping API-key environment variables.
+
+### Example/real config split
+
+Every config file ships as a tracked, scrubbed `<name>.example.yaml`
+template. Real config files (`<name>.yaml`) are gitignored and private.
+
+On a fresh clone (no real files present), the loader automatically falls
+back to the bundled example and logs one INFO line per file:
+
+```
+Config 'model_config.yaml' not found; using bundled defaults from
+'model_config.example.yaml'. Copy it to 'model_config.yaml' and edit
+it to set your own values.
+```
+
+Copy any example to its real name when you need to customize it:
+
+```bash
+cp config/model_config.example.yaml config/model_config.yaml
+```
+
+If neither the real file nor the example template can be found, a clear
+`FileNotFoundError` is raised naming the missing file.
 
 ### 1. Model Configuration (`model_config.yaml`)
 
@@ -639,6 +675,19 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.17.0** (28 June 2026) -- Ship scrubbed `*.example.yaml` config templates
+    with conservative defaults and a real->example loader fallback, so a fresh
+    clone runs with clear guidance instead of crashing on missing config. Six
+    example files cover all config roles (`model_config`, `paths_config`,
+    `chunking_and_context`, `concurrency_config`, `image_processing_config`,
+    `api_keys_config`). `_load_yaml()` now tries the sibling `<stem>.example.yaml`
+    when the real file is absent, logging one INFO line that tells the user to copy
+    and customize it; if neither file is found a clear `FileNotFoundError` is raised.
+    The optional `image_processing_config` and `api_keys_config` loaders gain the
+    same fallback while remaining non-raising. `.gitignore` is tightened to
+    `/config/*` + `!/config/*.example.yaml` so examples are tracked and real files
+    stay private.
 
 - **v1.16.0** (28 June 2026) -- Added an optional `config/api_keys_config.yaml`
     that maps each LLM provider to the name of the environment variable holding

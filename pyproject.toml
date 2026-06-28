@@ -1,6 +1,6 @@
 [project]
 name = "chronominer"
-version = "1.16.0"
+version = "1.17.0"
 description = "Structured data extraction from text, images, and PDFs using schema-based LLM processing"
 requires-python = ">=3.12"
 license = "MIT"

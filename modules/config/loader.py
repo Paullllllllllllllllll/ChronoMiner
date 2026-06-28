@@ -89,14 +89,30 @@ class ConfigLoader:
         """
         Load a YAML file and return its content as a dictionary.
 
+        If the named file is missing, falls back to its sibling
+        ``<stem>.example.yaml``. If neither exists, raises
+        FileNotFoundError naming the real file.
+
         :param filename: The name of the YAML file.
         :return: Parsed YAML content.
-        :raises FileNotFoundError: If the file is missing.
+        :raises FileNotFoundError: If neither the file nor its example
+            counterpart can be found.
         """
         config_path = self.config_dir / filename
         if not config_path.exists():
-            logger.error(f"Configuration file not found: {config_path}")
-            raise FileNotFoundError(f"Missing configuration file: {config_path}")
+            stem = Path(filename).stem
+            example_filename = f"{stem}.example.yaml"
+            example_path = self.config_dir / example_filename
+            if example_path.exists():
+                logger.info(
+                    f"Config '{filename}' not found; using bundled defaults from"
+                    f" '{example_filename}'. Copy it to '{filename}' and edit it"
+                    f" to set your own values."
+                )
+                config_path = example_path
+            else:
+                logger.error(f"Configuration file not found: {config_path}")
+                raise FileNotFoundError(f"Missing configuration file: {config_path}")
 
         with config_path.open("r", encoding="utf-8") as f:
             content = f.read()
@@ -243,18 +259,18 @@ class ConfigLoader:
         """
         Get the image processing configuration.
 
-        Loaded lazily from image_processing_config.yaml. Returns an empty
-        dict if the file does not exist (image pipeline is optional).
+        Loaded lazily from image_processing_config.yaml. Falls back to
+        image_processing_config.example.yaml when present. Returns an empty
+        dict if neither file exists (image pipeline is optional).
 
         :return: The image processing configuration dictionary.
         """
         if self._image_processing_config is None:
-            path = self.config_dir / "image_processing_config.yaml"
-            if path.exists():
+            try:
                 self._image_processing_config = self._load_yaml(
                     "image_processing_config.yaml"
                 )
-            else:
+            except FileNotFoundError:
                 self._image_processing_config = {}
         return self._image_processing_config
 
@@ -262,8 +278,9 @@ class ConfigLoader:
         """
         Get the API-key environment-variable mapping.
 
-        Loaded lazily from api_keys_config.yaml. Returns an empty dict if the
-        file does not exist (the mapping is optional; default env var names
+        Loaded lazily from api_keys_config.yaml. Falls back to
+        api_keys_config.example.yaml when present. Returns an empty dict if
+        neither file exists (the mapping is optional; default env var names
         apply). Each value is the NAME of the environment variable holding the
         provider's API key, allowing a key to be swapped between runs without
         changing the environment.
@@ -271,10 +288,9 @@ class ConfigLoader:
         :return: The API-key environment-variable mapping.
         """
         if self._api_keys_config is None:
-            path = self.config_dir / "api_keys_config.yaml"
-            if path.exists():
+            try:
                 self._api_keys_config = self._load_yaml("api_keys_config.yaml") or {}
-            else:
+            except FileNotFoundError:
                 self._api_keys_config = {}
         return self._api_keys_config
 
