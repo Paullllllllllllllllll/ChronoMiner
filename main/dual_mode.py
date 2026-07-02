@@ -64,13 +64,17 @@ class _DualModeBase:
             self.ui.display_banner()
 
     def _handle_interrupt(self) -> None:
-        """Handle keyboard interrupt gracefully."""
+        """Handle keyboard interrupt gracefully.
+
+        Exits 130 (128 + SIGINT) per the CLI agent contract so an interrupt is
+        distinguishable from a clean success.
+        """
         if self.ui:
             self.ui.print_info("\nOperation cancelled by user.")
         else:
             print_info("\nOperation cancelled by user.")
         self.logger.info(f"{self.script_name} cancelled by user")
-        sys.exit(0)
+        sys.exit(130)
 
     def _handle_error(self, error: Exception) -> None:
         """

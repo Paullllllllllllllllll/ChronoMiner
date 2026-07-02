@@ -7,6 +7,8 @@ computation lives in :mod:`modules.config.capabilities.params`.
 
 from __future__ import annotations
 
+import logging
+
 from modules.config.capabilities.registry import (
     _CUSTOM_BASE,
     _MODEL_REGISTRY,
@@ -16,6 +18,26 @@ from modules.config.capabilities.registry import (
     ProviderType,
     _norm,
 )
+
+logger = logging.getLogger(__name__)
+
+# Models already warned about, so an unknown/family-fallback resolution logs
+# once rather than on every per-chunk capability query.
+_warned_fallback_models: set[str] = set()
+
+
+def _warn_fallback_once(model_name: str, family: str, consequence: str) -> None:
+    """WARN once when a model resolves via a family/unknown fallback."""
+    if model_name in _warned_fallback_models:
+        return
+    _warned_fallback_models.add(model_name)
+    logger.warning(
+        "No exact capability profile for model %r; using %s defaults. %s "
+        "Add the model to modules/config/capabilities/registry.py to silence this.",
+        model_name,
+        family,
+        consequence,
+    )
 
 
 def detect_provider(model_name: str) -> ProviderType:
@@ -261,9 +283,21 @@ def detect_capabilities(
             )
 
         # Generic OpenRouter fallback
+        _warn_fallback_once(
+            model_name,
+            "generic OpenRouter",
+            "Reasoning/vision/structured-output support is guessed conservatively.",
+        )
         return _build_caps(model_name, "openrouter", _OPENROUTER_BASE, {})
 
     # --- Fallback: conservative text-only -----------------------------------
+    _warn_fallback_once(
+        model_name,
+        "conservative unknown-model",
+        "Image input is DISABLED and sampler controls are left ON; "
+        "extraction from images will fail and reasoning models may reject "
+        "temperature.",
+    )
     return Capabilities(
         model=model_name,
         family="unknown",

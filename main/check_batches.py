@@ -41,6 +41,7 @@ from modules.batch import (
 from modules.batch.ops import (
     _order_responses,
     _recover_missing_batch_ids,
+    is_batch_temp_file,
     load_config,
     process_batch_output_file,
     retrieve_responses_from_batch,
@@ -131,15 +132,28 @@ def _safe_subsection(ui: UserInterface | None, title: str) -> None:
         logger.info(f"=== {title} ===")
 
 
+def _bump(agg: dict[str, int] | None, key: str) -> None:
+    """Increment a counter in the optional aggregation dict."""
+    if agg is not None:
+        agg[key] = agg.get(key, 0) + 1
+
+
 def process_all_batches(
     root_folder: Path,
     processing_settings: dict[str, Any],
     schema_name: str,
     schema_config: dict[str, Any],
     ui: UserInterface | None,
+    agg: dict[str, int] | None = None,
 ) -> None:
-    """Process all batch results using provider-agnostic backends."""
-    temp_files: list[Path] = list(root_folder.rglob("*_temp*.jsonl"))
+    """Process all batch results using provider-agnostic backends.
+
+    ``agg`` (optional) accumulates ``finalized``/``pending``/``failed`` counts
+    across schemas for the CLI ``--json`` summary and exit-code decision.
+    """
+    temp_files: list[Path] = [
+        f for f in root_folder.rglob("*_temp*.jsonl") if is_batch_temp_file(f)
+    ]
     if not temp_files:
         _safe_print(ui, f"No temporary batch files found in {root_folder}", "info")
         logger.info(f"No temporary batch files found in {root_folder}.")
@@ -218,6 +232,7 @@ def process_all_batches(
                     f"Tracking information missing for {base_identifier}. "
                     f"Skipping final output."
                 )
+                _bump(agg, "failed")
                 continue
 
             persist_recovered = processing_settings.get(
@@ -249,12 +264,16 @@ def process_all_batches(
                     "warning",
                 )
                 logger.warning("No batch IDs recovered for %s", base_identifier)
+                _bump(agg, "failed")
                 continue
 
             # Check batch status and retrieve completed results
             # using provider-agnostic backends
             all_finished: bool = True
             completed_batches = []
+            # (backend, handle) for each completed batch, used to delete remote
+            # files ONLY after the final output JSON is durably written.
+            completed_handles: list[tuple[Any, BatchHandle]] = []
             failed_batches = []
             missing_batches: list[str] = []
 
@@ -299,6 +318,7 @@ def process_all_batches(
                 status = status_info.status
                 if status == BatchStatus.COMPLETED:
                     completed_batches.append(track)
+                    completed_handles.append((backend, handle))
                     _safe_print(
                         ui, f"Batch {batch_id} ({provider}): completed ✓", "success"
                     )
@@ -352,6 +372,7 @@ def process_all_batches(
                         f"Run this script again once complete.",
                         "info",
                     )
+                    _bump(agg, "pending")
                 else:
                     _safe_print(
                         ui,
@@ -359,6 +380,7 @@ def process_all_batches(
                         f"some batches failed or expired.",
                         "warning",
                     )
+                    _bump(agg, "failed")
                 logger.info(
                     f"Skipping finalization for {base_identifier} (incomplete batches)."
                 )
@@ -378,6 +400,7 @@ def process_all_batches(
                     "warning",
                 )
                 logger.warning(f"No responses retrieved for {base_identifier}.")
+                _bump(agg, "failed")
                 continue
 
             # Order responses
@@ -405,10 +428,24 @@ def process_all_batches(
                 final_results["custom_id_map"] = custom_id_map
 
             final_json_path.write_text(
-                json.dumps(final_results, indent=2), encoding="utf-8"
+                json.dumps(final_results, indent=2, ensure_ascii=False),
+                encoding="utf-8",
             )
             _safe_print(ui, f"Final output written to: {final_json_path}", "success")
             logger.info(f"Final output written to {final_json_path}")
+            _bump(agg, "finalized")
+
+            # Remote files are deleted only now that the final output JSON is
+            # durably on disk, so a mid-download failure never destroys results.
+            for backend_obj, handle_obj in completed_handles:
+                try:
+                    backend_obj.cleanup(handle_obj)
+                except Exception as exc:  # never fail finalization on cleanup
+                    logger.warning(
+                        "Cleanup of remote files for batch %s failed: %s",
+                        handle_obj.batch_id,
+                        exc,
+                    )
 
             # Log info about merged files
             if len(temp_file_group) > 1:
@@ -474,6 +511,7 @@ def process_all_batches(
         except Exception as exc:
             logger.exception(f"Error processing {base_identifier}")
             _safe_print(ui, f"Failed to process {base_identifier}: {exc}", "error")
+            _bump(agg, "failed")
 
 
 class CheckBatchesScript(DualModeScript):
@@ -579,6 +617,7 @@ class CheckBatchesScript(DualModeScript):
         if args.verbose:
             print(f"[INFO] Scanning {len(self.repo_info_list)} schema(s)")
 
+        agg: dict[str, int] = {"finalized": 0, "pending": 0, "failed": 0}
         for schema_name, repo_dir, schema_config in self.repo_info_list:
             if not repo_dir.exists():
                 self.logger.warning(f"Repository directory does not exist: {repo_dir}")
@@ -594,11 +633,20 @@ class CheckBatchesScript(DualModeScript):
                 schema_name=schema_name,
                 schema_config=schema_config,
                 ui=None,
+                agg=agg,
             )
 
         self.logger.info("Batch processing complete")
         if args.verbose:
             print("[SUCCESS] Batch processing complete")
+
+        if getattr(args, "json_summary", False):
+            print(json.dumps(agg, ensure_ascii=False))
+
+        # CLI agent contract: non-zero exit while batches remain pending or a
+        # group failed, so an automated poller can loop until fully resolved.
+        if agg["pending"] or agg["failed"]:
+            sys.exit(1)
 
 
 def main() -> None:

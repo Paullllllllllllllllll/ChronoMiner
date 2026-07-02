@@ -16,6 +16,13 @@ def detect_execution_mode(config_loader: Any) -> bool:
     Returns True if interactive UI prompts should be used,
     False for CLI mode.
     """
+    # Explicit mode flags override everything (agents never edit the gitignored
+    # config YAML just to switch modes).
+    if "--non-interactive" in sys.argv:
+        return False
+    if "--interactive" in sys.argv:
+        return True
+
     # Check if CLI arguments were provided (beyond just script name)
     has_cli_args = len(sys.argv) > 1
 

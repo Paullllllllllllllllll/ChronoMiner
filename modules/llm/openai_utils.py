@@ -26,6 +26,7 @@ from modules.llm.langchain_provider import (
     ProviderConfig,
     ProviderType,
 )
+from modules.llm.prompt_utils import prompt_path
 
 logger = setup_logger(__name__)
 
@@ -434,7 +435,7 @@ async def process_text_chunk_with_provider(
     # Create extractor and process
     async with open_extractor(
         api_key=api_key,
-        prompt_path=Path("prompts/text_extraction_prompt.txt"),
+        prompt_path=prompt_path("text_extraction_prompt.txt"),
         model=model,
         provider=detected_provider,
     ) as extractor:

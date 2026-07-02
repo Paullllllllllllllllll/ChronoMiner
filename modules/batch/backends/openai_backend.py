@@ -344,9 +344,10 @@ class OpenAIBatchBackend(BatchBackend):
     def download_results(self, handle: BatchHandle) -> Iterator[BatchResultItem]:
         """Download and parse OpenAI batch results.
 
-        The uploaded input file and the result output file are deleted once the
-        consumer has finished iterating, so batch runs do not leak server-side
-        storage.
+        Remote files are NOT deleted here: deletion is deferred to
+        :meth:`cleanup`, invoked only after the final output JSON is durably
+        written, so a failure between download and write never destroys
+        paid-for results.
         """
         client = self._get_client()
 
@@ -362,14 +363,26 @@ class OpenAIBatchBackend(BatchBackend):
         content = file_stream.read()
         text = content.decode("utf-8") if isinstance(content, bytes) else str(content)
 
+        yield from self._iter_results(text)
+
+    def cleanup(self, handle: BatchHandle) -> None:
+        """Delete the remote input and output files for a finished batch."""
+        client = self._get_client()
+        output_file_id = None
         try:
-            yield from self._iter_results(text)
-        finally:
-            self._delete_remote_files(
-                client,
-                handle.metadata.get("input_file_id"),
-                output_file_id,
+            batch = client.batches.retrieve(handle.batch_id)
+            output_file_id = getattr(batch, "output_file_id", None)
+        except Exception as exc:
+            logger.warning(
+                "Could not resolve output file for batch %s during cleanup: %s",
+                handle.batch_id,
+                exc,
             )
+        self._delete_remote_files(
+            client,
+            handle.metadata.get("input_file_id"),
+            output_file_id,
+        )
 
     @staticmethod
     def _delete_remote_files(client: Any, *file_ids: str | None) -> None:

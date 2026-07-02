@@ -111,6 +111,31 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--quiet", action="store_true", help="Suppress non-essential output"
     )
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Force interactive UI mode (overrides the config-file mode).",
+    )
+    mode_group.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Force non-interactive CLI mode (overrides the config-file mode).",
+    )
+    parser.add_argument(
+        "--json",
+        dest="json_summary",
+        action="store_true",
+        help="Emit a one-line JSON run summary on stdout at completion.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help=(
+            "Discover inputs, classify resume state, and report planned actions "
+            "without any API calls or side effects."
+        ),
+    )
 
 
 def create_process_parser() -> argparse.ArgumentParser:
@@ -317,6 +342,12 @@ Examples:
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Show detailed processing information"
+    )
+    parser.add_argument(
+        "--json",
+        dest="json_summary",
+        action="store_true",
+        help="Emit a one-line JSON status summary on stdout at completion.",
     )
 
     return parser

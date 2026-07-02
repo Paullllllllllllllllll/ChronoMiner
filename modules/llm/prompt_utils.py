@@ -5,6 +5,17 @@ import re
 from pathlib import Path
 from typing import Any
 
+# Absolute path to the bundled ``prompts/`` directory, anchored via ``__file__``
+# (same pattern as modules/config/loader.py and schema_manager.py). Every prompt
+# template must be resolved through this so entry points run correctly from any
+# working directory, not only the repo root.
+PROMPTS_DIR = Path(__file__).resolve().parents[2] / "prompts"
+
+
+def prompt_path(name: str) -> Path:
+    """Return the absolute path to a bundled prompt template by file name."""
+    return PROMPTS_DIR / name
+
 
 def render_prompt_with_schema(
     prompt_text: str,

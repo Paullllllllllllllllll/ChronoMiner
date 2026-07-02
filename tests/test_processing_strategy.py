@@ -286,11 +286,13 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
     assert len(results) == 2
 
     lines = [
-        json.loads(line)
+        rec
         for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
         if line.strip()
+        if "custom_id" in (rec := json.loads(line))
     ]
     assert len(lines) == 2
+    lines.sort(key=lambda r: r["chunk_index"])
     assert lines[0]["custom_id"] == f"{file_path.stem}-chunk-1"
     assert lines[1]["custom_id"] == f"{file_path.stem}-chunk-2"
 
@@ -343,9 +345,10 @@ async def test_synchronous_strategy_writes_chunk_index_for_ordering(
     )
 
     lines = [
-        json.loads(line)
+        rec
         for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
         if line.strip()
+        if "custom_id" in (rec := json.loads(line))
     ]
     assert len(lines) == 3
     for rec in lines:
@@ -417,8 +420,9 @@ async def test_synchronous_strategy_concurrent_writes_are_not_interleaved(
         for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    assert len(raw_lines) == len(chunks)
     parsed = [json.loads(line) for line in raw_lines]
+    parsed = [rec for rec in parsed if "custom_id" in rec]
+    assert len(parsed) == len(chunks)
     assert sorted(rec["chunk_index"] for rec in parsed) == list(
         range(1, len(chunks) + 1)
     )
@@ -479,9 +483,10 @@ async def test_synchronous_strategy_error_dict_carries_chunk_index(
     assert errors[0]["chunk_index"] == 2
     # The failed chunk wrote no temp record.
     lines = [
-        json.loads(line)
+        rec
         for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
         if line.strip()
+        if "custom_id" in (rec := json.loads(line))
     ]
     assert sorted(rec["chunk_index"] for rec in lines) == [1, 3]
 
@@ -686,9 +691,10 @@ async def test_sync_strategy_defers_chunks_when_budget_exhausted(
 
     deferred_indices = {r["chunk_index"] for r in results if r.get("budget_deferred")}
     processed_indices = {
-        json.loads(line)["chunk_index"]
+        rec["chunk_index"]
         for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
         if line.strip()
+        if "chunk_index" in (rec := json.loads(line))
     }
 
     # Some chunks were deferred and some processed.

@@ -50,6 +50,43 @@ ERROR_FILE_KEYS = [
 ]
 
 
+def is_batch_temp_file(path: Path) -> bool:
+    """Whether a ``*_temp*.jsonl`` file is a BATCH temp file.
+
+    Batch temp files carry ``batch_request``/``batch_tracking`` records;
+    synchronous-extraction temp files (records with ``custom_id`` and a
+    ``_chronominer_temp_version`` header) and readjuster ``_adjust_temp.jsonl``
+    files do not. Identifying by content stops check_batches/repair from
+    treating sync and readjuster temp files as batch candidates.
+    """
+    try:
+        with path.open(encoding="utf-8") as fh:
+            for i, raw in enumerate(fh):
+                line = raw.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    return False
+                if isinstance(record, dict) and (
+                    "batch_tracking" in record or "batch_request" in record
+                ):
+                    return True
+                # A sync/readjuster record proves this is not a batch file.
+                if isinstance(record, dict) and (
+                    "custom_id" in record
+                    or "chunk_index" in record
+                    or "_chronominer_temp_version" in record
+                ):
+                    return False
+                if i >= 50:
+                    break
+    except OSError:
+        return False
+    return False
+
+
 def _extract_chunk_index(custom_id: Any) -> int:
     """Extract numeric chunk index from a custom_id like '<stem>-chunk-<n>'
     or 'req-<n>'."""

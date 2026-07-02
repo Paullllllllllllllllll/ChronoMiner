@@ -49,7 +49,8 @@ class TestChunkingServiceBasic:
             lines, strategy="line_ranges", line_ranges_file=lr
         )
         assert ranges == [(1, 2), (3, 4)]
-        assert chunks == ["ab", "cd"]
+        # Lines are joined with "\n" (production feeds rstripped lines).
+        assert chunks == ["a\nb", "c\nd"]
 
     @pytest.mark.unit
     def test_line_ranges_txt_strategy(self, tmp_path: Path):

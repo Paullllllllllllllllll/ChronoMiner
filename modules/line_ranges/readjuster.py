@@ -41,7 +41,11 @@ from modules.infra.token_tracker import (
 )
 from modules.llm.langchain_provider import ProviderConfig
 from modules.llm.openai_utils import LLMExtractor, open_extractor, process_text_chunk
-from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
+from modules.llm.prompt_utils import (
+    PROMPTS_DIR,
+    load_prompt_template,
+    render_prompt_with_schema,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -217,7 +221,7 @@ class LineRangeReadjuster:
         self.model_name = model_name
         self._model_config = model_config
         self.context_window = max(1, int(context_window))
-        self.prompt_path = prompt_path or Path("prompts/semantic_boundary_prompt.txt")
+        self.prompt_path = prompt_path or (PROMPTS_DIR / "semantic_boundary_prompt.txt")
         self.prompt_template = load_prompt_template(self.prompt_path)
         self.text_processor = TextProcessor()
         self._enable_cache_control = detect_capabilities(

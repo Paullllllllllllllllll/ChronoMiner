@@ -118,7 +118,7 @@ def test_dualmodescript_execute_cli_calls_run_cli(
     assert s.received_args.foo == "bar"
 
 
-def test_dualmodescript_keyboardinterrupt_exits_0(
+def test_dualmodescript_keyboardinterrupt_exits_130(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     _patch_common(monkeypatch, interactive=True)
@@ -136,7 +136,8 @@ def test_dualmodescript_keyboardinterrupt_exits_0(
     with pytest.raises(SystemExit) as exc:
         _Script("test").execute()
 
-    assert exc.value.code == 0
+    # CLI agent contract: user interrupt -> 130.
+    assert exc.value.code == 130
 
 
 def test_create_simple_dual_mode_executor_passes_config_to_runners(

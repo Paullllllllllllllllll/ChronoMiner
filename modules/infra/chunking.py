@@ -34,6 +34,23 @@ def _get_cl100k_encoding() -> tiktoken.Encoding:
     return tiktoken.get_encoding("cl100k_base")
 
 
+@functools.lru_cache(maxsize=8)
+def _get_encoding_for_model(model_name: str) -> tiktoken.Encoding:
+    """Return the model's tiktoken encoding, falling back to cl100k_base.
+
+    ``encoding_for_model`` raises ``KeyError`` for models tiktoken does not know
+    (every non-OpenAI model, and newer OpenAI models before the library is
+    updated). The cl100k_base fallback keeps chunk token counting working for
+    all providers rather than crashing on an unknown name.
+    """
+    if not model_name:
+        return _get_cl100k_encoding()
+    try:
+        return tiktoken.encoding_for_model(model_name)
+    except (KeyError, ValueError):
+        return _get_cl100k_encoding()
+
+
 # ---------------------------------------------------------------------------
 # TextProcessor and chunking primitives (formerly modules.infra.chunking).
 # ---------------------------------------------------------------------------
@@ -108,7 +125,7 @@ class TokenBasedChunking(ChunkingStrategy):
         start_line = 1
         end_line = 1
         tokens_per_chunk = self.tokens_per_chunk
-        encode = _get_cl100k_encoding().encode
+        encode = _get_encoding_for_model(self.model_name).encode
 
         for idx, line in enumerate(lines, 1):
             line_tokens = 0 if not line else len(encode(line))
@@ -148,10 +165,17 @@ class ChunkHandler:
     def split_text_into_chunks(
         self, all_lines: list[str], ranges: list[tuple[int, int]]
     ) -> list[str]:
-        """Split the full text into chunks based on line ranges."""
+        """Split the full text into chunks based on line ranges.
+
+        Lines are joined with ``"\n"`` rather than ``""`` so that inputs whose
+        line terminators have already been stripped (the production path
+        normalizes each line with ``rstrip("\n\r")`` before chunking) are not
+        run together at chunk-internal line boundaries — e.g. ``"Zucker"`` +
+        ``"und"`` must not become ``"Zuckerund"``.
+        """
         chunks: list[str] = []
         for start, end in ranges:
-            chunk: str = "".join(all_lines[start - 1 : end])
+            chunk: str = "\n".join(all_lines[start - 1 : end])
             chunks.append(chunk)
         return chunks
 
@@ -337,6 +361,34 @@ def apply_chunk_slice(
         return chunks[i:j], ranges[i:j]
 
     return chunks, ranges
+
+
+def chunk_slice_indices(total: int, chunk_slice: ChunkSlice | None) -> list[int]:
+    """Return the absolute 1-based indices selected by *chunk_slice*.
+
+    Mirrors :func:`apply_chunk_slice` exactly (including its "requested more
+    than available → process all" fallback), so the returned indices stay in
+    lockstep with the chunks/ranges that function keeps. Used to carry document-
+    space chunk indices into a sliced run so custom_ids and resume records are
+    absolute rather than slice-relative.
+    """
+    all_idx = list(range(1, total + 1))
+    if chunk_slice is None:
+        return all_idx
+    if chunk_slice.first_n is not None:
+        n = chunk_slice.first_n
+        return all_idx if n >= total else all_idx[:n]
+    if chunk_slice.last_n is not None:
+        n = chunk_slice.last_n
+        return all_idx if n >= total else all_idx[-n:]
+    if chunk_slice.page_range is not None:
+        start, end = chunk_slice.page_range
+        i = max(start - 1, 0)
+        j = min(end, total)
+        if i >= total:
+            return []
+        return all_idx[i:j]
+    return all_idx
 
 
 class ChunkingService:

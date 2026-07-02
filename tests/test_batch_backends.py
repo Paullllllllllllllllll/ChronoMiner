@@ -257,9 +257,10 @@ class TestOpenAIBackend:
             assert status.results_available is True
 
     @patch("openai.OpenAI")
-    def test_download_results_deletes_input_and_output_files(self, mock_openai_class):
-        """Regression (A5): the uploaded input file and the result output file
-        must be deleted once the consumer finishes iterating."""
+    def test_download_results_does_not_delete_but_cleanup_does(self, mock_openai_class):
+        """Deletion moved out of download_results (Bug 7): iterating results must
+        NOT delete remote files; cleanup(handle) deletes both input and output
+        only after the caller has durably written the final output JSON."""
         mock_client = MagicMock()
         mock_openai_class.return_value = mock_client
 
@@ -297,14 +298,17 @@ class TestOpenAIBackend:
                 metadata={"input_file_id": "input-file-1"},
             )
             results = list(backend.download_results(handle))
+            # Nothing deleted during download.
+            assert mock_client.files.delete.call_count == 0
+            backend.cleanup(handle)
 
         assert len(results) == 1
         deleted = {call.args[0] for call in mock_client.files.delete.call_args_list}
         assert deleted == {"input-file-1", "output-file-1"}
 
     @patch("openai.OpenAI")
-    def test_download_results_survives_delete_failure(self, mock_openai_class):
-        """Regression (A5): a delete failure must not crash the run."""
+    def test_cleanup_survives_delete_failure(self, mock_openai_class):
+        """Regression (A5): a delete failure during cleanup must not raise."""
         mock_client = MagicMock()
         mock_openai_class.return_value = mock_client
 
@@ -342,6 +346,7 @@ class TestOpenAIBackend:
                 metadata={"input_file_id": "input-file-1"},
             )
             results = list(backend.download_results(handle))
+            backend.cleanup(handle)  # must not raise
 
         assert len(results) == 1
         assert results[0].success is True
@@ -595,9 +600,10 @@ class TestGoogleBackend:
         gen_config = captured["src"][0]["generation_config"]
         assert gen_config is None or "response_schema" not in gen_config
 
-    def test_download_results_deletes_remote_files(self):
-        """Regression (A5): the uploaded input file and the result file must be
-        deleted after the consumer finishes iterating."""
+    def test_cleanup_deletes_remote_files(self):
+        """Deletion moved out of download_results (Bug 7): iterating results must
+        NOT delete remote files; cleanup(handle) deletes both input and result
+        files only after the final output JSON is durably written."""
         import json
         import sys
 
@@ -637,6 +643,8 @@ class TestGoogleBackend:
                 metadata={"input_file_name": "files/input-file"},
             )
             results = list(backend.download_results(handle))
+            assert mock_client.files.delete.call_count == 0
+            backend.cleanup(handle)
 
         assert len(results) == 1
         deleted = {
@@ -644,9 +652,9 @@ class TestGoogleBackend:
         }
         assert deleted == {"files/input-file", "files/result-file"}
 
-    def test_download_results_survives_delete_failure(self):
-        """Regression (A5): a failure deleting a remote file must not crash the
-        run; results are still yielded."""
+    def test_cleanup_survives_delete_failure(self):
+        """Regression (A5): a failure deleting a remote file during cleanup must
+        not crash the run; results are still yielded."""
         import json
         import sys
 
@@ -685,6 +693,7 @@ class TestGoogleBackend:
                 metadata={"input_file_name": "files/input-file"},
             )
             results = list(backend.download_results(handle))
+            backend.cleanup(handle)  # must not raise
 
         assert len(results) == 1
         assert results[0].success is True

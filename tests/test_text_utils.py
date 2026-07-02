@@ -78,14 +78,16 @@ def test_chunk_handler_split_text_into_chunks():
         model_name="gpt-4o", default_tokens_per_chunk=100, text_processor=processor
     )
 
-    lines = ["Line 1\n", "Line 2\n", "Line 3\n", "Line 4\n"]
+    # The production path feeds rstripped lines (no trailing terminator) and
+    # split_text_into_chunks re-joins them with "\n".
+    lines = ["Line 1", "Line 2", "Line 3", "Line 4"]
     ranges = [(1, 2), (3, 4)]
 
     chunks = handler.split_text_into_chunks(lines, ranges)
 
     assert len(chunks) == 2
-    assert chunks[0] == "Line 1\nLine 2\n"
-    assert chunks[1] == "Line 3\nLine 4\n"
+    assert chunks[0] == "Line 1\nLine 2"
+    assert chunks[1] == "Line 3\nLine 4"
 
 
 @pytest.mark.unit
@@ -95,14 +97,14 @@ def test_chunk_handler_split_text_single_line_chunks():
         model_name="gpt-4o", default_tokens_per_chunk=100, text_processor=processor
     )
 
-    lines = ["Line 1\n", "Line 2\n"]
+    lines = ["Line 1", "Line 2"]
     ranges = [(1, 1), (2, 2)]
 
     chunks = handler.split_text_into_chunks(lines, ranges)
 
     assert len(chunks) == 2
-    assert chunks[0] == "Line 1\n"
-    assert chunks[1] == "Line 2\n"
+    assert chunks[0] == "Line 1"
+    assert chunks[1] == "Line 2"
 
 
 @pytest.mark.unit

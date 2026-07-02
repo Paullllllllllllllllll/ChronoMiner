@@ -323,9 +323,10 @@ class GoogleBatchBackend(BatchBackend):
     def download_results(self, handle: BatchHandle) -> Iterator[BatchResultItem]:
         """Download and parse Google batch results.
 
-        The remote input file (file-mode submissions) and the result file are
-        deleted once the consumer has finished iterating, so batch runs do not
-        leak server-side storage.
+        Remote files are NOT deleted here: deletion is deferred to
+        :meth:`cleanup`, invoked only after the final output JSON is durably
+        written, so a failure between download and write never destroys
+        paid-for results.
         """
         client = self._get_client()
         batch_job = client.batches.get(name=handle.batch_id)
@@ -334,17 +335,28 @@ class GoogleBatchBackend(BatchBackend):
         if not dest:
             raise RuntimeError(f"Batch {handle.batch_id} has no results")
 
-        output_file_name = (
-            dest.file_name if hasattr(dest, "file_name") and dest.file_name else None
-        )
+        yield from self._iter_results(handle, client, dest)
+
+    def cleanup(self, handle: BatchHandle) -> None:
+        """Delete the remote input and result files for a finished batch."""
+        client = self._get_client()
+        output_file_name = None
         try:
-            yield from self._iter_results(handle, client, dest)
-        finally:
-            self._delete_remote_files(
-                client,
-                handle.metadata.get("input_file_name"),
-                output_file_name,
+            batch_job = client.batches.get(name=handle.batch_id)
+            dest = getattr(batch_job, "dest", None)
+            if dest is not None and getattr(dest, "file_name", None):
+                output_file_name = dest.file_name
+        except Exception as exc:
+            logger.warning(
+                "Could not resolve result file for batch %s during cleanup: %s",
+                handle.batch_id,
+                exc,
             )
+        self._delete_remote_files(
+            client,
+            handle.metadata.get("input_file_name"),
+            output_file_name,
+        )
 
     @staticmethod
     def _delete_remote_files(client: Any, *file_names: str | None) -> None:

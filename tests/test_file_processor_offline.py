@@ -20,6 +20,7 @@ class DummyStrategy:
         temp_jsonl_path,
         console_print,
         completed_chunk_indices=None,
+        **_kwargs,
     ):
         with temp_jsonl_path.open("w", encoding="utf-8") as f:
             for idx, _chunk in enumerate(chunks, 1):
@@ -53,6 +54,7 @@ class PartialFailureStrategy:
         temp_jsonl_path,
         console_print,
         completed_chunk_indices=None,
+        **_kwargs,
     ):
         results = []
         with temp_jsonl_path.open("w", encoding="utf-8") as f:
@@ -297,6 +299,7 @@ class BudgetThenResumeStrategy:
         temp_jsonl_path,
         console_print,
         completed_chunk_indices=None,
+        **_kwargs,
     ):
         completed = set(completed_chunk_indices or ())
         self.calls += 1

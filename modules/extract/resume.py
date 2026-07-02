@@ -43,6 +43,61 @@ METADATA_KEY = "_chronominer_metadata"
 # ``_METADATA_KEY``. New code should use the public ``METADATA_KEY``.
 _METADATA_KEY = METADATA_KEY
 
+# Text chunking behaviour version stamped into output metadata. Bumped to 2 when
+# the newline-preserving chunk join landed (lines rstripped + joined with "\n"),
+# so downstream consumers can tell which chunking behaviour produced a file.
+CHUNKING_TEXT_VERSION = 2
+
+# Format-version marker written as the first line of every synchronous temp
+# JSONL. On resume, a temp file without the current marker is refused rather
+# than merged (its custom_ids may be slice-relative under the pre-2 format,
+# which would corrupt resume/merge). No migration is attempted.
+TEMP_JSONL_VERSION = 2
+TEMP_VERSION_KEY = "_chronominer_temp_version"
+
+
+def build_temp_header() -> dict[str, Any]:
+    """Return the header record written as the first line of a sync temp JSONL."""
+    return {TEMP_VERSION_KEY: TEMP_JSONL_VERSION}
+
+
+def temp_jsonl_version(temp_jsonl_path: Path) -> int | None:
+    """Return the format version of a temp JSONL, or ``None`` if unversioned.
+
+    Reads only the first non-empty line; an unversioned (legacy) file returns
+    ``None``.
+    """
+    if not temp_jsonl_path.exists():
+        return None
+    try:
+        with temp_jsonl_path.open(encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    record = json.loads(line)
+                except json.JSONDecodeError:
+                    return None
+                if isinstance(record, dict) and TEMP_VERSION_KEY in record:
+                    value = record[TEMP_VERSION_KEY]
+                    return value if isinstance(value, int) else None
+                return None
+    except OSError:
+        return None
+    return None
+
+
+def is_resumable_temp_jsonl(temp_jsonl_path: Path) -> bool:
+    """Whether a temp JSONL may be safely resumed under the current format.
+
+    A missing file is resumable (nothing to conflict with); an existing file is
+    resumable only if it carries the current ``TEMP_JSONL_VERSION`` marker.
+    """
+    if not temp_jsonl_path.exists():
+        return True
+    return temp_jsonl_version(temp_jsonl_path) == TEMP_JSONL_VERSION
+
 
 def build_extraction_metadata(
     *,
@@ -55,6 +110,7 @@ def build_extraction_metadata(
     partial: bool = False,
     failed_chunks: list[int] | None = None,
     image_provenance: dict[str, Any] | None = None,
+    chunking_text_version: int | None = None,
 ) -> dict[str, Any]:
     """Build a metadata dict to embed in extraction output JSON.
 
@@ -62,6 +118,9 @@ def build_extraction_metadata(
     rendering library versions, and effective preprocessing parameters so
     the exact images sent to the model can be re-derived and verified
     against the per-record image hashes.
+
+    ``chunking_text_version`` (text runs only) records which text-chunking
+    behaviour produced the file; see :data:`CHUNKING_TEXT_VERSION`.
     """
     meta: dict[str, Any] = {
         "schema_name": schema_name,
@@ -71,6 +130,8 @@ def build_extraction_metadata(
         "timestamp": timestamp or datetime.now(UTC).isoformat(),
         "version": 1,
     }
+    if chunking_text_version is not None:
+        meta["chunking_text_version"] = chunking_text_version
     if chunk_slice_info:
         meta["chunk_slice"] = chunk_slice_info
     if partial:
@@ -146,6 +207,40 @@ def detect_extraction_status(
         return FileStatus.COMPLETE, completed
 
     return FileStatus.PARTIAL, completed
+
+
+def completed_indices_from_outputs(*output_paths: Path) -> set[int]:
+    """Collect completed 1-based indices from existing output files.
+
+    Reads both the sync shape (a ``records`` list) and the batch shape (a
+    ``responses`` list), extracting the numeric suffix of each ``custom_id``
+    (``...-chunk-N`` or ``...-page-N``). Used for batch resume parity: requests
+    already present in a prior output are not re-submitted.
+    """
+    import re as _re
+
+    indices: set[int] = set()
+    pattern = _re.compile(r"-(?:chunk|page)-(\d+)$")
+    for path in output_paths:
+        if not path.exists():
+            continue
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError):
+            continue
+        if isinstance(data, dict):
+            items = data.get("records") or data.get("responses") or []
+        elif isinstance(data, list):
+            items = data
+        else:
+            items = []
+        for rec in items:
+            if not isinstance(rec, dict):
+                continue
+            match = pattern.search(str(rec.get("custom_id", "")))
+            if match:
+                indices.add(int(match.group(1)))
+    return indices
 
 
 def metadata_indicates_complete(data: dict[str, Any]) -> bool:

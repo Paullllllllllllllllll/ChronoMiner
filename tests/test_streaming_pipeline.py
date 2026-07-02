@@ -368,9 +368,10 @@ async def test_sync_strategy_streaming_mode(
     assert errors[0]["chunk_index"] == 2
 
     lines = [
-        json.loads(line)
+        rec
         for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
         if line.strip()
+        if "custom_id" in (rec := json.loads(line))
     ]
     assert sorted(rec["chunk_index"] for rec in lines) == [1, 3]
     for rec in lines:

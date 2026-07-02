@@ -40,6 +40,17 @@ general:
   # Otherwise, it's treated as a directory and application.log is created inside.
   logs_dir: ''
 
+  # -------------------------------------------------------------------------
+  # State Directory
+  # -------------------------------------------------------------------------
+  # Where cross-process state (the daily token-budget counter and the wizard's
+  # last-run memory) is stored. Leave empty to use the user-level default
+  # ~/.chronominer/ (recommended: shared across runs regardless of the working
+  # directory). Set an absolute path to override. A legacy
+  # .chronominer_token_state.json in the working directory is adopted once if
+  # the user-level file is absent.
+  state_dir: ''
+
 # =============================================================================
 # Schema Paths
 # =============================================================================

@@ -29,8 +29,12 @@ Usage:
 
 from __future__ import annotations
 
+import atexit
+import contextlib
 import json
+import shutil
 import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -41,14 +45,40 @@ logger = setup_logger(__name__)
 
 # Default token tracker state-file name. The directory is resolved lazily at
 # first use (see _default_token_tracker_file) rather than anchored to the cwd
-# at import time, which would bind the path to whatever directory happened to
-# be current when this module was first imported.
+# at import time.
 _TOKEN_TRACKER_FILENAME = ".chronominer_token_state.json"
+
+# User-level state directory (cross-process, CWD-independent). Overridable via
+# paths_config general.state_dir. The former CWD-relative file is adopted once
+# if the user-level file is absent (see _adopt_legacy_state).
+_STATE_DIRNAME = ".chronominer"
+
+# Minimum seconds between on-disk state writes. add_tokens() fires per API call
+# (up to ~20/s under concurrency); without debouncing that rewrites the state
+# file that often. In-memory counts stay exact; the debounced write plus an
+# atexit flush bound disk churn while keeping cross-process enforcement
+# best-effort.
+_STATE_WRITE_DEBOUNCE_S = 1.0
+
+
+def _resolve_state_dir() -> Path:
+    """Resolve the state directory: config override, else ``~/.chronominer``."""
+    try:
+        from modules.config.loader import get_config_loader
+
+        paths_config = get_config_loader().get_paths_config()
+        override = (paths_config.get("general", {}) or {}).get("state_dir")
+        if override:
+            return Path(str(override)).expanduser()
+    except Exception:
+        # Config not available / not loaded yet: fall back to the user dir.
+        pass
+    return Path.home() / _STATE_DIRNAME
 
 
 def _default_token_tracker_file() -> Path:
-    """Resolve the default state-file path against the current directory."""
-    return Path.cwd() / _TOKEN_TRACKER_FILENAME
+    """Resolve the default user-level state-file path."""
+    return _resolve_state_dir() / _TOKEN_TRACKER_FILENAME
 
 
 # Singleton instance
@@ -88,7 +118,19 @@ class DailyTokenTracker:
         """
         self.daily_limit = daily_limit
         self.enabled = enabled
+        using_default = state_file is None
         self.state_file = state_file or _default_token_tracker_file()
+        with contextlib.suppress(Exception):
+            self.state_file.parent.mkdir(parents=True, exist_ok=True)
+        # Legacy CWD-file adoption applies only to the default user-level
+        # location; an explicitly supplied state_file is honoured verbatim.
+        if using_default:
+            self._adopt_legacy_state()
+
+        # Debounced-write bookkeeping.
+        self._last_write_monotonic: float = 0.0
+        self._pending_write: bool = False
+        atexit.register(self._flush_on_exit)
 
         # Thread safety
         self._lock = threading.Lock()
@@ -115,6 +157,40 @@ class DailyTokenTracker:
             f"daily_limit={daily_limit:,}, "
             f"current_usage={self._tokens_used_today:,}"
         )
+
+    def flush(self) -> None:
+        """Force-persist any pending debounced state write."""
+        with self._lock:
+            if self._pending_write:
+                self._save_state()
+
+    def _adopt_legacy_state(self) -> None:
+        """One-time adoption of the legacy CWD state file.
+
+        If the user-level state file does not yet exist but a legacy
+        ``.chronominer_token_state.json`` sits in the current directory, copy it
+        across so a prior day's usage is not silently reset on upgrade.
+        """
+        try:
+            if self.state_file.exists():
+                return
+            legacy = Path.cwd() / _TOKEN_TRACKER_FILENAME
+            if legacy.exists() and legacy.resolve() != self.state_file.resolve():
+                shutil.copy2(legacy, self.state_file)
+                logger.info(
+                    "Adopted legacy token state %s -> %s", legacy, self.state_file
+                )
+        except Exception as exc:
+            logger.debug("Legacy token-state adoption skipped: %s", exc)
+
+    def _flush_on_exit(self) -> None:
+        """atexit hook: persist a pending debounced write."""
+        try:
+            with self._lock:
+                if self._pending_write:
+                    self._save_state()
+        except Exception:
+            pass
 
     def _get_current_date_str(self) -> str:
         """Get current date as string in YYYY-MM-DD format."""
@@ -164,7 +240,7 @@ class DailyTokenTracker:
             self._tokens_used_today = 0
 
     def _save_state(self) -> None:
-        """Save current token usage state to disk."""
+        """Save current token usage state to disk (immediate, atomic)."""
         try:
             state = {
                 "date": self._current_date,
@@ -179,9 +255,21 @@ class DailyTokenTracker:
 
             # Replace original file
             temp_file.replace(self.state_file)
+            self._last_write_monotonic = time.monotonic()
+            self._pending_write = False
 
         except Exception as e:
             logger.error(f"Error saving token state to {self.state_file}: {e}")
+
+    def _debounced_save(self) -> None:
+        """Persist state only if at least ``_STATE_WRITE_DEBOUNCE_S`` elapsed
+        since the last write; otherwise mark a pending write flushed at exit or
+        on the next eligible call. Must be called under ``self._lock``."""
+        now = time.monotonic()
+        if now - self._last_write_monotonic >= _STATE_WRITE_DEBOUNCE_S:
+            self._save_state()
+        else:
+            self._pending_write = True
 
     def _check_and_reset_if_new_day(self) -> None:
         """Check if it's a new day and reset counter if needed."""
@@ -211,7 +299,8 @@ class DailyTokenTracker:
             self._tokens_used_today += tokens
             # Update the rolling per-call estimate used by try_reserve().
             self._ewma = self._alpha * tokens + (1.0 - self._alpha) * self._ewma
-            self._save_state()
+            # Debounced: in-memory count is exact; disk write is throttled.
+            self._debounced_save()
 
             logger.debug(
                 f"Added {tokens:,} tokens. "

@@ -18,6 +18,7 @@ Workflow:
 """
 
 import asyncio
+import json
 import sys
 import time
 from argparse import ArgumentParser, Namespace
@@ -42,6 +43,7 @@ from main.dual_mode import AsyncDualModeScript
 from modules.config.manager import ConfigManager, ConfigValidationError
 from modules.extract.file_processor import FileProcessor
 from modules.infra.chunking import ChunkSlice
+from modules.infra.jsonl import is_jsonl_adjustment_complete
 from modules.infra.logger import setup_logger
 from modules.infra.token_tracker import (
     check_and_wait_for_token_limit,
@@ -53,7 +55,7 @@ from modules.line_ranges.generator import (
     write_line_ranges_file,
 )
 from modules.line_ranges.readjuster import LineRangeReadjuster
-from modules.llm.prompt_utils import load_prompt_template
+from modules.llm.prompt_utils import PROMPTS_DIR, load_prompt_template
 from modules.ui.core import UserInterface
 
 # Initialize logger
@@ -137,6 +139,26 @@ async def _adjust_line_ranges_workflow(
                         f"Failed to generate line ranges for {text_file.name}: {e}"
                     )
                 continue
+
+        # Cost-trap guard: skip files already adjusted with identical settings
+        # (a completed adjustment JSONL exists), so re-running the workflow does
+        # not re-issue LLM calls for unchanged inputs.
+        model_name_for_check = model_config.get("extraction_model", {}).get("name", "")
+        if is_jsonl_adjustment_complete(
+            line_ranges_file,
+            boundary_type=selected_schema_name,
+            context_window=context_window,
+            model_name=model_name_for_check,
+            matching_config=matching_config,
+            retry_config=retry_config,
+        ):
+            if ui:
+                ui.print_info(
+                    f"Skipping {text_file.name}: line ranges already adjusted "
+                    "with the current settings."
+                )
+            logger.info("Skipping already-adjusted line ranges for %s", text_file.name)
+            continue
 
         if ui:
             ui.print_info(f"Adjusting line ranges for {text_file.name}...")
@@ -232,6 +254,16 @@ async def _run_interactive_mode(
     schemas_paths: dict[str, Any],
 ) -> None:
     """Run text processing in interactive mode with back navigation support."""
+    # Non-TTY guard: interactive mode would block on prompts with no terminal.
+    # Fail fast with a clear message and a non-zero exit instead.
+    if not sys.stdin.isatty():
+        print(
+            "[ERROR] Interactive mode requires a TTY. Provide --schema/--input "
+            "for CLI mode, pass --non-interactive, or set interactive_mode: false.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     ui = UserInterface(logger, use_colors=True)
 
     # Load configuration
@@ -314,9 +346,9 @@ async def _run_interactive_mode(
 
             # Load appropriate prompt template
             prompt_path = (
-                Path("prompts/image_extraction_prompt.txt")
+                PROMPTS_DIR / "image_extraction_prompt.txt"
                 if state["is_visual"]
-                else Path("prompts/text_extraction_prompt.txt")
+                else PROMPTS_DIR / "text_extraction_prompt.txt"
             )
             try:
                 prompt_template = load_prompt_template(prompt_path)
@@ -760,9 +792,9 @@ async def _run_cli_mode(
 
     # Load prompt template (visual or text)
     if is_visual:
-        prompt_path = Path("prompts/image_extraction_prompt.txt")
+        prompt_path = PROMPTS_DIR / "image_extraction_prompt.txt"
     else:
-        prompt_path = Path("prompts/text_extraction_prompt.txt")
+        prompt_path = PROMPTS_DIR / "text_extraction_prompt.txt"
     try:
         prompt_template = load_prompt_template(prompt_path)
     except FileNotFoundError as exc:
@@ -804,11 +836,23 @@ async def _run_cli_mode(
     if is_visual:
         files = get_files_from_path(input_path, input_type=input_type)
     else:
-        files = get_files_from_path(
-            input_path,
-            pattern="*.txt",
-            exclude_patterns=["*_line_ranges.txt", "*_context.txt"],
-        )
+        # Collect .txt and .md inputs; exclude the tool's own sidecar/report
+        # files so a second run does not re-extract from {stem}_output.txt.
+        text_excludes = [
+            "*_line_ranges.txt",
+            "*_context.txt",
+            "*_output.txt",
+        ]
+        if input_path.is_file():
+            files = get_files_from_path(input_path, exclude_patterns=text_excludes)
+        else:
+            seen: dict[Path, None] = {}
+            for pat in ("*.txt", "*.md"):
+                for found in get_files_from_path(
+                    input_path, pattern=pat, exclude_patterns=text_excludes
+                ):
+                    seen[found] = None
+            files = sorted(seen)
 
     if not files:
         file_type_label = "visual" if is_visual else "text"
@@ -892,6 +936,46 @@ async def _run_cli_mode(
     if getattr(args, "output", None):
         effective_schema_paths["output"] = str(resolve_path(args.output))
 
+    def _output_path_for(fp: Path) -> Path:
+        if effective_paths_config.get("general", {}).get("input_paths_is_output_path"):
+            return fp.parent / f"{fp.stem}_output.json"
+        out_dir = effective_schema_paths.get("output", "")
+        return Path(out_dir) / f"{fp.stem}_output.json"
+
+    # --dry-run: discovery + resume classification + planned actions, no API
+    # calls and no side effects. Exit 0.
+    if getattr(args, "dry_run", False):
+        planned = []
+        for fp in files:
+            out = _output_path_for(fp)
+            exists = out.exists()
+            if exists and use_resume:
+                action = "resume/skip"
+            elif exists:
+                action = "reprocess (overwrite)"
+            else:
+                action = "process"
+            planned.append({"file": str(fp), "output": str(out), "action": action})
+            if not args.quiet:
+                print(f"[DRY-RUN] {action}: {fp.name} -> {out.name}")
+        if getattr(args, "json_summary", False):
+            print(
+                json.dumps(
+                    {
+                        "dry_run": True,
+                        "schema": selected_schema_name,
+                        "files": len(files),
+                        "batch": use_batch,
+                        "planned": planned,
+                    },
+                    ensure_ascii=False,
+                )
+            )
+        logger.info("Dry run complete (%d file(s)); no API calls made.", len(files))
+        return
+
+    statuses: list[str] = []
+
     if token_limit_enabled and not use_batch:
         # Sequential processing with token limit checks
         processed_count = 0
@@ -912,7 +996,7 @@ async def _run_cli_mode(
                 break
 
             # Process this file
-            await file_processor.process_file(
+            _status = await file_processor.process_file(
                 file_path=file_path,
                 use_batch=use_batch,
                 selected_schema=selected_schema,
@@ -928,6 +1012,7 @@ async def _run_cli_mode(
                 image_detail=getattr(args, "image_detail", None),
                 context_image_enabled=getattr(args, "context_image", False),
             )
+            statuses.append(_status or "complete")
 
             # Log token usage after each file
             token_tracker = get_token_tracker()
@@ -944,9 +1029,9 @@ async def _run_cli_mode(
             _file_concurrency_limit(concurrency_config, files)
         )
 
-        async def _process_file_capped(file_path: Path) -> None:
+        async def _process_file_capped(file_path: Path) -> str:
             async with file_semaphore:
-                await file_processor.process_file(
+                result = await file_processor.process_file(
                     file_path=file_path,
                     use_batch=use_batch,
                     selected_schema=selected_schema,
@@ -962,16 +1047,30 @@ async def _run_cli_mode(
                     image_detail=getattr(args, "image_detail", None),
                     context_image_enabled=getattr(args, "context_image", False),
                 )
+                return result or "complete"
 
         tasks = [_process_file_capped(file_path) for file_path in files]
         # CM-11: return_exceptions=True ensures all finally blocks complete
         # on cancellation
         _cli_results = await asyncio.gather(*tasks, return_exceptions=True)
-        for _exc in _cli_results:
-            if isinstance(_exc, Exception):
-                logger.error(
-                    "Error in concurrent file processing: %s", _exc, exc_info=_exc
-                )
+        for _res in _cli_results:
+            if isinstance(_res, BaseException):
+                statuses.append("failed")
+                if isinstance(_res, Exception):
+                    logger.error(
+                        "Error in concurrent file processing: %s", _res, exc_info=_res
+                    )
+            else:
+                statuses.append(_res)
+
+    # Persist any debounced token-state write.
+    get_token_tracker().flush()
+
+    # Aggregate per-file statuses into a machine-readable summary + exit code.
+    complete = sum(1 for s in statuses if s in ("complete", "skipped"))
+    partial = sum(1 for s in statuses if s == "partial")
+    failed = sum(1 for s in statuses if s == "failed")
+    skipped = sum(1 for s in statuses if s == "skipped")
 
     # Final summary
     logger.info("Processing complete")
@@ -980,12 +1079,17 @@ async def _run_cli_mode(
             print("[SUCCESS] Batch processing jobs submitted")
             print("[INFO] Run 'python main/check_batches.py' to check status")
         else:
-            print(f"[SUCCESS] Processed {len(files)} file(s)")
+            print(
+                f"[SUCCESS] Processed {len(files)} file(s): "
+                f"{complete} complete, {partial} partial, {failed} failed"
+            )
 
     # Final token usage statistics
+    tokens_used_today = 0
     if check_token_limit_enabled():
         token_tracker = get_token_tracker()
         stats = token_tracker.get_stats()
+        tokens_used_today = stats["tokens_used_today"]
         logger.info(
             f"Final token usage: "
             f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
@@ -997,6 +1101,29 @@ async def _run_cli_mode(
                 f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
                 f"({stats['usage_percentage']:.1f}%)"
             )
+
+    if getattr(args, "json_summary", False):
+        print(
+            json.dumps(
+                {
+                    "schema": selected_schema_name,
+                    "files": len(files),
+                    "complete": complete,
+                    "partial": partial,
+                    "failed": failed,
+                    "skipped": skipped,
+                    "batch": use_batch,
+                    "tokens_used_today": tokens_used_today,
+                },
+                ensure_ascii=False,
+            )
+        )
+
+    # CLI agent contract exit codes: 0 = full success; 1 = any failure/partial.
+    # Batch submission has no per-file completion here; a failed submission
+    # surfaces as status "failed".
+    if failed or partial:
+        sys.exit(1)
 
 
 class ProcessTextFilesScript(AsyncDualModeScript):

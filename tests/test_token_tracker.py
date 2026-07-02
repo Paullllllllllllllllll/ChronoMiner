@@ -21,12 +21,13 @@ _REAL_DEFAULT_STATE_FILE = _tt_module._default_token_tracker_file
 
 
 @pytest.mark.unit
-def test_default_state_file_resolves_cwd_at_call_time(tmp_path, monkeypatch):
-    """Regression (hygiene): the default state-file directory must be resolved
-    when requested, not anchored to the cwd at import time."""
-    monkeypatch.chdir(tmp_path)
+def test_default_state_file_resolves_to_user_state_dir():
+    """The default state file lives in the user-level state dir (resolved when
+    requested), not anchored to the cwd — so the daily budget is shared across
+    runs regardless of the working directory."""
     resolved = _REAL_DEFAULT_STATE_FILE()
-    assert resolved == tmp_path / _tt_module._TOKEN_TRACKER_FILENAME
+    assert resolved.name == _tt_module._TOKEN_TRACKER_FILENAME
+    assert resolved.parent == _tt_module._resolve_state_dir()
 
 
 class TestTokenTrackerPersistence:
@@ -38,6 +39,7 @@ class TestTokenTrackerPersistence:
         state = tmp_path / "state.json"
         t1 = DailyTokenTracker(daily_limit=100, enabled=True, state_file=state)
         t1.add_tokens(10)
+        t1.flush()  # debounced writes: force-persist before cross-instance read
 
         t2 = DailyTokenTracker(daily_limit=100, enabled=True, state_file=state)
         assert t2.get_tokens_used_today() == 10
@@ -50,6 +52,7 @@ class TestTokenTrackerPersistence:
         t1.add_tokens(10)
         t1.add_tokens(20)
         t1.add_tokens(30)
+        t1.flush()  # debounced writes coalesce; flush before cross-instance read
 
         t2 = DailyTokenTracker(daily_limit=1000, enabled=True, state_file=state)
         assert t2.get_tokens_used_today() == 60

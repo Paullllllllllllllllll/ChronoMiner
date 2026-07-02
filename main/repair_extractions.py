@@ -16,22 +16,20 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(_PROJECT_ROOT))
 
-from openai import OpenAI
-
 from main.cli_args import create_repair_parser
 from main.dual_mode import DualModeScript
-from modules.batch import diagnose_batch_failure, extract_custom_id_mapping
+from modules.batch import BatchHandle, BatchStatus, get_batch_backend
+from modules.batch.diagnostics import extract_custom_id_mapping
 from modules.batch.ops import (
     _order_responses,
     _recover_missing_batch_ids,
+    is_batch_temp_file,
     load_config,
     process_batch_output_file,
     retrieve_responses_from_batch,
 )
-from modules.config.loader import resolve_api_key, resolve_api_key_env_var
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.logger import setup_logger
-from modules.llm.openai_sdk_utils import list_all_batches, sdk_to_dict
 from modules.ui.core import UserInterface
 
 logger = setup_logger(__name__)
@@ -49,6 +47,8 @@ def _discover_candidate_temp_files(
             continue
 
         for temp_file in repo_dir.rglob("*_temp.jsonl"):
+            if not is_batch_temp_file(temp_file):
+                continue
             try:
                 result = process_batch_output_file(temp_file)
                 responses = result.get("responses", [])
@@ -79,7 +79,6 @@ def _discover_candidate_temp_files(
 def _repair_temp_file(
     candidate: dict[str, Any],
     processing_settings: dict[str, Any],
-    client: OpenAI,
     ui: UserInterface,
 ) -> None:
     temp_file: Path = candidate["temp_file"]
@@ -114,47 +113,47 @@ def _repair_temp_file(
         ui.print_warning("Unable to identify any batch IDs for this temp file.")
         return
 
-    try:
-        batch_listing = list_all_batches(client)
-        batch_dict = {
-            b.get("id"): b for b in batch_listing if isinstance(b, dict) and b.get("id")
-        }
-    except Exception as exc:
-        logger.warning("Unable to list all batches: %s", exc)
-        ui.log(f"Unable to list all batches: {exc}", "warning")
-        batch_dict = {}
-
     completed_batches: list[dict[str, Any]] = []
     failed_batches: list[tuple[dict[str, Any], str]] = []
     missing_batches: list[str] = []
-    local_batch_cache = batch_dict.copy()
 
+    # Route status checks through the provider-agnostic backend, like
+    # check_batches, so repair is not OpenAI-only.
     for track in tracking:
         batch_id = track.get("batch_id")
         if not batch_id:
             continue
         batch_id = str(batch_id)
-        batch = local_batch_cache.get(batch_id)
-        if not batch:
-            try:
-                batch_obj = client.batches.retrieve(batch_id)
-                batch = sdk_to_dict(batch_obj)
-                local_batch_cache[batch_id] = batch
-            except Exception as exc:
-                failed_batches.append((track, f"error: {exc}"))
-                missing_batches.append(batch_id)
-                continue
+        provider = track.get("provider", "openai")
+        try:
+            backend = get_batch_backend(provider)
+            handle = BatchHandle(
+                provider=provider,
+                batch_id=batch_id,
+                metadata=track.get("metadata", {}),
+            )
+            info = backend.get_status(handle)
+        except Exception as exc:
+            failed_batches.append((track, f"error: {exc}"))
+            missing_batches.append(batch_id)
+            continue
 
-        status = str(batch.get("status", "")).lower()
-        if status == "completed":
+        status = info.status
+        if status == BatchStatus.COMPLETED:
             completed_batches.append(track)
-        elif status in {"expired", "failed", "cancelled"}:
-            if status == "failed":
-                diagnosis = diagnose_batch_failure(batch_id, client)
+        elif status in {
+            BatchStatus.EXPIRED,
+            BatchStatus.FAILED,
+            BatchStatus.CANCELLED,
+        }:
+            if status == BatchStatus.FAILED:
+                diagnosis = info.error_message or backend.diagnose_failure(handle)
                 ui.print_warning(f"Batch {batch_id} failed: {diagnosis}")
-            failed_batches.append((track, status))
+            failed_batches.append((track, status.value))
         else:
-            ui.print_info(f"Batch {batch_id} is {status}; waiting for completion.")
+            ui.print_info(
+                f"Batch {batch_id} is {status.value}; waiting for completion."
+            )
 
     ui.display_batch_processing_progress(
         temp_file,
@@ -168,11 +167,12 @@ def _repair_temp_file(
         ui.print_info("No completed batches ready for repair.")
         return
 
+    status_cache: dict[str, Any] = {}
     for track in completed_batches:
         batch_responses = retrieve_responses_from_batch(
             track,
             temp_file.parent,
-            local_batch_cache,  # type: ignore[arg-type]
+            status_cache,
         )
         responses.extend(batch_responses)
 
@@ -180,18 +180,21 @@ def _repair_temp_file(
         ui.print_warning("No responses retrieved; nothing to repair.")
         return
 
+    import datetime as _dt
+
     identifier = temp_file.stem.replace("_temp", "")
     final_json_path = temp_file.parent / f"{identifier}_final_output.json"
     ordered_responses = _order_responses(responses, order_map)
 
+    # Honest completeness: only fully_completed when nothing failed or is
+    # missing (previously stamped True unconditionally).
+    fully_completed = not failed_batches and not missing_batches
     final_results: dict[str, Any] = {
         "responses": ordered_responses,
         "tracking": tracking,
         "processing_metadata": {
-            "fully_completed": True,
-            "processed_at": __import__("datetime")
-            .datetime.now(__import__("datetime").timezone.utc)
-            .isoformat(),
+            "fully_completed": fully_completed,
+            "processed_at": _dt.datetime.now(_dt.UTC).isoformat(),
             "completed_batches": len(completed_batches),
             "failed_batches": len(failed_batches),
             "ordered_by_custom_id": True,
@@ -239,11 +242,9 @@ class RepairExtractionsScript(DualModeScript):
 
     def __init__(self) -> None:
         super().__init__("repair_extractions")
-        api_key = resolve_api_key("openai")
-        if not api_key:
-            env_var = resolve_api_key_env_var("openai") or "OPENAI_API_KEY"
-            raise ValueError(f"{env_var} environment variable is not set or is empty")
-        self.client: OpenAI = OpenAI(api_key=api_key)
+        # No provider key is required at construction: each batch's status and
+        # results are fetched through the provider-agnostic backend, which
+        # resolves its own key lazily only when actually used.
         self.repo_info_list: list[tuple[str, Path, dict[str, Any]]] = []
         self.processing_settings: dict[str, Any] = {}
 
@@ -321,7 +322,6 @@ class RepairExtractionsScript(DualModeScript):
                     _repair_temp_file(
                         candidates[index],
                         self.processing_settings,
-                        self.client,
                         self.ui,
                     )
                     success_count += 1
@@ -446,7 +446,6 @@ class RepairExtractionsScript(DualModeScript):
                 _repair_temp_file(
                     candidate,
                     self.processing_settings,
-                    self.client,
                     mock_ui,  # type: ignore[arg-type]
                 )
                 success_count += 1
@@ -462,6 +461,7 @@ class RepairExtractionsScript(DualModeScript):
         print(f"[SUCCESS] Repaired {success_count}/{len(candidates)} file(s)")
         if fail_count > 0:
             print(f"[WARNING] Failed to repair {fail_count} file(s)")
+            sys.exit(1)
 
 
 def main() -> None:

@@ -20,10 +20,14 @@ from modules.config.context import resolve_context_for_extraction
 from modules.conversion.json_utils import lean_response
 from modules.extract.processing_strategy import create_processing_strategy
 from modules.extract.resume import (
+    CHUNKING_TEXT_VERSION,
     METADATA_KEY,
+    TEMP_JSONL_VERSION,
     FileStatus,
     build_extraction_metadata,
+    completed_indices_from_outputs,
     detect_extraction_status,
+    is_resumable_temp_jsonl,
 )
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.chunking import (
@@ -31,10 +35,15 @@ from modules.infra.chunking import (
     ChunkSlice,
     TextProcessor,
     apply_chunk_slice,
+    chunk_slice_indices,
 )
 from modules.infra.paths import ensure_path_safe
 from modules.infra.token_tracker import check_and_wait_for_token_limit
-from modules.llm.prompt_utils import load_prompt_template, render_prompt_with_schema
+from modules.llm.prompt_utils import (
+    PROMPTS_DIR,
+    load_prompt_template,
+    render_prompt_with_schema,
+)
 from modules.ui import (
     print_error,
     print_info,
@@ -231,7 +240,7 @@ class FileProcessor:
         context_override: dict[str, Any] | None = None,
         image_detail: str | None = None,
         context_image_enabled: bool = False,
-    ) -> None:
+    ) -> str:
         """
         Process a single file with refactored architecture.
 
@@ -297,14 +306,18 @@ class FileProcessor:
                 with file_path.open("r", encoding=encoding) as f:
                     lines = f.readlines()
 
-            normalized_lines = [TextProcessor.normalize_text(line) for line in lines]
+            # Strip only the trailing line terminator, preserving indentation
+            # and interior whitespace. split_text_into_chunks re-joins these
+            # lines with "\n"; stripping both sides (the old normalize_text)
+            # and joining with "" merged words across line boundaries.
+            normalized_lines = [line.rstrip("\n\r") for line in lines]
             messenger.info(
                 f"Successfully read and normalized {len(lines)} lines"
                 f" from {file_path.name}"
             )
         except Exception as e:
             messenger.error(f"Failed to read file {file_path.name}: {e}", exc_info=e)
-            return
+            return "failed"
 
         # Determine chunking strategy
         chunking_method = self._determine_chunking_method(
@@ -328,22 +341,28 @@ class FileProcessor:
             messenger.error(
                 f"Failed to chunk text from {file_path.name}: {e}", exc_info=e
             )
-            return
+            return "failed"
 
-        # Apply chunk slice (first/last N or page range) if requested
+        # Apply chunk slice (first/last N or page range) if requested. Carry
+        # the absolute (document-space) chunk index of each retained chunk so
+        # custom_ids and resume records are absolute rather than slice-relative
+        # (mirrors the visual path's absolute page numbering).
         if chunk_slice is not None and (
             chunk_slice.first_n is not None
             or chunk_slice.last_n is not None
             or chunk_slice.page_range is not None
         ):
             original_count = len(chunks)
+            chunk_indices = chunk_slice_indices(original_count, chunk_slice)
             chunks, ranges = apply_chunk_slice(chunks, ranges, chunk_slice)
             messenger.info(
                 f"Chunk slice applied: processing {len(chunks)}/{original_count} chunks"
             )
+        else:
+            chunk_indices = list(range(1, len(chunks) + 1))
 
         # Delegate shared orchestration to _execute_extraction
-        await self._execute_extraction(
+        return await self._execute_extraction(
             file_path=file_path,
             chunks=chunks,
             prompt_template=prompt_template,
@@ -357,6 +376,8 @@ class FileProcessor:
             chunk_slice=chunk_slice,
             context_override=context_override,
             context_image_enabled=context_image_enabled,
+            chunk_indices=chunk_indices,
+            chunk_ranges=ranges,
             ui=ui,
         )
 
@@ -374,7 +395,7 @@ class FileProcessor:
         context_override: dict[str, Any] | None = None,
         image_detail: str | None = None,
         context_image_enabled: bool = False,
-    ) -> None:
+    ) -> str:
         """Process a visual input file (image or PDF) through the LLM vision
         pipeline.
 
@@ -405,7 +426,7 @@ class FileProcessor:
                 "Use a vision-capable model"
                 " (e.g., gpt-5-mini, claude-sonnet-4-5, gemini-2.5-flash)."
             )
-            return
+            return "failed"
 
         # 2. Determine provider and load image config
         from modules.config.loader import get_config_loader
@@ -437,7 +458,7 @@ class FileProcessor:
                     page_count = pdf.get_page_count()
             except Exception as e:
                 messenger.error(f"Failed to open PDF {file_path.name}: {e}", exc_info=e)
-                return
+                return "failed"
             target_dpi = int(image_config.get("target_dpi", 300))
             messenger.info(
                 f"PDF has {page_count} page(s); streaming at {target_dpi} DPI"
@@ -453,7 +474,7 @@ class FileProcessor:
                 output_json_path = self._setup_output_paths(file_path, schema_paths)[1]
             except Exception as e:
                 messenger.error(f"Failed to set up output paths: {e}", exc_info=e)
-                return
+                return "failed"
             status, completed = detect_extraction_status(
                 output_json_path, expected_chunks=page_count
             )
@@ -462,7 +483,7 @@ class FileProcessor:
                     f"Skipping {file_path.name}: already fully processed "
                     f"({len(completed)} pages)"
                 )
-                return
+                return "skipped"
             if status == FileStatus.PARTIAL:
                 messenger.info(
                     f"Resuming {file_path.name}: {len(completed)}/{page_count}"
@@ -494,15 +515,15 @@ class FileProcessor:
             messenger.info(
                 f"Skipping {file_path.name}: all selected pages already processed"
             )
-            return
+            return "skipped"
 
         # Load visual extraction prompt
-        visual_prompt_path = Path("prompts/image_extraction_prompt.txt")
+        visual_prompt_path = PROMPTS_DIR / "image_extraction_prompt.txt"
         try:
             visual_prompt_template = load_prompt_template(visual_prompt_path)
         except FileNotFoundError:
             messenger.error(f"Visual extraction prompt not found: {visual_prompt_path}")
-            return
+            return "failed"
 
         # 6. File-level provenance (source hash + preprocessing params)
         file_provenance = await asyncio.to_thread(
@@ -546,7 +567,7 @@ class FileProcessor:
             source_factory = make_page_source
 
         # Delegate shared orchestration to _execute_extraction
-        await self._execute_extraction(
+        return await self._execute_extraction(
             file_path=file_path,
             chunks=chunks,
             prompt_template=visual_prompt_template,
@@ -567,6 +588,10 @@ class FileProcessor:
             image_detail=image_detail,
             precomputed_completed=completed,
             image_provenance=file_provenance,
+            # Batch mode materializes needed_indices into image_chunks; carry
+            # those absolute page numbers so batch custom_ids match the sync
+            # (streaming) path's absolute page numbering.
+            chunk_indices=needed_indices if use_batch else None,
             ui=ui,
         )
 
@@ -593,8 +618,10 @@ class FileProcessor:
         image_detail: str | None = None,
         precomputed_completed: set[int] | None = None,
         image_provenance: dict[str, Any] | None = None,
+        chunk_indices: list[int] | None = None,
+        chunk_ranges: list[tuple[int, int]] | None = None,
         ui: Any = None,
-    ) -> None:
+    ) -> str:
         """Shared extraction orchestration for both text and visual pipelines.
 
         Handles context resolution, prompt rendering, schema handler lookup,
@@ -680,7 +707,7 @@ class FileProcessor:
             handler = get_schema_handler(schema_name)
         except Exception as e:
             messenger.error(f"Failed to get schema handler: {e}", exc_info=e)
-            return
+            return "failed"
 
         # Determine output paths
         try:
@@ -690,7 +717,7 @@ class FileProcessor:
             messenger.info(f"Output will be saved to: {output_json_path}")
         except Exception as e:
             messenger.error(f"Failed to set up output paths: {e}", exc_info=e)
-            return
+            return "failed"
 
         # Resume: detect already-completed chunks/pages. The visual path
         # resolves this before rendering and passes it in; the text path
@@ -698,6 +725,20 @@ class FileProcessor:
         completed_chunk_indices: set[int] = set()
         if precomputed_completed is not None:
             completed_chunk_indices = precomputed_completed
+        elif resume and use_batch:
+            # Batch resume parity: skip requests already present in a prior sync
+            # or batch output so a re-run only submits the remainder.
+            final_output_path = output_json_path.with_name(
+                f"{file_path.stem}_final_output.json"
+            )
+            completed_chunk_indices = completed_indices_from_outputs(
+                output_json_path, final_output_path
+            )
+            if completed_chunk_indices:
+                messenger.info(
+                    f"Batch resume: {len(completed_chunk_indices)} unit(s) already "
+                    "present in existing output; they will not be re-submitted."
+                )
         elif resume and not use_batch:
             status, completed_chunk_indices = detect_extraction_status(
                 output_json_path, expected_chunks=len(chunks)
@@ -707,13 +748,31 @@ class FileProcessor:
                     f"Skipping {file_path.name}: already fully processed "
                     f"({len(completed_chunk_indices)} {unit_label}s)"
                 )
-                return
+                return "skipped"
             if status == FileStatus.PARTIAL:
                 messenger.info(
                     f"Resuming {file_path.name}:"
                     f" {len(completed_chunk_indices)}/{len(chunks)}"
                     f" {unit_label}s already done"
                 )
+
+        # Refuse to resume a temp JSONL written by an older, incompatible
+        # format (its custom_ids may be slice-relative, which would corrupt the
+        # resume/merge). Decision 1: version + refuse, no migration.
+        if (
+            resume
+            and not use_batch
+            and completed_chunk_indices
+            and temp_jsonl_path.exists()
+            and not is_resumable_temp_jsonl(temp_jsonl_path)
+        ):
+            messenger.error(
+                f"Refusing to resume {file_path.name}: its temp file "
+                f"{temp_jsonl_path.name} predates the current resume format "
+                f"(v{TEMP_JSONL_VERSION}). Re-run from scratch with --force, or "
+                f"finish it with the ChronoMiner version that created it."
+            )
+            return "failed"
 
         # Create processing strategy and execute
         strategy = create_processing_strategy(use_batch, self.concurrency_config)
@@ -743,6 +802,10 @@ class FileProcessor:
                 process_kwargs["image_chunks"] = image_chunks
             if context_image_data is not None:
                 process_kwargs["context_image_data"] = context_image_data
+            if chunk_indices is not None:
+                process_kwargs["chunk_indices"] = chunk_indices
+            if chunk_ranges is not None:
+                process_kwargs["chunk_ranges"] = chunk_ranges
 
             # Pages still needing work on the visual streaming path; rebuilt
             # into a fresh one-shot source each pass.
@@ -894,8 +957,12 @@ class FileProcessor:
             elif processing_exception is None:
                 messenger.success(f"Completed processing of file: {file_path.name}")
 
+        # Machine-readable per-file status for exit-code aggregation.
         if processing_exception is not None:
-            return
+            return "failed"
+        if budget_incomplete or failed_indices:
+            return "partial"
+        return "complete"
 
     def _determine_chunking_method(
         self,
@@ -1071,6 +1138,11 @@ class FileProcessor:
                     partial=partial,
                     failed_chunks=failed_chunks,
                     image_provenance=image_provenance,
+                    # Text runs stamp the chunking behaviour version; visual runs
+                    # (image_provenance set) do not chunk text.
+                    chunking_text_version=(
+                        CHUNKING_TEXT_VERSION if image_provenance is None else None
+                    ),
                 ),
                 "records": results,
             }

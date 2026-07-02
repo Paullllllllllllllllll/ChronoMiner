@@ -1,4 +1,4 @@
-# ChronoMiner v1.17.0
+# ChronoMiner v1.18.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -262,9 +262,34 @@ python main/repair_extractions.py --schema BibliographicEntries
 --first-n-chunks N         Process only the first N chunks/pages
 --last-n-chunks N          Process only the last N chunks/pages
 --resume / --force         Skip vs overwrite existing output
+--interactive / --non-interactive
+                           Force the run mode, overriding the config-file mode
+--dry-run                  Discover inputs, classify resume state, and report
+                           planned actions with zero API calls or side effects
+--json                     Emit a one-line JSON run summary on stdout
 ```
 
 Run `python main/process_text_files.py --help` for the full list.
+
+Both `.txt` and `.md` files are collected in CLI mode; the tool's own report
+files (`*_output.txt`, `*_line_ranges.txt`, `*_context.txt`) are excluded so a
+second run never extracts from its own output.
+
+### Exit codes and automation
+
+Primary entry points follow a uniform contract for scripting and CI:
+
+- `0` -- every file completed (or was skipped as already complete);
+- `1` -- one or more files failed or completed partially (and, for
+  `check_batches.py`, one or more batches remain pending or failed);
+- `2` -- usage or configuration error, or interactive mode requested without a
+  TTY;
+- `130` -- interrupted by the user (Ctrl+C).
+
+`--json` prints a single machine-readable summary line at the end
+(files/complete/partial/failed/skipped, token totals). `check_batches.py` also
+accepts `--json` and exits non-zero while any batch is still pending, so a
+poller can loop until every batch resolves.
 
 ## Configuration
 
@@ -473,9 +498,14 @@ batch mode.
 
 1. Chunks are built (text) or pages rendered (image/PDF)
 2. Requests are formatted per provider and submitted as batch jobs
-3. Metadata is saved to a temporary JSONL for tracking and repair
-4. A debug artifact (`*_batch_submission_debug.json`) is saved for
-   recovery
+3. Large request sets are split by the provider's per-batch request-count and
+   byte limits into `_part{n}` submissions (one tracking record per part);
+   `check_batches.py` merges the parts back into one final output
+4. Metadata is saved to a temporary JSONL for tracking and repair
+5. A debug artifact (`*_batch_submission_debug.json`) listing every submitted
+   batch id is saved next to the temp file for recovery
+6. Remote input/output files are deleted only after the final output JSON is
+   durably written locally, so a mid-download failure never destroys results
 
 | Provider | Cost savings | Typical completion |
 |----------|-------------|-------------------|
@@ -534,13 +564,19 @@ python main/repair_extractions.py --schema BibliographicEntries
 ```
 
 Discovers incomplete jobs, recovers batch IDs from debug artifacts,
-retrieves available responses, and regenerates outputs.
+retrieves available responses, and regenerates outputs. Status checks route
+through the provider-agnostic backend (not OpenAI-only), and the regenerated
+output is marked `fully_completed` only when no batch failed or is missing.
 
 ### Daily Token Budget
 
-Enable in `concurrency_config.yaml` to cap daily API usage. Tracks
-total tokens per call, resets at local midnight. Add
-`.chronominer_token_state.json` to `.gitignore`.
+Enable in `concurrency_config.yaml` to cap daily API usage. Tracks total tokens
+per call and resets at local midnight. State lives in a user-level directory
+(`~/.chronominer/` by default, overridable via `state_dir` in
+`paths_config.yaml`) so the budget is shared across runs regardless of the
+working directory; a legacy `.chronominer_token_state.json` in the working
+directory is adopted once if the user-level file is absent. Writes are
+debounced (with a flush at exit), so cross-process enforcement is best-effort.
 
 ## Architecture
 
@@ -675,6 +711,33 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.18.0** (2 July 2026) -- Hardening release closing the extraction-integrity
+    defects found in a full production audit. Text chunking no longer strips
+    newlines before joining, so LLM inputs keep their line structure instead of
+    running words together at line boundaries; text-run outputs stamp
+    `chunking_text_version: 2` so downstream analyses can distinguish chunking
+    eras. Prompt templates resolve against the installation root rather than
+    the working directory, so entry points run correctly from any location.
+    Sliced text runs now write absolute chunk indices and custom_ids, temp
+    JSONLs carry a format-version header, and resume refuses unversioned
+    artifacts instead of silently mis-merging. Anthropic batch finalization
+    serializes SDK messages safely; batch submissions are split into
+    provider-limited `_part{n}` parts; remote batch files are deleted only
+    after the final local output is durably written; the documented
+    batch-ID recovery artifact is now actually written. Batch resume skips
+    already-complete chunks, `repair_extractions` works provider-agnostically,
+    and `check_batches` gains `--json` plus non-zero exits while batches
+    remain pending. The primary CLI adopts the agent contract: exit codes
+    0/1/2/130, a `--json` run summary, `--dry-run`, `--interactive`/
+    `--non-interactive` overrides, and a non-TTY guard; CLI mode collects
+    `.md` inputs and excludes the tool's own `*_output.txt` reports. Token
+    state moves to a user-level directory (configurable via `state_dir`) with
+    debounced writes; token counting uses the model's own encoding when known;
+    the transient-error classifier consults structured status codes; batch
+    finalization writes UTF-8 without ASCII escapes. Output-format unification
+    with the batch shape is deliberately held: WhatForDinner consumes the
+    batch `responses` shape.
 
 - **v1.17.0** (28 June 2026) -- Ship scrubbed `*.example.yaml` config templates
     with conservative defaults and a real->example loader fallback, so a fresh

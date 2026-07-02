@@ -249,6 +249,16 @@ class BatchBackend(ABC):
         """
         pass
 
+    def cleanup(self, handle: BatchHandle) -> None:
+        """Delete provider-side input/output files for a finished batch.
+
+        Called only AFTER the final output JSON has been durably written, so a
+        failure between download and write never destroys paid-for results.
+        The default is a no-op; providers with server-side file storage
+        (OpenAI, Google) override it.
+        """
+        return None
+
     def diagnose_failure(self, handle: BatchHandle) -> str:
         """Get diagnostic information for a failed batch.
 

@@ -34,6 +34,7 @@ from modules.batch.backends import (
 )
 from modules.config.capabilities import detect_capabilities
 from modules.conversion.json_utils import strip_image_payloads
+from modules.extract.resume import build_temp_header
 from modules.images.page_stream import PageError
 from modules.infra.chunking import TextProcessor
 from modules.infra.token_tracker import get_token_tracker
@@ -43,8 +44,51 @@ from modules.llm.openai_utils import (
     process_image_chunk,
     process_text_chunk,
 )
+from modules.llm.prompt_utils import PROMPTS_DIR
 
 logger = logging.getLogger(__name__)
+
+
+# Per-request serialization overhead (custom_id, method/url envelope, JSON
+# punctuation, system prompt reference) added to the payload estimate when
+# partitioning a batch by byte size. Deliberately generous so a split stays
+# safely under the provider's hard limit.
+_BATCH_REQUEST_OVERHEAD_BYTES = 2048
+
+
+def _estimate_request_bytes(req: BatchRequest) -> int:
+    """Approximate the submitted JSONL byte size of one batch request."""
+    size = _BATCH_REQUEST_OVERHEAD_BYTES
+    if req.text:
+        size += len(req.text.encode("utf-8"))
+    if req.image_base64:
+        size += len(req.image_base64)
+    return size
+
+
+def _partition_batch_requests(
+    requests: list[BatchRequest], max_count: int, max_bytes: int
+) -> list[list[BatchRequest]]:
+    """Split *requests* into parts respecting per-batch count and byte limits.
+
+    A part is closed when adding the next request would exceed either
+    ``max_count`` or ``max_bytes``. A single request larger than ``max_bytes``
+    still occupies its own part (it cannot be split further here).
+    """
+    parts: list[list[BatchRequest]] = []
+    current: list[BatchRequest] = []
+    current_bytes = 0
+    for req in requests:
+        size = _estimate_request_bytes(req)
+        if current and (len(current) >= max_count or current_bytes + size > max_bytes):
+            parts.append(current)
+            current = []
+            current_bytes = 0
+        current.append(req)
+        current_bytes += size
+    if current:
+        parts.append(current)
+    return parts or [[]]
 
 
 def _budget_deferred(idx: int) -> dict[str, Any]:
@@ -54,25 +98,45 @@ def _budget_deferred(idx: int) -> dict[str, Any]:
     return {"budget_deferred": True, "chunk_index": idx}
 
 
-# Any standalone 5xx status code counts as a transient server error. This
-# deliberately covers Cloudflare edge codes (520-526) in front of provider
-# APIs, which previously slipped past an enumerated 500/502/503 check and
-# failed pages without a single retry.
-_SERVER_ERROR_CODE_RE = re.compile(r"\b5\d{2}\b")
+# A 5xx status code counts as a transient server error, but ONLY when it
+# appears in a status/HTTP/error-code context or next to a canonical 5xx
+# reason phrase. The former blanket ``\b5\d{2}\b`` false-positived on any
+# stray number (e.g. "line 502 of file.py"), burning up to 25 retries on a
+# non-retryable error. Covers Cloudflare edge codes (520-526) too.
+_SERVER_ERROR_CODE_RE = re.compile(
+    r"(?:status(?:[ _]?code)?|http|error[ _]?code|code)\s*[:=]?\s*5\d{2}\b"
+    r"|\b5\d{2}\b\s*(?:internal server error|server error|bad gateway"
+    r"|service unavailable|gateway timeout|origin)",
+    re.IGNORECASE,
+)
 
 
-def classify_transient_error(message: str) -> tuple[bool, bool, bool]:
-    """Classify an API error message for retry purposes.
+def classify_transient_error(
+    message: str, exc: BaseException | None = None
+) -> tuple[bool, bool, bool]:
+    """Classify an API error for retry purposes.
 
     :param message: The stringified exception, in any casing.
+    :param exc: The exception object, if available. A structured
+        ``status_code`` attribute is consulted first and is authoritative;
+        the message regex is only a fallback.
     :return: Tuple ``(is_429, is_timeout, is_server_error)``. The error is
         retryable if any element is True.
     """
     msg = message.lower()
-    is_429 = "429" in msg or "rate_limit" in msg
+
+    # Structured status code first (authoritative when present).
+    status_code = getattr(exc, "status_code", None)
+    if not isinstance(status_code, int):
+        status_code = getattr(exc, "code", None)
+        if not isinstance(status_code, int):
+            status_code = None
+
+    is_429 = status_code == 429 or "429" in msg or "rate_limit" in msg
     is_timeout = "timed out" in msg or "timeout" in msg
     is_server_error = (
-        bool(_SERVER_ERROR_CODE_RE.search(msg))
+        (status_code is not None and 500 <= status_code <= 599)
+        or bool(_SERVER_ERROR_CODE_RE.search(message))
         or "internalservererror" in msg
         or "upstream" in msg
         # Cloudflare-style bodies self-declare retryability.
@@ -146,8 +210,18 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         image_chunks: list[dict[str, Any]] | None = None,
         context_image_data: dict[str, Any] | None = None,
         image_source: AsyncIterator[Any] | None = None,
+        chunk_indices: list[int] | None = None,
+        chunk_ranges: list[tuple[int, int]] | None = None,
     ) -> list[dict[str, Any]]:
         """Process chunks synchronously with concurrent API calls.
+
+        ``chunk_indices`` carries the ABSOLUTE 1-based index of each chunk in
+        the full document (before any slice) so that a sliced run (e.g.
+        ``--page-range 50-60``) writes ``custom_id``/``chunk_index`` values in
+        document space rather than slice-relative 1..N. When ``None`` the
+        indices default to ``1..len(chunks)``. ``chunk_ranges`` carries the
+        aligned ``(start_line, end_line)`` of each chunk, stamped as
+        ``chunk_range`` on the persisted record.
 
         Two execution modes:
 
@@ -178,10 +252,16 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
             raise ValueError(error_msg)
 
         skip_indices = completed_chunk_indices or set()
+        # Map each chunk position to its absolute document index. A sliced run
+        # supplies chunk_indices in document space; otherwise 1..N.
+        if chunk_indices is None:
+            abs_indices = list(range(1, len(chunks) + 1))
+        else:
+            abs_indices = list(chunk_indices)
         chunks_to_process = [
-            (idx, chunk)
-            for idx, chunk in enumerate(chunks, 1)
-            if idx not in skip_indices
+            (abs_indices[pos], pos, chunk)
+            for pos, chunk in enumerate(chunks)
+            if abs_indices[pos] not in skip_indices
         ]
         pending_count = len(chunks_to_process)
         if skip_indices:
@@ -227,12 +307,15 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         is_visual = image_source is not None or bool(image_chunks)
         unit_label = "page" if is_visual else "chunk"
         prompt_path = (
-            Path("prompts/image_extraction_prompt.txt")
+            PROMPTS_DIR / "image_extraction_prompt.txt"
             if is_visual
-            else Path("prompts/text_extraction_prompt.txt")
+            else PROMPTS_DIR / "text_extraction_prompt.txt"
         )
 
-        file_mode = "a" if skip_indices else "w"
+        # Append only to an existing, current-format temp file; otherwise start
+        # fresh and stamp the format-version header as the first line.
+        resume_append = bool(skip_indices) and temp_jsonl_path.exists()
+        file_mode = "a" if resume_append else "w"
         async with open_extractor(
             api_key=api_key,
             prompt_path=prompt_path,
@@ -242,13 +325,19 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
             concurrency_config_override=self.concurrency_config,
         ) as extractor:
             with temp_jsonl_path.open(file_mode, encoding="utf-8") as tempf:
+                if file_mode == "w":
+                    tempf.write(json.dumps(build_temp_header()) + "\n")
+                    tempf.flush()
                 # Serialize writes to the shared handle: concurrent coroutines
                 # otherwise interleave write+flush on one file object. Created
                 # here (inside the running loop), never at module scope.
                 write_lock = asyncio.Lock()
 
                 async def call_and_record(
-                    idx: int, chunk: str, img_data: dict[str, Any] | None
+                    idx: int,
+                    chunk: str,
+                    img_data: dict[str, Any] | None,
+                    chunk_range: tuple[int, int] | None = None,
                 ) -> dict[str, Any]:
                     """Run one unit through the retry loop and persist it."""
                     for attempt in range(retry_attempts):
@@ -290,6 +379,8 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 "chunk_index": idx,
                                 "response": {"body": result},
                             }
+                            if chunk_range is not None:
+                                response_obj["chunk_range"] = list(chunk_range)
                             provenance = (img_data or {}).get("image_provenance")
                             if provenance:
                                 response_obj["image_provenance"] = provenance
@@ -305,7 +396,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             Exception
                         ) as e:  # Broad: LangChain/API errors are diverse
                             is_429, is_timeout, is_server_error = (
-                                classify_transient_error(str(e))
+                                classify_transient_error(str(e), e)
                             )
                             is_retryable = is_429 or is_timeout or is_server_error
 
@@ -385,10 +476,15 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                     semaphore = asyncio.Semaphore(concurrency_limit)
 
                     async def process_single_chunk(
-                        idx: int, chunk: str
+                        idx: int, pos: int, chunk: str
                     ) -> dict[str, Any]:
                         """Process a single chunk with semaphore control and a
-                        chunk-level token-budget gate."""
+                        chunk-level token-budget gate.
+
+                        ``idx`` is the absolute document index (used for the
+                        record); ``pos`` is the position in the (possibly sliced)
+                        chunk list (used to align image_chunks / chunk_ranges).
+                        """
                         if exhausted.is_set():
                             return _budget_deferred(idx)
                         if delay_between_tasks > 0:
@@ -397,8 +493,13 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             if exhausted.is_set():
                                 return _budget_deferred(idx)
                             img_data = (
-                                image_chunks[idx - 1]
+                                image_chunks[pos]
                                 if is_visual and image_chunks is not None
+                                else None
+                            )
+                            rng = (
+                                chunk_ranges[pos]
+                                if chunk_ranges is not None and pos < len(chunk_ranges)
                                 else None
                             )
                             # Seed the reservation with the chunk's tiktoken
@@ -414,14 +515,14 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 exhausted.set()
                                 return _budget_deferred(idx)
                             try:
-                                return await call_and_record(idx, chunk, img_data)
+                                return await call_and_record(idx, chunk, img_data, rng)
                             finally:
                                 tracker.release(reserved)
 
                     # Process chunks (skipping already-completed ones)
                     tasks = [
-                        process_single_chunk(idx, chunk)
-                        for idx, chunk in chunks_to_process
+                        process_single_chunk(idx, pos, chunk)
+                        for idx, pos, chunk in chunks_to_process
                     ]
                     results = await asyncio.gather(*tasks, return_exceptions=False)
 
@@ -551,8 +652,15 @@ class BatchProcessingStrategy(ProcessingStrategy):
         completed_chunk_indices: set | None = None,
         image_chunks: list[dict[str, Any]] | None = None,
         context_image_data: dict[str, Any] | None = None,
+        chunk_indices: list[int] | None = None,
+        chunk_ranges: list[tuple[int, int]] | None = None,
     ) -> list[dict[str, Any]]:
-        """Prepare and submit batch processing job using provider-agnostic backend."""
+        """Prepare and submit batch processing job using provider-agnostic backend.
+
+        ``chunk_indices`` supplies absolute document indices for a sliced run so
+        custom_ids match the sync path; ``chunk_ranges`` supplies aligned line
+        ranges recorded on each request's metadata.
+        """
         if context_image_data is not None:
             console_print(
                 "[WARNING] Context image is not yet supported in batch mode. Ignoring."
@@ -584,7 +692,8 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 f"[INFO] Preparing visual batch processing for {len(image_chunks)} "
                 f"page(s) (provider: {provider})..."
             )
-            for idx, img in enumerate(image_chunks, 1):
+            for pos, img in enumerate(image_chunks):
+                idx = chunk_indices[pos] if chunk_indices is not None else pos + 1
                 custom_id = f"{file_path.stem}-page-{idx}"
                 batch_requests.append(
                     BatchRequest(
@@ -605,20 +714,40 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 f"[INFO] Preparing batch processing for {len(chunks)} "
                 f"chunks (provider: {provider})..."
             )
-            for idx, chunk in enumerate(chunks, 1):
+            for pos, chunk in enumerate(chunks):
+                idx = chunk_indices[pos] if chunk_indices is not None else pos + 1
                 custom_id = f"{file_path.stem}-chunk-{idx}"
+                meta: dict[str, Any] = {
+                    "file_path": str(file_path),
+                    "chunk_index": idx,
+                    "total_chunks": len(chunks),
+                }
+                if chunk_ranges is not None and pos < len(chunk_ranges):
+                    meta["chunk_range"] = list(chunk_ranges[pos])
                 batch_requests.append(
                     BatchRequest(
                         custom_id=custom_id,
                         text=chunk,
                         order_index=idx,
-                        metadata={
-                            "file_path": str(file_path),
-                            "chunk_index": idx,
-                            "total_chunks": len(chunks),
-                        },
+                        metadata=meta,
                     )
                 )
+
+        # Batch resume parity: drop requests whose absolute index is already
+        # complete in a prior output, so a re-run only submits the remainder.
+        skip = completed_chunk_indices or set()
+        if skip:
+            before = len(batch_requests)
+            batch_requests = [r for r in batch_requests if r.order_index not in skip]
+            skipped = before - len(batch_requests)
+            if skipped:
+                console_print(
+                    f"[INFO] Resume: skipping {skipped} already-completed "
+                    f"request(s); submitting {len(batch_requests)}."
+                )
+        if not batch_requests:
+            console_print("[INFO] Nothing to submit: all requests already completed.")
+            return []
 
         # Get the appropriate batch backend
         try:
@@ -642,53 +771,92 @@ class BatchProcessingStrategy(ProcessingStrategy):
             tm_copy["service_tier"] = service_tier
             effective_model_config = {**model_config, "extraction_model": tm_copy}
 
-        # Submit batch using the provider-agnostic backend
-        try:
-            console_print(f"[INFO] Submitting batch to {provider}...")
-            handle: BatchHandle = await asyncio.to_thread(
-                backend.submit_batch,
-                batch_requests,
-                effective_model_config,
-                system_prompt=dev_message,
-                schema=schema,
-                schema_name=schema_name,
-            )
-
-            # Write tracking record to temp JSONL file
-            tracking_record = {
-                "batch_tracking": {
-                    "batch_id": handle.batch_id,
-                    "provider": handle.provider,
-                    "timestamp": int(time.time()),
-                    "request_count": len(batch_requests),
-                    "metadata": handle.metadata,
-                }
-            }
-
-            # Also write batch request metadata for result correlation
-            with temp_jsonl_path.open("w", encoding="utf-8") as tempf:
-                # Write request metadata lines first
-                for req in batch_requests:
-                    request_meta = {
-                        "batch_request": {
-                            "custom_id": req.custom_id,
-                            "order_index": req.order_index,
-                            "metadata": req.metadata,
-                        }
-                    }
-                    tempf.write(json.dumps(request_meta) + "\n")
-                # Write tracking record at the end
-                tempf.write(json.dumps(tracking_record) + "\n")
-
+        # Partition requests so no single submission exceeds the provider's
+        # per-batch request-count or byte limits. Each part is submitted as its
+        # own batch with its own tracking record and temp file; check_batches
+        # merges the ``_part{n}`` files back into one final output.
+        max_count = int(getattr(backend, "max_batch_size", 50000))
+        max_bytes = int(getattr(backend, "max_batch_bytes", 150 * 1024 * 1024))
+        parts = _partition_batch_requests(batch_requests, max_count, max_bytes)
+        multi_part = len(parts) > 1
+        if multi_part:
             console_print(
-                f"[SUCCESS] Batch submitted successfully. Batch ID: {handle.batch_id}"
+                f"[INFO] Splitting {len(batch_requests)} request(s) into "
+                f"{len(parts)} part(s) to respect {provider} batch limits."
             )
-            logger.info(
-                "Batch submitted to %s. ID: %s, Requests: %d, File: %s",
-                provider,
-                handle.batch_id,
-                len(batch_requests),
-                temp_jsonl_path,
+
+        submitted_batch_ids: list[str] = []
+        try:
+            for part_no, part_requests in enumerate(parts, 1):
+                console_print(
+                    f"[INFO] Submitting batch to {provider}"
+                    f"{f' (part {part_no}/{len(parts)})' if multi_part else ''}..."
+                )
+                handle: BatchHandle = await asyncio.to_thread(
+                    backend.submit_batch,
+                    part_requests,
+                    effective_model_config,
+                    system_prompt=dev_message,
+                    schema=schema,
+                    schema_name=schema_name,
+                )
+                submitted_batch_ids.append(handle.batch_id)
+
+                tracking_record = {
+                    "batch_tracking": {
+                        "batch_id": handle.batch_id,
+                        "provider": handle.provider,
+                        "timestamp": int(time.time()),
+                        "request_count": len(part_requests),
+                        "metadata": handle.metadata,
+                    }
+                }
+
+                part_temp_path = (
+                    temp_jsonl_path
+                    if not multi_part
+                    else temp_jsonl_path.with_name(
+                        f"{temp_jsonl_path.stem}_part{part_no}.jsonl"
+                    )
+                )
+                # Write request metadata lines first, tracking record last.
+                with part_temp_path.open("w", encoding="utf-8") as tempf:
+                    for req in part_requests:
+                        request_meta = {
+                            "batch_request": {
+                                "custom_id": req.custom_id,
+                                "order_index": req.order_index,
+                                "metadata": req.metadata,
+                            }
+                        }
+                        tempf.write(json.dumps(request_meta) + "\n")
+                    tempf.write(json.dumps(tracking_record) + "\n")
+
+                console_print(
+                    "[SUCCESS] Batch submitted successfully. "
+                    f"Batch ID: {handle.batch_id}"
+                )
+                logger.info(
+                    "Batch submitted to %s. ID: %s, Requests: %d, File: %s",
+                    provider,
+                    handle.batch_id,
+                    len(part_requests),
+                    part_temp_path,
+                )
+
+            # Write the documented batch-ID recovery artifact next to the temp
+            # file(s) so check_batches/repair can recover ids if a tracking
+            # record is ever lost.
+            debug_path = (
+                temp_jsonl_path.parent / f"{file_path.stem}_batch_submission_debug.json"
+            )
+            debug_path.write_text(
+                json.dumps(
+                    {"batch_ids": submitted_batch_ids, "provider": provider},
+                    ensure_ascii=False,
+                    indent=2,
+                ),
+                encoding="utf-8",
             )
 
         except (

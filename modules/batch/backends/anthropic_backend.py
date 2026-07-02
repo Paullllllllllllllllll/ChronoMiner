@@ -29,6 +29,31 @@ MAX_BATCH_REQUESTS = 100000
 MAX_BATCH_BYTES = 256 * 1024 * 1024  # 256 MB
 
 
+def _message_to_dict(message: Any) -> Any:
+    """Best-effort conversion of an Anthropic SDK Message to a plain dict.
+
+    Prefers pydantic's ``model_dump``; falls back to ``sdk_to_dict`` for any
+    object shape, and finally to ``str`` so serialization never raises.
+    """
+    model_dump = getattr(message, "model_dump", None)
+    if callable(model_dump):
+        try:
+            return model_dump(mode="json")
+        except TypeError:
+            try:
+                return model_dump()
+            except Exception:
+                pass
+        except Exception:
+            pass
+    from modules.llm.openai_sdk_utils import sdk_to_dict
+
+    try:
+        return sdk_to_dict(message)
+    except Exception:
+        return str(message)
+
+
 class AnthropicBatchBackend(BatchBackend):
     """Anthropic Message Batches API backend."""
 
@@ -222,7 +247,13 @@ class AnthropicBatchBackend(BatchBackend):
                     message = getattr(result_data, "message", None)
                     if message:
                         result_item.success = True
-                        result_item.raw_response = {"message": message}
+                        # Serialize the pydantic SDK Message to a plain dict so
+                        # the raw response survives json.dumps at finalization
+                        # (check_batches); storing the SDK object raised
+                        # TypeError and aborted the whole file group.
+                        result_item.raw_response = {
+                            "message": _message_to_dict(message)
+                        }
 
                         # Extract content
                         content_list = getattr(message, "content", [])
