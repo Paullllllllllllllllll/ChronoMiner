@@ -123,7 +123,7 @@ class TestBuildJsonlHeader:
         )
         assert "jsonl_header" in header_rec
         h = header_rec["jsonl_header"]
-        assert h["version"] == 1
+        assert h["version"] == 2
         assert h["ranges_fingerprint"] == "abc123"
         assert h["total_ranges"] == 10
         assert h["model_name"] == "gpt-5-mini"
@@ -186,7 +186,7 @@ class TestReadJsonlHeader:
 class TestValidateJsonlHeader:
     def _sample_header(self, **overrides) -> dict:
         defaults = {
-            "version": 1,
+            "version": 2,
             "ranges_fingerprint": "abc",
             "total_ranges": 10,
             "boundary_type": "B",
@@ -252,6 +252,20 @@ class TestValidateJsonlHeader:
                 boundary_type="B",
                 model_name="m",
                 context_window=99,
+            )
+            is False
+        )
+
+    def test_version_mismatch_rejected(self) -> None:
+        """Version-1 headers (pre-absolute-index era) are always stale."""
+        h = self._sample_header(version=1)
+        assert (
+            validate_jsonl_header(
+                h,
+                ranges_fingerprint="abc",
+                boundary_type="B",
+                model_name="m",
+                context_window=6,
             )
             is False
         )

@@ -26,8 +26,9 @@ matching:
   strip_punctuation: false         # Remove punctuation before matching
                                    # Keep false if punctuation is semantic (e.g., "§ 1." vs "§ 2.")
   allow_substring_match: true      # Allow marker to match within a line (not just whole line)
-  min_substring_length: 3          # Minimum chars for valid substring match
-                                   # Prevents false positives from very short markers
+  min_substring_length: 3          # Minimum chars for a valid marker (enforced)
+                                   # Shorter markers are rejected and retried;
+                                   # prevents false positives from very short markers
 
 # ── Retry ──────────────────────────────────────────────────────────────────────
 # Retry and validation settings for semantic boundary detection.
@@ -40,9 +41,14 @@ retry:
   max_marker_mismatch_retries: 15  # Max attempts to request alternative markers
                                    # when suggested markers don't match source text
   max_context_expansion_attempts: 6 # Max times to expand visible context window
-                                   # when LLM signals needs_more_context
-  delete_ranges_with_no_content: true  # Remove line ranges confirmed to have no semantic content
-  scan_range_multiplier: 2         # Multiplier for verification scan area
-                                   # Scans (range_size × multiplier) lines around boundary
+                                   # when LLM signals needs_more_context.
+                                   # The window radius doubles per expansion
+                                   # (context_window × 2, ×4, ×8, ...)
+  delete_ranges_with_no_content: true  # Remove line ranges confirmed (at or above
+                                   # certainty_threshold) to have no semantic content
   max_gap_between_ranges: 2        # Maximum unassigned lines allowed between ranges
-                                   # Set to 0 for flush ranges; increase for looser alignment
+                                   # Set to 0 for flush ranges; increase for looser
+                                   # alignment. Never re-covers deleted no-content ranges.
+  # scan_range_multiplier is deprecated and ignored: no-content verification
+  # now scans the whole range interior, and window expansion is derived from
+  # the retry budgets above.

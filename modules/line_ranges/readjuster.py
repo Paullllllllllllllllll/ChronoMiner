@@ -49,6 +49,17 @@ from modules.llm.prompt_utils import (
 
 logger = logging.getLogger(__name__)
 
+# Sentinel injected into the model's input text immediately above the line
+# where the current chunk starts, so the model knows which boundary it is
+# judging. Not part of the source text; never usable as a semantic marker.
+BOUNDARY_SENTINEL = "<<<CURRENT_CHUNK_START>>>"
+
+# Upper bound on the number of lines sent in a single no-content verification
+# call. Ranges are chunk-sized (a few hundred lines) in practice; pathological
+# longer ranges are scanned in consecutive full-coverage windows of this size
+# rather than sampled with gaps.
+MAX_VERIFY_WINDOW_LINES = 1000
+
 
 def clamp_ranges_to_length(
     ranges: Iterable[tuple[int, int]], total_lines: int
@@ -223,6 +234,9 @@ class LineRangeReadjuster:
         self.context_window = max(1, int(context_window))
         self.prompt_path = prompt_path or (PROMPTS_DIR / "semantic_boundary_prompt.txt")
         self.prompt_template = load_prompt_template(self.prompt_path)
+        self.prompt_hash = hashlib.sha256(
+            self.prompt_template.encode("utf-8")
+        ).hexdigest()
         self.text_processor = TextProcessor()
         self._enable_cache_control = detect_capabilities(
             model_name
@@ -255,7 +269,13 @@ class LineRangeReadjuster:
         self.delete_ranges_with_no_content = self.retry_config.get(
             "delete_ranges_with_no_content", True
         )
-        self.scan_range_multiplier = self.retry_config.get("scan_range_multiplier", 3)
+        # scan_range_multiplier is deprecated: window growth is now geometric
+        # and sized by the retry budgets; a leftover YAML key is tolerated.
+        if "scan_range_multiplier" in self.retry_config:
+            logger.debug(
+                "retry.scan_range_multiplier is deprecated and ignored;"
+                " window expansion is derived from the retry budgets."
+            )
         self.max_marker_mismatch_retries = self.retry_config.get(
             "max_marker_mismatch_retries", 2
         )
@@ -305,18 +325,6 @@ class LineRangeReadjuster:
             logger.warning("No ranges found in %s", line_ranges_file)
             return []
 
-        # Apply chunk slicing if requested
-        if first_n_chunks is not None:
-            logger.info(
-                "Slicing to first %d range(s) of %d total", first_n_chunks, len(ranges)
-            )
-            ranges = ranges[:first_n_chunks]
-        elif last_n_chunks is not None:
-            logger.info(
-                "Slicing to last %d range(s) of %d total", last_n_chunks, len(ranges)
-            )
-            ranges = ranges[-last_n_chunks:]
-
         safe_text_file = ensure_path_safe(text_file)
         with safe_text_file.open("r", encoding="utf-8") as handle:
             raw_lines = handle.readlines()
@@ -333,6 +341,35 @@ class LineRangeReadjuster:
                 line_ranges_file,
             )
             return []
+
+        # Chunk slicing selects which ranges to adjust; unselected ranges pass
+        # through unchanged. Indices (and custom_ids) stay absolute so that a
+        # sliced run never truncates the line-ranges file and its temp JSONL
+        # can be safely merged with later runs.
+        total_range_count = len(ranges)
+        if first_n_chunks is not None:
+            selected_indices = set(
+                range(1, min(first_n_chunks, total_range_count) + 1)
+            )
+            logger.info(
+                "Adjusting first %d range(s) of %d total",
+                len(selected_indices),
+                total_range_count,
+            )
+        elif last_n_chunks is not None:
+            selected_indices = set(
+                range(
+                    max(1, total_range_count - last_n_chunks + 1),
+                    total_range_count + 1,
+                )
+            )
+            logger.info(
+                "Adjusting last %d range(s) of %d total",
+                len(selected_indices),
+                total_range_count,
+            )
+        else:
+            selected_indices = set(range(1, total_range_count + 1))
 
         # Detect provider from model name and get appropriate API key
         provider = ProviderConfig._detect_provider(self.model_name)
@@ -353,10 +390,10 @@ class LineRangeReadjuster:
         else:
             logger.debug(f"No adjust_context found for '{text_file.name}'")
 
-        # Compute fingerprint and prompt hash early (needed for header and
-        # staleness validation before the processing loop starts).
+        # Compute fingerprint early (needed for header and staleness
+        # validation before the processing loop starts).
         current_fingerprint = compute_ranges_fingerprint(line_ranges_file)
-        prompt_hash = hashlib.sha256(self.prompt_template.encode("utf-8")).hexdigest()
+        prompt_hash = self.prompt_hash
 
         # Temp JSONL for per-range persistence and resume
         stem = line_ranges_file.stem
@@ -443,6 +480,12 @@ class LineRangeReadjuster:
                     )
 
                 for index, original_range in enumerate(ranges, start=1):
+                    if index not in selected_indices:
+                        # Outside the requested chunk slice: keep unchanged,
+                        # no LLM call, no JSONL record.
+                        adjusted_ranges.append(original_range)
+                        continue
+
                     if index in completed_ids:
                         # Range already processed in a previous run -- keep
                         # its original_range as placeholder; the final line
@@ -540,10 +583,15 @@ class LineRangeReadjuster:
                 temp_jsonl_path, ranges
             )
 
+        # Spans confirmed to contain no semantic content. Gap enforcement must
+        # not re-extend a preceding range across them, or deletion would be
+        # silently undone for every interior deleted range.
+        deleted_spans = [ranges[i] for i in ranges_to_delete if 0 <= i < len(ranges)]
+
         adjusted_ranges = self._remove_overlaps(adjusted_ranges)
 
         if self.max_gap_between_ranges is not None:
-            adjusted_ranges = self._enforce_max_gap(adjusted_ranges)
+            adjusted_ranges = self._enforce_max_gap(adjusted_ranges, deleted_spans)
 
         if ranges_to_delete:
             logger.info(
@@ -555,14 +603,31 @@ class LineRangeReadjuster:
         if not dry_run:
             self._write_line_ranges(line_ranges_file, adjusted_ranges)
 
-            # Derive accurate stats from the complete JSONL (covers both
-            # newly-processed and resumed ranges) and finalize the header.
-            stats = compute_stats_from_jsonl(temp_jsonl_path)
-            finalize_jsonl_header(
-                temp_jsonl_path,
-                stats=stats,
-                source_file=line_ranges_file.name,
+            # Finalize the header only when the JSONL covers every range, so
+            # a sliced partial run is never marked complete and later resume
+            # runs still process the remaining ranges.
+            recorded_ids = extract_completed_ids(
+                temp_jsonl_path, id_pattern=_RANGE_ID_PATTERN
             )
+            all_indices = set(range(1, total_range_count + 1))
+            if recorded_ids >= all_indices:
+                # Derive accurate stats from the complete JSONL (covers both
+                # newly-processed and resumed ranges) and finalize the header.
+                stats = compute_stats_from_jsonl(temp_jsonl_path)
+                finalize_jsonl_header(
+                    temp_jsonl_path,
+                    stats=stats,
+                    source_file=line_ranges_file.name,
+                    final_fingerprint=compute_ranges_fingerprint(line_ranges_file),
+                )
+            else:
+                logger.info(
+                    "Adjustment covered %d of %d range(s) (chunk slice); "
+                    "temp JSONL left unfinalized. A later run re-adjusts from "
+                    "the updated ranges file.",
+                    len(recorded_ids & all_indices),
+                    total_range_count,
+                )
 
             # Clean up temp JSONL unless retention requested
             if not retain_temp_jsonl and temp_jsonl_path.exists():
@@ -1001,21 +1066,16 @@ class LineRangeReadjuster:
             Tuple of (should_delete, reanchored_range_or_None, verification_attempts).
         """
         start, end = original_range
-        range_size = end - start + 1
         verification_attempts: list[dict[str, Any]] = []
 
-        scan_radius = int(range_size * self.scan_range_multiplier)
-
-        # Build scan windows WITHIN the range (not adjacent areas)
-        if range_size <= 2 * scan_radius:
-            # Range is short enough to scan entirely in one call
-            scan_windows = [(start, end)]
-        else:
-            # Long range: sample first and last portions
-            scan_windows = [
-                (start, min(end, start + scan_radius - 1)),
-                (max(start, end - scan_radius + 1), end),
-            ]
+        # Consecutive full-coverage scan windows within the range. Chunk-sized
+        # ranges fit in one window; longer ranges are covered gaplessly.
+        scan_windows: list[tuple[int, int]] = []
+        window_start = start
+        while window_start <= end:
+            window_end = min(end, window_start + MAX_VERIFY_WINDOW_LINES - 1)
+            scan_windows.append((window_start, window_end))
+            window_start = window_end + 1
 
         logger.info(
             "[Range %d] Verifying no content: scanning %d interior window(s)"
@@ -1037,6 +1097,7 @@ class LineRangeReadjuster:
                 context=context,
             )
             decision = BoundaryDecision.from_payload(payload)
+            found_content = not decision.contains_no_semantic_boundary
             verification_attempts.append(
                 {
                     "window": [scan_start, scan_end],
@@ -1044,42 +1105,58 @@ class LineRangeReadjuster:
                     "decision_type": f"verify_interior_{idx + 1}",
                     "certainty": decision.certainty,
                     "semantic_marker": decision.semantic_marker,
-                    "found_content": not decision.contains_no_semantic_boundary,
+                    "found_content": found_content,
                 }
             )
 
-            # If we found content inside the range, don't delete
-            if not decision.contains_no_semantic_boundary and decision.semantic_marker:
-                # Try to resolve the marker to a line number for re-anchoring
-                matched_line = self._match_boundary_text(
-                    boundary_text=decision.semantic_marker,
-                    raw_lines=raw_lines,
-                    search_start=scan_start,
-                    search_end=scan_end,
-                    substring_match=decision.semantic_marker,
-                )
+            # Any content signal blocks deletion, marker or not: the model may
+            # legitimately report content via boundary_already_on_target or
+            # needs_more_context with an empty marker.
+            if found_content:
                 reanchored = None
-                if matched_line is not None:
-                    reanchored = (matched_line, original_range[1])
-                    logger.info(
-                        "[Range %d] Interior scan found content at line %d"
-                        " via marker '%s'; re-anchoring",
-                        range_index,
-                        matched_line,
-                        decision.semantic_marker,
+                if decision.semantic_marker:
+                    # Try to resolve the marker for re-anchoring; the new
+                    # start must stay within the range.
+                    matched_line = self._match_boundary_text(
+                        marker=decision.semantic_marker,
+                        raw_lines=raw_lines,
+                        search_start=scan_start,
+                        search_end=scan_end,
+                        nearest_to=start,
                     )
-                else:
+                    if matched_line is not None and start <= matched_line <= end:
+                        reanchored = (matched_line, end)
+                        logger.info(
+                            "[Range %d] Interior scan found content at line %d"
+                            " via marker '%s'; re-anchoring",
+                            range_index,
+                            matched_line,
+                            decision.semantic_marker,
+                        )
+                if reanchored is None:
                     logger.info(
-                        "[Range %d] Interior scan found content but marker '%s'"
-                        " could not be resolved; preserving range unchanged",
+                        "[Range %d] Interior scan found content (marker %s);"
+                        " preserving range unchanged",
                         range_index,
-                        decision.semantic_marker,
+                        repr(decision.semantic_marker or "<none>"),
                     )
                 return False, reanchored, verification_attempts
 
-        # All interior scans confirmed no content — safe to delete
+            # A no-content verdict below the certainty threshold is not good
+            # enough to destroy a range: abort deletion and keep it.
+            if decision.certainty < self.certainty_threshold:
+                logger.info(
+                    "[Range %d] No-content verdict below certainty threshold"
+                    " (%d < %d); keeping range",
+                    range_index,
+                    decision.certainty,
+                    self.certainty_threshold,
+                )
+                return False, None, verification_attempts
+
+        # All interior scans confirmed no content with high certainty
         logger.info(
-            "[Range %d] Verified no recipe content in range interior;"
+            "[Range %d] Verified no semantic content in range interior;"
             " confirming deletion",
             range_index,
         )
@@ -1097,32 +1174,41 @@ class LineRangeReadjuster:
         context: str | None,
         failed_markers: Sequence[str] | None = None,
     ) -> dict[str, Any]:
-        start, end = original_range
+        start, _ = original_range
         context_start, context_end = context_window
-        context_block = self._format_context(raw_lines, context_start, context_end)
+        marker_line = start if context_start <= start <= context_end else None
+        context_block = self._format_context(
+            raw_lines, context_start, context_end, marker_line=marker_line
+        )
 
         chunk_text = f"Input text:\n\n{context_block}\n"
 
-        # Render system prompt with unified context and schema
-        system_prompt = render_prompt_with_schema(
-            self.prompt_template,
-            SEMANTIC_BOUNDARY_SCHEMA["schema"],
-            inject_schema=True,
-            context=context,
-        )
-
+        # Failed-marker retry guidance goes into the user message, not the
+        # system prompt, so the cache_control-annotated system block stays
+        # byte-stable across retries (Anthropic prompt caching).
         if failed_markers:
             sanitized_failures = [
                 marker.strip() for marker in failed_markers if marker and marker.strip()
             ]
             if sanitized_failures:
                 bullet_list = "\n".join(f"- {marker}" for marker in sanitized_failures)
-                system_prompt += (
-                    "\n\nThe following semantic markers previously failed to match"
+                chunk_text += (
+                    "\nThe following semantic markers previously failed to match"
                     " the source text. Do not reuse any of them. Provide a new"
                     " 5-15 character substring that excludes these markers:\n"
-                    f"{bullet_list}"
+                    f"{bullet_list}\n"
                 )
+
+        # Render system prompt with unified context, schema, and the semantic
+        # unit type (the schema name), so the model knows what boundary kind
+        # to look for even when no context file is resolved.
+        system_prompt = render_prompt_with_schema(
+            self.prompt_template,
+            SEMANTIC_BOUNDARY_SCHEMA["schema"],
+            inject_schema=True,
+            context=context,
+        )
+        system_prompt = system_prompt.replace("{{BOUNDARY_TYPE}}", boundary_type)
 
         response_payload = await process_text_chunk(
             text_chunk=chunk_text,
@@ -1136,8 +1222,11 @@ class LineRangeReadjuster:
         parsed = self._coerce_json(raw_output)
         if parsed is None:
             logger.warning(
-                "Model response could not be parsed as JSON; treating as"
-                " unsure. Raw: %s",
+                "Model response for window %d (%d-%d) could not be parsed as"
+                " JSON; treating as unsure. Raw: %s",
+                window_index,
+                context_start,
+                context_end,
                 raw_output,
             )
             return {
@@ -1162,18 +1251,29 @@ class LineRangeReadjuster:
 
         context_start, context_end = context_window
         matched_line = self._match_boundary_text(
-            boundary_text=decision.semantic_marker,
+            marker=decision.semantic_marker,
             raw_lines=raw_lines,
             search_start=context_start,
             search_end=context_end,
-            substring_match=decision.semantic_marker,
+            nearest_to=fallback_range[0],
         )
         if matched_line is None:
             return None
 
-        # For now, keep the original end line - we only adjust the start boundary
+        # Only the start boundary is adjusted; the original end is kept. A
+        # match beyond the end would invert the range, so reject it and let
+        # the mismatch-retry loop request another marker.
         new_start = matched_line
         new_end = fallback_range[1]
+        if new_start > new_end:
+            logger.warning(
+                "Semantic marker '%s' matched line %d beyond range end %d;"
+                " rejecting to avoid an inverted range",
+                decision.semantic_marker,
+                matched_line,
+                new_end,
+            )
+            return None
 
         return new_start, new_end
 
@@ -1182,39 +1282,51 @@ class LineRangeReadjuster:
         original_range: tuple[int, int],
         total_lines: int,
     ) -> Generator[tuple[int, int], None, None]:
+        """Yield geometrically growing context windows around the range start.
+
+        The radius doubles per window so the configured retry budgets are
+        actually reachable: both a low-certainty retry and a context-expansion
+        request advance to the next window, so the supply covers the sum of
+        both budgets. Generation stops early once a window spans the whole
+        document (further growth would only repeat it).
+        """
         start, _ = original_range
         radius = self.context_window
-        max_multiplier = max(1, int(self.scan_range_multiplier))
+        max_windows = (
+            1 + self.max_context_expansion_attempts + self.max_low_certainty_retries
+        )
 
-        yielded: set[tuple[int, int]] = set()
-
-        def emit(
-            window_start: int,
-            window_end: int,
-        ) -> Generator[tuple[int, int], None, None]:
-            bounded = (max(1, window_start), min(total_lines, window_end))
-            if bounded[1] < bounded[0]:
-                return
-            if bounded not in yielded:
-                yielded.add(bounded)
-                yield bounded
-
-        # Base window: focus on the original start with configured radius
-        yield from emit(start - radius, start + radius)
-
-        # Expanded windows: scale outward around the start using scan_range_multiplier
-        for multiplier in range(2, max_multiplier + 2):
-            expanded_radius = radius * multiplier
-            yield from emit(start - expanded_radius, start + expanded_radius)
+        previous: tuple[int, int] | None = None
+        for step in range(max_windows):
+            expanded_radius = radius * (2**step)
+            bounded = (
+                max(1, start - expanded_radius),
+                min(total_lines, start + expanded_radius),
+            )
+            if bounded[1] < bounded[0] or bounded == previous:
+                break
+            previous = bounded
+            yield bounded
+            if bounded == (1, total_lines):
+                break
 
     def _format_context(
         self,
         raw_lines: Sequence[str],
         context_start: int,
         context_end: int,
+        marker_line: int | None = None,
     ) -> str:
+        """Render the window's lines, inserting the chunk-start sentinel.
+
+        Without the sentinel the model has no way of knowing where the current
+        chunk boundary sits inside the visible text, making decisions such as
+        ``boundary_already_on_target`` guesswork.
+        """
         snippet: list[str] = []
         for line_number in range(context_start, context_end + 1):
+            if marker_line is not None and line_number == marker_line:
+                snippet.append(BOUNDARY_SENTINEL)
             text = raw_lines[line_number - 1].rstrip("\n")
             snippet.append(text)
         return "\n".join(snippet)
@@ -1287,55 +1399,62 @@ class LineRangeReadjuster:
     def _match_boundary_text(
         self,
         *,
-        boundary_text: str,
+        marker: str,
         raw_lines: Sequence[str],
         search_start: int,
         search_end: int,
-        substring_match: str | None = None,
+        nearest_to: int,
     ) -> int | None:
         """
-        Match boundary text in the source lines using configured normalization.
+        Match a semantic marker in the source lines using configured
+        normalization.
 
-        Prefers substring_match if provided, otherwise falls back to boundary_text.
+        The search is bounded: it first tries the given window, then a single
+        expansion by ``context_window`` lines per side. A whole-document
+        fallback is deliberately avoided — a distant unique match would move
+        the boundary far from the range it belongs to. Ambiguous matches
+        resolve to the candidate nearest ``nearest_to`` (ties break to the
+        earlier line). Markers shorter than ``min_substring_length`` are
+        rejected so the mismatch-retry loop can request a longer one.
         """
-        # Prefer the precise substring_match if provided and meets minimum length
-        if (
-            substring_match
-            and len(substring_match.strip()) >= self.min_substring_length
-        ):
-            needle = substring_match.strip()
-        else:
-            needle = boundary_text.strip()
-
+        needle = (marker or "").strip()
         if not needle:
             return None
 
-        # First, try to match within the specified search range
-        matches = self._collect_normalized_matches(
-            raw_lines,
-            needle,
-            (max(1, search_start), min(len(raw_lines), search_end)),
-        )
-
-        # If no match found in the search range, expand to the entire document
-        if not matches:
-            matches = self._collect_normalized_matches(
-                raw_lines,
+        if len(needle) < self.min_substring_length:
+            logger.debug(
+                "Rejecting semantic marker '%s': shorter than"
+                " min_substring_length=%d",
                 needle,
-                (1, len(raw_lines)),
+                self.min_substring_length,
             )
+            return None
 
-        # Return unique match, or None if ambiguous/not found
-        if len(matches) == 1:
-            return matches[0]
+        total_lines = len(raw_lines)
+        window = (max(1, search_start), min(total_lines, search_end))
+        matches = self._collect_normalized_matches(raw_lines, needle, window)
+
+        if not matches:
+            expanded = (
+                max(1, window[0] - self.context_window),
+                min(total_lines, window[1] + self.context_window),
+            )
+            if expanded != window:
+                matches = self._collect_normalized_matches(
+                    raw_lines, needle, expanded
+                )
+
+        if not matches:
+            return None
         if len(matches) > 1:
             logger.debug(
-                "Expected unique semantic boundary for '%s', found multiple"
-                " candidates at lines %s",
+                "Multiple candidates for semantic marker '%s' at lines %s;"
+                " choosing the one nearest line %d",
                 needle,
                 matches,
+                nearest_to,
             )
-        return None
+        return min(matches, key=lambda line: (abs(line - nearest_to), line))
 
     def _coerce_json(self, raw_output: str) -> dict[str, Any] | None:
         text = raw_output.strip()
@@ -1389,9 +1508,6 @@ class LineRangeReadjuster:
         """
         if not ranges:
             return []
-
-        if len(ranges) == 1:
-            return list(ranges)
 
         annotated = [
             {
@@ -1481,13 +1597,21 @@ class LineRangeReadjuster:
 
         return [(item["start"], item["end"]) for item in processed]
 
-    def _enforce_max_gap(self, ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    def _enforce_max_gap(
+        self,
+        ranges: list[tuple[int, int]],
+        deleted_spans: Sequence[tuple[int, int]] = (),
+    ) -> list[tuple[int, int]]:
         """
         Ensure gaps between consecutive ranges do not exceed configured maximum.
 
         Ranges are assumed to be sorted and non-overlapping. When a gap exceeds
         ``max_gap_between_ranges``, the previous range is extended forward to
         reduce the gap while still ending before the next range.
+
+        ``deleted_spans`` are ranges confirmed to contain no semantic content;
+        the extension never reaches into them, otherwise deletion would be
+        silently undone and the no-content lines re-extracted.
         """
         if not ranges:
             return []
@@ -1508,19 +1632,23 @@ class LineRangeReadjuster:
 
             if gap > max_gap:
                 new_prev_end = start - max_gap - 1
-                logger.info(
-                    "Gap of %d lines detected between ranges (%d, %d) and (%d, %d); "
-                    "extending previous range to (%d, %d)",
-                    gap,
-                    prev_start,
-                    prev_end,
-                    start,
-                    end,
-                    prev_start,
-                    new_prev_end,
-                )
-                enforced[-1] = (prev_start, new_prev_end)
-                prev_end = new_prev_end
+                # Cap the extension before any deleted span in the gap.
+                for span_start, span_end in deleted_spans:
+                    if span_end > prev_end and span_start <= new_prev_end:
+                        new_prev_end = min(new_prev_end, span_start - 1)
+                if new_prev_end > prev_end:
+                    logger.info(
+                        "Gap of %d lines detected between ranges (%d, %d) and"
+                        " (%d, %d); extending previous range to (%d, %d)",
+                        gap,
+                        prev_start,
+                        prev_end,
+                        start,
+                        end,
+                        prev_start,
+                        new_prev_end,
+                    )
+                    enforced[-1] = (prev_start, new_prev_end)
 
             enforced.append((start, end))
 

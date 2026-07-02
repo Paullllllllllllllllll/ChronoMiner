@@ -43,7 +43,10 @@ from main.dual_mode import AsyncDualModeScript
 from modules.config.manager import ConfigManager, ConfigValidationError
 from modules.extract.file_processor import FileProcessor
 from modules.infra.chunking import ChunkSlice
-from modules.infra.jsonl import is_jsonl_adjustment_complete
+from modules.infra.jsonl import (
+    compute_ranges_fingerprint,
+    is_jsonl_adjustment_complete,
+)
 from modules.infra.logger import setup_logger
 from modules.infra.token_tracker import (
     check_and_wait_for_token_limit,
@@ -151,6 +154,8 @@ async def _adjust_line_ranges_workflow(
             model_name=model_name_for_check,
             matching_config=matching_config,
             retry_config=retry_config,
+            ranges_fingerprint=compute_ranges_fingerprint(line_ranges_file),
+            prompt_hash=readjuster.prompt_hash,
         ):
             if ui:
                 ui.print_info(

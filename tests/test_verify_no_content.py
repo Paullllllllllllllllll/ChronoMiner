@@ -18,7 +18,6 @@ from modules.line_ranges.readjuster import (
 
 
 def _make_readjuster(
-    scan_range_multiplier: int = 2,
     delete_ranges_with_no_content: bool = True,
 ) -> LineRangeReadjuster:
     """Create a readjuster without needing real API keys or prompt files."""
@@ -36,7 +35,6 @@ def _make_readjuster(
             {"extraction_model": {"name": "gpt-4o"}},
             context_window=3,
             retry_config={
-                "scan_range_multiplier": scan_range_multiplier,
                 "delete_ranges_with_no_content": delete_ranges_with_no_content,
             },
         )
@@ -81,7 +79,7 @@ class TestVerifyNoContentDeletesEmpty:
     @pytest.mark.asyncio
     async def test_single_window_no_content(self) -> None:
         """Short range scanned in one window; model says no content → delete."""
-        readjuster = _make_readjuster(scan_range_multiplier=2)
+        readjuster = _make_readjuster()
         raw_lines = _make_raw_lines(100)
 
         mock_run = AsyncMock(return_value=_no_content_payload())
@@ -159,9 +157,13 @@ class TestVerifyNoContentPreserves:
         assert attempts[0]["semantic_marker"] == "Soupe à l'oignon"
 
     @pytest.mark.asyncio
-    async def test_no_boundary_but_no_marker_still_deletes(self) -> None:
-        """contains_no_semantic_boundary=False but empty marker → still deleted
-        (no marker to anchor), but found_content reflects the model's assertion."""
+    async def test_content_signal_without_marker_blocks_deletion(self) -> None:
+        """contains_no_semantic_boundary=False with empty marker → preserved.
+
+        The model may legitimately report content without a marker (e.g. via
+        boundary_already_on_target, whose contract requires an empty marker);
+        such a response must never confirm deletion.
+        """
         readjuster = _make_readjuster()
         raw_lines = _make_raw_lines(100)
 
@@ -174,7 +176,7 @@ class TestVerifyNoContentPreserves:
         mock_run = AsyncMock(return_value=payload)
         readjuster._run_model = mock_run
 
-        should_delete, _, attempts = await readjuster._verify_no_content(
+        should_delete, reanchored, attempts = await readjuster._verify_no_content(
             extractor=MagicMock(),
             raw_lines=raw_lines,
             original_range=(10, 20),
@@ -183,11 +185,59 @@ class TestVerifyNoContentPreserves:
             context=None,
         )
 
-        # No marker to anchor with, so deletion proceeds
-        assert should_delete is True
-        # found_content reflects the model's assertion
-        # (cnb=False means content detected)
+        assert should_delete is False
+        assert reanchored is None
         assert attempts[0]["found_content"] is True
+
+    @pytest.mark.asyncio
+    async def test_already_on_target_response_blocks_deletion(self) -> None:
+        """A boundary_already_on_target verify response implies content exists
+        and must block deletion despite its empty marker."""
+        readjuster = _make_readjuster()
+        raw_lines = _make_raw_lines(100)
+
+        payload = {
+            "contains_no_semantic_boundary": False,
+            "needs_more_context": False,
+            "boundary_already_on_target": True,
+            "certainty": 95,
+            "semantic_marker": "",
+        }
+        readjuster._run_model = AsyncMock(return_value=payload)
+
+        should_delete, reanchored, _ = await readjuster._verify_no_content(
+            extractor=MagicMock(),
+            raw_lines=raw_lines,
+            original_range=(50, 120),
+            range_index=3,
+            boundary_type="TestSchema",
+            context=None,
+        )
+
+        assert should_delete is False
+        assert reanchored is None
+
+    @pytest.mark.asyncio
+    async def test_low_certainty_no_content_blocks_deletion(self) -> None:
+        """A below-threshold no-content verdict is not enough to delete."""
+        readjuster = _make_readjuster()
+        readjuster.certainty_threshold = 70
+        raw_lines = _make_raw_lines(100)
+
+        readjuster._run_model = AsyncMock(return_value=_no_content_payload(certainty=5))
+
+        should_delete, reanchored, attempts = await readjuster._verify_no_content(
+            extractor=MagicMock(),
+            raw_lines=raw_lines,
+            original_range=(50, 120),
+            range_index=3,
+            boundary_type="TestSchema",
+            context=None,
+        )
+
+        assert should_delete is False
+        assert reanchored is None
+        assert attempts[0]["found_content"] is False
 
 
 # ---------------------------------------------------------------------------
@@ -200,9 +250,9 @@ class TestScanWindowGeometry:
 
     @pytest.mark.asyncio
     async def test_scan_window_covers_full_range(self) -> None:
-        """With default multiplier=2, a short range is scanned in one window
-        covering [start, end] exactly."""
-        readjuster = _make_readjuster(scan_range_multiplier=2)
+        """A chunk-sized range is scanned in one window covering [start, end]
+        exactly."""
+        readjuster = _make_readjuster()
         raw_lines = _make_raw_lines(200)
 
         mock_run = AsyncMock(return_value=_no_content_payload())
@@ -222,8 +272,8 @@ class TestScanWindowGeometry:
 
     @pytest.mark.asyncio
     async def test_scan_never_leaves_range(self) -> None:
-        """No matter the multiplier, scan windows stay within [start, end]."""
-        readjuster = _make_readjuster(scan_range_multiplier=5)
+        """Scan windows stay within [start, end]."""
+        readjuster = _make_readjuster()
         raw_lines = _make_raw_lines(1000)
 
         mock_run = AsyncMock(return_value=_no_content_payload())
@@ -245,18 +295,9 @@ class TestScanWindowGeometry:
             assert window[1] <= original_range[1]
 
     @pytest.mark.asyncio
-    async def test_tiny_multiplier_creates_two_windows(self) -> None:
-        """With a very small multiplier, a large range gets two windows
-        (first portion + last portion) rather than one full scan."""
-        # scan_radius = range_size * 0.1 (simulated by integer truncation)
-        # We need range_size > 2 * scan_radius
-        # → range_size > 2 * range_size * multiplier
-        # → 1 > 2 * multiplier → multiplier < 0.5.
-        # But multiplier is int, minimum useful is 1.
-        # With multiplier=1, condition is range_size <= 2*range_size (always true),
-        # so we can't trigger two windows with integer multipliers >= 1.
-        # This test documents that with multiplier=2, all ranges get a single window.
-        readjuster = _make_readjuster(scan_range_multiplier=2)
+    async def test_chunk_sized_range_single_window(self) -> None:
+        """Ranges up to MAX_VERIFY_WINDOW_LINES are scanned in one call."""
+        readjuster = _make_readjuster()
         raw_lines = _make_raw_lines(500)
 
         mock_run = AsyncMock(return_value=_no_content_payload())
@@ -271,63 +312,27 @@ class TestScanWindowGeometry:
             context=None,
         )
 
-        # With multiplier=2: range_size=301, scan_radius=602,
-        # 301 <= 2*602 = 1204 → True → single window
         assert mock_run.call_count == 1
         call_kwargs = mock_run.call_args.kwargs
         assert call_kwargs["context_window"] == (100, 400)
 
 
 # ---------------------------------------------------------------------------
-# Two-window branch (long range with small multiplier)
+# Multi-window full coverage (ranges longer than MAX_VERIFY_WINDOW_LINES)
 # ---------------------------------------------------------------------------
 
 
-class TestTwoWindowBranch:
-    """Exercise the two-window sampling path for very large ranges with small
-    multipliers.
-
-    This requires patching scan_range_multiplier to a fractional-equivalent value.
-    Since the attribute is set directly, we can set it to any numeric value.
-    """
+class TestMultiWindowCoverage:
+    """Long ranges are scanned in consecutive full-coverage windows — no
+    sampling gaps."""
 
     @pytest.mark.asyncio
-    async def test_two_windows_first_content_aborts(self) -> None:
-        """When two windows are needed and the first finds content, only one call
-        is made."""
-        readjuster = _make_readjuster(scan_range_multiplier=2)
-        # Force a small scan_radius so the two-window branch triggers
-        readjuster.scan_range_multiplier = 0.1  # type: ignore[assignment]
-
-        raw_lines = _make_raw_lines(1000)
-        original_range = (100, 900)  # 801 lines
-
-        mock_run = AsyncMock(
-            return_value=_content_found_payload("Roast Beef"),
-        )
-        readjuster._run_model = mock_run
-
-        should_delete, _, attempts = await readjuster._verify_no_content(
-            extractor=MagicMock(),
-            raw_lines=raw_lines,
-            original_range=original_range,
-            range_index=1,
-            boundary_type="TestSchema",
-            context=None,
-        )
-
-        assert should_delete is False
-        assert mock_run.call_count == 1
-        assert len(attempts) == 1
-
-    @pytest.mark.asyncio
-    async def test_two_windows_both_empty_deletes(self) -> None:
-        """Two windows, both show no content → delete."""
-        readjuster = _make_readjuster(scan_range_multiplier=2)
-        readjuster.scan_range_multiplier = 0.1  # type: ignore[assignment]
-
-        raw_lines = _make_raw_lines(1000)
-        original_range = (100, 900)
+    async def test_long_range_windows_are_gapless(self) -> None:
+        """A 2,500-line range splits into consecutive windows covering all
+        lines, and all-empty verdicts confirm deletion."""
+        readjuster = _make_readjuster()
+        raw_lines = _make_raw_lines(3000)
+        original_range = (101, 2600)  # 2,500 lines
 
         mock_run = AsyncMock(return_value=_no_content_payload())
         readjuster._run_model = mock_run
@@ -342,19 +347,44 @@ class TestTwoWindowBranch:
         )
 
         assert should_delete is True
-        assert mock_run.call_count == 2
-        assert len(attempts) == 2
-        assert attempts[0]["decision_type"] == "verify_interior_1"
-        assert attempts[1]["decision_type"] == "verify_interior_2"
+        windows = [tuple(a["window"]) for a in attempts]
+        assert windows[0][0] == 101
+        assert windows[-1][1] == 2600
+        for (_, prev_end), (next_start, _) in zip(
+            windows, windows[1:], strict=False
+        ):
+            assert next_start == prev_end + 1  # gapless coverage
+        for window in windows:
+            assert window[0] >= 101
+            assert window[1] <= 2600
 
     @pytest.mark.asyncio
-    async def test_two_windows_second_finds_content(self) -> None:
-        """First window is empty, second finds content → preserve."""
-        readjuster = _make_readjuster(scan_range_multiplier=2)
-        readjuster.scan_range_multiplier = 0.1  # type: ignore[assignment]
+    async def test_long_range_first_window_content_aborts(self) -> None:
+        """When the first window finds content, no further calls are made."""
+        readjuster = _make_readjuster()
+        raw_lines = _make_raw_lines(3000)
 
-        raw_lines = _make_raw_lines(1000)
-        original_range = (100, 900)
+        mock_run = AsyncMock(return_value=_content_found_payload("Roast Beef"))
+        readjuster._run_model = mock_run
+
+        should_delete, _, attempts = await readjuster._verify_no_content(
+            extractor=MagicMock(),
+            raw_lines=raw_lines,
+            original_range=(101, 2600),
+            range_index=1,
+            boundary_type="TestSchema",
+            context=None,
+        )
+
+        assert should_delete is False
+        assert mock_run.call_count == 1
+        assert len(attempts) == 1
+
+    @pytest.mark.asyncio
+    async def test_long_range_later_window_content_preserves(self) -> None:
+        """First window empty, second finds content → preserve."""
+        readjuster = _make_readjuster()
+        raw_lines = _make_raw_lines(3000)
 
         mock_run = AsyncMock(
             side_effect=[
@@ -367,7 +397,7 @@ class TestTwoWindowBranch:
         should_delete, _, attempts = await readjuster._verify_no_content(
             extractor=MagicMock(),
             raw_lines=raw_lines,
-            original_range=original_range,
+            original_range=(101, 2600),
             range_index=1,
             boundary_type="TestSchema",
             context=None,
@@ -377,34 +407,6 @@ class TestTwoWindowBranch:
         assert mock_run.call_count == 2
         assert attempts[0]["found_content"] is False
         assert attempts[1]["found_content"] is True
-
-    @pytest.mark.asyncio
-    async def test_two_windows_stay_within_range(self) -> None:
-        """Both windows must be subsets of the original range."""
-        readjuster = _make_readjuster(scan_range_multiplier=2)
-        readjuster.scan_range_multiplier = 0.1  # type: ignore[assignment]
-
-        raw_lines = _make_raw_lines(1000)
-        original_range = (100, 900)
-
-        mock_run = AsyncMock(return_value=_no_content_payload())
-        readjuster._run_model = mock_run
-
-        await readjuster._verify_no_content(
-            extractor=MagicMock(),
-            raw_lines=raw_lines,
-            original_range=original_range,
-            range_index=1,
-            boundary_type="TestSchema",
-            context=None,
-        )
-
-        for call in mock_run.call_args_list:
-            window = call.kwargs["context_window"]
-            assert window[0] >= 100, (
-                f"Window start {window[0]} is before range start 100"
-            )
-            assert window[1] <= 900, f"Window end {window[1]} is after range end 900"
 
 
 # ---------------------------------------------------------------------------

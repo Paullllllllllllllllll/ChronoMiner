@@ -264,6 +264,7 @@ async def _adjust_files(
             matching_config=matching_config or None,
             retry_config=retry_config or None,
             ranges_fingerprint=ranges_fingerprint,
+            prompt_hash=readjuster.prompt_hash,
         ):
             notifier(
                 f"Skipping {text_file.name}: line ranges already adjusted "

@@ -108,7 +108,10 @@ def extract_completed_ids(
 # JSONL header utilities for staleness detection and resume validation
 # ---------------------------------------------------------------------------
 
-_JSONL_HEADER_VERSION = 1
+# Version 2: absolute (document-space) range indices in custom_ids, and a
+# final_ranges_fingerprint recorded at finalization. Version-1 artifacts may
+# carry slice-relative indices, so they are rejected for resume.
+_JSONL_HEADER_VERSION = 2
 
 
 def compute_ranges_fingerprint(line_ranges_file: Path) -> str:
@@ -220,6 +223,8 @@ def validate_jsonl_header(
     Returns ``True`` only when all provided fields match. ``prompt_hash`` is
     compared only when both the header and the caller supply a non-None value.
     """
+    if header.get("version") != _JSONL_HEADER_VERSION:
+        return False
     if header.get("ranges_fingerprint") != ranges_fingerprint:
         return False
     if not _header_fields_match(
@@ -243,12 +248,18 @@ def finalize_jsonl_header(
     *,
     stats: dict[str, int],
     source_file: str | None = None,
+    final_fingerprint: str | None = None,
 ) -> None:
     """Update the JSONL header with completion stats after a successful run.
 
     Reads the entire file, merges completion fields into the header record,
     and rewrites the file. This replaces the former ``.adjusted_meta``
     sidecar with a single authoritative metadata source.
+
+    ``final_fingerprint`` is the fingerprint of the ``_line_ranges.txt`` file
+    AFTER the adjusted ranges were written; ``is_jsonl_adjustment_complete``
+    compares against it so that regenerating the ranges file later is
+    detected as staleness.
     """
     safe_path = ensure_path_safe(path)
     if not safe_path.exists():
@@ -276,6 +287,8 @@ def finalize_jsonl_header(
     header["completed_at"] = datetime.datetime.now(datetime.UTC).isoformat()
     if source_file is not None:
         header["source_file"] = source_file
+    if final_fingerprint is not None:
+        header["final_ranges_fingerprint"] = final_fingerprint
     for key, value in stats.items():
         header[key] = value
 
@@ -302,10 +315,13 @@ def is_jsonl_adjustment_complete(
     settings AND has a ``completed_at`` timestamp (indicating the run finished
     successfully).
 
-    The ``ranges_fingerprint`` is intentionally NOT compared here because a
-    successful adjustment rewrites the ``_line_ranges.txt`` file, changing
-    its fingerprint. The ``completed_at`` flag provides the completion
-    guarantee; config fields ensure the settings match.
+    ``ranges_fingerprint`` (the fingerprint of the CURRENT ranges file) is
+    compared against the header's ``final_ranges_fingerprint`` — the
+    fingerprint recorded after the adjusted ranges were written. This detects
+    a ranges file regenerated after the adjustment (e.g. with a different
+    ``tokens_per_chunk``), which would otherwise be silently skipped. Headers
+    without ``final_ranges_fingerprint`` (pre-fix runs) are treated as stale.
+    ``prompt_hash`` is compared when both sides supply one.
     """
     stem = line_ranges_file.stem
     jsonl_path = line_ranges_file.parent / f"{stem}_adjust_temp.jsonl"
@@ -314,7 +330,22 @@ def is_jsonl_adjustment_complete(
     if header is None:
         return False
 
+    if header.get("version") != _JSONL_HEADER_VERSION:
+        return False
+
     if header.get("completed_at") is None:
+        return False
+
+    if ranges_fingerprint is not None and (
+        header.get("final_ranges_fingerprint") != ranges_fingerprint
+    ):
+        return False
+
+    if (
+        prompt_hash is not None
+        and header.get("prompt_hash") is not None
+        and header.get("prompt_hash") != prompt_hash
+    ):
         return False
 
     return _header_fields_match(

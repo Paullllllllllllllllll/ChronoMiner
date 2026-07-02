@@ -1,4 +1,4 @@
-# ChronoMiner v1.18.0
+# ChronoMiner v1.19.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -711,6 +711,31 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.19.0** (2 July 2026) -- Line-range readjustment overhaul closing the
+    data-loss and resume defects found in a full review of the semantic
+    boundary workflow. The model now sees a `<<<CURRENT_CHUNK_START>>>`
+    sentinel marking the boundary it is judging, plus the schema name as the
+    semantic unit type, and is asked for the boundary nearest the sentinel.
+    No-content verification can no longer delete ranges the model reported
+    content in (e.g. via `boundary_already_on_target`), requires the
+    certainty threshold before deleting, and scans long ranges gaplessly.
+    Marker matching is bounded (no whole-document fallback), enforces
+    `min_substring_length`, resolves ambiguous matches to the candidate
+    nearest the original start, and rejects matches that would invert a
+    range; single-range lists are sanitized too. Gap enforcement no longer
+    re-absorbs deleted no-content ranges. Context windows grow geometrically
+    so the configured retry budgets are actually reachable
+    (`scan_range_multiplier` is deprecated and ignored). Sliced adjustment
+    runs (`--first-n-chunks`/`--last-n-chunks`) keep absolute range indices,
+    no longer truncate the line-ranges file, and are never marked complete;
+    adjustment temp JSONLs carry header version 2, record the post-write
+    ranges fingerprint, and the completed-skip check now detects regenerated
+    ranges files and prompt changes. Failed-marker retry guidance moved to
+    the user message so Anthropic prompt caching stays effective, and
+    token-based range generation counts newline tokens. Adds offline
+    regression suites and opt-in live API tests
+    (`CHRONOMINER_LIVE_TESTS=1`, `live` pytest marker).
 
 - **v1.18.0** (2 July 2026) -- Hardening release closing the extraction-integrity
     defects found in a full production audit. Text chunking no longer strips

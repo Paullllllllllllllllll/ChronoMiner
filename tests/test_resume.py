@@ -316,6 +316,7 @@ class TestJsonlAdjustmentComplete:
                 "ranges_kept_original": 1,
                 "total_llm_calls": 1,
             },
+            final_fingerprint=fingerprint,
         )
 
         assert is_jsonl_adjustment_complete(
@@ -324,6 +325,16 @@ class TestJsonlAdjustmentComplete:
             context_window=6,
             model_name="gpt-4o",
             ranges_fingerprint=fingerprint,
+        )
+
+        # A ranges file regenerated after the adjustment (different current
+        # fingerprint) must invalidate the completed marker.
+        assert not is_jsonl_adjustment_complete(
+            lr_file,
+            boundary_type="BibliographicEntries",
+            context_window=6,
+            model_name="gpt-4o",
+            ranges_fingerprint="regenerated-fingerprint",
         )
 
     def test_incomplete_jsonl_not_detected(self, tmp_path: Path):

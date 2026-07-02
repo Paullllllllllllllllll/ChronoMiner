@@ -128,7 +128,10 @@ class TokenBasedChunking(ChunkingStrategy):
         encode = _get_encoding_for_model(self.model_name).encode
 
         for idx, line in enumerate(lines, 1):
-            line_tokens = 0 if not line else len(encode(line))
+            # Count the newline too: chunks are joined with "\n" downstream
+            # (chunking_text_version 2), so per-line counts without it would
+            # systematically undershoot the real chunk size.
+            line_tokens = len(encode(line + "\n"))
             if current_tokens + line_tokens > tokens_per_chunk and current_tokens > 0:
                 ranges.append((start_line, end_line))
                 start_line = idx
