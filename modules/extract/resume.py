@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import UTC, datetime
 from enum import Enum
 from pathlib import Path
@@ -54,6 +55,10 @@ CHUNKING_TEXT_VERSION = 2
 # which would corrupt resume/merge). No migration is attempted.
 TEMP_JSONL_VERSION = 2
 TEMP_VERSION_KEY = "_chronominer_temp_version"
+
+# Absolute 1-based unit index embedded in a custom_id: "-chunk-N" (text
+# runs) or "-page-N" (visual runs).
+_CUSTOM_ID_INDEX_RE = re.compile(r"-(?:chunk|page)-(\d+)$")
 
 
 def build_temp_header() -> dict[str, Any]:
@@ -181,7 +186,8 @@ def detect_extraction_status(
         return FileStatus.NOT_STARTED, set()
 
     # The output is a JSON object with a "records" list and metadata,
-    # or a bare list (legacy).
+    # or a bare list (legacy). Since v1.20.0 batch finalization writes the
+    # same "records" shape, so batch outputs are covered here too.
     records: list[dict[str, Any]] = []
     if isinstance(data, dict):
         records = data.get("records", [])
@@ -190,14 +196,13 @@ def detect_extraction_status(
 
     completed: set[int] = set()
     for record in records:
-        custom_id = record.get("custom_id", "")
-        # custom_id format: "{stem}-chunk-{idx}"
-        if "-chunk-" in str(custom_id):
-            try:
-                idx = int(str(custom_id).rsplit("-chunk-", 1)[1])
-                completed.add(idx)
-            except (ValueError, IndexError):
-                pass
+        if not isinstance(record, dict):
+            continue
+        # custom_id format: "{stem}-chunk-{idx}" (text) or
+        # "{stem}-page-{idx}" (visual).
+        match = _CUSTOM_ID_INDEX_RE.search(str(record.get("custom_id", "")))
+        if match:
+            completed.add(int(match.group(1)))
 
     if not completed:
         # File exists but has no parseable chunk records
@@ -212,15 +217,15 @@ def detect_extraction_status(
 def completed_indices_from_outputs(*output_paths: Path) -> set[int]:
     """Collect completed 1-based indices from existing output files.
 
-    Reads both the sync shape (a ``records`` list) and the batch shape (a
-    ``responses`` list), extracting the numeric suffix of each ``custom_id``
-    (``...-chunk-N`` or ``...-page-N``). Used for batch resume parity: requests
-    already present in a prior output are not re-submitted.
+    Reads the unified shape (a ``records`` list, written by both sync and
+    batch since v1.20.0) and, as a legacy-on-disk-only fallback, the
+    pre-v1.20.0 batch shape (a ``responses`` list). Extracts the numeric
+    suffix of each ``custom_id`` (``...-chunk-N`` or ``...-page-N``). Used
+    for batch resume parity: requests already present in a prior output are
+    not re-submitted.
     """
-    import re as _re
-
     indices: set[int] = set()
-    pattern = _re.compile(r"-(?:chunk|page)-(\d+)$")
+    pattern = _CUSTOM_ID_INDEX_RE
     for path in output_paths:
         if not path.exists():
             continue

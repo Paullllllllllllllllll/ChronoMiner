@@ -1,4 +1,4 @@
-# ChronoMiner v1.19.0
+# ChronoMiner v1.20.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -506,6 +506,10 @@ batch mode.
    batch id is saved next to the temp file for recovery
 6. Remote input/output files are deleted only after the final output JSON is
    durably written locally, so a mid-download failure never destroys results
+7. Finalization writes the same `{stem}_output.json` shape as synchronous
+   extraction (`records` + `_chronominer_metadata`, with batch provenance
+   under `batch_tracking`); the legacy `{stem}_final_output.json` shape is
+   no longer written but files already on disk remain readable
 
 | Provider | Cost savings | Typical completion |
 |----------|-------------|-------------------|
@@ -711,6 +715,25 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.20.0** (3 July 2026) -- Unify batch output on the synchronous shape.
+    Batch finalization (`check_batches.py`) and repair
+    (`repair_extractions.py`) now write the same `{stem}_output.json` shape
+    as synchronous extraction -- `records` (with `custom_id`, `chunk_index`,
+    `chunk_range`, and a nested `response` body) plus `_chronominer_metadata`
+    -- via a shared assembler (`modules/extract/batch_output.py`); batch
+    provenance (provider, batch ids, parts, completion counts, tracking)
+    is folded into the metadata under `batch_tracking`. The legacy
+    `{stem}_final_output.json` shape is no longer written; files already on
+    disk stay readable through the fallbacks in the converters and resume
+    (no migration). When all batches are terminal but some failed, a
+    partial unified output is now written from the completed batches
+    (stamped `partial` with `failed_chunks`), temp files are retained for
+    repair, and failed requests are folded into metadata instead of
+    appearing as records. `detect_extraction_status` therefore covers
+    batch outputs and now also recognizes page-based custom_ids.
+    Downstream consumers in WhatForDinner were updated first,
+    backward-compatibly, to read both shapes.
 
 - **v1.19.0** (2 July 2026) -- Line-range readjustment overhaul closing the
     data-loss and resume defects found in a full review of the semantic

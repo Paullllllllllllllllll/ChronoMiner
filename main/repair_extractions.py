@@ -21,13 +21,13 @@ from main.dual_mode import DualModeScript
 from modules.batch import BatchHandle, BatchStatus, get_batch_backend
 from modules.batch.diagnostics import extract_custom_id_mapping
 from modules.batch.ops import (
-    _order_responses,
     _recover_missing_batch_ids,
     is_batch_temp_file,
     load_config,
     process_batch_output_file,
     retrieve_responses_from_batch,
 )
+from modules.extract.batch_output import build_unified_batch_output
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.logger import setup_logger
 from modules.ui.core import UserInterface
@@ -54,7 +54,10 @@ def _discover_candidate_temp_files(
                 responses = result.get("responses", [])
                 tracking = result.get("tracking", [])
                 identifier = temp_file.stem.replace("_temp", "")
-                final_json = temp_file.parent / f"{identifier}_final_output.json"
+                final_json = temp_file.parent / f"{identifier}_output.json"
+                # Legacy name written by pre-v1.20.0 batch finalization;
+                # still counts as "final exists" for display purposes.
+                legacy_final = temp_file.parent / f"{identifier}_final_output.json"
                 candidates.append(
                     {
                         "schema_name": schema_name,
@@ -63,7 +66,7 @@ def _discover_candidate_temp_files(
                         "final_json": final_json,
                         "responses_count": len(responses),
                         "tracking_count": len(tracking),
-                        "has_final": final_json.exists(),
+                        "has_final": final_json.exists() or legacy_final.exists(),
                         "tracking": tracking,
                         "responses": responses,
                     }
@@ -180,30 +183,24 @@ def _repair_temp_file(
         ui.print_warning("No responses retrieved; nothing to repair.")
         return
 
-    import datetime as _dt
-
     identifier = temp_file.stem.replace("_temp", "")
-    final_json_path = temp_file.parent / f"{identifier}_final_output.json"
-    ordered_responses = _order_responses(responses, order_map)
+    final_json_path = temp_file.parent / f"{identifier}_output.json"
 
     # Honest completeness: only fully_completed when nothing failed or is
     # missing (previously stamped True unconditionally).
     fully_completed = not failed_batches and not missing_batches
-    final_results: dict[str, Any] = {
-        "responses": ordered_responses,
-        "tracking": tracking,
-        "processing_metadata": {
-            "fully_completed": fully_completed,
-            "processed_at": _dt.datetime.now(_dt.UTC).isoformat(),
-            "completed_batches": len(completed_batches),
-            "failed_batches": len(failed_batches),
-            "ordered_by_custom_id": True,
-            "missing_batches": missing_batches,
-            "recovered_batch_ids": sorted(recovered_ids),
-        },
-    }
-    if custom_id_map:
-        final_results["custom_id_map"] = custom_id_map
+    final_results: dict[str, Any] = build_unified_batch_output(
+        responses,
+        tracking,
+        schema_name=schema_name,
+        order_map=order_map,
+        custom_id_map=custom_id_map,
+        fully_completed=fully_completed,
+        completed_batches=len(completed_batches),
+        failed_batches=len(failed_batches),
+        missing_batches=missing_batches,
+        recovered_batch_ids=sorted(recovered_ids),
+    )
 
     final_json_path.write_text(
         json.dumps(final_results, indent=2, ensure_ascii=False), encoding="utf-8"

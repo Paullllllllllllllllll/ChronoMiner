@@ -726,8 +726,10 @@ class FileProcessor:
         if precomputed_completed is not None:
             completed_chunk_indices = precomputed_completed
         elif resume and use_batch:
-            # Batch resume parity: skip requests already present in a prior sync
-            # or batch output so a re-run only submits the remainder.
+            # Batch resume parity: skip requests already present in a prior
+            # output so a re-run only submits the remainder. Since v1.20.0
+            # batch finalization writes the unified `_output.json`; the
+            # `_final_output.json` path covers legacy on-disk batch outputs.
             final_output_path = output_json_path.with_name(
                 f"{file_path.stem}_final_output.json"
             )

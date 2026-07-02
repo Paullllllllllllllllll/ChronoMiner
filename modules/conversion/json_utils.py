@@ -332,8 +332,10 @@ def extract_entries_from_json(json_file: Path) -> list[Any]:
 
     This function supports multiple JSON structures:
     - Direct entries: ``{"entries": [...]}``
-    - Records format: ``{"records": [...]}`` (from process_text_files.py)
-    - Batch responses: ``{"responses": [...]}``
+    - Unified records format: ``{"records": [...]}`` (written by both the
+      sync path and, since v1.20.0, batch finalization)
+    - Legacy batch responses: ``{"responses": [...]}`` (pre-v1.20.0
+      ``_final_output.json`` files still on disk; no longer written)
     - Chat Completions API format
     - Responses API format
     - Chunk-based output format (top-level list)
@@ -363,12 +365,14 @@ def extract_entries_from_json(json_file: Path) -> list[Any]:
         if "entries" in data:
             entries = data["entries"]
 
-        # Records format (from process_text_files.py / _generate_output_files)
+        # Unified records format (sync path and, since v1.20.0, batch
+        # finalization via build_unified_batch_output)
         elif "records" in data:
             for record in data["records"]:
                 entries.extend(_extract_entries_from_record(record))
 
-        # Batch responses format (from check_batches.py)
+        # Legacy batch responses format: pre-v1.20.0 _final_output.json
+        # files on disk. Kept as a read-only fallback; never written now.
         elif "responses" in data:
             for resp in data.get("responses", []):
                 if resp is None:

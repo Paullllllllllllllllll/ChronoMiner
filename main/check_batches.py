@@ -16,7 +16,6 @@ Supports two execution modes:
 2. CLI Mode: Command-line arguments for automation
 """
 
-import datetime
 import json
 import re
 import sys
@@ -39,7 +38,6 @@ from modules.batch import (
     get_batch_backend,
 )
 from modules.batch.ops import (
-    _order_responses,
     _recover_missing_batch_ids,
     is_batch_temp_file,
     load_config,
@@ -47,6 +45,7 @@ from modules.batch.ops import (
     retrieve_responses_from_batch,
 )
 from modules.config.loader import get_config_loader
+from modules.extract.batch_output import build_unified_batch_output
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.logger import setup_logger
 from modules.ui.core import UserInterface
@@ -373,18 +372,21 @@ def process_all_batches(
                         "info",
                     )
                     _bump(agg, "pending")
-                else:
-                    _safe_print(
-                        ui,
-                        f"Cannot finalize {base_identifier} - "
-                        f"some batches failed or expired.",
-                        "warning",
+                    logger.info(
+                        f"Skipping finalization for {base_identifier} "
+                        f"(batches still processing)."
                     )
-                    _bump(agg, "failed")
-                logger.info(
-                    f"Skipping finalization for {base_identifier} (incomplete batches)."
+                    continue
+                # All batches are terminal but some failed/expired: write a
+                # PARTIAL unified output from the completed ones so resume and
+                # repair can top it up (mirrors sync partial semantics).
+                _safe_print(
+                    ui,
+                    f"Some batches for {base_identifier} failed or expired; "
+                    f"writing a partial output from completed batches.",
+                    "warning",
                 )
-                continue
+                _bump(agg, "failed")
 
             # Retrieve responses from completed batches using provider-agnostic backends
             for track in completed_batches:
@@ -403,29 +405,23 @@ def process_all_batches(
                 _bump(agg, "failed")
                 continue
 
-            # Order responses
-            ordered_responses: list[Any] = _order_responses(responses, order_map)
-
             # Write final output to output directory (not temp file parent)
-            # Remove _temp suffix from base identifier
+            # in the unified sync shape; remove _temp suffix from identifier.
             final_identifier = base_identifier.replace("_temp", "")
-            final_json_path: Path = output_dir / f"{final_identifier}_final_output.json"
+            final_json_path: Path = output_dir / f"{final_identifier}_output.json"
 
-            final_results: dict[str, Any] = {
-                "responses": ordered_responses,
-                "tracking": tracking,
-                "processing_metadata": {
-                    "fully_completed": all_finished,
-                    "processed_at": datetime.datetime.now(datetime.UTC).isoformat(),
-                    "completed_batches": len(completed_batches),
-                    "failed_batches": len(failed_batches),
-                    "ordered_by_custom_id": True,
-                    "missing_batches": missing_batches,
-                    "recovered_batch_ids": sorted(recovered_ids),
-                },
-            }
-            if custom_id_map:
-                final_results["custom_id_map"] = custom_id_map
+            final_results: dict[str, Any] = build_unified_batch_output(
+                responses,
+                tracking,
+                schema_name=schema_name,
+                order_map=order_map,
+                custom_id_map=custom_id_map,
+                fully_completed=all_finished,
+                completed_batches=len(completed_batches),
+                failed_batches=len(failed_batches),
+                missing_batches=missing_batches,
+                recovered_batch_ids=sorted(recovered_ids),
+            )
 
             final_json_path.write_text(
                 json.dumps(final_results, indent=2, ensure_ascii=False),
@@ -433,7 +429,8 @@ def process_all_batches(
             )
             _safe_print(ui, f"Final output written to: {final_json_path}", "success")
             logger.info(f"Final output written to {final_json_path}")
-            _bump(agg, "finalized")
+            if all_finished:
+                _bump(agg, "finalized")
 
             # Remote files are deleted only now that the final output JSON is
             # durably on disk, so a mid-download failure never destroys results.
@@ -456,7 +453,7 @@ def process_all_batches(
                 )
 
             # Summary of processed chunks
-            num_responses = len(ordered_responses)
+            num_responses = len(final_results["records"])
             num_batches = len(completed_batches)
             _safe_print(
                 ui,
@@ -501,8 +498,11 @@ def process_all_batches(
                     logger.error(f"Error converting {final_json_path} to TXT: {e}")
                     _safe_print(ui, f"Error converting to TXT: {e}", "error")
 
-            # Optionally remove temp files (all parts in the group)
-            if not processing_settings.get("retain_temporary_jsonl", False):
+            # Optionally remove temp files (all parts in the group). Partial
+            # finalizations keep their temp files so repair can top them up.
+            if all_finished and not processing_settings.get(
+                "retain_temporary_jsonl", False
+            ):
                 for temp_file in temp_file_group:
                     temp_file.unlink()
                     _safe_print(ui, f"Removed temporary file: {temp_file.name}", "info")
