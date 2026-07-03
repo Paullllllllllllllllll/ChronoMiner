@@ -128,3 +128,31 @@ daily_token_limit:
   # EWMA smoothing factor (0-1) for the per-call estimate: higher reacts faster
   # to recent calls, lower is steadier.
   estimate_smoothing: 0.3
+
+# =============================================================================
+# Shared Cross-Tool Token Budget (opt-in)
+# =============================================================================
+# By default each ChronoPipeline tool enforces the daily_token_limit above
+# against its OWN usage alone. Enable this block to instead enforce the daily
+# limit against the COMBINED usage of every participating tool (ChronoMiner,
+# ChronoTranscriber, AutoExcerpter) via one shared on-disk ledger, so N tools
+# running together share a single daily cap rather than N independent caps.
+#
+# The ledger is a small JSON file (token_ledger.json) guarded by an OS file
+# lock at ~/.chronopipeline/ by default. Each tool only ever writes its own
+# field; the combined total is the sum across tools. Set the SAME ledger_dir
+# in every tool's config to make them share one budget.
+#
+# When disabled (the default) there is zero ledger I/O and behaviour is exactly
+# the private per-tool tracker — public and single-tool users see no change.
+#
+# Used by: modules/infra/token_tracker.py, modules/infra/shared_ledger.py
+# =============================================================================
+
+shared_token_budget:
+  # Opt-in switch. false = private per-tool daily budget (today's behavior).
+  enabled: false
+
+  # Directory holding the shared ledger. Empty string -> ~/.chronopipeline
+  # (token_ledger.json). Point every participating tool at the same directory.
+  ledger_dir: ""

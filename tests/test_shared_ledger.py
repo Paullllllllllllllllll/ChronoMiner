@@ -25,7 +25,7 @@ import pytest
 # Content hash of shared_ledger.py with newlines normalized to LF.
 # Update ONLY when intentionally releasing a new ledger module version,
 # then re-copy module + tests to all sibling repos.
-EXPECTED_SHA256 = "25d83e45b4e1bd40b605271bce11170378a6b0409d75bb1f6a1f69857cb23523"
+EXPECTED_SHA256 = "1f6c9a5703d463750d05e47ed25b9a96fda24d88e948fe674fcffb697d541bc8"
 
 _SKIP_DIRS = {".venv", ".git", "scratch", "backup", "node_modules", ".mypy_cache"}
 
@@ -128,9 +128,7 @@ class TestRolloverAndRecovery:
             "tools": {"chronominer": 9999, "autoexcerpter": 12345},
             "last_updated": "irrelevant",
         }
-        (tmp_path / sl.LEDGER_FILENAME).write_text(
-            json.dumps(stale), encoding="utf-8"
-        )
+        (tmp_path / sl.LEDGER_FILENAME).write_text(json.dumps(stale), encoding="utf-8")
         assert ledger.sync(10) == 10
 
     def test_corrupt_json_recovers_fresh(self, tmp_path: Path) -> None:
@@ -146,9 +144,7 @@ class TestRolloverAndRecovery:
             "tools": {"chronominer": 777},
             "last_updated": "irrelevant",
         }
-        (tmp_path / sl.LEDGER_FILENAME).write_text(
-            json.dumps(stale), encoding="utf-8"
-        )
+        (tmp_path / sl.LEDGER_FILENAME).write_text(json.dumps(stale), encoding="utf-8")
         assert ledger.read_combined() == 0
 
     def test_read_combined_missing_file_is_none(self, tmp_path: Path) -> None:

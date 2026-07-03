@@ -119,9 +119,7 @@ class SharedTokenLedger:
             raise ValueError("tool_name must be a non-empty string")
         self.tool_name = tool_name.strip().lower()
         directory = (
-            Path(str(ledger_dir)).expanduser()
-            if ledger_dir
-            else default_ledger_dir()
+            Path(str(ledger_dir)).expanduser() if ledger_dir else default_ledger_dir()
         )
         self.ledger_dir = directory
         self.ledger_path = directory / LEDGER_FILENAME
@@ -294,9 +292,7 @@ class SharedTokenLedger:
         if not isinstance(tools, dict):
             return 0
         return sum(
-            int(value)
-            for value in tools.values()
-            if isinstance(value, (int, float))
+            int(value) for value in tools.values() if isinstance(value, (int, float))
         )
 
     def _warn_degraded(self, reason: str) -> None:
