@@ -124,8 +124,8 @@ def build_unified_batch_output(
         records.append(_to_unified_record(entry, custom_id_map))
 
     total_chunks = _infer_total_chunks(custom_id_map, records, failed_chunks)
-    partial = (not fully_completed) or bool(failed_chunks) or (
-        len(records) < total_chunks
+    partial = (
+        (not fully_completed) or bool(failed_chunks) or (len(records) < total_chunks)
     )
 
     metadata = build_extraction_metadata(

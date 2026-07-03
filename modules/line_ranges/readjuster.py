@@ -348,9 +348,7 @@ class LineRangeReadjuster:
         # can be safely merged with later runs.
         total_range_count = len(ranges)
         if first_n_chunks is not None:
-            selected_indices = set(
-                range(1, min(first_n_chunks, total_range_count) + 1)
-            )
+            selected_indices = set(range(1, min(first_n_chunks, total_range_count) + 1))
             logger.info(
                 "Adjusting first %d range(s) of %d total",
                 len(selected_indices),
@@ -1423,8 +1421,7 @@ class LineRangeReadjuster:
 
         if len(needle) < self.min_substring_length:
             logger.debug(
-                "Rejecting semantic marker '%s': shorter than"
-                " min_substring_length=%d",
+                "Rejecting semantic marker '%s': shorter than min_substring_length=%d",
                 needle,
                 self.min_substring_length,
             )
@@ -1440,9 +1437,7 @@ class LineRangeReadjuster:
                 min(total_lines, window[1] + self.context_window),
             )
             if expanded != window:
-                matches = self._collect_normalized_matches(
-                    raw_lines, needle, expanded
-                )
+                matches = self._collect_normalized_matches(raw_lines, needle, expanded)
 
         if not matches:
             return None

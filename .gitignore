@@ -66,3 +66,6 @@ logs/
 
 # staging
 /staging
+
+# Local scratch area (ad-hoc tests, backups)
+scratch/
