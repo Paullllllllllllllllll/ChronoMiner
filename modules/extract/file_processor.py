@@ -101,6 +101,47 @@ def is_visual_input(file_path: Path) -> bool:
     return False
 
 
+def _read_temp_records(temp_jsonl_path: Path) -> list[dict[str, Any]]:
+    """Read completed extraction records from a temp JSONL (blocking).
+
+    Run off the event loop via ``asyncio.to_thread`` from the async output
+    generator. Only lines carrying a ``custom_id`` (completed units) are kept;
+    tracking/header lines and malformed lines are skipped.
+    """
+    results: list[dict[str, Any]] = []
+    if not temp_jsonl_path.exists():
+        return results
+    with temp_jsonl_path.open("r", encoding="utf-8") as tempf:
+        for raw_line in tempf:
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError as e:
+                logger.warning(f"Failed to parse line in temp file: {e}")
+                continue
+            if "custom_id" not in record:
+                continue
+            response_field = record.get("response", {}).get("body", {})
+            output_record = {
+                "custom_id": record.get("custom_id"),
+                "chunk_index": record.get("chunk_index"),
+                "chunk_range": record.get("chunk_range"),
+                "response": response_field,
+            }
+            if "image_provenance" in record:
+                output_record["image_provenance"] = record["image_provenance"]
+            results.append(output_record)
+    return results
+
+
+def _write_output_json(output_json_path: Path, output_data: dict[str, Any]) -> None:
+    """Write the final output JSON to disk (blocking; run via to_thread)."""
+    with output_json_path.open("w", encoding="utf-8") as outf:
+        json.dump(output_data, outf, indent=2, ensure_ascii=False)
+
+
 class _MessagingAdapter:
     """Simple messaging adapter for file processor output.
 
@@ -1079,34 +1120,9 @@ class FileProcessor:
         """
         try:
             messenger.info("Constructing final output from temporary file...")
-            results = []
 
-            if temp_jsonl_path.exists():
-                with temp_jsonl_path.open("r", encoding="utf-8") as tempf:
-                    for line in tempf:
-                        line = line.strip()
-                        if not line:
-                            continue
-                        try:
-                            record = json.loads(line)
-                            if "custom_id" in record:
-                                response_field = record.get("response", {}).get(
-                                    "body", {}
-                                )
-                                output_record = {
-                                    "custom_id": record.get("custom_id"),
-                                    "chunk_index": record.get("chunk_index"),
-                                    "chunk_range": record.get("chunk_range"),
-                                    "response": response_field,
-                                }
-                                if "image_provenance" in record:
-                                    output_record["image_provenance"] = record[
-                                        "image_provenance"
-                                    ]
-                                results.append(output_record)
-                        except json.JSONDecodeError as e:
-                            logger.warning(f"Failed to parse line in temp file: {e}")
-                            continue
+            # Blocking temp-file read runs off the event loop.
+            results = await asyncio.to_thread(_read_temp_records, temp_jsonl_path)
 
             if merge_existing:
                 results = self._merge_with_existing_output(
@@ -1149,8 +1165,8 @@ class FileProcessor:
                 "records": results,
             }
 
-            with output_json_path.open("w", encoding="utf-8") as outf:
-                json.dump(output_data, outf, indent=2, ensure_ascii=False)
+            # Blocking output write runs off the event loop.
+            await asyncio.to_thread(_write_output_json, output_json_path, output_data)
 
             if partial:
                 if failed_chunks:

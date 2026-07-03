@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import inspect
 import json
 import os
 from dataclasses import dataclass, field
@@ -27,6 +28,26 @@ from modules.infra.token_tracker import get_token_tracker
 logger = setup_logger(__name__)
 
 ProviderType = Literal["openai", "anthropic", "google", "openrouter", "custom"]
+
+
+async def _aclose_maybe(obj: Any) -> None:
+    """Call ``obj.close()`` if present, awaiting an async closer. Never raises.
+
+    Used to tear down provider SDK clients (which own httpx connections) when a
+    LangChain chat model is disposed. A missing or non-callable ``close`` is a
+    no-op; any exception is logged at debug level and swallowed.
+    """
+    if obj is None:
+        return
+    close = getattr(obj, "close", None)
+    if not callable(close):
+        return
+    try:
+        result = close()
+        if inspect.isawaitable(result):
+            await result
+    except Exception as exc:  # Best-effort cleanup; never propagate.
+        logger.debug("Error closing client %r: %s", type(obj).__name__, exc)
 
 
 def _normalize_schema_for_anthropic(schema: Any) -> Any:
@@ -199,7 +220,6 @@ class ProviderConfig:
     top_p: float = 1.0
     timeout: float = 600.0
     max_retries: int = 5
-    requests_per_second: float | None = None  # For rate limiting
     reasoning_effort: str | None = None
     extra_params: dict[str, Any] = field(default_factory=dict)
 
@@ -824,6 +844,29 @@ class LangChainLLM:
             "cache_read_tokens": cache_read_tokens,
         }
 
+    @staticmethod
+    def _committed_total_tokens(usage_counts: dict[str, int]) -> int:
+        """Daily-budget total that counts prompt-cache tokens at full weight.
+
+        Anthropic's raw usage reports ``cache_creation_input_tokens`` and
+        ``cache_read_input_tokens`` SEPARATELY from ``input_tokens`` (which
+        excludes them), so ``total_tokens`` (input + output) is short by the
+        cache total and we add it back at full weight.
+
+        OpenAI instead folds cached tokens into ``prompt_tokens`` /
+        ``total_tokens`` and exposes them under
+        ``prompt_tokens_details.cached_tokens`` — a field ``_extract_usage``
+        deliberately never sums — so ``cache_creation_tokens`` /
+        ``cache_read_tokens`` stay 0 there and no double counting occurs. The
+        same holds for langchain-anthropic's ``usage_metadata`` path, which
+        already folds cache tokens into ``input_tokens`` while leaving the
+        separate cache fields unset.
+        """
+        total = int(usage_counts.get("total_tokens", 0) or 0)
+        cache_creation = int(usage_counts.get("cache_creation_tokens", 0) or 0)
+        cache_read = int(usage_counts.get("cache_read_tokens", 0) or 0)
+        return total + cache_creation + cache_read
+
     async def ainvoke_with_structured_output(
         self,
         messages: list[dict[str, Any]],
@@ -929,13 +972,17 @@ class LangChainLLM:
                         cache_read_tokens
                     )
 
-                # Report to token tracker
+                # Report to token tracker. The committed number counts cache
+                # creation + read tokens at full weight (see
+                # _committed_total_tokens) so the daily budget reflects true
+                # consumption on cache-enabled providers.
                 try:
-                    if total_tokens > 0:
+                    committed_total = self._committed_total_tokens(usage_counts)
+                    if committed_total > 0:
                         token_tracker = get_token_tracker()
-                        token_tracker.add_tokens(total_tokens)
+                        token_tracker.add_tokens(committed_total)
                         logger.debug(
-                            f"[TOKEN] API call consumed {total_tokens:,} tokens "
+                            f"[TOKEN] API call consumed {committed_total:,} tokens "
                             f"(daily total: {token_tracker.get_tokens_used_today():,})"
                         )
                 except Exception as e:
@@ -1099,6 +1146,32 @@ class LangChainLLM:
         )
         result = await structured_model.ainvoke(messages)
         return result
+
+    async def aclose(self) -> None:
+        """Close the underlying provider HTTP client(s).
+
+        LangChain chat models wrap provider SDK clients that in turn hold an
+        httpx client; without an explicit close those connections leak. This
+        closes every known client attribute defensively (ChatOpenAI exposes
+        ``root_client`` / ``root_async_client``; ChatAnthropic exposes
+        ``_client`` / ``_async_client``), awaiting async closers. Providers
+        that expose none (e.g. Google) are simply skipped. Never raises: any
+        close failure is logged at debug level and swallowed.
+        """
+        chat_model = self._chat_model
+        self._chat_model = None
+        self._initialized = False
+        if chat_model is None:
+            return
+        for attr in (
+            "root_async_client",
+            "root_client",
+            "async_client",
+            "client",
+            "_async_client",
+            "_client",
+        ):
+            await _aclose_maybe(getattr(chat_model, attr, None))
 
     def invoke_with_structured_output(
         self,

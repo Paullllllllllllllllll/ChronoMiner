@@ -435,5 +435,66 @@ class TestCustomProviderRouting:
         llm._invoke_openai_structured.assert_awaited_once()
 
 
+class _FakeResponse:
+    """Minimal stand-in for a LangChain response carrying usage metadata."""
+
+    def __init__(self, usage_metadata=None, response_metadata=None):
+        self.usage_metadata = usage_metadata
+        self.response_metadata = response_metadata
+
+
+class TestCacheTokenCounting:
+    """Cache creation/read tokens must be committed at full weight for
+    Anthropic-style usage (input_tokens excludes cache) without double counting
+    OpenAI-style usage (cached tokens already folded into the total)."""
+
+    @pytest.mark.unit
+    def test_anthropic_shape_includes_cache_at_full_weight(self):
+        # Raw Anthropic usage: input_tokens EXCLUDES the cache tokens, which are
+        # reported separately.
+        resp = _FakeResponse(
+            usage_metadata={
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "cache_creation_input_tokens": 200,
+                "cache_read_input_tokens": 300,
+            }
+        )
+        counts = LangChainLLM._extract_usage(resp)
+        # total_tokens is derived as input + output (excludes cache).
+        assert counts["total_tokens"] == 150
+        assert counts["cache_creation_tokens"] == 200
+        assert counts["cache_read_tokens"] == 300
+
+        committed = LangChainLLM._committed_total_tokens(counts)
+        # 150 + 200 + 300 — cache counted at full weight.
+        assert committed == 650
+
+    @pytest.mark.unit
+    def test_openai_shape_no_double_count(self):
+        # OpenAI usage: cached tokens are a subset of prompt_tokens and are NOT
+        # exposed under the Anthropic cache field names _extract_usage reads, so
+        # the cache counters stay 0 and nothing is added twice.
+        resp = _FakeResponse(
+            usage_metadata={
+                "input_tokens": 100,
+                "output_tokens": 50,
+                "total_tokens": 150,
+            }
+        )
+        counts = LangChainLLM._extract_usage(resp)
+        assert counts["cache_creation_tokens"] == 0
+        assert counts["cache_read_tokens"] == 0
+
+        committed = LangChainLLM._committed_total_tokens(counts)
+        assert committed == 150  # no double count
+
+    @pytest.mark.unit
+    def test_committed_total_handles_missing_fields(self):
+        # A usage dict with only a total (no cache keys) commits just the total.
+        assert LangChainLLM._committed_total_tokens({"total_tokens": 42}) == 42
+        assert LangChainLLM._committed_total_tokens({}) == 0
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

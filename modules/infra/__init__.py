@@ -1,7 +1,7 @@
 """Cross-cutting infrastructure primitives for ChronoMiner.
 
 Logger setup, filesystem path safety, daily-token-budget tracking,
-asynchronous concurrency, text chunking, and JSONL streaming. No
+client-side API rate limiting, text chunking, and JSONL streaming. No
 modules here import from higher-level layers (``llm``, ``batch``,
 ``conversion``, ``extract``, ``line_ranges``, ``ui``).
 """
@@ -16,7 +16,6 @@ from modules.infra.chunking import (
     apply_chunk_slice,
     load_line_ranges,
 )
-from modules.infra.concurrency import run_concurrent_tasks
 from modules.infra.jsonl import (
     JsonlWriter,
     build_jsonl_header,
@@ -37,6 +36,13 @@ from modules.infra.paths import (
     create_safe_log_filename,
     ensure_path_safe,
 )
+from modules.infra.rate_limit import (
+    RateLimiter,
+    await_capacity,
+    get_rate_limits,
+    get_shared_rate_limiter,
+    reset_shared_rate_limiters,
+)
 from modules.infra.token_tracker import (
     DailyTokenTracker,
     check_and_wait_for_token_limit,
@@ -55,7 +61,11 @@ __all__ = [
     "get_token_tracker",
     "check_token_limit_enabled",
     "check_and_wait_for_token_limit",
-    "run_concurrent_tasks",
+    "RateLimiter",
+    "get_rate_limits",
+    "get_shared_rate_limiter",
+    "reset_shared_rate_limiters",
+    "await_capacity",
     "TextProcessor",
     "ChunkingStrategy",
     "TokenBasedChunking",

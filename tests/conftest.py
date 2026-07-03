@@ -128,6 +128,18 @@ def _reset_token_tracker(tmp_path: Path):
     token_tracker._tracker_instance = None
 
 
+@pytest.fixture(autouse=True)
+def _reset_rate_limiters():
+    # Shared per-provider limiters are process-global; clear them around each
+    # test so recorded timestamps and error multipliers do not leak between
+    # tests and cause spurious waits.
+    from modules.infra.rate_limit import reset_shared_rate_limiters
+
+    reset_shared_rate_limiters()
+    yield
+    reset_shared_rate_limiters()
+
+
 class MockUI:
     """Lightweight UI mock for tests that need a UserInterface stand-in."""
 

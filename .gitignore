@@ -1,6 +1,5 @@
 # Token tracker state file
 .chronominer_token_state.json
-.chronominer_token_state.tmp
 
 # Python
 __pycache__/

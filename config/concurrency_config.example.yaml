@@ -55,12 +55,29 @@ concurrency:
       total: 3600
 
     # Retry policy for transient errors (HTTP 429 / 5xx / timeouts).
-    # LangChain applies exponential backoff within these bounds.
+    # ChronoMiner's own retry loop is the single authority (the SDK's internal
+    # retries are disabled): it applies exponential backoff between wait_min
+    # and wait_max with random jitter. When a 429/503 response carries a
+    # Retry-After header, the wait is raised to at least that value (capped at
+    # wait_max_seconds). All four knobs are user-tunable.
     retry:
-      attempts: 25
+      attempts: 8
       wait_min_seconds: 2.5
-      wait_max_seconds: 180
+      wait_max_seconds: 120
       jitter_max_seconds: 15
+
+    # Client-side rate limiting (multi-window sliding-log limiter with adaptive
+    # backoff). A per-provider limiter throttles synchronous extraction calls to
+    # stay under these windows BEFORE hitting the API, smoothing bursts that
+    # would otherwise trip provider 429s. Each entry is [max_requests, window
+    # seconds]; enforce as many windows as you like (per-second/minute/hour).
+    # Omit the block entirely for permissive defaults (120/s, 15000/min,
+    # 15000/hr) — effectively transparent for typical workloads. Batch
+    # submission never passes through the limiter.
+    rate_limits:
+      - [120, 1]       # up to 120 requests per second
+      - [15000, 60]    # up to 15,000 requests per minute
+      - [15000, 3600]  # up to 15,000 requests per hour
 
   # -------------------------------------------------------------------------
   # Line-Range Readjustment (file-level concurrency)
@@ -83,8 +100,10 @@ concurrency:
 # =============================================================================
 # Daily Token Limit
 # =============================================================================
-# Tracks cumulative token usage (input + output) across all LLM calls and
-# pauses processing when the cap is reached. Resets at midnight UTC.
+# Tracks cumulative token usage across all LLM calls (input + output plus
+# prompt-cache creation and read tokens, all counted at full weight) and
+# pauses processing when the cap is reached. Resets at local midnight (the
+# same wall clock the machine runs on), not UTC.
 #
 # Used by: modules/core/token_tracker.py, modules/operations/extraction/run.py
 # =============================================================================

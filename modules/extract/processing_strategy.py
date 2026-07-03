@@ -37,6 +37,7 @@ from modules.conversion.json_utils import strip_image_payloads
 from modules.extract.resume import build_temp_header
 from modules.images.page_stream import PageError
 from modules.infra.chunking import TextProcessor
+from modules.infra.rate_limit import await_capacity, get_shared_rate_limiter
 from modules.infra.token_tracker import get_token_tracker
 from modules.llm.langchain_provider import ProviderConfig
 from modules.llm.openai_utils import (
@@ -145,6 +146,127 @@ def classify_transient_error(
         or ("connection" in msg and ("reset" in msg or "refused" in msg))
     )
     return is_429, is_timeout, is_server_error
+
+
+def parse_retry_after(exc: BaseException | None) -> float | None:
+    """Extract a Retry-After delay (in seconds) from an exception's HTTP headers.
+
+    Reads the ``Retry-After`` header off the exception's response (or a
+    top-level ``headers`` attribute) across the openai/anthropic SDK exception
+    shapes, tolerating both the integer/float seconds form and the HTTP-date
+    form. Returns ``None`` when no usable value is present. Defensive: any
+    parsing problem yields ``None`` rather than raising.
+    """
+    if exc is None:
+        return None
+    try:
+        headers = None
+        resp = getattr(exc, "response", None)
+        if resp is not None:
+            headers = getattr(resp, "headers", None)
+        if headers is None:
+            headers = getattr(exc, "headers", None)
+        if headers is None:
+            return None
+
+        getter = getattr(headers, "get", None)
+        if not callable(getter):
+            return None
+        raw = getter("retry-after")
+        if raw is None:
+            raw = getter("Retry-After")
+        if raw is None:
+            return None
+
+        value = str(raw).strip()
+        if not value:
+            return None
+
+        # Seconds form (integer or float).
+        try:
+            return max(0.0, float(value))
+        except ValueError:
+            pass
+
+        # HTTP-date form (e.g. "Wed, 21 Oct 2026 07:28:00 GMT").
+        from email.utils import parsedate_to_datetime
+
+        try:
+            target = parsedate_to_datetime(value)
+        except (TypeError, ValueError):
+            return None
+        if target is None:
+            return None
+        import datetime as _dt
+
+        now = _dt.datetime.now(target.tzinfo) if target.tzinfo else _dt.datetime.now()
+        return max(0.0, (target - now).total_seconds())
+    except Exception:
+        return None
+
+
+def commit_tokens_from_exception(exc: BaseException) -> None:
+    """Best-effort: recover token usage from a failed call and commit it.
+
+    Provider SDK exceptions often carry usage data in ``exc.body["usage"]`` or
+    ``exc.response.json()["usage"]``; recovering it keeps the daily budget
+    honest even for calls that ultimately errored. Tries ``total_tokens``, then
+    ``prompt_tokens`` + ``completion_tokens`` (OpenAI), then ``input_tokens`` +
+    ``output_tokens`` (Anthropic). Never raises.
+    """
+    try:
+        usage: dict[str, Any] | None = None
+
+        body = getattr(exc, "body", None)
+        if isinstance(body, dict):
+            candidate = body.get("usage")
+            if isinstance(candidate, dict):
+                usage = candidate
+
+        if usage is None:
+            resp = getattr(exc, "response", None)
+            if resp is not None:
+                try:
+                    resp_json = resp.json()
+                    if isinstance(resp_json, dict) and isinstance(
+                        resp_json.get("usage"), dict
+                    ):
+                        usage = resp_json["usage"]
+                except Exception:
+                    usage = None
+
+        if not isinstance(usage, dict):
+            return
+
+        total = usage.get("total_tokens")
+        if not isinstance(total, int) or total <= 0:
+            prompt = usage.get("prompt_tokens", 0)
+            completion = usage.get("completion_tokens", 0)
+            if (
+                isinstance(prompt, int)
+                and isinstance(completion, int)
+                and (prompt + completion) > 0
+            ):
+                total = prompt + completion
+            else:
+                inp = usage.get("input_tokens", 0)
+                out = usage.get("output_tokens", 0)
+                if isinstance(inp, int) and isinstance(out, int) and (inp + out) > 0:
+                    total = inp + out
+
+        if isinstance(total, int) and total > 0:
+            get_token_tracker().add_tokens(total)
+            logger.info(
+                "[TOKEN] Recovered %s tokens from a failed request.", f"{total:,}"
+            )
+    except Exception:
+        logger.debug("Token recovery from exception failed", exc_info=True)
+
+
+def _append_jsonl_line(handle: Any, line: str) -> None:
+    """Write and flush one line to *handle* (run off-loop via to_thread)."""
+    handle.write(line)
+    handle.flush()
 
 
 class ProcessingStrategy(ABC):
@@ -292,13 +414,18 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         )
 
         try:
-            retry_attempts = int(retry_cfg.get("attempts", 1))
+            retry_attempts = int(retry_cfg.get("attempts", 8))
         except (ValueError, TypeError):
-            retry_attempts = 1
+            retry_attempts = 8
         retry_attempts = max(1, retry_attempts)
-        wait_min_seconds = float(retry_cfg.get("wait_min_seconds", 1.0) or 1.0)
-        wait_max_seconds = float(retry_cfg.get("wait_max_seconds", 60.0) or 60.0)
+        wait_min_seconds = float(retry_cfg.get("wait_min_seconds", 2.5) or 2.5)
+        wait_max_seconds = float(retry_cfg.get("wait_max_seconds", 120.0) or 120.0)
         jitter_max_seconds = float(retry_cfg.get("jitter_max_seconds", 0.0) or 0.0)
+
+        # Per-provider shared rate limiter: throttles synchronous calls under
+        # the configured windows BEFORE each API call (permissive defaults when
+        # unconfigured). Batch submission never passes through here.
+        rate_limiter = get_shared_rate_limiter(provider)
 
         # Detect prompt caching capability for Anthropic models
         caps = detect_capabilities(model_name, provider=provider)
@@ -341,6 +468,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                 ) -> dict[str, Any]:
                     """Run one unit through the retry loop and persist it."""
                     for attempt in range(retry_attempts):
+                        # Acquire rate-limit capacity off the event loop before
+                        # each API call so bursts stay under the provider caps.
+                        await await_capacity(rate_limiter)
                         try:
                             # Route to image or text processing
                             if img_data is not None:
@@ -384,10 +514,15 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             provenance = (img_data or {}).get("image_provenance")
                             if provenance:
                                 response_obj["image_provenance"] = provenance
+                            line = json.dumps(response_obj) + "\n"
+                            # Serialize the append+flush under the lock, but run
+                            # the blocking write off the event loop. The lock is
+                            # held across the awaited to_thread call, so ordering
+                            # and non-interleaving are preserved.
                             async with write_lock:
-                                tempf.write(json.dumps(response_obj) + "\n")
-                                tempf.flush()
+                                await asyncio.to_thread(_append_jsonl_line, tempf, line)
 
+                            rate_limiter.report_success()
                             console_print(
                                 f"[INFO] Processed {unit_label} {idx}/{total_chunks}"
                             )
@@ -400,6 +535,14 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             )
                             is_retryable = is_429 or is_timeout or is_server_error
 
+                            # Feed the adaptive limiter (429/5xx tighten it) and
+                            # recover any usage the failed call still reported so
+                            # the daily budget stays honest.
+                            rate_limiter.report_error(
+                                is_rate_limit=is_429 or is_server_error
+                            )
+                            commit_tokens_from_exception(e)
+
                             if is_retryable and attempt < (retry_attempts - 1):
                                 base_wait = min(
                                     wait_max_seconds,
@@ -411,6 +554,13 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                     else 0.0
                                 )
                                 wait_s = min(wait_max_seconds, base_wait + jitter)
+                                # Honor a server-provided Retry-After: never wait
+                                # less than it asks (still capped at wait_max).
+                                retry_after = parse_retry_after(e)
+                                if retry_after is not None:
+                                    wait_s = min(
+                                        wait_max_seconds, max(wait_s, retry_after)
+                                    )
                                 if is_429:
                                     reason = "Rate-limited"
                                 elif is_timeout:

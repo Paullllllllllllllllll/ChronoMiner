@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -388,9 +389,40 @@ class TestSaveState:
             daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
         )
 
-        with patch.object(Path, "with_suffix", side_effect=OSError("disk full")):
-            # Should not raise — errors are logged but swallowed
+        with patch.object(Path, "replace", side_effect=OSError("disk full")):
+            # Should not raise — errors are logged but swallowed, and the temp
+            # file is cleaned up in the finally block.
             tracker._save_state()
+
+        # No stray temp files left behind after the failed replace.
+        leftover = list(tmp_path.glob("*.tmp"))
+        assert leftover == []
+
+    def test_save_state_uses_unique_per_process_temp_names(self, tmp_path, monkeypatch):
+        """Regression: the temp file must be per-process-unique so concurrent
+        processes cannot collide on a fixed ``.tmp`` path mid-write."""
+        state = tmp_path / "state.json"
+        tracker = DailyTokenTracker(daily_limit=100, enabled=True, state_file=state)
+
+        seen: list[Path] = []
+        real_replace = Path.replace
+
+        def spy_replace(self, target):
+            seen.append(Path(self))
+            return real_replace(self, target)
+
+        monkeypatch.setattr(Path, "replace", spy_replace)
+        tracker._save_state()
+        tracker._save_state()
+
+        assert len(seen) == 2
+        # Distinct temp names across writes (unique random token per call).
+        assert seen[0] != seen[1]
+        for temp_path in seen:
+            assert temp_path.name.endswith(".tmp")
+            # Same directory as the destination and stamped with the PID.
+            assert temp_path.parent == state.parent
+            assert str(os.getpid()) in temp_path.name
 
 
 class TestCheckAndResetIfNewDay:
@@ -498,6 +530,63 @@ class TestCheckAndWaitForTokenLimit:
         with patch("asyncio.sleep", side_effect=mock_sleep):
             result = asyncio.run(check_and_wait_for_token_limit())
         assert result is True
+
+    def test_daily_limit_raised_during_wait_lifts_cap(self, tmp_path, monkeypatch):
+        """A user raising daily_token_limit.daily_tokens mid-wait is picked up
+        live: the wait loop re-reads the configured limit each cycle and exits
+        once the raised cap makes the budget no longer reached — no restart."""
+        import modules.infra.token_tracker as tt
+
+        tracker = DailyTokenTracker(
+            daily_limit=100, enabled=True, state_file=tmp_path / "s.json"
+        )
+        tracker.add_tokens(100)  # at the cap
+        tt._tracker_instance = tracker
+        assert tracker.is_limit_reached() is True
+
+        reads = {"n": 0}
+
+        def fake_read():
+            reads["n"] += 1
+            return 1000  # user lifted the cap to 1,000,000-ish
+
+        monkeypatch.setattr(tt, "_read_configured_daily_limit", fake_read)
+
+        async def fast_sleep(_seconds):
+            return None
+
+        with patch("asyncio.sleep", side_effect=fast_sleep):
+            result = asyncio.run(check_and_wait_for_token_limit())
+
+        assert result is True
+        assert tracker.daily_limit == 1000  # the live re-read updated the cap
+        assert reads["n"] >= 1
+
+    def test_daily_limit_refresh_failure_is_graceful(self, tmp_path, monkeypatch):
+        """A config-read failure during the wait keeps the old limit and does
+        not crash the loop."""
+        import modules.infra.token_tracker as tt
+
+        tracker = DailyTokenTracker(
+            daily_limit=100, enabled=True, state_file=tmp_path / "s.json"
+        )
+        tracker.add_tokens(100)
+        tt._tracker_instance = tracker
+
+        def boom():
+            raise RuntimeError("config unreadable")
+
+        monkeypatch.setattr(tt, "_read_configured_daily_limit", boom)
+
+        async def sleep_then_new_day(_seconds):
+            # Force a day rollover so the loop exits via the normal reset path.
+            tracker._current_date = "2000-01-01"
+
+        with patch("asyncio.sleep", side_effect=sleep_then_new_day):
+            result = asyncio.run(check_and_wait_for_token_limit())
+
+        assert result is True  # graceful despite the read failure
+        assert tracker.daily_limit == 100  # limit unchanged
 
 
 class TestChunkReservation:

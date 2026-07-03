@@ -32,9 +32,11 @@ from __future__ import annotations
 import atexit
 import contextlib
 import json
+import os
 import shutil
 import threading
 import time
+import uuid
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
@@ -164,6 +166,23 @@ class DailyTokenTracker:
             if self._pending_write:
                 self._save_state()
 
+    def set_daily_limit(self, new_limit: int) -> None:
+        """Update the daily token limit at runtime.
+
+        Used by the wait loop so a user editing ``concurrency_config.yaml``
+        mid-wait (raising ``daily_token_limit.daily_tokens``) lifts the cap
+        without a restart. A no-op when the value is unchanged.
+        """
+        new_limit = int(new_limit)
+        with self._lock:
+            if new_limit != self.daily_limit:
+                logger.info(
+                    "Daily token limit updated: %s -> %s",
+                    f"{self.daily_limit:,}",
+                    f"{new_limit:,}",
+                )
+                self.daily_limit = new_limit
+
     def _adopt_legacy_state(self) -> None:
         """One-time adoption of the legacy CWD state file.
 
@@ -240,7 +259,17 @@ class DailyTokenTracker:
             self._tokens_used_today = 0
 
     def _save_state(self) -> None:
-        """Save current token usage state to disk (immediate, atomic)."""
+        """Save current token usage state to disk (immediate, atomic).
+
+        Writes to a per-process-unique temp file in the same directory before
+        an atomic ``replace()``, so concurrent processes can never collide on
+        the temp path. A fixed ``.tmp`` name previously let one process's write
+        clobber another's mid-flight. The temp file is always removed in the
+        finally block, even when the write or replace failed.
+        """
+        temp_file = self.state_file.with_name(
+            f"{self.state_file.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
+        )
         try:
             state = {
                 "date": self._current_date,
@@ -248,18 +277,22 @@ class DailyTokenTracker:
                 "last_updated": datetime.now().isoformat(),
             }
 
-            # Write atomically using a temp file
-            temp_file = self.state_file.with_suffix(".tmp")
             with open(temp_file, "w", encoding="utf-8") as f:
                 json.dump(state, f, indent=2)
 
-            # Replace original file
+            # Atomic replace of the destination.
             temp_file.replace(self.state_file)
             self._last_write_monotonic = time.monotonic()
             self._pending_write = False
 
         except Exception as e:
             logger.error(f"Error saving token state to {self.state_file}: {e}")
+        finally:
+            # Remove the temp file if it survived (write/replace failure). A
+            # successful replace() already moved it, so exists() is False.
+            with contextlib.suppress(Exception):
+                if temp_file.exists():
+                    temp_file.unlink()
 
     def _debounced_save(self) -> None:
         """Persist state only if at least ``_STATE_WRITE_DEBOUNCE_S`` elapsed
@@ -483,6 +516,24 @@ def check_token_limit_enabled() -> bool:
     return tracker.enabled
 
 
+def _read_configured_daily_limit() -> int | None:
+    """Read the currently-configured daily token limit fresh from disk.
+
+    Bypasses the config cache (``force_reload=True``) so an edit to
+    ``concurrency_config.yaml`` made while the wait loop is polling is
+    observed. Returns ``None`` when the value is absent or the config cannot
+    be read, so callers keep the old limit on failure.
+    """
+    from modules.config.loader import get_config_loader
+
+    concurrency_config = get_config_loader(force_reload=True).get_concurrency_config()
+    token_limit_config = (concurrency_config or {}).get("daily_token_limit", {}) or {}
+    raw = token_limit_config.get("daily_tokens")
+    if raw is None:
+        return None
+    return int(str(raw).replace("_", ""))
+
+
 async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> bool:
     """
     Check if daily token limit is reached and wait until next day if needed.
@@ -543,6 +594,19 @@ async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> 
             interval = min(sleep_interval, max(0, seconds_until_reset - elapsed))
             await asyncio.sleep(interval)
             elapsed += interval
+
+            # Live re-read of the configured daily limit: a user raising
+            # daily_token_limit.daily_tokens mid-wait lifts the cap without a
+            # restart. A read failure keeps the current limit (debug-logged).
+            try:
+                new_limit = _read_configured_daily_limit()
+                if new_limit is not None:
+                    token_tracker.set_daily_limit(new_limit)
+            except Exception as exc:
+                if _logger:
+                    _logger.debug(
+                        "Could not refresh daily token limit during wait: %s", exc
+                    )
 
             if not token_tracker.is_limit_reached():
                 if _logger:

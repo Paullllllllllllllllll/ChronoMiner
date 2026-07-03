@@ -1,4 +1,4 @@
-# ChronoMiner v1.20.0
+# ChronoMiner v1.21.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -715,6 +715,22 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.21.0** (3 July 2026) -- Concurrency and token-budget hardening.
+    Add a per-provider multi-window rate limiter with adaptive backoff
+    (`modules/infra/rate_limit.py`, configured via `concurrency.rate_limits`)
+    wired into every synchronous LLM call; honor HTTP `Retry-After` in the
+    retry loop and lower the default retry budget from 25 attempts (180 s
+    cap) to 8 attempts (120 s cap); count Anthropic prompt-cache creation
+    and read tokens at full weight in the daily budget and recover token
+    usage from failed attempts; re-read `daily_token_limit.daily_tokens`
+    during the wait-at-limit loop so a mid-wait config edit lifts the cap
+    without restart; write token state via per-process-unique temp files;
+    close provider HTTP clients on extractor teardown; move temp-JSONL and
+    output-file I/O off the event loop; remove the dead
+    `run_concurrent_tasks` helper and the unused
+    `ProviderConfig.requests_per_second` field; document the local-midnight
+    reset correctly.
 
 - **v1.20.0** (3 July 2026) -- Unify batch output on the synchronous shape.
     Batch finalization (`check_batches.py`) and repair

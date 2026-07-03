@@ -783,3 +783,140 @@ async def test_anthropic_respects_configured_concurrency_limit(
 
     assert len(captured_semaphore_values) == 1
     assert captured_semaphore_values[0] == 3
+
+
+# ---------------------------------------------------------------------------
+# Retry-After parsing (item 6)
+# ---------------------------------------------------------------------------
+
+
+class _HeaderResponse:
+    def __init__(self, headers: dict[str, str]):
+        self.headers = headers
+
+
+class _HttpError(Exception):
+    def __init__(
+        self,
+        message: str = "boom",
+        *,
+        headers: dict[str, str] | None = None,
+        top_headers: dict[str, str] | None = None,
+    ):
+        super().__init__(message)
+        if headers is not None:
+            self.response = _HeaderResponse(headers)
+        if top_headers is not None:
+            self.headers = top_headers
+
+
+@pytest.mark.unit
+def test_parse_retry_after_seconds_form() -> None:
+    exc = _HttpError(headers={"retry-after": "30"})
+    assert ps.parse_retry_after(exc) == 30.0
+
+
+@pytest.mark.unit
+def test_parse_retry_after_top_level_headers() -> None:
+    exc = _HttpError(top_headers={"Retry-After": "12"})
+    assert ps.parse_retry_after(exc) == 12.0
+
+
+@pytest.mark.unit
+def test_parse_retry_after_http_date_form() -> None:
+    import datetime as dt
+    from email.utils import format_datetime
+
+    future = dt.datetime.now(dt.UTC) + dt.timedelta(seconds=120)
+    exc = _HttpError(headers={"retry-after": format_datetime(future)})
+    value = ps.parse_retry_after(exc)
+    assert value is not None
+    # Allow slack for test execution time.
+    assert 60.0 <= value <= 180.0
+
+
+@pytest.mark.unit
+def test_parse_retry_after_absent_returns_none() -> None:
+    assert ps.parse_retry_after(_HttpError(headers={})) is None
+
+
+@pytest.mark.unit
+def test_parse_retry_after_none_exception() -> None:
+    assert ps.parse_retry_after(None) is None
+
+
+@pytest.mark.unit
+def test_parse_retry_after_unparseable_returns_none() -> None:
+    exc = _HttpError(headers={"retry-after": "sometime-soon"})
+    assert ps.parse_retry_after(exc) is None
+
+
+# ---------------------------------------------------------------------------
+# Failed-attempt token recovery (item 7)
+# ---------------------------------------------------------------------------
+
+
+class _BodyError(Exception):
+    def __init__(self, usage: dict[str, Any]):
+        super().__init__("body error")
+        self.body = {"usage": usage}
+
+
+class _ResponseJsonError(Exception):
+    def __init__(self, usage: dict[str, Any]):
+        super().__init__("response error")
+
+        class _Resp:
+            def json(self_inner):
+                return {"usage": usage}
+
+        self.response = _Resp()
+
+
+def _enabled_tracker(tmp_path: Path):
+    import modules.infra.token_tracker as tt
+    from modules.infra.token_tracker import DailyTokenTracker
+
+    tracker = DailyTokenTracker(
+        daily_limit=10**9, enabled=True, state_file=tmp_path / "s.json"
+    )
+    tt._tracker_instance = tracker
+    return tracker
+
+
+@pytest.mark.unit
+def test_commit_tokens_from_exception_total_tokens(tmp_path: Path) -> None:
+    tracker = _enabled_tracker(tmp_path)
+    ps.commit_tokens_from_exception(_BodyError({"total_tokens": 42}))
+    assert tracker.get_tokens_used_today() == 42
+
+
+@pytest.mark.unit
+def test_commit_tokens_from_exception_prompt_completion(tmp_path: Path) -> None:
+    tracker = _enabled_tracker(tmp_path)
+    ps.commit_tokens_from_exception(
+        _BodyError({"prompt_tokens": 10, "completion_tokens": 5})
+    )
+    assert tracker.get_tokens_used_today() == 15
+
+
+@pytest.mark.unit
+def test_commit_tokens_from_exception_input_output(tmp_path: Path) -> None:
+    tracker = _enabled_tracker(tmp_path)
+    ps.commit_tokens_from_exception(_BodyError({"input_tokens": 7, "output_tokens": 8}))
+    assert tracker.get_tokens_used_today() == 15
+
+
+@pytest.mark.unit
+def test_commit_tokens_from_exception_response_json(tmp_path: Path) -> None:
+    tracker = _enabled_tracker(tmp_path)
+    ps.commit_tokens_from_exception(_ResponseJsonError({"total_tokens": 99}))
+    assert tracker.get_tokens_used_today() == 99
+
+
+@pytest.mark.unit
+def test_commit_tokens_from_exception_no_usage_is_noop(tmp_path: Path) -> None:
+    tracker = _enabled_tracker(tmp_path)
+    # A bare exception with no usable usage must neither raise nor commit.
+    ps.commit_tokens_from_exception(RuntimeError("plain error, no body"))
+    assert tracker.get_tokens_used_today() == 0

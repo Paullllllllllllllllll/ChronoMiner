@@ -1,131 +1,100 @@
-import asyncio
+"""Fan-out primitive contract (item 8).
+
+The generic ``run_concurrent_tasks`` helper (which swallowed task exceptions and
+returned ``None``) has been removed. The inline semaphore fan-out inside
+``SynchronousProcessingStrategy`` is now the single fan-out primitive; these
+tests pin its error-propagation contract: a failing unit yields a *structured*
+error dict (never a silent ``None``), and every unit is accounted for exactly
+once.
+"""
+
+from __future__ import annotations
+
+import importlib
+from pathlib import Path
+from typing import Any
 
 import pytest
 
-from modules.infra.concurrency import run_concurrent_tasks
+import modules.extract.processing_strategy as ps
+
+
+class _AsyncExtractorCM:
+    def __init__(self, extractor: object):
+        self._extractor = extractor
+
+    async def __aenter__(self) -> object:
+        return self._extractor
+
+    async def __aexit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+
+class _DummyHandler:
+    schema_name = "TestSchema"
 
 
 @pytest.mark.unit
+def test_dead_concurrency_helper_removed():
+    """The dead generic helper and its re-export are gone."""
+    with pytest.raises(ModuleNotFoundError):
+        importlib.import_module("modules.infra.concurrency")
+
+    import modules.infra as infra
+
+    assert not hasattr(infra, "run_concurrent_tasks")
+
+
 @pytest.mark.asyncio
-async def test_run_concurrent_tasks_basic():
-    async def sample_coro(x):
-        await asyncio.sleep(0.01)
-        return x * 2
-
-    args_list = [(1,), (2,), (3,), (4,)]
-    results = await run_concurrent_tasks(sample_coro, args_list, concurrency_limit=2)
-
-    assert len(results) == 4
-    assert results == [2, 4, 6, 8]
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_run_concurrent_tasks_with_delay():
-    async def sample_coro(x):
-        return x + 1
-
-    args_list = [(1,), (2,)]
-    results = await run_concurrent_tasks(
-        sample_coro, args_list, concurrency_limit=2, delay=0.01
+async def test_inline_fanout_propagates_structured_errors(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A failing unit surfaces as a structured error dict carrying its
+    chunk_index — never a silent None — and every unit is accounted for."""
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object())
     )
 
-    assert len(results) == 2
-    assert results == [2, 3]
+    async def _process_text_chunk(*, text_chunk: str, **_kwargs) -> dict[str, Any]:
+        if text_chunk == "boom":
+            # Non-retryable (400) so the loop returns immediately.
+            raise RuntimeError("permanent failure: bad request 400")
+        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}}
 
+    monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
 
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_run_concurrent_tasks_concurrency_limit():
-    execution_times = []
+    strat = ps.SynchronousProcessingStrategy(
+        concurrency_config={
+            "concurrency": {
+                "extraction": {
+                    "concurrency_limit": 4,
+                    "retry": {"attempts": 1},
+                }
+            }
+        }
+    )
 
-    async def sample_coro(x):
-        execution_times.append(asyncio.get_event_loop().time())
-        await asyncio.sleep(0.05)
-        return x
-
-    args_list = [(i,) for i in range(4)]
-    await run_concurrent_tasks(sample_coro, args_list, concurrency_limit=2)
-
-    assert len(execution_times) == 4
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_run_concurrent_tasks_handles_exceptions():
-    async def failing_coro(x):
-        if x == 2:
-            raise ValueError("Test error")
-        return x * 2
-
-    args_list = [(1,), (2,), (3,)]
-    results = await run_concurrent_tasks(failing_coro, args_list, concurrency_limit=3)
-
-    assert len(results) == 3
-    assert results[0] == 2
-    assert results[1] is None
-    assert results[2] == 6
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_run_concurrent_tasks_empty_args_list():
-    async def sample_coro(x):
-        return x
-
-    results = await run_concurrent_tasks(sample_coro, [], concurrency_limit=5)
-
-    assert len(results) == 0
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_run_concurrent_tasks_single_task():
-    async def sample_coro(x, y):
-        return x + y
-
-    args_list = [(5, 3)]
-    results = await run_concurrent_tasks(sample_coro, args_list, concurrency_limit=1)
-
-    assert len(results) == 1
-    assert results[0] == 8
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_run_concurrent_tasks_multiple_args():
-    async def sample_coro(x, y, z):
-        return x + y + z
-
-    args_list = [(1, 2, 3), (4, 5, 6), (7, 8, 9)]
-    results = await run_concurrent_tasks(sample_coro, args_list, concurrency_limit=3)
+    results = await strat.process_chunks(
+        chunks=["a", "boom", "c"],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config={"extraction_model": {"name": "gpt-4o"}},
+        schema={"type": "object"},
+        file_path=tmp_path / "in.txt",
+        temp_jsonl_path=tmp_path / "t.jsonl",
+        console_print=lambda *_a, **_k: None,
+    )
 
     assert len(results) == 3
-    assert results == [6, 15, 24]
+    # No silent None dropped by the fan-out.
+    assert all(r is not None for r in results)
 
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_run_concurrent_tasks_all_fail():
-    async def failing_coro(x):
-        raise RuntimeError("Always fails")
-
-    args_list = [(1,), (2,), (3,)]
-    results = await run_concurrent_tasks(failing_coro, args_list, concurrency_limit=2)
-
-    assert len(results) == 3
-    assert all(r is None for r in results)
-
-
-@pytest.mark.unit
-@pytest.mark.asyncio
-async def test_run_concurrent_tasks_high_concurrency():
-    async def sample_coro(x):
-        await asyncio.sleep(0.001)
-        return x**2
-
-    args_list = [(i,) for i in range(20)]
-    results = await run_concurrent_tasks(sample_coro, args_list, concurrency_limit=10)
-
-    assert len(results) == 20
-    assert results == [i**2 for i in range(20)]
+    errors = [r for r in results if isinstance(r, dict) and "error" in r]
+    assert len(errors) == 1
+    assert errors[0]["chunk_index"] == 2  # 1-based index of "boom"

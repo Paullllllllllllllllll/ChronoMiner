@@ -160,8 +160,19 @@ class LLMExtractor:
         return self._llm
 
     async def close(self) -> None:
-        """Clean up resources (no-op for LangChain, kept for API compatibility)."""
-        pass
+        """Close the underlying LangChain provider client(s).
+
+        Delegates to :meth:`LangChainLLM.aclose`, which shuts the provider
+        SDK's httpx client(s) so connections are not leaked when the extractor
+        context exits. Exception-safe: any failure is logged, never propagated.
+        """
+        llm = self._llm
+        if llm is None:
+            return
+        try:
+            await llm.aclose()
+        except Exception as exc:
+            logger.debug("Error closing extractor LLM client: %s", exc)
 
 
 @asynccontextmanager
