@@ -1,4 +1,4 @@
-# ChronoMiner v1.21.0
+# ChronoMiner v1.22.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -582,6 +582,32 @@ working directory; a legacy `.chronominer_token_state.json` in the working
 directory is adopted once if the user-level file is absent. Writes are
 debounced (with a flush at exit), so cross-process enforcement is best-effort.
 
+#### Shared Cross-Tool Token Budget (optional)
+
+ChronoMiner can share ONE combined daily budget with its sibling tools
+(ChronoTranscriber, AutoExcerpter) instead of enforcing its cap in isolation.
+Off by default; single-tool installations need not care. Enable it in
+`concurrency_config.yaml`:
+
+```yaml
+shared_token_budget:
+  enabled: true
+  ledger_dir: ''   # empty = ~/.chronopipeline; or an absolute path
+```
+
+When enabled, every participating tool merges its usage into one shared
+ledger (`token_ledger.json`) guarded by an OS file lock, and
+`daily_token_limit.daily_tokens` is enforced against the COMBINED total, so
+several tools running concurrently cannot collectively overshoot the budget.
+Usage is merged as deltas under the lock (concurrent processes lose nothing);
+the hot path stays in memory with a debounced background sync, plus forced
+refreshes near the cap and while waiting at the limit. If the ledger is ever
+unavailable, the tool degrades to its private counter with a single warning
+and never crashes. Keep `daily_tokens` identical across participating tools;
+the strictest value simply stops its tool first. Editing `daily_tokens` while
+a tool waits at the limit lifts the cap within a poll cycle, no restart
+needed.
+
 ## Architecture
 
 ChronoMiner follows a deep-module architecture: nine packages under
@@ -715,6 +741,20 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.22.0** (3 July 2026) -- Optional shared cross-tool token budget.
+    Add the vendored `modules/infra/shared_ledger.py` (locked delta merges
+    into per-tool fields, atomic per-process temp writes, local-midnight
+    rollover, degrade-to-standalone) and wire it into the daily token
+    tracker behind the new opt-in `shared_token_budget` config block: when
+    enabled, `daily_token_limit.daily_tokens` is enforced against the
+    COMBINED usage of ChronoMiner, ChronoTranscriber, and AutoExcerpter via
+    one ledger at `~/.chronopipeline/token_ledger.json`, with seed-once
+    adoption of legacy same-day counts, a debounced off-loop sync, forced
+    refreshes near the cap and while waiting at the limit, and per-tool
+    breakdown in the usage stats. Default behavior (feature off) is
+    unchanged. Verified live: concurrent tools share one limit with zero
+    lost updates.
 
 - **v1.21.0** (3 July 2026) -- Concurrency and token-budget hardening.
     Add a per-provider multi-window rate limiter with adaptive backoff
