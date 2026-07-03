@@ -271,8 +271,10 @@ class TestCM4ReasoningAnthropicGoogle:
             assert "thinking" not in call_kwargs
 
     @pytest.mark.unit
-    def test_google_thinking_config_passed(self):
-        """ChatGoogleGenerativeAI gets thinking_config when reasoning is configured."""
+    def test_google_thinking_budget_passed(self):
+        """ChatGoogleGenerativeAI gets thinking_budget when reasoning is
+        configured (Gemini 2.5; the legacy thinking_config dict is not a
+        supported constructor parameter)."""
         from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
@@ -291,9 +293,9 @@ class TestCM4ReasoningAnthropicGoogle:
             MockGoogle.return_value = MagicMock()
             llm._create_chat_model()
             call_kwargs = MockGoogle.call_args[1]
-            assert "thinking_config" in call_kwargs
-            assert call_kwargs["thinking_config"]["include_thoughts"] is True
-            assert call_kwargs["thinking_config"]["thinking_budget"] > 0
+            assert "thinking_config" not in call_kwargs
+            assert call_kwargs["include_thoughts"] is True
+            assert call_kwargs["thinking_budget"] > 0
 
 
 # ---------------------------------------------------------------------------

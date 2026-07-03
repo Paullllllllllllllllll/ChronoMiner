@@ -63,6 +63,10 @@ class Capabilities:
     # Extended context window support (for Claude, Gemini)
     max_context_tokens: int = 128000
 
+    # Hard per-model output-token ceiling enforced by the provider API.
+    # ``None`` means unknown: no clamping is applied at request-build time.
+    max_output_tokens: int | None = None
+
 
 def _norm(name: str) -> str:
     """Normalize a model name for prefix matching."""
@@ -337,36 +341,86 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         ),
     ),
     (("claude-opus-4-6", "claude-opus-4.6"), "claude-opus-4.6", _ANTHROPIC_BASE, {}),
-    (("claude-opus-4-5", "claude-opus-4.5"), "claude-opus-4.5", _ANTHROPIC_BASE, {}),
-    (("claude-opus-4-1", "claude-opus-4.1"), "claude-opus-4.1", _ANTHROPIC_BASE, {}),
-    (("claude-opus-4",), "claude-opus-4", _ANTHROPIC_BASE, {}),
+    (
+        ("claude-opus-4-5", "claude-opus-4.5"),
+        "claude-opus-4.5",
+        _ANTHROPIC_BASE,
+        dict(
+            max_output_tokens=64000,
+        ),
+    ),
+    (
+        ("claude-opus-4-1", "claude-opus-4.1"),
+        "claude-opus-4.1",
+        _ANTHROPIC_BASE,
+        dict(
+            max_output_tokens=32000,
+        ),
+    ),
+    (
+        ("claude-opus-4",),
+        "claude-opus-4",
+        _ANTHROPIC_BASE,
+        dict(
+            max_output_tokens=32000,
+        ),
+    ),
     (
         ("claude-sonnet-4-6", "claude-sonnet-4.6"),
         "claude-sonnet-4.6",
         _ANTHROPIC_BASE,
-        {},
+        dict(
+            max_output_tokens=64000,
+        ),
     ),
     (
         ("claude-sonnet-4-5", "claude-sonnet-4.5"),
         "claude-sonnet-4.5",
         _ANTHROPIC_BASE,
-        {},
+        dict(
+            max_output_tokens=64000,
+        ),
     ),
-    (("claude-sonnet-4",), "claude-sonnet-4", _ANTHROPIC_BASE, {}),
-    (("claude-haiku-4-5", "claude-haiku-4.5"), "claude-haiku-4.5", _ANTHROPIC_BASE, {}),
+    (
+        ("claude-sonnet-4",),
+        "claude-sonnet-4",
+        _ANTHROPIC_BASE,
+        dict(
+            max_output_tokens=64000,
+        ),
+    ),
+    (
+        ("claude-haiku-4-5", "claude-haiku-4.5"),
+        "claude-haiku-4.5",
+        _ANTHROPIC_BASE,
+        dict(
+            max_output_tokens=64000,
+        ),
+    ),
     (
         ("claude-3-7-sonnet", "claude-3.7-sonnet"),
         "claude-3.7-sonnet",
         _ANTHROPIC_BASE,
-        {},
+        dict(
+            max_output_tokens=64000,
+        ),
     ),
     (
         ("claude-3-5-sonnet", "claude-3.5-sonnet"),
         "claude-3.5-sonnet",
         _ANTHROPIC_BASE,
-        {},
+        dict(
+            max_output_tokens=8192,
+        ),
     ),
-    (("claude-3-5-haiku", "claude-3.5-haiku"), "claude-3.5-haiku", _ANTHROPIC_BASE, {}),
+    (
+        ("claude-3-5-haiku", "claude-3.5-haiku"),
+        "claude-3.5-haiku",
+        _ANTHROPIC_BASE,
+        dict(
+            max_output_tokens=8192,
+        ),
+    ),
     (("claude-3-opus",), "claude-3-opus", _ANTHROPIC_BASE, {}),
     (("claude-3-sonnet",), "claude-3-sonnet", _ANTHROPIC_BASE, {}),
     (("claude-3-haiku",), "claude-3-haiku", _ANTHROPIC_BASE, {}),

@@ -50,6 +50,23 @@ ERROR_FILE_KEYS = [
 ]
 
 
+def derive_submission_output_dir(temp_file: Path) -> Path:
+    """Submission-local output directory for a batch temp JSONL file.
+
+    Batch submissions write their temp JSONL either into a ``temp_jsonl/``
+    subfolder of the run's output directory (the default layout produced by
+    ``FileProcessor._setup_output_paths``) or directly into the output
+    directory (``input_paths_is_output_path: true``). The finalized output
+    belongs with the submission, NOT in the schema's configured default
+    output directory: it is the parent of ``temp_jsonl/`` when the temp file
+    lives inside one, else the temp file's own directory.
+    """
+    parent = temp_file.parent
+    if parent.name == "temp_jsonl":
+        return parent.parent
+    return parent
+
+
 def is_batch_temp_file(path: Path) -> bool:
     """Whether a ``*_temp*.jsonl`` file is a BATCH temp file.
 

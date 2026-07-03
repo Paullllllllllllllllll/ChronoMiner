@@ -39,6 +39,7 @@ from modules.batch import (
 )
 from modules.batch.ops import (
     _recover_missing_batch_ids,
+    derive_submission_output_dir,
     is_batch_temp_file,
     load_config,
     process_batch_output_file,
@@ -98,6 +99,36 @@ def _get_output_directory(
     raise ValueError("Output directory not specified in schema configuration")
 
 
+def _resolve_group_output_dir(temp_file: Path, schema_config: dict[str, Any]) -> Path:
+    """Resolve the output directory for one batch temp-file group (CM-6).
+
+    The finalized output belongs with the submission: it is derived from the
+    temp file's own location (the parent of its ``temp_jsonl/`` folder, or
+    the temp file's directory). The schema's configured default output
+    directory is only a last-resort fallback when no submission-local
+    location can be derived, and using it is logged clearly, because it may
+    point far away from where the batch was submitted (e.g. a run with a
+    custom ``--output`` directory).
+    """
+    try:
+        return derive_submission_output_dir(temp_file)
+    except Exception as exc:  # pragma: no cover - pathological paths only
+        logger.warning(
+            "Could not derive submission-local output directory for %s: %s",
+            temp_file,
+            exc,
+        )
+    paths_config = get_config_loader().get_paths_config()
+    output_dir = _get_output_directory(schema_config, paths_config)
+    logger.warning(
+        "Falling back to the schema's default output directory %s for %s; "
+        "the finalized output will NOT be placed with the batch submission.",
+        output_dir,
+        temp_file.name,
+    )
+    return output_dir
+
+
 def _safe_print(ui: UserInterface | None, message: str, level: str = "info") -> None:
     """Safely print message to UI or logger depending on mode."""
     if ui:
@@ -147,8 +178,10 @@ def process_all_batches(
 ) -> None:
     """Process all batch results using provider-agnostic backends.
 
-    ``agg`` (optional) accumulates ``finalized``/``pending``/``failed`` counts
-    across schemas for the CLI ``--json`` summary and exit-code decision.
+    ``agg`` (optional) accumulates ``finalized``/``pending``/``failed`` and
+    ``errors`` (directories with batch temp files that could not be scanned)
+    counts across schemas for the CLI ``--json`` summary and exit-code
+    decision.
     """
     temp_files: list[Path] = [
         f for f in root_folder.rglob("*_temp*.jsonl") if is_batch_temp_file(f)
@@ -161,23 +194,27 @@ def process_all_batches(
     # Group temp files by base identifier (handling split files)
     file_groups = _group_temp_files_by_base(temp_files)
 
-    # Determine output directory
-    try:
-        # Get paths_config to pass to _get_output_directory
-        config_loader = get_config_loader()
-        paths_config = config_loader.get_paths_config()
-        output_dir = _get_output_directory(schema_config, paths_config)
-        output_dir.mkdir(parents=True, exist_ok=True)
-    except Exception as exc:
-        logger.error(f"Failed to determine output directory: {exc}")
-        _safe_print(ui, f"Failed to determine output directory: {exc}", "error")
-        return
-
     # Status cache for batch status info (provider-agnostic)
     status_cache: dict[str, BatchStatusInfo] = {}
 
     # Process each group of temp files (handling merged outputs for split files)
     for base_identifier, temp_file_group in file_groups.items():
+        # Determine the output directory PER GROUP from the submission
+        # location (CM-6): finalized outputs belong with the batch
+        # submission, not in the schema's configured default directory.
+        try:
+            output_dir = _resolve_group_output_dir(temp_file_group[0], schema_config)
+            output_dir.mkdir(parents=True, exist_ok=True)
+        except Exception as exc:
+            msg = f"Failed to determine output directory for {base_identifier}: {exc}"
+            logger.error(msg)
+            _safe_print(ui, msg, "error")
+            # Batch temp files exist here but could not be scanned. Silently
+            # skipping would yield a false all-clear (zero counts, exit 0),
+            # so record a scan error for the CLI summary and exit code.
+            _bump(agg, "errors")
+            continue
+
         try:
             if len(temp_file_group) > 1:
                 _safe_subsection(
@@ -617,7 +654,12 @@ class CheckBatchesScript(DualModeScript):
         if args.verbose:
             print(f"[INFO] Scanning {len(self.repo_info_list)} schema(s)")
 
-        agg: dict[str, int] = {"finalized": 0, "pending": 0, "failed": 0}
+        agg: dict[str, int] = {
+            "finalized": 0,
+            "pending": 0,
+            "failed": 0,
+            "errors": 0,
+        }
         for schema_name, repo_dir, schema_config in self.repo_info_list:
             if not repo_dir.exists():
                 self.logger.warning(f"Repository directory does not exist: {repo_dir}")
@@ -643,9 +685,11 @@ class CheckBatchesScript(DualModeScript):
         if getattr(args, "json_summary", False):
             print(json.dumps(agg, ensure_ascii=False))
 
-        # CLI agent contract: non-zero exit while batches remain pending or a
-        # group failed, so an automated poller can loop until fully resolved.
-        if agg["pending"] or agg["failed"]:
+        # CLI agent contract: non-zero exit while batches remain pending, a
+        # group failed, or any configured directory could not be scanned, so
+        # an automated poller can loop until fully resolved and never gets a
+        # false all-clear from an incomplete scan.
+        if agg["pending"] or agg["failed"] or agg.get("errors"):
             sys.exit(1)
 
 

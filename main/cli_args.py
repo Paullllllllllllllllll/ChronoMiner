@@ -75,6 +75,27 @@ def detect_input_type(path: Path) -> InputType:
     return "text"
 
 
+def add_mode_override_arguments(parser: argparse.ArgumentParser) -> None:
+    """Add the shared --interactive/--non-interactive mode-override flags.
+
+    Every entry-point script accepts these flags for CLI-contract uniformity;
+    mode detection itself happens in ``main.mode_detector`` (which inspects
+    ``sys.argv``), so scripts that are already non-interactive simply parse
+    them as near-no-ops.
+    """
+    mode_group = parser.add_mutually_exclusive_group()
+    mode_group.add_argument(
+        "--interactive",
+        action="store_true",
+        help="Force interactive UI mode (overrides the config-file mode).",
+    )
+    mode_group.add_argument(
+        "--non-interactive",
+        action="store_true",
+        help="Force non-interactive CLI mode (overrides the config-file mode).",
+    )
+
+
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     """
     Add common arguments used across multiple scripts.
@@ -111,17 +132,7 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--quiet", action="store_true", help="Suppress non-essential output"
     )
-    mode_group = parser.add_mutually_exclusive_group()
-    mode_group.add_argument(
-        "--interactive",
-        action="store_true",
-        help="Force interactive UI mode (overrides the config-file mode).",
-    )
-    mode_group.add_argument(
-        "--non-interactive",
-        action="store_true",
-        help="Force non-interactive CLI mode (overrides the config-file mode).",
-    )
+    add_mode_override_arguments(parser)
     parser.add_argument(
         "--json",
         dest="json_summary",
@@ -349,6 +360,7 @@ Examples:
         action="store_true",
         help="Emit a one-line JSON status summary on stdout at completion.",
     )
+    add_mode_override_arguments(parser)
 
     return parser
 
@@ -517,6 +529,7 @@ Examples:
     parser.add_argument(
         "--verbose", action="store_true", help="Show detailed information"
     )
+    add_mode_override_arguments(parser)
 
     return parser
 
@@ -551,6 +564,7 @@ Examples:
     parser.add_argument(
         "--verbose", action="store_true", help="Show detailed processing information"
     )
+    add_mode_override_arguments(parser)
 
     return parser
 

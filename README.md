@@ -1,4 +1,4 @@
-# ChronoMiner v1.22.0
+# ChronoMiner v1.23.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -741,6 +741,28 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.23.0** (3 July 2026) -- Provider-compatibility, batch-routing, and
+    readjuster fixes from a live cross-provider bug hunt. Clamp
+    `max_output_tokens` to each model's real output ceiling at
+    request-build time (Anthropic caps registered; claude-haiku-4-5 no
+    longer 400s on oversized requests). Map Gemini 3.x reasoning effort to
+    the supported `thinking_level` parameter instead of the ignored
+    `thinking_config`. Fall back to non-strict JSON-instructed extraction
+    when Anthropic rejects a structured-output schema for exceeding its
+    union-type parameter limit. `check_batches.py` no longer reports a
+    false all-clear when a configured schema directory cannot be resolved
+    (new `errors` count in the `--json` summary; non-zero exit), finalizes
+    batch outputs into the submission's own directory instead of the
+    schema default (`repair_extractions.py` likewise), and, together with
+    `cancel_batches.py` and `repair_extractions.py`, accepts the shared
+    `--interactive`/`--non-interactive` flags. Line-range readjuster:
+    range deletions now require a dedicated, stricter
+    `retry.delete_certainty_threshold` (default 85) and every accepted
+    deletion is logged with its dropped line span; sliced adjustment runs
+    compose with `--resume` via a post-write fingerprint chain (sliced
+    work is reused, external edits still invalidate); context-resolution
+    log lines are now visible in console and application.log.
 
 - **v1.22.0** (3 July 2026) -- Optional shared cross-tool token budget.
     Add the vendored `modules/infra/shared_ledger.py` (locked delta merges

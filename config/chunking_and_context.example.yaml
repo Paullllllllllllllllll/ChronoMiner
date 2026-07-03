@@ -45,7 +45,14 @@ retry:
                                    # The window radius doubles per expansion
                                    # (context_window × 2, ×4, ×8, ...)
   delete_ranges_with_no_content: true  # Remove line ranges confirmed (at or above
-                                   # certainty_threshold) to have no semantic content
+                                   # delete_certainty_threshold) to have no semantic content
+  delete_certainty_threshold: 85   # Stricter minimum confidence (0-100) required to
+                                   # DELETE a range as no-content. Deletion is
+                                   # destructive (the lines are never extracted), so
+                                   # it uses its own gate, separate from and higher
+                                   # than certainty_threshold; boundary moves are
+                                   # unaffected. Every accepted deletion is logged at
+                                   # WARNING with the dropped line span.
   max_gap_between_ranges: 2        # Maximum unassigned lines allowed between ranges
                                    # Set to 0 for flush ranges; increase for looser
                                    # alignment. Never re-covers deleted no-content ranges.

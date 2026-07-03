@@ -440,6 +440,29 @@ class LangChainLLM:
 
         return disabled if disabled else None
 
+    def _effective_max_tokens(self) -> int:
+        """Requested max output tokens, clamped to the model's known ceiling.
+
+        The capability registry records the provider-enforced per-model output
+        cap (``max_output_tokens``). Sending a larger value makes the provider
+        reject the request with a 400 (e.g. 128,000 to claude-haiku-4-5,
+        whose cap is 64,000), so the requested value is clamped here at
+        request-build time with a logged warning. Models with an unknown cap
+        (``None``) are never clamped.
+        """
+        requested = int(self.config.max_tokens)
+        cap = getattr(self._get_capabilities(), "max_output_tokens", None)
+        if cap is not None and requested > int(cap):
+            logger.warning(
+                "max_output_tokens %s exceeds the %s cap of %s; clamping to %s",
+                f"{requested:,}",
+                self.config.model,
+                f"{int(cap):,}",
+                f"{int(cap):,}",
+            )
+            return int(cap)
+        return requested
+
     def _create_chat_model(self) -> Any:
         """
         Create the appropriate LangChain chat model based on provider.
@@ -453,11 +476,14 @@ class LangChainLLM:
         # Get disabled params for capability guarding
         disabled_params = self._get_disabled_params()
 
+        # Requested output budget, clamped to the model's known hard cap (CM-2)
+        max_tokens = self._effective_max_tokens()
+
         # Only include sampler controls if supported by model
         common_params = {}
         if caps.supports_sampler_controls:
             common_params["temperature"] = self.config.temperature
-            common_params["max_tokens"] = self.config.max_tokens
+            common_params["max_tokens"] = max_tokens
             common_params["top_p"] = self.config.top_p
             if self.config.extra_params.get("presence_penalty"):
                 common_params["presence_penalty"] = self.config.extra_params[
@@ -469,7 +495,7 @@ class LangChainLLM:
                 ]
         else:
             # For reasoning models, only set max_tokens (required for output budget)
-            common_params["max_tokens"] = self.config.max_tokens
+            common_params["max_tokens"] = max_tokens
 
         if provider == "openai":
             from langchain_openai import ChatOpenAI
@@ -528,7 +554,7 @@ class LangChainLLM:
             ):
                 effort = reasoning_config.get("effort", "medium")
                 budget = _compute_reasoning_budget(
-                    max_tokens=self.config.max_tokens, effort=str(effort)
+                    max_tokens=max_tokens, effort=str(effort)
                 )
                 if budget > 0:
                     anthropic_params["thinking"] = {
@@ -565,26 +591,46 @@ class LangChainLLM:
 
             google_params = dict(common_params)
 
-            # Add thinking config for Google when reasoning is configured (CM-4)
-            # Works for both Gemini and Gemma models via the Gemini API
+            # Add thinking controls for Google when reasoning is configured.
+            # langchain-google-genai exposes ``thinking_level`` (Gemini 3.x)
+            # and ``thinking_budget`` (Gemini 2.5 / Gemma) as constructor
+            # fields; the legacy ``thinking_config`` dict is NOT a supported
+            # parameter and is silently shunted into model_kwargs, making the
+            # reasoning control ineffective (CM-1, live bug).
             reasoning_config = self.config.extra_params.get("reasoning_config", {})
             if (
                 reasoning_config
                 and reasoning_config.get("effort")
                 and reasoning_config.get("effort") != "none"
             ):
-                effort = reasoning_config.get("effort", "medium")
-                budget = _compute_reasoning_budget(
-                    max_tokens=self.config.max_tokens, effort=str(effort)
-                )
-                if budget > 0:
-                    google_params["thinking_config"] = {
-                        "include_thoughts": True,
-                        "thinking_budget": budget,
+                effort = str(reasoning_config.get("effort", "medium"))
+                model_lower = self.config.model.lower().strip()
+                if "gemini-3" in model_lower:
+                    # Gemini 3.x controls reasoning via a discrete level.
+                    level_map = {
+                        "minimal": "minimal",
+                        "low": "low",
+                        "medium": "medium",
+                        "high": "high",
+                        "xhigh": "high",
                     }
+                    level = level_map.get(effort.lower().strip(), "medium")
+                    google_params["thinking_level"] = level
                     logger.info(
-                        f"Google thinking enabled: budget={budget}, effort={effort}"
+                        f"Google thinking enabled: thinking_level={level}, "
+                        f"effort={effort}"
                     )
+                else:
+                    budget = _compute_reasoning_budget(
+                        max_tokens=max_tokens, effort=effort
+                    )
+                    if budget > 0:
+                        google_params["thinking_budget"] = budget
+                        google_params["include_thoughts"] = True
+                        logger.info(
+                            f"Google thinking enabled: thinking_budget={budget}, "
+                            f"effort={effort}"
+                        )
 
             return ChatGoogleGenerativeAI(
                 model=self.config.model,
@@ -904,11 +950,15 @@ class LangChainLLM:
                         "Tool schema contains too many conditional branches" in err_msg
                         or "reduce the use of anyOf constructs" in err_msg
                         or "anyOf constructs (limit: 8)" in err_msg
+                        or "too many parameters with union types" in err_msg
+                        or "parameters with unions" in err_msg
                     )
                     if anthropic_schema_limit:
                         logger.warning(
-                            "Anthropic structured output schema too complex; "
-                            "falling back to plain invocation: %s",
+                            "Anthropic rejected the structured-output schema as "
+                            "too complex; falling back to non-strict "
+                            "JSON-instructed extraction (prompt-embedded schema "
+                            "+ JSON parsing): %s",
                             err_msg,
                         )
                         response_data["structured_output_fallback"] = True

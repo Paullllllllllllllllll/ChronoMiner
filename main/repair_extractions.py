@@ -22,6 +22,7 @@ from modules.batch import BatchHandle, BatchStatus, get_batch_backend
 from modules.batch.diagnostics import extract_custom_id_mapping
 from modules.batch.ops import (
     _recover_missing_batch_ids,
+    derive_submission_output_dir,
     is_batch_temp_file,
     load_config,
     process_batch_output_file,
@@ -54,7 +55,12 @@ def _discover_candidate_temp_files(
                 responses = result.get("responses", [])
                 tracking = result.get("tracking", [])
                 identifier = temp_file.stem.replace("_temp", "")
-                final_json = temp_file.parent / f"{identifier}_output.json"
+                # CM-6: the final output lives with the submission (the
+                # parent of temp_jsonl/), not next to the temp file itself.
+                final_json = (
+                    derive_submission_output_dir(temp_file)
+                    / f"{identifier}_output.json"
+                )
                 # Legacy name written by pre-v1.20.0 batch finalization;
                 # still counts as "final exists" for display purposes.
                 legacy_final = temp_file.parent / f"{identifier}_final_output.json"
@@ -184,7 +190,11 @@ def _repair_temp_file(
         return
 
     identifier = temp_file.stem.replace("_temp", "")
-    final_json_path = temp_file.parent / f"{identifier}_output.json"
+    # CM-6: write the repaired output to the submission-local directory (the
+    # parent of temp_jsonl/), matching check_batches finalization.
+    output_dir = derive_submission_output_dir(temp_file)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    final_json_path = output_dir / f"{identifier}_output.json"
 
     # Honest completeness: only fully_completed when nothing failed or is
     # missing (previously stamped True unconditionally).

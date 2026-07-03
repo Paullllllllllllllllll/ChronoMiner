@@ -32,6 +32,7 @@ from modules.infra.jsonl import (
     extract_completed_ids,
     finalize_jsonl_header,
     read_jsonl_header,
+    update_jsonl_header,
     validate_jsonl_header,
 )
 from modules.infra.paths import ensure_path_safe
@@ -268,6 +269,13 @@ class LineRangeReadjuster:
         )
         self.delete_ranges_with_no_content = self.retry_config.get(
             "delete_ranges_with_no_content", True
+        )
+        # Deleting a range is destructive (its lines are never extracted), so
+        # the delete decision uses a stricter, separate certainty gate than
+        # boundary moves (CM-7). Default 85; boundary moves keep using
+        # certainty_threshold.
+        self.delete_certainty_threshold = int(
+            self.retry_config.get("delete_certainty_threshold", 85)
         )
         # scan_range_multiplier is deprecated: window growth is now geometric
         # and sized by the retry budgets; a leftover YAML key is tolerated.
@@ -601,6 +609,19 @@ class LineRangeReadjuster:
         if not dry_run:
             self._write_line_ranges(line_ranges_file, adjusted_ranges)
 
+            # Fingerprint chain (CM-8): record the POST-WRITE fingerprint of
+            # the ranges file in the temp JSONL header. A later --resume run
+            # then recognizes the rewritten file as this artifact's own
+            # output (instead of discarding the JSONL as stale), so a sliced
+            # --first-n-chunks run composes with resume without re-adjusting
+            # the already-processed ranges.
+            post_write_fingerprint = compute_ranges_fingerprint(line_ranges_file)
+            if temp_jsonl_path.exists():
+                update_jsonl_header(
+                    temp_jsonl_path,
+                    {"post_write_ranges_fingerprint": post_write_fingerprint},
+                )
+
             # Finalize the header only when the JSONL covers every range, so
             # a sliced partial run is never marked complete and later resume
             # runs still process the remaining ranges.
@@ -616,7 +637,7 @@ class LineRangeReadjuster:
                     temp_jsonl_path,
                     stats=stats,
                     source_file=line_ranges_file.name,
-                    final_fingerprint=compute_ranges_fingerprint(line_ranges_file),
+                    final_fingerprint=post_write_fingerprint,
                 )
             else:
                 logger.info(
@@ -660,22 +681,61 @@ class LineRangeReadjuster:
                 adjusted.append(original_range)
                 continue
             # Defense-in-depth: warn if JSONL record was made for a
-            # different range than the current one at this index.
+            # different range than the current one at this index. This
+            # happens legitimately on a resume after a sliced run rewrote
+            # the ranges file (the record stores the pre-adjustment range),
+            # but a DELETION must never be applied to a mismatched range:
+            # index drift (e.g. an earlier deletion shifting later ranges)
+            # would silently destroy the wrong content.
             stored_orig = body.get("original_range")
-            if stored_orig is not None and list(stored_orig) != list(original_range):
-                logger.warning(
-                    "[Range %d] JSONL original_range %s != current %s "
-                    "(possible stale JSONL leak)",
+            stored_adj = body.get("adjusted_range")
+            should_delete = bool(body.get("should_delete", False))
+            mismatched = stored_orig is not None and list(stored_orig) != list(
+                original_range
+            )
+            # Fingerprint-chain resume (CM-8): when the current range equals
+            # the record's ADJUSTED value, the current file simply contains
+            # this record's own previous output (a sliced run rewrote it).
+            # That is healthy, not drift, so it must not alarm the operator.
+            recognized_own_output = (
+                mismatched
+                and not should_delete
+                and stored_adj is not None
+                and list(stored_adj) == list(original_range)
+            )
+            if recognized_own_output:
+                logger.debug(
+                    "[Range %d] Current range %s matches this record's"
+                    " adjusted output; recognized as own output from a"
+                    " previous (sliced) run",
                     index,
-                    stored_orig,
                     list(original_range),
                 )
-            if body.get("should_delete", False):
-                deleted.append(index - 1)
+            elif mismatched:
+                logger.warning(
+                    "[Range %d] JSONL original_range %s (adjusted %s) matches"
+                    " neither side of current %s (possible stale JSONL leak)",
+                    index,
+                    stored_orig,
+                    stored_adj,
+                    list(original_range),
+                )
+            if should_delete:
+                if mismatched:
+                    logger.warning(
+                        "[Range %d] Recorded deletion targets range %s, not"
+                        " the current %s; keeping the current range instead"
+                        " of deleting mismatched content",
+                        index,
+                        stored_orig,
+                        list(original_range),
+                    )
+                    adjusted.append(original_range)
+                else:
+                    deleted.append(index - 1)
             else:
-                adj = body.get("adjusted_range")
-                if adj and len(adj) == 2:
-                    adjusted.append((int(adj[0]), int(adj[1])))
+                if stored_adj and len(stored_adj) == 2:
+                    adjusted.append((int(stored_adj[0]), int(stored_adj[1])))
                 else:
                     adjusted.append(original_range)
         return adjusted, deleted
@@ -1140,23 +1200,38 @@ class LineRangeReadjuster:
                     )
                 return False, reanchored, verification_attempts
 
-            # A no-content verdict below the certainty threshold is not good
-            # enough to destroy a range: abort deletion and keep it.
-            if decision.certainty < self.certainty_threshold:
+            # A no-content verdict below the DELETE certainty threshold is not
+            # good enough to destroy a range: abort deletion and keep it.
+            # Deletions use their own stricter gate (CM-7), separate from the
+            # certainty_threshold that governs boundary moves.
+            if decision.certainty < self.delete_certainty_threshold:
                 logger.info(
-                    "[Range %d] No-content verdict below certainty threshold"
-                    " (%d < %d); keeping range",
+                    "[Range %d] No-content verdict below delete certainty"
+                    " threshold (%d < %d); keeping range",
                     range_index,
                     decision.certainty,
-                    self.certainty_threshold,
+                    self.delete_certainty_threshold,
                 )
                 return False, None, verification_attempts
 
-        # All interior scans confirmed no content with high certainty
-        logger.info(
-            "[Range %d] Verified no semantic content in range interior;"
-            " confirming deletion",
+        # All interior scans confirmed no content at or above the delete gate.
+        # Deletion destroys content permanently, so every acceptance is logged
+        # at WARNING with the dropped line span and the model's certainty.
+        min_certainty = min(
+            (attempt["certainty"] for attempt in verification_attempts),
+            default=0,
+        )
+        logger.warning(
+            "[Range %d] DELETION accepted: dropping lines %d-%d (no '%s'"
+            " content; model certainty %d >= delete threshold %d across %d"
+            " verification window(s))",
             range_index,
+            start,
+            end,
+            boundary_type,
+            min_certainty,
+            self.delete_certainty_threshold,
+            len(verification_attempts),
         )
         return True, None, verification_attempts
 

@@ -225,7 +225,17 @@ def validate_jsonl_header(
     """
     if header.get("version") != _JSONL_HEADER_VERSION:
         return False
-    if header.get("ranges_fingerprint") != ranges_fingerprint:
+    # Fingerprint chain (CM-8): the artifact is valid when the current ranges
+    # file matches EITHER the pre-run fingerprint (file unchanged since the
+    # run started) OR the recorded post-write fingerprint (the file is this
+    # artifact's own previous output, e.g. after a sliced --first-n-chunks
+    # run rewrote it). External regeneration or manual edits match neither
+    # and still invalidate the artifact.
+    post_write = header.get("post_write_ranges_fingerprint")
+    fingerprint_ok = header.get("ranges_fingerprint") == ranges_fingerprint or (
+        post_write is not None and post_write == ranges_fingerprint
+    )
+    if not fingerprint_ok:
         return False
     if not _header_fields_match(
         header,
@@ -241,6 +251,42 @@ def validate_jsonl_header(
         and header.get("prompt_hash") is not None
         and header.get("prompt_hash") != prompt_hash
     )
+
+
+def update_jsonl_header(path: Path, fields: dict[str, Any]) -> bool:
+    """Merge *fields* into the JSONL header record and rewrite the file.
+
+    Returns ``True`` when the header was updated, ``False`` when the file is
+    missing, empty, or its first line carries no valid header record.
+    """
+    safe_path = ensure_path_safe(path)
+    if not safe_path.exists():
+        logger.warning("Cannot update header: JSONL file not found: %s", path)
+        return False
+
+    lines = safe_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    if not lines:
+        logger.warning("Cannot update header: JSONL file is empty: %s", path)
+        return False
+
+    try:
+        first_record = json.loads(lines[0].strip())
+    except json.JSONDecodeError:
+        logger.warning("Cannot update header: first line is not valid JSON: %s", path)
+        return False
+
+    header = first_record.get("jsonl_header")
+    if header is None:
+        logger.warning(
+            "Cannot update header: no jsonl_header key in first line: %s", path
+        )
+        return False
+
+    header.update(fields)
+
+    lines[0] = json.dumps(first_record, ensure_ascii=False) + "\n"
+    safe_path.write_text("".join(lines), encoding="utf-8")
+    return True
 
 
 def finalize_jsonl_header(
@@ -261,40 +307,17 @@ def finalize_jsonl_header(
     compares against it so that regenerating the ranges file later is
     detected as staleness.
     """
-    safe_path = ensure_path_safe(path)
-    if not safe_path.exists():
-        logger.warning("Cannot finalize header: JSONL file not found: %s", path)
-        return
-
-    lines = safe_path.read_text(encoding="utf-8").splitlines(keepends=True)
-    if not lines:
-        logger.warning("Cannot finalize header: JSONL file is empty: %s", path)
-        return
-
-    try:
-        first_record = json.loads(lines[0].strip())
-    except json.JSONDecodeError:
-        logger.warning("Cannot finalize header: first line is not valid JSON: %s", path)
-        return
-
-    header = first_record.get("jsonl_header")
-    if header is None:
-        logger.warning(
-            "Cannot finalize header: no jsonl_header key in first line: %s", path
-        )
-        return
-
-    header["completed_at"] = datetime.datetime.now(datetime.UTC).isoformat()
+    fields: dict[str, Any] = {
+        "completed_at": datetime.datetime.now(datetime.UTC).isoformat(),
+    }
     if source_file is not None:
-        header["source_file"] = source_file
+        fields["source_file"] = source_file
     if final_fingerprint is not None:
-        header["final_ranges_fingerprint"] = final_fingerprint
-    for key, value in stats.items():
-        header[key] = value
+        fields["final_ranges_fingerprint"] = final_fingerprint
+    fields.update(stats)
 
-    lines[0] = json.dumps(first_record, ensure_ascii=False) + "\n"
-    safe_path.write_text("".join(lines), encoding="utf-8")
-    logger.info("Finalized JSONL header with completion stats: %s", path)
+    if update_jsonl_header(path, fields):
+        logger.info("Finalized JSONL header with completion stats: %s", path)
 
 
 def is_jsonl_adjustment_complete(
