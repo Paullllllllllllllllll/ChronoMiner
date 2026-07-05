@@ -16,15 +16,11 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from modules.infra.shared_ledger import LEDGER_FILENAME, SharedTokenLedger
+from modules.infra.shared_ledger import LEDGER_FILENAME, SharedTokenLedger, _today
 from modules.infra.token_tracker import (
     DailyTokenTracker,
     check_and_wait_for_token_limit,
 )
-
-
-def _today() -> str:
-    return datetime.now().strftime("%Y-%m-%d")
 
 
 def _write_ledger(ledger_dir: Path, tools: dict[str, int]) -> None:

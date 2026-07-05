@@ -3,7 +3,8 @@
 This module provides a thread-safe token tracker that:
 - Counts total tokens used from OpenAI API responses
 - Enforces configurable daily token limits
-- Automatically resets at midnight in the local timezone
+- Automatically resets at 00:01 UTC, one minute after OpenAI's 00:00 UTC
+  free-tier reset
 - Persists state to disk to survive application restarts
 - Thread-safe for concurrent API calls
 
@@ -38,7 +39,7 @@ import shutil
 import threading
 import time
 import uuid
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
@@ -76,6 +77,13 @@ _LEDGER_SYNC_DEBOUNCE_S = 2.0
 # This tool's field name in the shared cross-tool ledger.
 _LEDGER_TOOL_NAME = "chronominer"
 
+# One-minute safety buffer past OpenAI's 00:00 UTC free-tier reset, so the
+# tracker never frees its budget before the upstream quota has actually reset.
+# Mirrors modules.infra.shared_ledger._RESET_BUFFER (kept as a separate
+# constant since this module is not vendored and may import the ledger only
+# under TYPE_CHECKING).
+_RESET_BUFFER = timedelta(minutes=1)
+
 
 def _resolve_state_dir() -> Path:
     """Resolve the state directory: config override, else ``~/.chronominer``."""
@@ -107,7 +115,8 @@ class DailyTokenTracker:
     Thread-safe daily token usage tracker with persistent state.
 
     Tracks token usage across API calls and enforces daily limits with
-    automatic reset at midnight in the local timezone.
+    automatic reset at 00:01 UTC (one minute after OpenAI's 00:00 UTC
+    free-tier reset).
     """
 
     def __init__(
@@ -443,8 +452,13 @@ class DailyTokenTracker:
             pass
 
     def _get_current_date_str(self) -> str:
-        """Get current date as string in YYYY-MM-DD format."""
-        return datetime.now().strftime("%Y-%m-%d")
+        """Get the current budget-day key (YYYY-MM-DD), buffered UTC.
+
+        The day rolls over at 00:01 UTC rather than at exact UTC midnight, so
+        the reset never fires before OpenAI's own 00:00 UTC free-tier reset
+        has actually happened.
+        """
+        return (datetime.now(UTC) - _RESET_BUFFER).strftime("%Y-%m-%d")
 
     def _load_state(self) -> None:
         """Load token usage state from disk."""
@@ -710,29 +724,32 @@ class DailyTokenTracker:
 
     def get_seconds_until_reset(self) -> int:
         """
-        Get the number of seconds until the counter resets (midnight).
+        Get the number of seconds until the counter resets (00:01 UTC).
 
         Returns:
-            Seconds until midnight (00:00:00 local time).
+            Seconds until the next 00:01 UTC reset.
         """
-        now = datetime.now()
-        # Calculate next midnight
-        tomorrow = now.date() + timedelta(days=1)
-        midnight = datetime.combine(tomorrow, datetime.min.time())
-
-        delta = midnight - now
-        return int(delta.total_seconds())
+        now = datetime.now(UTC)
+        delta = self.get_reset_time() - now
+        return max(0, int(delta.total_seconds()))
 
     def get_reset_time(self) -> datetime:
         """
         Get the datetime when the counter will reset.
 
         Returns:
-            Datetime of next midnight.
+            Timezone-aware UTC datetime of the next 00:01 UTC reset (one
+            minute after OpenAI's 00:00 UTC free-tier reset).
         """
-        now = datetime.now()
-        tomorrow = now.date() + timedelta(days=1)
-        return datetime.combine(tomorrow, datetime.min.time())
+        now = datetime.now(UTC)
+        anchor = now - _RESET_BUFFER
+        # datetime.min.time() is time(0, 0), i.e. midnight, without importing
+        # the datetime.time class (which would shadow the stdlib time module
+        # imported above for time.monotonic()/time.sleep()).
+        next_midnight = datetime.combine(
+            anchor.date() + timedelta(days=1), datetime.min.time(), tzinfo=UTC
+        )
+        return next_midnight + _RESET_BUFFER
 
     def get_usage_percentage(self) -> float:
         """
@@ -801,6 +818,17 @@ class DailyTokenTracker:
         }
 
 
+def _describe_reset_time(reset_time: datetime) -> str:
+    """Render an aware-UTC reset instant for user-facing messages.
+
+    The actual reset always happens at 00:01 UTC regardless of the local
+    offset, so the UTC anchor is always shown alongside the more readable
+    local wall-clock time.
+    """
+    local = reset_time.astimezone()
+    return f"{local.strftime('%Y-%m-%d %H:%M:%S')} local (00:01 UTC)"
+
+
 def check_token_limit_enabled() -> bool:
     """
     Check if daily token limit is enabled in configuration.
@@ -864,7 +892,7 @@ async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> 
             f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
         )
         _logger.info(
-            f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} "
+            f"Waiting until {_describe_reset_time(reset_time)} "
             f"({seconds_until_reset // 3600}h "
             f"{(seconds_until_reset % 3600) // 60}m) for token limit reset..."
         )
@@ -875,7 +903,7 @@ async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> 
             f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} tokens used"
         )
         ui.print_info(
-            f"Waiting until {reset_time.strftime('%Y-%m-%d %H:%M:%S')} for daily reset "
+            f"Waiting until {_describe_reset_time(reset_time)} for daily reset "
             f"({seconds_until_reset // 3600}h "
             f"{(seconds_until_reset % 3600) // 60}m remaining)"
         )
@@ -893,9 +921,9 @@ async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> 
             elapsed += interval
 
             # Forced ledger refresh each poll so another tool's usage or its
-            # midnight reset is observed while we wait. Runs off the event loop
-            # via to_thread; a no-op (and skipped) when the shared budget is
-            # disabled, so single-tool waits are unchanged.
+            # 00:01 UTC reset is observed while we wait. Runs off the event
+            # loop via to_thread; a no-op (and skipped) when the shared budget
+            # is disabled, so single-tool waits are unchanged.
             if getattr(token_tracker, "_shared_enabled", False):
                 try:
                     await asyncio.to_thread(token_tracker.sync_ledger_now)

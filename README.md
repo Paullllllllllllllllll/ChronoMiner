@@ -1,4 +1,4 @@
-# ChronoMiner v1.23.0
+# ChronoMiner v1.24.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -92,7 +92,7 @@ concurrency, and output.
 - **Four output formats** -- JSON (always), CSV, DOCX, TXT
   (toggleable per schema)
 - **Daily token budget** -- configurable per-day limits with
-  automatic midnight reset
+  automatic reset at 00:01 UTC
 - **Resume and repair** -- skip processed files; repair incomplete
   batch jobs after the fact
 
@@ -407,7 +407,8 @@ daily_token_limit:
 ```
 
 Controls concurrent task limits, exponential backoff retry, and
-daily token budgets (automatic reset at local midnight).
+daily token budgets (automatic reset at 00:01 UTC, one minute after
+OpenAI's 00:00 UTC free-tier reset).
 `max_concurrent_files` caps how many files run at once when the
 daily token limit is disabled (visual runs are clamped to 2).
 
@@ -575,7 +576,8 @@ output is marked `fully_completed` only when no batch failed or is missing.
 ### Daily Token Budget
 
 Enable in `concurrency_config.yaml` to cap daily API usage. Tracks total tokens
-per call and resets at local midnight. State lives in a user-level directory
+per call and resets at 00:01 UTC (one minute after OpenAI's 00:00 UTC
+free-tier reset). State lives in a user-level directory
 (`~/.chronominer/` by default, overridable via `state_dir` in
 `paths_config.yaml`) so the budget is shared across runs regardless of the
 working directory; a legacy `.chronominer_token_state.json` in the working
@@ -741,6 +743,20 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.24.0** (5 July 2026) -- Fix the daily token budget's reset boundary.
+    Both the private per-tool tracker (`modules/infra/token_tracker.py`) and
+    the vendored shared cross-tool ledger (`modules/infra/shared_ledger.py`,
+    bumped to 1.1.0) now roll the budget day over at 00:01 UTC -- one minute
+    after OpenAI's 00:00 UTC free-tier reset -- instead of local midnight,
+    so the tool never frees its budget before OpenAI's own counter has
+    actually reset. The one-minute buffer is a deliberate safety margin
+    against clock skew. `get_reset_time()` now returns a timezone-aware UTC
+    datetime; user-facing wait messages show the local wall-clock time
+    alongside an explicit "(00:01 UTC)" anchor for clarity. Updated docs and
+    config comments accordingly. The shared ledger module must be re-vendored
+    (module and its test) to ChronoTranscriber and AutoExcerpter to keep all
+    three tools on one combined budget day. All tests pass.
 
 - **v1.23.0** (3 July 2026) -- Provider-compatibility, batch-routing, and
     readjuster fixes from a live cross-provider bug hunt. Clamp

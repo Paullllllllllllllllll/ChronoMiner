@@ -102,8 +102,8 @@ concurrency:
 # =============================================================================
 # Tracks cumulative token usage across all LLM calls (input + output plus
 # prompt-cache creation and read tokens, all counted at full weight) and
-# pauses processing when the cap is reached. Resets at local midnight (the
-# same wall clock the machine runs on), not UTC.
+# pauses processing when the cap is reached. Resets at 00:01 UTC, one minute
+# after OpenAI's free-tier counter reset at 00:00 UTC.
 #
 # Used by: modules/core/token_tracker.py, modules/operations/extraction/run.py
 # =============================================================================

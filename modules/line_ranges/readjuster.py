@@ -503,16 +503,17 @@ class LineRangeReadjuster:
                     # Range-level token-budget gate (mirrors the extraction
                     # path). A range may make several LLM calls, so reserve once
                     # before it and release afterward; when the daily budget is
-                    # exhausted, wait for the midnight reset and retry the same
+                    # exhausted, wait for the 00:01 UTC reset and retry the same
                     # range. Ranges run sequentially, so no cross-range
                     # coordination is needed. No-op when the limit is disabled.
                     reserved = tracker.try_reserve()
                     while reserved is None:
                         if not tracker.is_limit_reached():
                             # Remaining budget is positive but below the
-                            # per-range estimate; waiting cannot help until
-                            # midnight and the estimate may exceed this range's
-                            # actual cost, so proceed (overshoot <= one range).
+                            # per-range estimate; waiting cannot help until the
+                            # 00:01 UTC reset and the estimate may exceed this
+                            # range's actual cost, so proceed (overshoot <= one
+                            # range).
                             break
                         if not await check_and_wait_for_token_limit(logger=logger):
                             budget_cancelled = True

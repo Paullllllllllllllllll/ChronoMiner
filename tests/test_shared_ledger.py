@@ -25,7 +25,7 @@ import pytest
 # Content hash of shared_ledger.py with newlines normalized to LF.
 # Update ONLY when intentionally releasing a new ledger module version,
 # then re-copy module + tests to all sibling repos.
-EXPECTED_SHA256 = "1f6c9a5703d463750d05e47ed25b9a96fda24d88e948fe674fcffb697d541bc8"
+EXPECTED_SHA256 = "9b316f1af8081dbb2680e39519ac0dbad1995ee289c83edb59d59c5b13607108"
 
 _SKIP_DIRS = {".venv", ".git", "scratch", "backup", "node_modules", ".mypy_cache"}
 
@@ -121,7 +121,9 @@ class TestSeeding:
 class TestRolloverAndRecovery:
     def test_day_rollover_resets_all_fields(self, tmp_path: Path) -> None:
         ledger = _make(tmp_path)
-        yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+        yesterday = (
+            datetime.strptime(sl._today(), "%Y-%m-%d") - timedelta(days=1)
+        ).strftime("%Y-%m-%d")
         stale = {
             "schema_version": sl.LEDGER_SCHEMA_VERSION,
             "date": yesterday,
@@ -298,4 +300,32 @@ class TestModuleDrift:
         )
 
     def test_module_version_matches(self) -> None:
-        assert sl.LEDGER_MODULE_VERSION == "1.0.0"
+        assert sl.LEDGER_MODULE_VERSION == "1.1.0"
+
+
+class TestResetBoundary:
+    """The budget day rolls over at 00:01 UTC, not exact UTC midnight."""
+
+    def test_day_key_before_buffer_is_previous_day(self, monkeypatch: object) -> None:
+        from datetime import UTC
+        from datetime import datetime as real_datetime
+
+        class _FrozenDateTime(real_datetime):
+            @classmethod
+            def now(cls, tz: object = None) -> real_datetime:
+                return real_datetime(2026, 7, 5, 0, 0, 30, tzinfo=UTC)
+
+        monkeypatch.setattr(sl, "datetime", _FrozenDateTime)
+        assert sl._today() == "2026-07-04"
+
+    def test_day_key_after_buffer_is_new_day(self, monkeypatch: object) -> None:
+        from datetime import UTC
+        from datetime import datetime as real_datetime
+
+        class _FrozenDateTime(real_datetime):
+            @classmethod
+            def now(cls, tz: object = None) -> real_datetime:
+                return real_datetime(2026, 7, 5, 0, 1, 30, tzinfo=UTC)
+
+        monkeypatch.setattr(sl, "datetime", _FrozenDateTime)
+        assert sl._today() == "2026-07-05"

@@ -21,7 +21,8 @@ Design contract (kept deliberately small):
 - Any I/O failure degrades to standalone mode (methods return ``None``)
   with a single warning; the host tool falls back to its private
   counter and NEVER crashes because of the ledger.
-- The day rolls over at LOCAL midnight, matching the per-tool trackers.
+- The day rolls over at 00:01 UTC (one minute after OpenAI's 00:00 UTC
+  free-tier reset), matching the per-tool trackers.
 
 This module is vendored byte-identically into every participating repo
 and therefore imports nothing from its host package. Do not add host
@@ -39,14 +40,18 @@ import secrets
 import sys
 import threading
 import time
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import IO, Any
 
 logger = logging.getLogger(__name__)
 
 LEDGER_SCHEMA_VERSION = 1
-LEDGER_MODULE_VERSION = "1.0.0"
+LEDGER_MODULE_VERSION = "1.1.0"
+
+# One-minute safety buffer past OpenAI's 00:00 UTC free-tier reset, so the
+# ledger never frees its budget before the upstream quota has actually reset.
+_RESET_BUFFER = timedelta(minutes=1)
 
 LEDGER_FILENAME = "token_ledger.json"
 LOCK_FILENAME = "ledger.lock"
@@ -98,7 +103,7 @@ def default_ledger_dir() -> Path:
 
 
 def _today() -> str:
-    return datetime.now().strftime("%Y-%m-%d")
+    return (datetime.now(UTC) - _RESET_BUFFER).strftime("%Y-%m-%d")
 
 
 class SharedTokenLedger:

@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -248,15 +248,62 @@ class TestGetSecondsUntilReset:
 
 
 class TestGetResetTime:
-    def test_returns_future_midnight(self, tmp_path):
+    def test_returns_future_utc_00_01(self, tmp_path):
         tracker = DailyTokenTracker(
             daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
         )
         reset_time = tracker.get_reset_time()
-        now = datetime.now()
+        now = datetime.now(UTC)
         assert reset_time > now
+        assert reset_time.tzinfo is not None
+        assert reset_time.utcoffset().total_seconds() == 0
         assert reset_time.hour == 0
-        assert reset_time.minute == 0
+        assert reset_time.minute == 1
+
+
+class TestResetBoundary:
+    """The budget day rolls over at 00:01 UTC, not exact UTC midnight."""
+
+    def test_date_str_before_buffer_is_previous_day(self, tmp_path, monkeypatch):
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
+
+        class _FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 7, 5, 0, 0, 30, tzinfo=UTC)
+
+        monkeypatch.setattr(_tt_module, "datetime", _FrozenDateTime)
+        assert tracker._get_current_date_str() == "2026-07-04"
+
+    def test_date_str_after_buffer_is_new_day(self, tmp_path, monkeypatch):
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
+
+        class _FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 7, 5, 0, 1, 30, tzinfo=UTC)
+
+        monkeypatch.setattr(_tt_module, "datetime", _FrozenDateTime)
+        assert tracker._get_current_date_str() == "2026-07-05"
+
+    def test_seconds_until_reset_targets_next_00_01_utc(self, tmp_path, monkeypatch):
+        tracker = DailyTokenTracker(
+            daily_limit=1000, enabled=True, state_file=tmp_path / "s.json"
+        )
+
+        class _FrozenDateTime(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 7, 5, 12, 0, 0, tzinfo=UTC)
+
+        monkeypatch.setattr(_tt_module, "datetime", _FrozenDateTime)
+        # From 12:00:00 UTC to the next 00:01 UTC (6 July) is 12h 1m.
+        expected = 12 * 3600 + 60
+        assert tracker.get_seconds_until_reset() == expected
 
 
 class TestCanUseTokensExtended:
@@ -358,7 +405,7 @@ class TestLoadState:
 
     def test_same_day_restores(self, tmp_path):
         state_file = tmp_path / "state.json"
-        today = datetime.now().strftime("%Y-%m-%d")
+        today = (datetime.now(UTC) - _tt_module._RESET_BUFFER).strftime("%Y-%m-%d")
         state_file.write_text(
             json.dumps({"date": today, "tokens_used": 3000}),
             encoding="utf-8",
