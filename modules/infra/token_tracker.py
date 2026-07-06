@@ -443,13 +443,16 @@ class DailyTokenTracker:
             logger.debug("Legacy token-state adoption skipped: %s", exc)
 
     def _flush_on_exit(self) -> None:
-        """atexit hook: persist a pending debounced write."""
-        try:
-            with self._lock:
-                if self._pending_write:
-                    self._save_state()
-        except Exception:
-            pass
+        """atexit hook: flush the pending state write and shared-ledger delta.
+
+        Delegates to :meth:`flush`, which pushes any accumulated unsynced ledger
+        delta (shared mode never sets ``_pending_write``, so a bare state save
+        would drop it) and then persists a pending debounced write. flush() runs
+        the final ledger sync inline off the event loop, which holds at
+        interpreter shutdown (atexit runs on the main thread with no loop).
+        """
+        with contextlib.suppress(Exception):
+            self.flush()
 
     def _get_current_date_str(self) -> str:
         """Get the current budget-day key (YYYY-MM-DD), buffered UTC.

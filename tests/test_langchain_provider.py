@@ -138,6 +138,33 @@ class TestProviderConfig:
 
         assert "reasoning_config" in config.extra_params
         assert config.extra_params["reasoning_effort"] == "high"
+        # Regression: the dataclass field (used in the instance-cache key) must
+        # also be set, not left None, so two configs differing only in reasoning
+        # effort do not collide in the cache.
+        assert config.reasoning_effort == "high"
+
+    @pytest.mark.unit
+    def test_reasoning_effort_discriminates_instance_cache(self):
+        """Two model_configs identical but for reasoning effort must resolve to
+        distinct cached LLM instances (cache key includes reasoning_effort)."""
+        base = {
+            "name": "o3-mini",
+            "max_output_tokens": 16384,
+        }
+        cfg_high = {"extraction_model": {**base, "reasoning": {"effort": "high"}}}
+        cfg_low = {"extraction_model": {**base, "reasoning": {"effort": "low"}}}
+
+        from modules.llm.langchain_provider import LLMProvider
+
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+            LLMProvider.clear_cache()
+            llm_high = LLMProvider.get_llm(model_config=cfg_high)
+            llm_low = LLMProvider.get_llm(model_config=cfg_low)
+            LLMProvider.clear_cache()
+
+        assert llm_high is not llm_low
+        assert llm_high.config.reasoning_effort == "high"
+        assert llm_low.config.reasoning_effort == "low"
 
     @pytest.mark.unit
     def test_provider_config_provider_override(self):

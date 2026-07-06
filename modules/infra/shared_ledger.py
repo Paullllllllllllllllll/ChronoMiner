@@ -47,7 +47,7 @@ from typing import IO, Any
 logger = logging.getLogger(__name__)
 
 LEDGER_SCHEMA_VERSION = 1
-LEDGER_MODULE_VERSION = "1.1.0"
+LEDGER_MODULE_VERSION = "1.2.0"
 
 # One-minute safety buffer past OpenAI's 00:00 UTC free-tier reset, so the
 # ledger never frees its budget before the upstream quota has actually reset.
@@ -207,12 +207,16 @@ class SharedTokenLedger:
             try:
                 data = self._read_or_fresh()
                 tools = data["tools"]
-                current = int(tools.get(self.tool_name, 0) or 0)
+                raw = tools.get(self.tool_name, 0)
+                # Coerce a non-numeric stored field to 0 rather than letting the
+                # int() cast raise: a hand-edited or corrupt ledger value must
+                # not crash the extraction call path (never-crash contract).
+                current = int(raw) if isinstance(raw, (int, float)) else 0
                 tools[self.tool_name] = int(update(current))
                 data["last_updated"] = datetime.now().isoformat()
                 self._write_atomic(data)
                 return self._sum_tools(data)
-            except OSError as exc:
+            except (OSError, ValueError, TypeError) as exc:
                 self._warn_degraded(f"ledger I/O failed: {exc}")
                 return None
             finally:

@@ -412,3 +412,72 @@ def test_file_processor_no_chunk_slice(tmp_path, config_loader, monkeypatch):
     # Without slice, should have all generated chunks
     # (more than 2 for 200 lines at 10 tokens)
     assert len(data["records"]) > 2
+
+
+@pytest.mark.integration
+def test_visual_batch_resume_skips_completed_pages(
+    tmp_path, config_loader, monkeypatch
+):
+    """Regression: a visual ``--batch --resume`` run must exclude pages already
+    present in the existing output. A single-page image whose one page is
+    already in ``{stem}_output.json`` must be skipped, not re-submitted."""
+    from modules.extract.file_processor import FileProcessor
+
+    called: dict[str, bool] = {"strategy": False}
+
+    class _TrapStrategy:
+        async def process_chunks(self, **_kwargs):
+            called["strategy"] = True
+            return []
+
+    monkeypatch.setattr(
+        "modules.extract.file_processor.create_processing_strategy",
+        lambda use_batch, concurrency_config=None: _TrapStrategy(),
+    )
+    monkeypatch.setattr(
+        "modules.extract.file_processor.get_schema_handler",
+        lambda schema_name: DummyHandler(),
+    )
+
+    schemas_paths = config_loader.get_schemas_paths()
+    schema_paths = schemas_paths["TestSchema"]
+    output_dir = Path(schema_paths["output"])
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    # A single-page image input (page_count == 1, no PDF rendering needed).
+    image_file = tmp_path / "scan.png"
+    image_file.write_bytes(b"\x89PNG\r\n\x1a\n")
+
+    # Prior output already contains page 1.
+    prior = {
+        "_chronominer_metadata": {"schema_name": "TestSchema", "total_chunks": 1},
+        "records": [
+            {"custom_id": "scan-page-1", "chunk_index": 1, "response": {}},
+        ],
+    }
+    (output_dir / "scan_output.json").write_text(json.dumps(prior), encoding="utf-8")
+
+    fp = FileProcessor(
+        paths_config=config_loader.get_paths_config(),
+        model_config=config_loader.get_model_config(),
+        chunking_config={"chunking": {"default_tokens_per_chunk": 10}},
+        concurrency_config=config_loader.get_concurrency_config(),
+    )
+
+    async def _run():
+        return await fp.process_file(
+            file_path=image_file,
+            use_batch=True,
+            selected_schema={"schema": {"type": "object"}},
+            prompt_template="Schema={{TRANSCRIPTION_SCHEMA}}",
+            schema_name="TestSchema",
+            inject_schema=True,
+            schema_paths=schema_paths,
+            global_chunking_method="none",
+            ui=None,
+            resume=True,
+        )
+
+    status = asyncio.run(_run())
+    assert status == "skipped", "an already-completed page must not be re-submitted"
+    assert called["strategy"] is False

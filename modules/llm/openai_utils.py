@@ -92,8 +92,10 @@ class LLMExtractor:
         self.frequency_penalty: float = float(tm.get("frequency_penalty", 0.0))
 
         # Reasoning / text controls (used for reasoning models)
-        self.reasoning: dict[str, Any] = tm.get("reasoning", {"effort": "medium"})
-        self.text_params: dict[str, Any] = tm.get("text", {"verbosity": "medium"})
+        # `or` (not a get default) so a present-but-null YAML key falls back to
+        # the dict default instead of yielding None (later `.get` would raise).
+        self.reasoning: dict[str, Any] = tm.get("reasoning") or {"effort": "medium"}
+        self.text_params: dict[str, Any] = tm.get("text") or {"verbosity": "medium"}
 
         # Capabilities gating
         self.caps = detect_capabilities(self.model, provider=self.provider)

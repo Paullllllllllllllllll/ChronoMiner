@@ -18,11 +18,12 @@ from __future__ import annotations
 
 import json
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from modules.batch.ops import _extract_chunk_index, _order_responses, _response_to_text
 from modules.conversion.json_utils import lean_response
-from modules.extract.resume import build_extraction_metadata
+from modules.extract.resume import METADATA_KEY, build_extraction_metadata
 from modules.infra.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -153,6 +154,122 @@ def build_unified_batch_output(
     }
 
     return {"_chronominer_metadata": metadata, "records": records}
+
+
+def _record_index(record: dict[str, Any]) -> int | None:
+    """Resolve the absolute 1-based index of an output record."""
+    idx = record.get("chunk_index")
+    if isinstance(idx, int) and not isinstance(idx, bool):
+        return idx
+    return _resolve_chunk_index(record.get("custom_id"), {})
+
+
+def merge_existing_batch_output(
+    built: dict[str, Any],
+    existing_output_path: Path,
+) -> dict[str, Any]:
+    """Overlay freshly-built batch records onto records already on disk.
+
+    Batch finalization (and repair) rebuilds output only from the responses
+    retrieved this run; without merging, re-running ``--batch --resume`` or a
+    later repair overwrites ``{stem}_output.json`` and drops records completed
+    on earlier runs. This mirrors the synchronous resume merge
+    (``FileProcessor._merge_with_existing_output``): prior records from
+    ``existing_output_path`` are preserved and keyed by ``custom_id``; records
+    rebuilt this run win on conflict; records without a ``custom_id`` are kept
+    as-is.
+
+    Metadata is made coherent afterwards: ``failed_chunks`` drops indices that
+    now have a record and folds in prior still-failed indices, ``total_chunks``
+    grows to cover the union, and ``partial`` is recomputed.
+    """
+    if not existing_output_path.exists():
+        return built
+    try:
+        data = json.loads(existing_output_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning(
+            "Could not read existing batch output %s for resume merge: %s. "
+            "Keeping newly built records only.",
+            existing_output_path,
+            exc,
+        )
+        return built
+
+    prior_records: list[dict[str, Any]] = []
+    prior_meta: dict[str, Any] = {}
+    if isinstance(data, dict):
+        prior_records = data.get("records", []) or []
+        meta_obj = data.get(METADATA_KEY)
+        if isinstance(meta_obj, dict):
+            prior_meta = meta_obj
+    elif isinstance(data, list):
+        prior_records = data
+
+    merged: dict[str, dict[str, Any]] = {}
+    extras: list[dict[str, Any]] = []
+    for record in prior_records:
+        cid = record.get("custom_id") if isinstance(record, dict) else None
+        if cid:
+            merged[str(cid)] = record
+    new_cids: set[str] = set()
+    for record in built.get("records", []) or []:
+        cid = record.get("custom_id")
+        if cid:
+            new_cids.add(str(cid))
+            merged[str(cid)] = record
+        else:
+            extras.append(record)
+
+    carried = sum(1 for cid in merged if cid not in new_cids)
+    if carried:
+        logger.info(
+            "Batch resume merge: preserved %d previously-saved record(s) from %s.",
+            carried,
+            existing_output_path.name,
+        )
+
+    merged_records = list(merged.values()) + extras
+    built["records"] = merged_records
+
+    meta = built.get(METADATA_KEY)
+    if isinstance(meta, dict):
+        covered = {
+            i
+            for r in merged_records
+            if isinstance(r, dict) and (i := _record_index(r)) is not None
+        }
+        prior_failed = prior_meta.get("failed_chunks") or []
+        built_failed = meta.get("failed_chunks") or []
+        failed = sorted(
+            {int(i) for i in [*built_failed, *prior_failed] if i not in covered}
+        )
+        if failed:
+            meta["failed_chunks"] = failed
+        else:
+            meta.pop("failed_chunks", None)
+
+        prior_total = prior_meta.get("total_chunks")
+        total = max(
+            int(meta.get("total_chunks") or 0),
+            int(prior_total) if isinstance(prior_total, int) else 0,
+            len(merged_records) + len(failed),
+        )
+        meta["total_chunks"] = total
+
+        tracking = meta.get("batch_tracking")
+        fully = (
+            bool(tracking.get("fully_completed", True))
+            if isinstance(tracking, dict)
+            else True
+        )
+        partial = (not fully) or bool(failed) or (len(merged_records) < total)
+        if partial:
+            meta["partial"] = True
+        else:
+            meta.pop("partial", None)
+
+    return built
 
 
 def _infer_total_chunks(

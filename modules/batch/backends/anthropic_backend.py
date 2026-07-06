@@ -100,6 +100,22 @@ class AnthropicBatchBackend(BatchBackend):
         model_name = tm.get("name", "claude-sonnet-4-20250514")
         max_tokens = int(tm.get("max_output_tokens") or tm.get("max_tokens", 4096))
 
+        # Clamp to the model's registry cap. The sync path clamps via
+        # LangChainLLM._effective_max_tokens; without the same guard here the
+        # configured default (e.g. 128000) exceeds Claude caps (8000-64000)
+        # and every batch request 400s.
+        caps = detect_capabilities(model_name, provider="anthropic")
+        cap = getattr(caps, "max_output_tokens", None)
+        if cap is not None and max_tokens > int(cap):
+            logger.warning(
+                "max_output_tokens %s exceeds the %s cap of %s; clamping to %s",
+                f"{max_tokens:,}",
+                model_name,
+                f"{int(cap):,}",
+                f"{int(cap):,}",
+            )
+            max_tokens = int(cap)
+
         # Build batch requests
         batch_requests = []
         for req in requests:
@@ -139,10 +155,8 @@ class AnthropicBatchBackend(BatchBackend):
             }
 
             temperature = tm.get("temperature")
-            if temperature is not None:
-                caps = detect_capabilities(model_name, provider="anthropic")
-                if caps.supports_sampler_controls:
-                    params["temperature"] = float(temperature)
+            if temperature is not None and caps.supports_sampler_controls:
+                params["temperature"] = float(temperature)
 
             batch_requests.append(
                 {
@@ -290,11 +304,15 @@ class AnthropicBatchBackend(BatchBackend):
                         result_item.content = ""
 
                 elif result_type == "errored":
+                    # result_data.error is an ErrorResponse wrapping the actual
+                    # ErrorObject (message/type) one level down; unwrap it so the
+                    # real message and code surface instead of "Unknown error".
                     error = getattr(result_data, "error", None)
+                    err_obj = getattr(error, "error", None) if error else None
                     result_item.success = False
-                    if error:
-                        result_item.error = getattr(error, "message", "Unknown error")
-                        result_item.error_code = getattr(error, "type", None)
+                    if err_obj is not None:
+                        result_item.error = getattr(err_obj, "message", "Unknown error")
+                        result_item.error_code = getattr(err_obj, "type", None)
                     else:
                         result_item.error = "Unknown error"
 

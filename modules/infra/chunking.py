@@ -503,8 +503,18 @@ class ChunkingService:
             token_ranges, original_start_line, len(lines)
         )
 
+        # adjust_line_ranges already offsets its ranges into document space
+        # (seeded at original_start_line). split_text_into_chunks indexes the
+        # local `lines` list with 1-based positions, so convert back to local
+        # space for splitting and return the document-space ranges — mirroring
+        # _chunk_automatic, which splits with local ranges and offsets only the
+        # returned ranges.
         adjusted_ranges = [r for r in final_ranges if r is not None]
-        chunks = self.chunk_handler.split_text_into_chunks(lines, adjusted_ranges)
+        offset = original_start_line - 1
+        local_ranges = [
+            (start - offset, end - offset) for (start, end) in adjusted_ranges
+        ]
+        chunks = self.chunk_handler.split_text_into_chunks(lines, local_ranges)
         logger.info(f"Created {len(chunks)} adjusted chunks")
         return chunks, adjusted_ranges
 

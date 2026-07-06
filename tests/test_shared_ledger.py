@@ -25,7 +25,7 @@ import pytest
 # Content hash of shared_ledger.py with newlines normalized to LF.
 # Update ONLY when intentionally releasing a new ledger module version,
 # then re-copy module + tests to all sibling repos.
-EXPECTED_SHA256 = "9b316f1af8081dbb2680e39519ac0dbad1995ee289c83edb59d59c5b13607108"
+EXPECTED_SHA256 = "09fc0aaaf24fb1b84b2bc3be5e80b208c29e1ede375bc75f500fbe2b90b5fcfc"
 
 _SKIP_DIRS = {".venv", ".git", "scratch", "backup", "node_modules", ".mypy_cache"}
 
@@ -137,6 +137,23 @@ class TestRolloverAndRecovery:
         (tmp_path / sl.LEDGER_FILENAME).write_text("{not json", encoding="utf-8")
         ledger = _make(tmp_path)
         assert ledger.sync(42) == 42
+
+    def test_non_numeric_own_field_does_not_crash(self, tmp_path: Path) -> None:
+        # A syntactically valid ledger with a non-numeric own-tool value must
+        # degrade (return None) rather than raise ValueError up the never-crash
+        # call path.
+        poisoned = {
+            "schema_version": sl.LEDGER_SCHEMA_VERSION,
+            "date": sl._today(),
+            "tools": {"chronominer": "12a"},
+            "last_updated": "irrelevant",
+        }
+        (tmp_path / sl.LEDGER_FILENAME).write_text(
+            json.dumps(poisoned), encoding="utf-8"
+        )
+        ledger = _make(tmp_path)
+        # Merge coerces the bad field to 0 and proceeds; no exception escapes.
+        assert ledger.sync(10) == 10
 
     def test_read_combined_stale_date_is_zero(self, tmp_path: Path) -> None:
         ledger = _make(tmp_path)
@@ -300,7 +317,7 @@ class TestModuleDrift:
         )
 
     def test_module_version_matches(self) -> None:
-        assert sl.LEDGER_MODULE_VERSION == "1.1.0"
+        assert sl.LEDGER_MODULE_VERSION == "1.2.0"
 
 
 class TestResetBoundary:

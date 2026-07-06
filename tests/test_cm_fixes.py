@@ -211,6 +211,34 @@ class TestCM3ReasoningEffortSyncMode:
 
         assert extractor._llm.config.extra_params.get("reasoning_effort") == "medium"
 
+    @pytest.mark.unit
+    def test_null_reasoning_key_falls_back_to_default(self):
+        """A present-but-null `reasoning:`/`text:` YAML key (children commented
+        out) must fall back to the dict default, not None, so the later
+        `.get("effort")` does not raise AttributeError."""
+        with patch("modules.llm.openai_utils.get_config_loader") as mock_loader:
+            mock_loader.return_value.get_model_config.return_value = {
+                "extraction_model": {
+                    "name": "gpt-4o",
+                    "max_output_tokens": 4096,
+                    "temperature": 0.0,
+                    "top_p": 1.0,
+                    "frequency_penalty": 0.0,
+                    "presence_penalty": 0.0,
+                    "reasoning": None,
+                    "text": None,
+                }
+            }
+            mock_loader.return_value.get_concurrency_config.return_value = {}
+            with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+                from modules.llm.openai_utils import LLMExtractor
+
+                extractor = LLMExtractor(model="gpt-4o")
+
+        assert extractor.reasoning == {"effort": "medium"}
+        assert extractor.text_params == {"verbosity": "medium"}
+        assert extractor._llm.config.extra_params.get("reasoning_effort") == "medium"
+
 
 # ---------------------------------------------------------------------------
 # CM-4: reasoning translated for Anthropic and Google

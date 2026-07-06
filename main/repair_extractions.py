@@ -28,7 +28,10 @@ from modules.batch.ops import (
     process_batch_output_file,
     retrieve_responses_from_batch,
 )
-from modules.extract.batch_output import build_unified_batch_output
+from modules.extract.batch_output import (
+    build_unified_batch_output,
+    merge_existing_batch_output,
+)
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.logger import setup_logger
 from modules.ui.core import UserInterface
@@ -211,6 +214,11 @@ def _repair_temp_file(
         missing_batches=missing_batches,
         recovered_batch_ids=sorted(recovered_ids),
     )
+
+    # Merge with any existing output so repair tops up prior records instead of
+    # overwriting {identifier}_output.json with only this run's retrievable
+    # subset.
+    final_results = merge_existing_batch_output(final_results, final_json_path)
 
     final_json_path.write_text(
         json.dumps(final_results, indent=2, ensure_ascii=False), encoding="utf-8"

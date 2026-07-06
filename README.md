@@ -1,4 +1,4 @@
-# ChronoMiner v1.25.0
+# ChronoMiner v1.26.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -743,6 +743,36 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.26.0** (6 July 2026) -- Bug-sweep release fixing fourteen defects found
+    in a three-way audit of the codebase. Batch integrity: finalization and
+    repair now merge with the existing `{stem}_output.json` (records keyed by
+    `custom_id`, new wins) instead of overwriting it, so a `--batch --resume`
+    run no longer destroys records completed earlier; visual `--batch
+    --resume` runs skip pages already present in the output instead of
+    re-submitting every page; `check_batches` deletes remote result files
+    only after a fully successful finalization, keeping the repair path
+    viable after partial ones. Providers: Google inline batch submission uses
+    the SDK's `InlinedRequest` shape (system prompt and generation params
+    inside `config`) instead of always failing validation; Anthropic batch
+    requests clamp `max_output_tokens` to the model's registry cap like the
+    sync path; Anthropic per-request errors unwrap the nested `ErrorObject`
+    so real messages surface instead of "Unknown error"; provider-instance
+    caching keys on `reasoning_effort`, so configs differing only in effort
+    no longer collide; a present-but-null `reasoning:`/`text:` YAML key falls
+    back to its default instead of crashing. Infra: the rate limiter's
+    adaptive error backoff now imposes a real, bounded admission delay after
+    429s (it previously multiplied a zero wait -- a silent no-op); the shared
+    token ledger degrades to standalone mode on a corrupt non-numeric ledger
+    value instead of raising (module bumped to 1.2.0; sibling repos need a
+    re-copy); the tracker's atexit hook flushes the unsynced shared-ledger
+    delta, closing an undercount at exit for entry points without an
+    explicit flush; `auto-adjust` chunking slices content correctly when
+    `original_start_line` > 1 (latent; production passes 1). CLI: mixed
+    input folders extract text files with the text prompt and normal
+    chunking instead of the image prompt with chunking disabled, and the
+    interactive wizard runs the paid line-range adjustment only after the
+    user confirms the summary. All 1,127 tests pass.
 
 - **v1.25.0** (6 July 2026) -- Make the mid-document budget wait
     reservation-aware. Admission control defers chunks on a reservation

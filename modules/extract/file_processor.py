@@ -510,26 +510,42 @@ class FileProcessor:
         # 4. Resume detection BEFORE rendering: completed pages are never
         # rendered again.
         completed: set[int] = set()
-        if resume and not use_batch:
+        if resume:
             try:
                 output_json_path = self._setup_output_paths(file_path, schema_paths)[1]
             except Exception as e:
                 messenger.error(f"Failed to set up output paths: {e}", exc_info=e)
                 return "failed"
-            status, completed = detect_extraction_status(
-                output_json_path, expected_chunks=page_count
-            )
-            if status == FileStatus.COMPLETE:
-                messenger.info(
-                    f"Skipping {file_path.name}: already fully processed "
-                    f"({len(completed)} pages)"
+            if use_batch:
+                # Batch resume parity: collect pages already present in a prior
+                # output (unified or legacy final shape) so they are excluded
+                # before rendering/slicing and are never re-submitted.
+                final_output_path = output_json_path.with_name(
+                    f"{file_path.stem}_final_output.json"
                 )
-                return "skipped"
-            if status == FileStatus.PARTIAL:
-                messenger.info(
-                    f"Resuming {file_path.name}: {len(completed)}/{page_count}"
-                    " pages already done"
+                completed = completed_indices_from_outputs(
+                    output_json_path, final_output_path
                 )
+                if completed:
+                    messenger.info(
+                        f"Batch resume: {len(completed)} page(s) already present "
+                        "in existing output; they will not be re-submitted."
+                    )
+            else:
+                status, completed = detect_extraction_status(
+                    output_json_path, expected_chunks=page_count
+                )
+                if status == FileStatus.COMPLETE:
+                    messenger.info(
+                        f"Skipping {file_path.name}: already fully processed "
+                        f"({len(completed)} pages)"
+                    )
+                    return "skipped"
+                if status == FileStatus.PARTIAL:
+                    messenger.info(
+                        f"Resuming {file_path.name}: {len(completed)}/{page_count}"
+                        " pages already done"
+                    )
 
         # 5. Page slice BEFORE rendering. Page indices are absolute 1-based
         # page numbers of the source document throughout (custom_ids,

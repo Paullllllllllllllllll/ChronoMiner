@@ -349,12 +349,12 @@ async def _run_interactive_mode(
                 state["input_type"] = "text"
             state["is_visual"] = state["input_type"] in ("image", "pdf", "mixed")
 
-            # Load appropriate prompt template
-            prompt_path = (
-                PROMPTS_DIR / "image_extraction_prompt.txt"
-                if state["is_visual"]
-                else PROMPTS_DIR / "text_extraction_prompt.txt"
-            )
+            # Load the passed prompt template. The visual path loads its own
+            # image prompt internally and ignores this template, so the text
+            # prompt is always correct here: pure-visual inputs ignore it, and
+            # text files (including those in a mixed folder) need the text
+            # prompt rather than the image prompt.
+            prompt_path = PROMPTS_DIR / "text_extraction_prompt.txt"
             try:
                 prompt_template = load_prompt_template(prompt_path)
             except FileNotFoundError as exc:
@@ -365,7 +365,10 @@ async def _run_interactive_mode(
             current_step = "chunking"
 
         elif current_step == "chunking":
-            if state.get("is_visual"):
+            # Only pure-visual folders disable chunking. A mixed folder still
+            # asks for a chunking method so its text files chunk normally (the
+            # visual files ignore global_chunking_method).
+            if state.get("is_visual") and state.get("input_type") != "mixed":
                 state["global_chunking_method"] = "none"
                 current_step = "batch"
             else:
@@ -480,32 +483,6 @@ async def _run_interactive_mode(
                     schemas_paths,
                 )
 
-            # Handle line range adjustment workflow if selected
-            if state["global_chunking_method"] == "adjust-line-ranges":
-                matching_config = (chunking_and_context_config or {}).get(
-                    "matching", {}
-                )
-                retry_config = (chunking_and_context_config or {}).get("retry", {})
-
-                await _adjust_line_ranges_workflow(
-                    files=state["files"],
-                    selected_schema_name=state["selected_schema_name"],
-                    model_config=model_config,
-                    chunking_config=chunking_and_context_config or {},
-                    matching_config=matching_config,
-                    retry_config=retry_config,
-                    ui=ui,
-                )
-
-                ui.print_info(
-                    "Line range adjustment complete. Proceeding with processing..."
-                )
-                logger.info(
-                    "Line range adjustment complete. "
-                    "Using adjusted line ranges for processing."
-                )
-                state["global_chunking_method"] = "line_ranges.txt"
-
             # Derive context_mode string for the summary display
             _ctx = state.get("context_override") or {}
             _ctx_mode = _ctx.get("mode", "auto")
@@ -535,6 +512,34 @@ async def _run_interactive_mode(
                 ui.print_info("Processing cancelled by user.")
                 logger.info("User cancelled processing.")
                 return
+
+            # Handle line range adjustment workflow if selected. This runs the
+            # paid LLM adjustment (which rewrites _line_ranges.txt) only after
+            # the user has confirmed, never at the summary/confirm gate.
+            if state["global_chunking_method"] == "adjust-line-ranges":
+                matching_config = (chunking_and_context_config or {}).get(
+                    "matching", {}
+                )
+                retry_config = (chunking_and_context_config or {}).get("retry", {})
+
+                await _adjust_line_ranges_workflow(
+                    files=state["files"],
+                    selected_schema_name=state["selected_schema_name"],
+                    model_config=model_config,
+                    chunking_config=chunking_and_context_config or {},
+                    matching_config=matching_config,
+                    retry_config=retry_config,
+                    ui=ui,
+                )
+
+                ui.print_info(
+                    "Line range adjustment complete. Proceeding with processing..."
+                )
+                logger.info(
+                    "Line range adjustment complete. "
+                    "Using adjusted line ranges for processing."
+                )
+                state["global_chunking_method"] = "line_ranges.txt"
 
             # Break out of loop to start processing
             break
@@ -795,11 +800,12 @@ async def _run_cli_mode(
         input_type = args.input_type
         is_visual = input_type in ("image", "pdf", "mixed")
 
-    # Load prompt template (visual or text)
-    if is_visual:
-        prompt_path = PROMPTS_DIR / "image_extraction_prompt.txt"
-    else:
-        prompt_path = PROMPTS_DIR / "text_extraction_prompt.txt"
+    # Load the passed prompt template. The visual path loads its own image
+    # prompt internally and ignores this template, so text_extraction_prompt.txt
+    # is always the correct passed template: pure-visual inputs ignore it, while
+    # text files (including those in a mixed folder) need the text prompt rather
+    # than the image prompt.
+    prompt_path = PROMPTS_DIR / "text_extraction_prompt.txt"
     try:
         prompt_template = load_prompt_template(prompt_path)
     except FileNotFoundError as exc:
@@ -807,8 +813,10 @@ async def _run_cli_mode(
         print(f"[ERROR] Prompt template not found: {prompt_path}")
         sys.exit(1)
 
-    # Process CLI arguments
-    if is_visual:
+    # Process CLI arguments. Only pure-visual folders disable chunking; a mixed
+    # folder keeps normal text chunking so its text files chunk correctly (the
+    # visual files ignore global_chunking_method).
+    if is_visual and input_type != "mixed":
         global_chunking_method = "none"
     else:
         global_chunking_method = args.chunking if args.chunking else "auto"

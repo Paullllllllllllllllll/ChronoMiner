@@ -47,6 +47,10 @@ ERROR_MULTIPLIER_INCREASE_RATE_LIMIT = 1.5
 ERROR_MULTIPLIER_INCREASE_OTHER = 1.2
 CONSECUTIVE_ERRORS_THRESHOLD = 2
 MAX_ERROR_MULTIPLIER = 5.0
+# Base per-request penalty (seconds) imposed once the error multiplier is
+# elevated but no window is saturated. Without this the multiplier would scale a
+# zero wait and stay a no-op, admitting at full speed after repeated 429s.
+ERROR_BASE_PENALTY_SECONDS = 0.5
 
 # Permissive defaults applied when no rate_limits block is configured. Chosen so
 # the limiter is effectively transparent for typical workloads.
@@ -117,8 +121,21 @@ class RateLimiter:
                         required_wait = oldest_request_time + seconds - now
                         wait_time = max(wait_time, required_wait)
 
-                # Lengthen the wait when recent errors have raised the multiplier.
-                wait_time *= self.error_multiplier
+                # Lengthen the wait when recent errors have raised the
+                # multiplier. Multiplying a saturated window's wait spreads
+                # bursts out; when no window imposes a wait, delay admission by
+                # a base penalty scaled by the elevation so repeated 429s still
+                # slow admission instead of multiplying zero (a silent no-op).
+                # The penalty is a deadline measured from wait_start, NOT a
+                # perpetual floor: a positive floor would keep wait_time > 0 on
+                # every iteration and never admit (the multiplier only decays
+                # via report_success, which needs an admission first).
+                if self.error_multiplier > 1.0:
+                    penalty = (self.error_multiplier - 1.0) * ERROR_BASE_PENALTY_SECONDS
+                    penalty_remaining = wait_start + penalty - now
+                    wait_time = max(
+                        wait_time * self.error_multiplier, penalty_remaining
+                    )
 
                 if wait_time <= 0:
                     for timestamps in self.request_timestamps:

@@ -73,6 +73,76 @@ class TestChunkingServiceBasic:
         assert ranges == [(1, 2), (3, 4)]
 
 
+class TestChunkingServiceStartLineOffset:
+    """Chunk content must stay aligned when original_start_line > 1.
+
+    Regression: _chunk_with_adjustment used to split the local ``lines`` list
+    with document-space ranges (already offset by original_start_line), so the
+    chunks shifted by original_start_line - 1 lines. The auto path never had
+    this bug; auto-adjust must now mirror it.
+    """
+
+    @pytest.mark.unit
+    def test_auto_adjust_offset_matches_local_content(self, monkeypatch):
+        """auto-adjust with offset keeps defaults and slices local lines."""
+        # Keep every default boundary (press Enter for each prompt).
+        monkeypatch.setattr("builtins.input", lambda *a, **k: "")
+
+        svc = ChunkingService(
+            model_name="x",
+            default_tokens_per_chunk=5,
+            text_processor=DummyTextProcessor(),
+        )
+        lines = ["aa", "bbb", "c", "dd"]
+
+        chunks, ranges = svc.chunk_text(
+            lines, strategy="auto-adjust", original_start_line=10
+        )
+
+        # Returned ranges are document-space (offset by original_start_line).
+        assert ranges[0][0] == 10
+        # But the chunk text is sliced from the LOCAL lines, so no content is
+        # dropped or shifted: every original line survives across the chunks.
+        assert "\n".join(chunks).split("\n") == lines
+
+    @pytest.mark.unit
+    def test_auto_adjust_offset_equals_auto_path(self, monkeypatch):
+        """With defaults kept, auto-adjust yields the same chunks as auto."""
+        monkeypatch.setattr("builtins.input", lambda *a, **k: "")
+
+        svc = ChunkingService(
+            model_name="x",
+            default_tokens_per_chunk=5,
+            text_processor=DummyTextProcessor(),
+        )
+        lines = ["aa", "bbb", "c", "dd"]
+
+        auto_chunks, auto_ranges = svc.chunk_text(
+            lines, strategy="auto", original_start_line=10
+        )
+        adj_chunks, adj_ranges = svc.chunk_text(
+            lines, strategy="auto-adjust", original_start_line=10
+        )
+
+        assert adj_chunks == auto_chunks
+        assert adj_ranges == auto_ranges
+
+    @pytest.mark.unit
+    def test_auto_offset_content_aligned(self):
+        """The auto path slices local lines correctly under an offset."""
+        svc = ChunkingService(
+            model_name="x",
+            default_tokens_per_chunk=5,
+            text_processor=DummyTextProcessor(),
+        )
+        lines = ["aa", "bbb", "c", "dd"]
+
+        chunks, ranges = svc.chunk_text(lines, strategy="auto", original_start_line=10)
+
+        assert ranges[0][0] == 10
+        assert "\n".join(chunks).split("\n") == lines
+
+
 class TestChunkingServiceFallback:
     """Test fallback behavior in ChunkingService."""
 

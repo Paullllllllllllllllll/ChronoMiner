@@ -322,6 +322,7 @@ class ProviderConfig:
             top_p=float(tm.get("top_p", 1.0)),
             timeout=timeout,
             max_retries=max_retries,
+            reasoning_effort=extra_params.get("reasoning_effort"),
             extra_params=extra_params,
         )
 

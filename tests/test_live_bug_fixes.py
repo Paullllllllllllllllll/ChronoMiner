@@ -602,6 +602,80 @@ class TestCM6SubmissionLocalFinalization:
         assert agg["finalized"] == 1
 
     @pytest.mark.unit
+    def test_partial_finalization_keeps_remote_files(self, tmp_path):
+        """A partial finalization (one batch completed, one missing) writes a
+        partial output but must NOT delete remote result files, so
+        repair_extractions can still retrieve the missing pieces."""
+        from main.check_batches import process_all_batches
+        from modules.batch import BatchHandle, BatchStatus, BatchStatusInfo
+
+        submission = tmp_path / "submission"
+        temp_dir = submission / "temp_jsonl"
+        temp_dir.mkdir(parents=True)
+        temp_file = temp_dir / "doc_temp.jsonl"
+        source_file = submission / "doc.txt"
+        lines = [
+            {
+                "batch_request": {
+                    "custom_id": "doc-chunk-1",
+                    "order_index": 1,
+                    "metadata": {"file_path": str(source_file)},
+                }
+            },
+            {"batch_tracking": {"batch_id": "batch-A", "provider": "openai"}},
+            {"batch_tracking": {"batch_id": "batch-B", "provider": "openai"}},
+        ]
+        temp_file.write_text(
+            "\n".join(json.dumps(line, ensure_ascii=False) for line in lines) + "\n",
+            encoding="utf-8",
+        )
+
+        def _status(handle: BatchHandle) -> BatchStatusInfo:
+            if handle.batch_id == "batch-A":
+                return BatchStatusInfo(
+                    status=BatchStatus.COMPLETED, results_available=True
+                )
+            raise RuntimeError("batch-B not found (expired/deleted)")
+
+        backend = MagicMock()
+        backend.get_status.side_effect = _status
+        backend.cleanup.return_value = None
+
+        agg: dict[str, int] = {
+            "finalized": 0,
+            "pending": 0,
+            "failed": 0,
+            "errors": 0,
+        }
+
+        with (
+            patch("main.check_batches.get_batch_backend", return_value=backend),
+            patch(
+                "main.check_batches.retrieve_responses_from_batch",
+                return_value=[{"custom_id": "doc-chunk-1", "response": {"ok": True}}],
+            ),
+            patch(
+                "main.check_batches.build_unified_batch_output",
+                return_value={"records": [{"custom_id": "doc-chunk-1"}]},
+            ),
+            patch("main.check_batches.get_schema_handler", return_value=MagicMock()),
+        ):
+            process_all_batches(
+                root_folder=submission,
+                processing_settings={"retain_temporary_jsonl": True},
+                schema_name="BibliographicEntries",
+                schema_config={"output": str(tmp_path / "schema_default")},
+                ui=None,
+                agg=agg,
+            )
+
+        assert (submission / "doc_output.json").exists(), (
+            "a partial finalization must still persist the completed subset"
+        )
+        backend.cleanup.assert_not_called()
+        assert agg["failed"] == 1 and agg["finalized"] == 0
+
+    @pytest.mark.unit
     def test_schema_default_used_only_when_derivation_fails(self, tmp_path):
         """The schema default output directory is a last-resort fallback."""
         from main.check_batches import _resolve_group_output_dir
@@ -610,9 +684,7 @@ class TestCM6SubmissionLocalFinalization:
         temp_file = tmp_path / "run" / "temp_jsonl" / "doc_temp.jsonl"
 
         # Normal case: derivation wins, schema default ignored.
-        resolved = _resolve_group_output_dir(
-            temp_file, {"output": str(schema_default)}
-        )
+        resolved = _resolve_group_output_dir(temp_file, {"output": str(schema_default)})
         assert resolved == tmp_path / "run"
 
         # Derivation failure: schema default is the fallback.

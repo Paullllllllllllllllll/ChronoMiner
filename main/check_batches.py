@@ -46,7 +46,10 @@ from modules.batch.ops import (
     retrieve_responses_from_batch,
 )
 from modules.config.loader import get_config_loader
-from modules.extract.batch_output import build_unified_batch_output
+from modules.extract.batch_output import (
+    build_unified_batch_output,
+    merge_existing_batch_output,
+)
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.logger import setup_logger
 from modules.ui.core import UserInterface
@@ -460,6 +463,11 @@ def process_all_batches(
                 recovered_batch_ids=sorted(recovered_ids),
             )
 
+            # Merge with any existing output so a --batch --resume finalization
+            # (which only retrieves the newly-submitted remainder) does not drop
+            # records completed on earlier runs.
+            final_results = merge_existing_batch_output(final_results, final_json_path)
+
             final_json_path.write_text(
                 json.dumps(final_results, indent=2, ensure_ascii=False),
                 encoding="utf-8",
@@ -469,17 +477,20 @@ def process_all_batches(
             if all_finished:
                 _bump(agg, "finalized")
 
-            # Remote files are deleted only now that the final output JSON is
-            # durably on disk, so a mid-download failure never destroys results.
-            for backend_obj, handle_obj in completed_handles:
-                try:
-                    backend_obj.cleanup(handle_obj)
-                except Exception as exc:  # never fail finalization on cleanup
-                    logger.warning(
-                        "Cleanup of remote files for batch %s failed: %s",
-                        handle_obj.batch_id,
-                        exc,
-                    )
+            # Remote files are deleted only on a fully successful finalization,
+            # and only now that the final output JSON is durably on disk. A
+            # partial finalization keeps its remote outputs so repair_extractions
+            # can retrieve the missing pieces and top up the output later.
+            if all_finished:
+                for backend_obj, handle_obj in completed_handles:
+                    try:
+                        backend_obj.cleanup(handle_obj)
+                    except Exception as exc:  # never fail finalization on cleanup
+                        logger.warning(
+                            "Cleanup of remote files for batch %s failed: %s",
+                            handle_obj.batch_id,
+                            exc,
+                        )
 
             # Log info about merged files
             if len(temp_file_group) > 1:

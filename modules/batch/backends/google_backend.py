@@ -197,14 +197,19 @@ class GoogleBatchBackend(BatchBackend):
                 len(inline_requests),
             )
 
-            # Convert to the format expected by the SDK
+            # Convert to the SDK's InlinedRequest shape. That model forbids
+            # extra keys and only accepts model/contents/metadata/config, so
+            # system_instruction and generation params must live inside config
+            # (GenerateContentConfig owns system_instruction, max_output_tokens,
+            # temperature, response_mime_type, response_schema).
             src_requests = []
             for item in inline_requests:
+                req_config: dict[str, Any] = dict(generation_config or {})
+                req_config["system_instruction"] = system_prompt
                 src_requests.append(
                     {
                         "contents": item["request"]["contents"],
-                        "system_instruction": item["request"].get("system_instruction"),
-                        "generation_config": item["request"].get("generation_config"),
+                        "config": req_config,
                     }
                 )
 

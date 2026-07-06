@@ -15,6 +15,7 @@ from modules.batch import (
     get_batch_backend,
     supports_batch,
 )
+from modules.config.capabilities import detect_capabilities
 
 
 class TestBatchDataClasses:
@@ -546,8 +547,11 @@ class TestGoogleBackend:
                 schema_name="TestSchema",
             )
 
-        gen_config = captured["src"][0]["generation_config"]
+        # Inline requests carry generation params inside "config"
+        # (GenerateContentConfig shape), with the system prompt folded in.
+        gen_config = captured["src"][0]["config"]
         assert gen_config["response_mime_type"] == "application/json"
+        assert gen_config["system_instruction"] == "Extract data."
         response_schema = gen_config["response_schema"]
         assert "additionalProperties" not in response_schema
         assert "$defs" not in response_schema
@@ -597,7 +601,7 @@ class TestGoogleBackend:
                 schema_name="TestSchema",
             )
 
-        gen_config = captured["src"][0]["generation_config"]
+        gen_config = captured["src"][0]["config"]
         assert gen_config is None or "response_schema" not in gen_config
 
     def test_cleanup_deletes_remote_files(self):
@@ -939,6 +943,144 @@ class TestGoogleVisualBatchRouting:
         assert len(inline_parts) == 1
         assert inline_parts[0]["inline_data"]["mime_type"] == "image/png"
         assert inline_parts[0]["inline_data"]["data"] == "GOOGLEIMG"
+
+
+class TestGoogleInlineRequestShape:
+    """Regression: inline Google batch requests must use the SDK's
+    InlinedRequest shape (model/contents/metadata/config), which forbids extra
+    keys. system_instruction and generation params belong inside config."""
+
+    def setup_method(self):
+        clear_backend_cache()
+
+    def test_inline_src_validates_against_batchjobsource(self):
+        """The captured inline src must construct a real BatchJobSource without
+        the 'Extra inputs are not permitted' ValidationError."""
+        import sys
+
+        # Real SDK types for validation; only the client is mocked.
+        from google.genai import types as real_types
+
+        mock_genai = MagicMock()
+        mock_genai.types = real_types
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        mock_batch_job = MagicMock()
+        mock_batch_job.name = "batches/google-1"
+        mock_client.batches.create.return_value = mock_batch_job
+
+        captured: dict = {}
+
+        def _capture_create(model, src, config):
+            captured["src"] = src
+            return mock_batch_job
+
+        mock_client.batches.create.side_effect = _capture_create
+
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}),
+            patch.dict(
+                sys.modules, {"google": mock_google, "google.genai": mock_genai}
+            ),
+        ):
+            backend = get_batch_backend("google")
+            backend.submit_batch(
+                [BatchRequest(custom_id="req-1", text="hello", order_index=1)],
+                {"extraction_model": {"name": "gemini-2.5-flash", "temperature": 0.0}},
+                system_prompt="Extract data.",
+            )
+
+        src = captured["src"]
+        item = src[0]
+        # No forbidden top-level keys.
+        assert set(item.keys()) == {"contents", "config"}
+        assert item["config"]["system_instruction"] == "Extract data."
+        # Constructing BatchJobSource with the real model must not raise.
+        source = real_types.BatchJobSource(inlined_requests=src)
+        assert source.inlined_requests[0].config.system_instruction == "Extract data."
+
+
+class TestAnthropicMaxTokensClamp:
+    """Regression: submit_batch must clamp max_output_tokens to the model's
+    registry cap, mirroring the sync path, or every batch request 400s."""
+
+    def setup_method(self):
+        clear_backend_cache()
+
+    @patch("anthropic.Anthropic")
+    def test_submit_clamps_max_tokens_to_cap(self, mock_anthropic_class):
+        mock_client = MagicMock()
+        mock_anthropic_class.return_value = mock_client
+
+        mock_batch_response = MagicMock()
+        mock_batch_response.id = "anthr-batch-clamp"
+
+        captured: dict = {}
+
+        def _capture_create(requests):
+            captured["requests"] = requests
+            return mock_batch_response
+
+        mock_client.messages.batches.create.side_effect = _capture_create
+
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+            backend = get_batch_backend("anthropic")
+            model_name = "claude-haiku-4-5"
+            caps = detect_capabilities(model_name, provider="anthropic")
+            cap = caps.max_output_tokens
+            assert cap is not None  # guard: this model has a known cap
+            backend.submit_batch(
+                [BatchRequest(custom_id="req-1", text="hello", order_index=1)],
+                {"extraction_model": {"name": model_name, "max_output_tokens": 128000}},
+                system_prompt="sys",
+            )
+
+        sent_max = captured["requests"][0]["params"]["max_tokens"]
+        assert sent_max == cap
+        assert sent_max < 128000
+
+
+class TestAnthropicErrorUnwrap:
+    """Regression: an errored result carries an ErrorResponse wrapping the real
+    ErrorObject; the backend must unwrap one level to surface message/type."""
+
+    def setup_method(self):
+        clear_backend_cache()
+
+    @patch("anthropic.Anthropic")
+    def test_errored_result_surfaces_real_message(self, mock_anthropic_class):
+        from anthropic.types import ErrorResponse
+
+        mock_client = MagicMock()
+        mock_anthropic_class.return_value = mock_client
+
+        error_response = ErrorResponse(
+            type="error",
+            error={"type": "invalid_request_error", "message": "bad thing happened"},
+        )
+        fake_result_data = MagicMock()
+        fake_result_data.type = "errored"
+        fake_result_data.error = error_response
+
+        fake_result = MagicMock()
+        fake_result.custom_id = "req-1"
+        fake_result.result = fake_result_data
+
+        mock_client.messages.batches.results.return_value = iter([fake_result])
+
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+            backend = get_batch_backend("anthropic")
+            handle = BatchHandle(provider="anthropic", batch_id="batch-1")
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        assert results[0].success is False
+        assert results[0].error == "bad thing happened"
+        assert results[0].error_code == "invalid_request_error"
 
 
 if __name__ == "__main__":
