@@ -1,4 +1,4 @@
-# ChronoMiner v1.24.0
+# ChronoMiner v1.25.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -743,6 +743,20 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.25.0** (6 July 2026) -- Make the mid-document budget wait
+    reservation-aware. Admission control defers chunks on a reservation
+    estimate (EWMA), so near the daily cap the old wait -- which consulted
+    actual usage only -- returned instantly, the re-pass loop in
+    `file_processor.py` spun without progress, and the stalled-resets
+    safeguard abandoned the file as partial. The wait now gates on a new
+    `would_block_next_page()` predicate that mirrors the admission math, so
+    near-cap runs sleep until the 00:01 UTC reset and finish unattended
+    instead of bailing as partial. When the per-chunk estimate exceeds the
+    entire daily budget, the wait fast-fails (and re-checks after the
+    countdown) rather than burning up to 48 hours on resets that cannot
+    help; per-file pre-gate callers keep their previous semantics. All
+    tests pass.
 
 - **v1.24.0** (5 July 2026) -- Fix the daily token budget's reset boundary.
     Both the private per-tool tracker (`modules/infra/token_tracker.py`) and

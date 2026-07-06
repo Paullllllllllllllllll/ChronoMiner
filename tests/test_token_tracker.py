@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -636,6 +636,221 @@ class TestCheckAndWaitForTokenLimit:
         assert tracker.daily_limit == 100  # limit unchanged
 
 
+class TestReservationAwareWait:
+    """The mid-document re-pass loop passes reservation_aware=True so the wait
+    treats reservation-blocked-near-the-cap as limit-reached rather than
+    returning instantly and spinning the caller's re-pass loop."""
+
+    @pytest.mark.unit
+    def test_reservation_aware_returns_immediately_when_not_blocked(self, tmp_path):
+        mock_tracker = MagicMock()
+        mock_tracker.enabled = True
+        mock_tracker.would_block_next_page.return_value = False
+
+        with patch(
+            "modules.infra.token_tracker.get_token_tracker",
+            return_value=mock_tracker,
+        ):
+            result = asyncio.run(check_and_wait_for_token_limit(reservation_aware=True))
+        assert result is True
+        # The reservation predicate -- not is_limit_reached -- gates the wait.
+        mock_tracker.would_block_next_page.assert_called()
+        mock_tracker.is_limit_reached.assert_not_called()
+
+    @pytest.mark.unit
+    def test_reservation_aware_waits_then_resumes_after_reset(
+        self, tmp_path, monkeypatch
+    ):
+        import modules.infra.token_tracker as tt
+
+        mock_tracker = MagicMock()
+        mock_tracker.enabled = True
+        mock_tracker._shared_enabled = False
+        # Blocked on entry, cleared after the (short) wait -- mirrors the daily
+        # reset freeing enough budget to admit the next chunk.
+        mock_tracker.would_block_next_page.side_effect = [True, False]
+        # The per-chunk estimate fits the daily limit, so a reset can help (no
+        # fast-fail): the wait proceeds and resumes after the reset.
+        mock_tracker.estimate_exceeds_daily_limit.return_value = False
+        mock_tracker.get_stats.return_value = {
+            "tokens_used_today": 95,
+            "daily_limit": 100,
+        }
+        mock_tracker.get_reset_time.return_value = datetime.now() + timedelta(seconds=1)
+        mock_tracker.get_seconds_until_reset.return_value = 0.1
+
+        monkeypatch.setattr(tt, "_read_configured_daily_limit", lambda: None)
+
+        async def fast_sleep(_seconds):
+            return None
+
+        with (
+            patch(
+                "modules.infra.token_tracker.get_token_tracker",
+                return_value=mock_tracker,
+            ),
+            patch("asyncio.sleep", side_effect=fast_sleep),
+        ):
+            result = asyncio.run(check_and_wait_for_token_limit(reservation_aware=True))
+        assert result is True
+        assert mock_tracker.would_block_next_page.call_count >= 2
+
+    @pytest.mark.unit
+    def test_default_ignores_reservation_block(self, tmp_path):
+        # Documents why the bug existed: the default (non-reservation-aware)
+        # path consults only is_limit_reached, so a reservation-blocked tracker
+        # whose hard limit is not reached returns True immediately (no wait).
+        mock_tracker = MagicMock()
+        mock_tracker.enabled = True
+        mock_tracker.is_limit_reached.return_value = False
+        mock_tracker.would_block_next_page.return_value = True
+
+        with patch(
+            "modules.infra.token_tracker.get_token_tracker",
+            return_value=mock_tracker,
+        ):
+            result = asyncio.run(check_and_wait_for_token_limit())
+        assert result is True
+        mock_tracker.would_block_next_page.assert_not_called()
+
+    @pytest.mark.unit
+    def test_reservation_aware_real_tracker_resumes_on_rollover(
+        self, tmp_path, monkeypatch
+    ):
+        # End-to-end with a real tracker: reservation-blocked near the cap on
+        # entry, then a simulated day rollover clears the block and the wait
+        # resumes -- the exact scenario the re-pass loop relies on.
+        import modules.infra.token_tracker as tt
+
+        tracker = DailyTokenTracker(
+            daily_limit=100,
+            enabled=True,
+            state_file=tmp_path / "s.json",
+            chunk_estimate_seed=30,
+            estimate_smoothing=0.0,
+        )
+        tracker.add_tokens(80)  # remaining 20 < estimate 30 -> reservation-blocked
+        tt._tracker_instance = tracker
+        assert tracker.is_limit_reached() is False
+        assert tracker.would_block_next_page() is True
+
+        monkeypatch.setattr(tt, "_read_configured_daily_limit", lambda: None)
+
+        async def rollover_sleep(_seconds):
+            # Force a day rollover so the next reservation check clears.
+            tracker._current_date = "2000-01-01"
+
+        with patch("asyncio.sleep", side_effect=rollover_sleep):
+            result = asyncio.run(check_and_wait_for_token_limit(reservation_aware=True))
+        assert result is True
+
+    @pytest.mark.unit
+    def test_fast_fails_when_estimate_exceeds_daily_limit(self, tmp_path):
+        # When a single chunk's estimate exceeds the whole daily limit, no
+        # reset can admit it. The wait must give up immediately (return False)
+        # WITHOUT sleeping, instead of burning ~48 h across two useless resets.
+        mock_tracker = MagicMock()
+        mock_tracker.enabled = True
+        mock_tracker.would_block_next_page.return_value = True
+        mock_tracker.estimate_exceeds_daily_limit.return_value = True
+        mock_tracker.get_stats.return_value = {
+            "tokens_used_today": 0,
+            "daily_limit": 100,
+        }
+
+        with (
+            patch(
+                "modules.infra.token_tracker.get_token_tracker",
+                return_value=mock_tracker,
+            ),
+            patch("asyncio.sleep", side_effect=AssertionError("must not wait")),
+        ):
+            result = asyncio.run(check_and_wait_for_token_limit(reservation_aware=True))
+        assert result is False
+
+    @pytest.mark.unit
+    def test_countdown_expiry_rechecks_and_gives_up_when_still_blocked(
+        self, tmp_path, monkeypatch
+    ):
+        # If the estimate does not exceed the daily limit on entry (no
+        # fast-fail) but the chunk stays blocked through the whole countdown,
+        # the post-countdown fallthrough must re-check _still_blocked() and
+        # return False rather than unconditionally returning True and spinning
+        # the caller's re-pass loop into a second full-day wait.
+        import modules.infra.token_tracker as tt
+
+        mock_tracker = MagicMock()
+        mock_tracker.enabled = True
+        mock_tracker._shared_enabled = False
+        mock_tracker.would_block_next_page.return_value = True  # never clears
+        mock_tracker.estimate_exceeds_daily_limit.return_value = False
+        mock_tracker.get_stats.return_value = {
+            "tokens_used_today": 95,
+            "daily_limit": 100,
+        }
+        mock_tracker.get_reset_time.return_value = datetime.now() + timedelta(seconds=1)
+        mock_tracker.get_seconds_until_reset.return_value = 0.05
+
+        monkeypatch.setattr(tt, "_read_configured_daily_limit", lambda: None)
+
+        async def fast_sleep(_seconds):
+            return None
+
+        with (
+            patch(
+                "modules.infra.token_tracker.get_token_tracker",
+                return_value=mock_tracker,
+            ),
+            patch("asyncio.sleep", side_effect=fast_sleep),
+        ):
+            result = asyncio.run(check_and_wait_for_token_limit(reservation_aware=True))
+        assert result is False
+
+
+class TestEstimateExceedsDailyLimit:
+    """Fast-fail predicate: the per-chunk estimate alone exceeds the whole
+    daily limit, so even a fresh daily reset cannot admit the next chunk."""
+
+    @pytest.mark.unit
+    def test_disabled_never_blocks(self, tmp_path):
+        t = DailyTokenTracker(
+            daily_limit=100,
+            enabled=False,
+            state_file=tmp_path / "s.json",
+            chunk_estimate_seed=500,
+        )
+        assert t.estimate_exceeds_daily_limit() is False
+
+    @pytest.mark.unit
+    def test_true_when_seed_estimate_exceeds_limit(self, tmp_path):
+        # Per-chunk estimate (seed 150) > daily limit (100): no reset can help.
+        t = DailyTokenTracker(
+            daily_limit=100,
+            enabled=True,
+            state_file=tmp_path / "s.json",
+            chunk_estimate_seed=150,
+            estimate_smoothing=0.0,
+        )
+        assert t.estimate_exceeds_daily_limit() is True
+        # Even with a completely fresh budget the chunk would still be blocked.
+        assert t.would_block_next_page() is True
+
+    @pytest.mark.unit
+    def test_false_when_estimate_fits_the_daily_limit(self, tmp_path):
+        t = DailyTokenTracker(
+            daily_limit=100,
+            enabled=True,
+            state_file=tmp_path / "s.json",
+            chunk_estimate_seed=30,
+            estimate_smoothing=0.0,
+        )
+        # Blocked only because usage is high, not because the estimate is too
+        # big -- a reset WOULD help, so this stays False.
+        t.add_tokens(90)
+        assert t.would_block_next_page() is True
+        assert t.estimate_exceeds_daily_limit() is False
+
+
 class TestChunkReservation:
     """Chunk-level reservation gate: try_reserve / release / EWMA estimate."""
 
@@ -726,3 +941,91 @@ class TestChunkReservation:
         assert t.try_reserve(5000) == 5000
         # Estimate below the EWMA floors at the EWMA seed (100).
         assert t.try_reserve(10) == 100
+
+
+class TestWouldBlockNextPage:
+    """Reservation-aware predicate: blocks when the remaining budget cannot
+    cover the current per-chunk reservation estimate, even though the hard
+    limit is not yet reached."""
+
+    @pytest.mark.unit
+    def test_disabled_never_blocks(self, tmp_path):
+        t = DailyTokenTracker(
+            daily_limit=100,
+            enabled=False,
+            state_file=tmp_path / "s.json",
+            chunk_estimate_seed=30,
+        )
+        assert t.would_block_next_page() is False
+
+    @pytest.mark.unit
+    def test_blocks_near_cap_while_limit_not_reached(self, tmp_path):
+        # smoothing=0 freezes the EWMA estimate at the seed (30).
+        t = DailyTokenTracker(
+            daily_limit=100,
+            enabled=True,
+            state_file=tmp_path / "s.json",
+            chunk_estimate_seed=30,
+            estimate_smoothing=0.0,
+        )
+        t.add_tokens(80)  # remaining 20 < per-chunk estimate 30
+        # This is the crux of the bug: the hard limit is NOT reached, yet the
+        # next chunk cannot be admitted. would_block_next_page catches it.
+        assert t.is_limit_reached() is False
+        assert t.would_block_next_page() is True
+
+    @pytest.mark.unit
+    def test_does_not_block_with_ample_budget(self, tmp_path):
+        t = DailyTokenTracker(
+            daily_limit=100,
+            enabled=True,
+            state_file=tmp_path / "s.json",
+            chunk_estimate_seed=30,
+            estimate_smoothing=0.0,
+        )
+        t.add_tokens(50)  # remaining 50 >= estimate 30
+        assert t.would_block_next_page() is False
+
+    @pytest.mark.unit
+    def test_matches_try_reserve_admission(self, tmp_path):
+        # The predicate must agree with try_reserve(): if it says "blocked",
+        # a bare reservation is denied, and vice versa.
+        t = DailyTokenTracker(
+            daily_limit=100,
+            enabled=True,
+            state_file=tmp_path / "s.json",
+            chunk_estimate_seed=30,
+            estimate_smoothing=0.0,
+        )
+        t.add_tokens(80)
+        assert t.would_block_next_page() is True
+        assert t.try_reserve() is None
+
+    @pytest.mark.unit
+    def test_accounts_for_outstanding_reservations(self, tmp_path):
+        # An outstanding reservation consumes headroom, so the predicate blocks
+        # even before any tokens are committed -- matching try_reserve.
+        t = DailyTokenTracker(
+            daily_limit=100,
+            enabled=True,
+            state_file=tmp_path / "s.json",
+            chunk_estimate_seed=30,
+            estimate_smoothing=0.0,
+        )
+        assert t.try_reserve(80) == 80  # reserved 80; remaining headroom 20
+        assert t.would_block_next_page() is True
+
+    @pytest.mark.unit
+    def test_unblocks_after_day_rollover(self, tmp_path, monkeypatch):
+        t = DailyTokenTracker(
+            daily_limit=100,
+            enabled=True,
+            state_file=tmp_path / "s.json",
+            chunk_estimate_seed=30,
+            estimate_smoothing=0.0,
+        )
+        t.add_tokens(80)
+        assert t.would_block_next_page() is True
+        # Simulate the daily reset: the internal date-check zeroes usage.
+        monkeypatch.setattr(t, "_get_current_date_str", lambda: "2099-01-01")
+        assert t.would_block_next_page() is False

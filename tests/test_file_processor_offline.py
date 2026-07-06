@@ -348,8 +348,10 @@ def test_file_processor_resumes_after_budget_reset(
 
     waits = {"n": 0}
 
-    async def _fake_wait(ui=None):
+    async def _fake_wait(ui=None, reservation_aware=False):
         waits["n"] += 1
+        # The mid-document re-pass loop passes reservation_aware=True.
+        assert reservation_aware is True
         return True  # simulate the daily reset having occurred
 
     monkeypatch.setattr(

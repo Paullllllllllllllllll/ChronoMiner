@@ -701,6 +701,50 @@ class DailyTokenTracker:
 
         return self.get_tokens_remaining() == 0
 
+    def would_block_next_page(self) -> bool:
+        """True when the remaining budget cannot cover the current per-chunk
+        reservation estimate -- i.e. :meth:`try_reserve` would defer the next
+        chunk even though :meth:`is_limit_reached` is still False.
+
+        Admission control blocks a chunk when its reservation estimate (the
+        rolling EWMA of observed per-call usage) exceeds the remaining budget,
+        so near the cap chunks are deferred while actual usage is still just
+        under the limit. This mirrors that admission math without mutating the
+        reservation state, so the wait loop can treat "reservation-blocked near
+        the cap" as limit-reached instead of consulting :meth:`is_limit_reached`
+        alone (which would return instantly and spin the caller's re-pass loop).
+        A disabled tracker never blocks.
+        """
+        if not self.enabled:
+            return False
+
+        with self._lock:
+            self._check_and_reset_if_new_day()
+            est = max(1, round(self._ewma))
+            available = (
+                self.daily_limit - self._effective_used_locked() - self._tokens_reserved
+            )
+            return est > available
+
+    def estimate_exceeds_daily_limit(self) -> bool:
+        """True when the current per-chunk reservation estimate alone exceeds
+        the entire daily limit, so even a full daily reset cannot admit the
+        next chunk.
+
+        :meth:`would_block_next_page` after a reset reduces to exactly this
+        comparison (used and reserved both drop to 0, leaving
+        ``available == daily_limit``). Callers use it to fail fast instead of
+        waiting up to 48 h for two useless resets. A disabled tracker never
+        blocks.
+        """
+        if not self.enabled:
+            return False
+
+        with self._lock:
+            self._check_and_reset_if_new_day()
+            est = max(1, round(self._ewma))
+            return est > self.daily_limit
+
     def can_use_tokens(self, estimated_tokens: int = 0) -> bool:
         """
         Check if we can use a certain number of tokens.
@@ -860,7 +904,9 @@ def _read_configured_daily_limit() -> int | None:
     return int(str(raw).replace("_", ""))
 
 
-async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> bool:
+async def check_and_wait_for_token_limit(
+    ui: Any = None, logger: Any = None, reservation_aware: bool = False
+) -> bool:
     """
     Check if daily token limit is reached and wait until next day if needed.
 
@@ -869,17 +915,55 @@ async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> 
     Args:
         ui: Optional UserInterface instance for user feedback.
         logger: Optional logger instance. If None, uses module logger.
+        reservation_aware: When True, treat "remaining budget < the current
+            per-chunk reservation estimate" as limit-reached (mirrors admission
+            control via :meth:`DailyTokenTracker.would_block_next_page`), so the
+            wait actually waits while chunks are reservation-blocked near the
+            cap rather than returning instantly. The default (False) keeps the
+            plain :meth:`is_limit_reached` semantics used by the per-file
+            pre-gate callers.
 
     Returns:
-        True if processing can continue, False if user cancelled wait.
+        True if processing can continue. False if the wait cannot help: either
+        the user cancelled (Ctrl+C) or -- for reservation-aware callers -- the
+        per-chunk estimate exceeds the entire daily limit, so no reset frees
+        enough budget. Callers must treat False as an honest give-up (mark the
+        item partial/failed), never as success.
     """
 
     _logger = globals().get("logger") if logger is None else logger
 
     token_tracker = get_token_tracker()
 
-    if not token_tracker.enabled or not token_tracker.is_limit_reached():
+    def _still_blocked() -> bool:
+        # Reservation-aware callers (the mid-document re-pass loop) must keep
+        # waiting while admission control defers chunks near the cap; plain
+        # callers only wait once the budget is fully spent.
+        if reservation_aware:
+            return token_tracker.would_block_next_page()
+        return token_tracker.is_limit_reached()
+
+    if not token_tracker.enabled or not _still_blocked():
         return True
+
+    # Fast-fail: if a single chunk's estimate exceeds the whole daily limit, a
+    # reset cannot admit it -- waiting would burn ~48 h (two useless resets)
+    # before the caller's stalled-resets safeguard fires. Give up now.
+    if reservation_aware and token_tracker.estimate_exceeds_daily_limit():
+        daily_limit = int(token_tracker.get_stats().get("daily_limit", 0))
+        if _logger:
+            _logger.warning(
+                "Per-chunk token estimate exceeds the entire daily limit (%s); "
+                "a daily reset cannot admit the next chunk. Not waiting.",
+                f"{daily_limit:,}",
+            )
+        if ui:
+            ui.print_warning(
+                "A single chunk's token estimate exceeds the entire daily "
+                "budget; not waiting. Raise daily_tokens to process the "
+                "remaining chunks."
+            )
+        return False
 
     # Token limit reached - need to wait until next day
     stats = token_tracker.get_stats()
@@ -946,12 +1030,32 @@ async def check_and_wait_for_token_limit(ui: Any = None, logger: Any = None) -> 
                         "Could not refresh daily token limit during wait: %s", exc
                     )
 
-            if not token_tracker.is_limit_reached():
+            if not _still_blocked():
                 if _logger:
                     _logger.info("Token limit has been reset. Resuming processing.")
                 if ui:
                     ui.print_success("Token limit has been reset. Resuming processing.")
                 return True
+
+        # Countdown expired: the reset moment has passed. Re-check rather than
+        # assume the budget is free -- if the per-chunk estimate exceeds the
+        # whole daily limit, would_block_next_page() stays True even after
+        # reset, and returning True here would spin the caller's re-pass loop
+        # into a second full-day wait. Return False so the caller gives up
+        # honestly.
+        if _still_blocked():
+            if _logger:
+                _logger.warning(
+                    "Token limit reset elapsed but the next chunk is still "
+                    "blocked (per-chunk estimate exceeds the daily limit). "
+                    "Giving up."
+                )
+            if ui:
+                ui.print_warning(
+                    "Token limit reset elapsed but the next chunk still cannot "
+                    "be admitted; giving up. Raise daily_tokens to continue."
+                )
+            return False
 
         if _logger:
             _logger.info("Token limit has been reset. Resuming processing.")

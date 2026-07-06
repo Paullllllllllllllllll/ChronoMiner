@@ -902,7 +902,7 @@ class FileProcessor:
                     f"{len(deferred_indices)} {unit_label}(s) deferred. "
                     f"Waiting for daily reset..."
                 )
-                if not await check_and_wait_for_token_limit(ui):
+                if not await check_and_wait_for_token_limit(ui, reservation_aware=True):
                     budget_incomplete = True
                     break
 
