@@ -1,0 +1,15 @@
+﻿# Line-ending policy: LF in the repository and the working tree for text
+# files, so cross-repo byte-identity checks (shared db.py copies) hold on
+# every checkout and Git stops emitting CRLF conversion warnings.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.pdf binary
+*.xlsx binary
+*.xls binary
+*.zip binary
+*.duckdb binary
+*.parquet binary
+*.dta binary
