@@ -1,4 +1,4 @@
-# ChronoMiner v1.26.0
+# ChronoMiner v1.27.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -744,6 +744,18 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v1.27.0** (9 July 2026) -- Model registry refresh for the current OpenAI,
+    Anthropic, and Google model lines. OpenAI: registers the GPT-5.6 family
+    (`gpt-5.6-sol`/`-terra`/`-luna` plus the bare `gpt-5.6` alias to the sol
+    flagship) and the GPT-5.5 family (`gpt-5.5`, `gpt-5.5-pro`), all at 1.05M
+    context and 128K max output with full vision; the `-sol`/`-pro` flagships
+    are Responses-only. Anthropic: adds `claude-fable-5`, `claude-sonnet-5`,
+    and `claude-opus-4-8` (1M context, 128K output, adaptive thinking) and
+    marks the adaptive-thinking line (Fable 5, Sonnet 5, Opus 4.7/4.8) as
+    rejecting sampler controls, since temperature/top_p and thinking
+    budget_tokens now return HTTP 400. Google: registers `gemini-3.5-flash`
+    (GA) alongside the existing `gemini-3.1-flash-lite`; the Gemini 2.5 family
+    is retained until its 2026-10-16 retirement. All 1,127 tests pass.
 - **v1.26.0** (6 July 2026) -- Bug-sweep release fixing fourteen defects found
     in a three-way audit of the codebase. Batch integrity: finalization and
     repair now merge with the existing `{stem}_output.json` (records keyed by

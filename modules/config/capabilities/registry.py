@@ -181,6 +181,75 @@ _CUSTOM_BASE: dict = dict(
 # ---------------------------------------------------------------------------
 
 _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
+    # --- OpenAI GPT-5.6 family (GA 2026-07-09) ---
+    # All three share: 1.05M context, 128K max output, full vision with image
+    # detail (low/high/original/auto; original/auto = full input resolution,
+    # no patch cap), Responses + Batch API, reasoning efforts none..xhigh.
+    # Bare "gpt-5.6" is an API alias for gpt-5.6-sol (the flagship). The
+    # specific -sol/-terra/-luna prefixes MUST precede the bare "gpt-5.6"
+    # alias, which in turn precedes the bare "gpt-5" rule further below.
+    (
+        ("gpt-5.6-sol",),
+        "gpt-5.6-sol",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            max_context_tokens=1050000,
+            max_output_tokens=128000,
+        ),
+    ),
+    (
+        ("gpt-5.6-terra",),
+        "gpt-5.6-terra",
+        _OPENAI_REASONING_BASE,
+        dict(
+            max_context_tokens=1050000,
+            max_output_tokens=128000,
+        ),
+    ),
+    (
+        ("gpt-5.6-luna",),
+        "gpt-5.6-luna",
+        _OPENAI_REASONING_BASE,
+        dict(
+            max_context_tokens=1050000,
+            max_output_tokens=128000,
+        ),
+    ),
+    (
+        ("gpt-5.6",),
+        "gpt-5.6-sol",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            max_context_tokens=1050000,
+            max_output_tokens=128000,
+        ),
+    ),
+    # --- OpenAI GPT-5.5 family (GA 2026-07-09) ---
+    # 1.05M context, 128K max output, full vision with image detail, reasoning
+    # efforts none..xhigh. gpt-5.5-pro is Responses-only (chat completions off,
+    # safe side per changelog), efforts medium/high/xhigh. The -pro prefix MUST
+    # precede the bare "gpt-5.5" rule, which precedes "gpt-5" further below.
+    (
+        ("gpt-5.5-pro",),
+        "gpt-5.5-pro",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            max_context_tokens=1050000,
+            max_output_tokens=128000,
+        ),
+    ),
+    (
+        ("gpt-5.5",),
+        "gpt-5.5",
+        _OPENAI_REASONING_BASE,
+        dict(
+            max_context_tokens=1050000,
+            max_output_tokens=128000,
+        ),
+    ),
     # --- OpenAI GPT-5.4 family ---
     (
         ("gpt-5.4-pro",),
@@ -332,12 +401,36 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         ),
     ),
     # --- Anthropic Claude models (most-specific first) ---
+    # Adaptive-thinking models (Fable 5, Sonnet 5, Opus 4.7/4.8) reject
+    # temperature/top_p/top_k and thinking budget_tokens (HTTP 400); adaptive
+    # thinking + effort replace them, so supports_sampler_controls=False.
+    (
+        ("claude-fable-5",),
+        "claude-fable-5",
+        _ANTHROPIC_BASE,
+        dict(
+            max_context_tokens=1000000,
+            max_output_tokens=128000,
+            supports_sampler_controls=False,
+        ),
+    ),
+    (
+        ("claude-opus-4-8", "claude-opus-4.8"),
+        "claude-opus-4.8",
+        _ANTHROPIC_BASE,
+        dict(
+            max_context_tokens=1000000,
+            max_output_tokens=128000,
+            supports_sampler_controls=False,
+        ),
+    ),
     (
         ("claude-opus-4-7", "claude-opus-4.7"),
         "claude-opus-4.7",
         _ANTHROPIC_BASE,
         dict(
             max_context_tokens=1000000,
+            supports_sampler_controls=False,
         ),
     ),
     (("claude-opus-4-6", "claude-opus-4.6"), "claude-opus-4.6", _ANTHROPIC_BASE, {}),
@@ -363,6 +456,16 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _ANTHROPIC_BASE,
         dict(
             max_output_tokens=32000,
+        ),
+    ),
+    (
+        ("claude-sonnet-5",),
+        "claude-sonnet-5",
+        _ANTHROPIC_BASE,
+        dict(
+            max_context_tokens=1000000,
+            max_output_tokens=128000,
+            supports_sampler_controls=False,
         ),
     ),
     (
@@ -457,6 +560,18 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         ),
     ),
     # --- Google Gemini models (most-specific first) ---
+    # Gemini 3.5 Flash (GA 2026-07-09): vision + PDF, media_resolution
+    # low/medium/high/ultra_high, thinking_level minimal..high. The 2.5 family
+    # below retires 2026-10-16; entries retained until then.
+    (
+        ("gemini-3.5-flash",),
+        "gemini-3.5-flash",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            max_context_tokens=1048576,
+        ),
+    ),
     (
         ("gemini-3.1-pro-preview", "gemini-3.1-pro"),
         "gemini-3.1-pro",
