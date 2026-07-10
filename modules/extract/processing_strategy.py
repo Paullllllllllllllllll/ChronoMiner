@@ -144,6 +144,12 @@ def classify_transient_error(
         or "'retryable': true" in msg
         or '"retryable": true' in msg
         or ("connection" in msg and ("reset" in msg or "refused" in msg))
+        # openai SDK APIConnectionError stringifies to the bare message
+        # "Connection error." (transport-level failure, e.g. a stale
+        # keep-alive connection the server already closed). Always
+        # transient: a retry opens a fresh connection. Frequent under
+        # service_tier=flex, which closes connections after each response.
+        or "connection error" in msg
     )
     return is_429, is_timeout, is_server_error
 

@@ -1,4 +1,4 @@
-# ChronoMiner v1.27.0
+# ChronoMiner v1.27.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -743,6 +743,17 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.27.1** (10 July 2026) -- Two synchronous-extraction reliability fixes.
+    The per-file extractor cleanup no longer closes the provider SDK's httpx
+    client: langchain-openai shares one cached async transport across
+    ChatOpenAI instances, so closing it after the first file made every
+    subsequent file in the same run fail instantly with an opaque
+    "Connection error." APIConnectionError. The transient-error classifier
+    now also recognizes that bare "Connection error." message as retryable
+    (previously only "reset"/"refused" connection failures were), so
+    transport-level drops -- frequent under `service_tier: flex` -- are
+    retried with backoff instead of failing the chunk.
 
 - **v1.27.0** (9 July 2026) -- Model registry refresh for the current OpenAI,
     Anthropic, and Google model lines. OpenAI: registers the GPT-5.6 family

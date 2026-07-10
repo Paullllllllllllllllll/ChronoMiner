@@ -162,19 +162,17 @@ class LLMExtractor:
         return self._llm
 
     async def close(self) -> None:
-        """Close the underlying LangChain provider client(s).
+        """Release the extractor's LangChain provider handle.
 
-        Delegates to :meth:`LangChainLLM.aclose`, which shuts the provider
-        SDK's httpx client(s) so connections are not leaked when the extractor
-        context exits. Exception-safe: any failure is logged, never propagated.
+        Deliberately does NOT close the provider SDK's httpx client:
+        langchain-openai shares one cached async httpx transport across
+        ChatOpenAI instances, so closing it here (the extractor is opened
+        per input file) kills every subsequent file's requests in the same
+        process — they fail instantly with an opaque APIConnectionError
+        ("Connection error."). The shared transport is reclaimed at process
+        exit; per-file "cleanup" must only drop the reference.
         """
-        llm = self._llm
-        if llm is None:
-            return
-        try:
-            await llm.aclose()
-        except Exception as exc:
-            logger.debug("Error closing extractor LLM client: %s", exc)
+        self._llm = None
 
 
 @asynccontextmanager
