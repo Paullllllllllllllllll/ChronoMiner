@@ -25,7 +25,7 @@ import pytest
 # Content hash of shared_ledger.py with newlines normalized to LF.
 # Update ONLY when intentionally releasing a new ledger module version,
 # then re-copy module + tests to all sibling repos.
-EXPECTED_SHA256 = "09fc0aaaf24fb1b84b2bc3be5e80b208c29e1ede375bc75f500fbe2b90b5fcfc"
+EXPECTED_SHA256 = "00679a7f517cbdbe5a41050deaf787b2fe1e4eeda77175e4a5c830ae3aca3fd8"
 
 _SKIP_DIRS = {".venv", ".git", "scratch", "backup", "node_modules", ".mypy_cache"}
 
@@ -305,6 +305,269 @@ class TestMultiprocessStress:
         assert ledger.read_combined() == 2 * expected_per_tool
 
 
+class TestPoolDerivation:
+    def test_exact_matches(self) -> None:
+        assert sl.derive_pool("openai", "gpt-5.6-sol") == sl.POOL_LARGE
+        assert sl.derive_pool("openai", "gpt-5.6-terra") == sl.POOL_SMALL
+        assert sl.derive_pool("openai", "gpt-5-mini") == sl.POOL_SMALL
+        assert sl.derive_pool("openai", "gpt-5") == sl.POOL_LARGE
+        assert sl.derive_pool("openai", "o1") == sl.POOL_LARGE
+        assert sl.derive_pool("openai", "o1-mini") == sl.POOL_SMALL
+
+    def test_longest_prefix_wins(self) -> None:
+        # "gpt-4.1-mini" must not be claimed by the shorter "gpt-4.1".
+        assert sl.derive_pool("openai", "gpt-4.1-mini") == sl.POOL_SMALL
+        assert sl.derive_pool("openai", "gpt-4.1") == sl.POOL_LARGE
+        assert sl.derive_pool("openai", "gpt-5.1-codex-mini") == sl.POOL_SMALL
+
+    def test_dated_snapshot_matches_at_separator(self) -> None:
+        assert sl.derive_pool("openai", "gpt-4o-2024-08-06") == sl.POOL_LARGE
+        assert sl.derive_pool("openai", "gpt-4o-mini-2024-07-18") == sl.POOL_SMALL
+
+    def test_separator_boundary_prevents_partial_match(self) -> None:
+        # "gpt-5.55" must not match "gpt-5.5"; it falls through to "gpt-5"
+        # at the "." boundary and lands in the large pool.
+        assert sl.derive_pool("openai", "gpt-5.55") == sl.POOL_LARGE
+
+    def test_non_openai_and_unknown_are_none(self) -> None:
+        assert sl.derive_pool("anthropic", "claude-sonnet-5") is None
+        assert sl.derive_pool("custom", "gpt-4o") is None
+        assert sl.derive_pool("openai", "some-local-model") is None
+        assert sl.derive_pool("openai", None) is None
+        assert sl.derive_pool(None, "gpt-4o") is None
+
+    def test_router_style_prefix_stripped(self) -> None:
+        assert sl.derive_pool("openai", "openai/gpt-4o") == sl.POOL_LARGE
+
+
+class TestConfiguredPools:
+    """Config-defined pools override the built-ins per provider."""
+
+    def test_custom_provider_pools(self) -> None:
+        pools = sl.compile_pools(
+            {"myhost": {"standard": ["my-model", "my-model-large"]}}
+        )
+        assert sl.derive_pool("myhost", "my-model-v2", pools) == "standard"
+        assert sl.derive_pool("myhost", "my-model-large", pools) == "standard"
+        assert sl.derive_pool("myhost", "other", pools) is None
+
+    def test_configured_provider_replaces_builtin_table(self) -> None:
+        # A configured openai table takes precedence over the built-ins.
+        pools = sl.compile_pools({"openai": {"tiny": ["gpt-4o-mini"]}})
+        assert sl.derive_pool("openai", "gpt-4o-mini", pools) == "tiny"
+        # gpt-4o is not in the configured table; no built-in fallback for a
+        # provider the config covers.
+        assert sl.derive_pool("openai", "gpt-4o", pools) is None
+
+    def test_uncovered_provider_falls_back_to_builtin(self) -> None:
+        pools = sl.compile_pools({"myhost": {"standard": ["my-model"]}})
+        assert sl.derive_pool("openai", "gpt-4o", pools) == sl.POOL_LARGE
+
+    def test_longest_prefix_wins_in_configured_pools(self) -> None:
+        pools = sl.compile_pools({"p": {"a": ["base"], "b": ["base-pro"]}})
+        assert sl.derive_pool("p", "base-pro-2", pools) == "b"
+        assert sl.derive_pool("p", "base-2", pools) == "a"
+
+    def test_compile_pools_drops_malformed_entries(self) -> None:
+        pools = sl.compile_pools(
+            {
+                "": {"a": ["x"]},
+                "p": {"": ["x"], "a": "not-a-list", "b": [1, "", "ok"]},
+                "q": "not-a-mapping",
+            }
+        )
+        assert pools == {"p": (("ok", "b"),)}
+
+    def test_compile_pools_normalizes_case(self) -> None:
+        pools = sl.compile_pools({"OpenAI": {"a": ["GPT-X"]}})
+        assert sl.derive_pool("openai", "gpt-x-1", pools) == "a"
+
+
+def _bucket(
+    provider: str = "openai",
+    key_env: str = "OPENAI_API_KEY",
+    pool: str | None = "small",
+) -> object:
+    return sl.BucketKey(provider, key_env, pool)
+
+
+class TestUsageRows:
+    def test_sync_usage_creates_rows_and_tool_total(self, tmp_path: Path) -> None:
+        ledger = _make(tmp_path)
+        snap = ledger.sync_usage({_bucket(): 1000})
+        assert snap is not None
+        assert snap.combined == 1000
+        assert snap.own_total == 1000
+        assert snap.buckets == {_bucket(): 1000}
+        data = json.loads((tmp_path / sl.LEDGER_FILENAME).read_text(encoding="utf-8"))
+        assert data["schema_version"] == 2
+        assert data["tools"]["chronominer"] == 1000
+        assert data["usage"] == [
+            {
+                "tool": "chronominer",
+                "provider": "openai",
+                "key_env": "OPENAI_API_KEY",
+                "pool": "small",
+                "tokens": 1000,
+            }
+        ]
+
+    def test_tool_total_equals_row_sum(self, tmp_path: Path) -> None:
+        ledger = _make(tmp_path)
+        ledger.sync_usage({_bucket(): 300})
+        ledger.sync_usage({_bucket(key_env="OPENAI_API_KEY_2"): 200})
+        ledger.sync(50)  # legacy un-stamped delta
+        data = json.loads((tmp_path / sl.LEDGER_FILENAME).read_text(encoding="utf-8"))
+        row_sum = sum(r["tokens"] for r in data["usage"])
+        assert data["tools"]["chronominer"] == row_sum == 550
+
+    def test_legacy_sync_lands_in_unattributed_row(self, tmp_path: Path) -> None:
+        ledger = _make(tmp_path)
+        ledger.sync(120)
+        snap = ledger.read_usage()
+        assert snap is not None
+        assert snap.own_buckets == {sl.UNATTRIBUTED_BUCKET: 120}
+        # Unattributed rows never feed per-key enforcement aggregates.
+        assert snap.buckets == {}
+        assert snap.combined == 120
+
+    def test_buckets_aggregate_across_tools(self, tmp_path: Path) -> None:
+        miner = _make(tmp_path, "chronominer")
+        scriber = _make(tmp_path, "chronotranscriber")
+        miner.sync_usage({_bucket(): 300})
+        snap = scriber.sync_usage({_bucket(): 200})
+        assert snap is not None
+        assert snap.buckets == {_bucket(): 500}
+        assert snap.own_buckets == {_bucket(): 200}
+        assert snap.combined == 500
+
+    def test_negative_and_zero_deltas_ignored(self, tmp_path: Path) -> None:
+        ledger = _make(tmp_path)
+        snap = ledger.sync_usage({_bucket(): -50, _bucket(pool="large"): 0})
+        assert snap is not None
+        assert snap.combined == 0
+        assert snap.buckets == {}
+
+    def test_seed_usage_max_semantics_never_double_counts(self, tmp_path: Path) -> None:
+        ledger = _make(tmp_path)
+        ledger.sync_usage({_bucket(): 400})
+        snap = ledger.seed_usage(500, {_bucket(): 450})
+        assert snap is not None
+        assert snap.own_buckets[_bucket()] == 450
+        # Residual of the total lands in unattributed via reconciliation.
+        assert snap.own_buckets[sl.UNATTRIBUTED_BUCKET] == 50
+        assert snap.own_total == 500
+        # Repeat: nothing changes.
+        snap2 = ledger.seed_usage(500, {_bucket(): 450})
+        assert snap2 is not None
+        assert snap2.own_total == 500
+        assert snap2.own_buckets[_bucket()] == 450
+
+    def test_read_usage_stale_date_is_empty(self, tmp_path: Path) -> None:
+        stale = {
+            "schema_version": 2,
+            "date": "2000-01-01",
+            "tools": {"chronominer": 777},
+            "usage": [],
+            "last_updated": "irrelevant",
+        }
+        (tmp_path / sl.LEDGER_FILENAME).write_text(json.dumps(stale), encoding="utf-8")
+        ledger = _make(tmp_path)
+        snap = ledger.read_usage()
+        assert snap is not None
+        assert snap.combined == 0 and snap.buckets == {}
+
+    def test_read_usage_missing_file_is_none(self, tmp_path: Path) -> None:
+        ledger = _make(tmp_path)
+        assert ledger.read_usage() is None
+
+    def test_malformed_rows_dropped_without_crash(self, tmp_path: Path) -> None:
+        poisoned = {
+            "schema_version": 2,
+            "date": sl._today(),
+            "tools": {"chronominer": 100},
+            "usage": [
+                "not a dict",
+                {"tool": "", "provider": "openai", "key_env": "K", "tokens": 5},
+                {
+                    "tool": "chronominer",
+                    "provider": "openai",
+                    "key_env": "K",
+                    "pool": 7,
+                    "tokens": 5,
+                },
+                {
+                    "tool": "chronominer",
+                    "provider": "openai",
+                    "key_env": "OPENAI_API_KEY",
+                    "pool": "small",
+                    "tokens": "12a",
+                },
+            ],
+            "last_updated": "irrelevant",
+        }
+        (tmp_path / sl.LEDGER_FILENAME).write_text(
+            json.dumps(poisoned), encoding="utf-8"
+        )
+        ledger = _make(tmp_path)
+        snap = ledger.sync_usage({_bucket(): 10})
+        assert snap is not None
+        # The malformed rows vanish; the surviving coerced-to-0 row plus the
+        # new delta plus reconciliation keep total == row sum.
+        assert snap.own_total == 110
+        assert snap.own_buckets[_bucket()] == 10
+        assert snap.own_buckets[sl.UNATTRIBUTED_BUCKET] == 100
+
+
+class TestV1AdoptionAndMixedWriters:
+    def test_v1_ledger_adopted_via_unattributed(self, tmp_path: Path) -> None:
+        v1 = {
+            "schema_version": 1,
+            "date": sl._today(),
+            "tools": {"chronominer": 19_420_572, "autoexcerpter": 1000},
+            "last_updated": "irrelevant",
+        }
+        (tmp_path / sl.LEDGER_FILENAME).write_text(json.dumps(v1), encoding="utf-8")
+        ledger = _make(tmp_path)
+        snap = ledger.sync_usage({_bucket(): 10})
+        assert snap is not None
+        # The day's combined count is never lost.
+        assert snap.combined == 19_420_572 + 1000 + 10
+        assert snap.own_total == 19_420_582
+        assert snap.own_buckets[sl.UNATTRIBUTED_BUCKET] == 19_420_572
+        assert snap.own_buckets[_bucket()] == 10
+        # The other tool's total is untouched (no rows invented for it).
+        breakdown = ledger.read_breakdown()
+        assert breakdown is not None and breakdown["autoexcerpter"] == 1000
+
+    def test_v1_writer_drift_reconciled_on_next_v2_write(self, tmp_path: Path) -> None:
+        ledger = _make(tmp_path)
+        ledger.sync_usage({_bucket(): 100})
+        # Simulate a v1 writer: bump the tool total without touching usage.
+        path = tmp_path / sl.LEDGER_FILENAME
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["tools"]["chronominer"] += 40
+        data["schema_version"] = 1  # v1 also stamps the version back
+        path.write_text(json.dumps(data), encoding="utf-8")
+        snap = ledger.sync_usage({_bucket(): 10})
+        assert snap is not None
+        assert snap.own_total == 150
+        assert snap.own_buckets[_bucket()] == 110
+        assert snap.own_buckets[sl.UNATTRIBUTED_BUCKET] == 40
+
+    def test_hand_edited_rows_exceeding_total_raise_total(self, tmp_path: Path) -> None:
+        ledger = _make(tmp_path)
+        ledger.sync_usage({_bucket(): 100})
+        path = tmp_path / sl.LEDGER_FILENAME
+        data = json.loads(path.read_text(encoding="utf-8"))
+        data["tools"]["chronominer"] = 30  # inconsistent hand edit
+        path.write_text(json.dumps(data), encoding="utf-8")
+        snap = ledger.sync_usage({_bucket(): 0})
+        assert snap is not None
+        # Usage is never silently discarded: total is raised to the row sum.
+        assert snap.own_total == 100
+
+
 class TestModuleDrift:
     def test_module_checksum_pinned(self) -> None:
         raw = MODULE_FILE.read_bytes().replace(b"\r\n", b"\n")
@@ -317,7 +580,7 @@ class TestModuleDrift:
         )
 
     def test_module_version_matches(self) -> None:
-        assert sl.LEDGER_MODULE_VERSION == "1.2.0"
+        assert sl.LEDGER_MODULE_VERSION == "2.1.0"
 
 
 class TestResetBoundary:

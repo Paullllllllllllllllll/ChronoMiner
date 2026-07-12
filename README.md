@@ -1,4 +1,4 @@
-# ChronoMiner v1.27.1
+# ChronoMiner v1.28.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -403,7 +403,20 @@ concurrency:
       attempts: 150
 daily_token_limit:
   enabled: true
-  daily_tokens: 9000000
+  daily_tokens: 9000000   # combined cap across tools (secondary guard)
+  scope: pooled           # pooled = cap only calls in a defined pool; all = legacy
+  per_key_pool_caps:      # per-(API key, pool) daily caps (primary gate)
+    enabled: true
+    openai:
+      small: 9750000      # bare int: cap; model list from built-in defaults
+      large:
+        cap: 975000       # mapping form: custom cap and/or model prefixes
+        # models: ["gpt-5", "o3"]
+    # any provider can define its own named pools:
+    # myhost:
+    #   standard:
+    #     cap: 5000000
+    #     models: ["my-model"]
 ```
 
 Controls concurrent task limits, exponential backoff retry, and
@@ -598,7 +611,7 @@ shared_token_budget:
 ```
 
 When enabled, every participating tool merges its usage into one shared
-ledger (`token_ledger.json`) guarded by an OS file lock, and
+ledger (`token_ledger.json`, schema v2) guarded by an OS file lock, and
 `daily_token_limit.daily_tokens` is enforced against the COMBINED total, so
 several tools running concurrently cannot collectively overshoot the budget.
 Usage is merged as deltas under the lock (concurrent processes lose nothing);
@@ -609,6 +622,32 @@ and never crashes. Keep `daily_tokens` identical across participating tools;
 the strictest value simply stops its tool first. Editing `daily_tokens` while
 a tool waits at the limit lifts the cap within a poll cycle, no restart
 needed.
+
+#### Per-Key-Pool Accounting and Caps
+
+A "pool" is a named set of models that share one daily token allowance per
+API key. Pools are defined per provider in `per_key_pool_caps` — each entry
+gives a cap and, optionally, a model prefix list — and built-in defaults
+mirroring OpenAI's complimentary daily token program apply when a provider
+has no configured model lists, so zero-config installs keep working. Every
+API call's usage is stamped with its provider, the NAME of the environment
+variable that served it (key values are never stored or logged), and the
+pool derived from the model name. The shared ledger records a per-(tool,
+provider, key env, pool) breakdown alongside the per-tool totals, so you
+can always tell how much of a daily allowance remains on any key you use.
+Enforcement is two-tier: `per_key_pool_caps` gates each key's own pool (set
+your own caps and pools, or disable the gate, to match your account's
+terms), and `daily_tokens` remains a combined secondary guard. Under the
+default `scope: pooled`, calls to local endpoints and non-OpenAI providers
+(no pool) are counted but never blocked by OpenAI usage; `scope: all`
+restores the legacy block-everything behavior. When a key's pool cap is
+reached, the wait message names the exhausted key and reports the remaining
+pool of any other keys visible in the ledger; if you operate multiple keys,
+remapping the provider to another env var in `api_keys_config.yaml` is
+picked up at the next chunk/file boundary without a restart. Usage that
+predates the upgrade (or arrives from un-stamped paths) is kept under an
+"unattributed" row and counts toward the combined total only; a v1 ledger
+is adopted in place without losing the day's count.
 
 ## Architecture
 
@@ -743,6 +782,24 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v1.28.0** (12 July 2026) -- Per-key token accounting and definable daily
+    pools. The shared cross-tool ledger moves to schema v2: every API call is
+    stamped with its provider, the NAME of the env var that served it (key
+    values are never stored), and a pool label, and the ledger records a
+    per-(tool, provider, key env, pool) breakdown alongside the per-tool
+    totals. Budget enforcement becomes two-tier: per-(key, pool) daily caps
+    as the primary gate -- pools are definable per provider in
+    `daily_token_limit.per_key_pool_caps` (bare-int cap or `{cap, models}`
+    mapping), with built-in defaults mirroring OpenAI's complimentary daily
+    token program -- and the combined `daily_tokens` cap as a secondary
+    guard, scoped by the new `scope` knob (`pooled` default: calls whose
+    model belongs to no pool are counted but never blocked). The wait loop
+    names the exhausted key, reports other keys' remaining pools from the
+    ledger, and picks up an `api_keys_config.yaml` remap and pool-config
+    edits mid-wait without a restart. v1 ledgers are adopted in place;
+    un-attributable usage is kept under an "unattributed" row that counts
+    toward the combined total only. Vendored `shared_ledger.py` v2.1.0.
 
 - **v1.27.1** (10 July 2026) -- Two synchronous-extraction reliability fixes.
     The per-file extractor cleanup no longer closes the provider SDK's httpx

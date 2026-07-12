@@ -16,7 +16,12 @@ from datetime import datetime
 from pathlib import Path
 from unittest.mock import patch
 
-from modules.infra.shared_ledger import LEDGER_FILENAME, SharedTokenLedger, _today
+from modules.infra.shared_ledger import (
+    LEDGER_FILENAME,
+    SharedTokenLedger,
+    UsageSnapshot,
+    _today,
+)
 from modules.infra.token_tracker import (
     DailyTokenTracker,
     check_and_wait_for_token_limit,
@@ -200,24 +205,42 @@ class TestSeeding:
 
 
 class _FakeLedger:
-    """Ledger stand-in whose I/O can be toggled to degrade and recover."""
+    """Ledger stand-in whose I/O can be toggled to degrade and recover.
+
+    Implements the schema-v2 usage API the tracker now drives (``seed_usage`` /
+    ``sync_usage`` / ``read_usage``) plus the legacy read helpers used by
+    get_stats.
+    """
 
     def __init__(self) -> None:
         self.field = 0
         self.fail = True
         self.foreign = 0
 
-    def seed(self, own: int) -> int | None:
-        if self.fail:
-            return None
-        self.field = max(self.field, int(own))
-        return self.field + self.foreign
+    def _snapshot(self) -> UsageSnapshot:
+        return UsageSnapshot(
+            combined=self.field + self.foreign,
+            own_total=self.field,
+            buckets={},
+            own_buckets={},
+        )
 
-    def sync(self, delta: int) -> int | None:
+    def seed_usage(self, own_total, own_buckets=None) -> UsageSnapshot | None:
         if self.fail:
             return None
-        self.field += max(0, int(delta))
-        return self.field + self.foreign
+        self.field = max(self.field, int(own_total))
+        return self._snapshot()
+
+    def sync_usage(self, deltas) -> UsageSnapshot | None:
+        if self.fail:
+            return None
+        self.field += sum(max(0, int(v)) for v in deltas.values())
+        return self._snapshot()
+
+    def read_usage(self) -> UsageSnapshot | None:
+        if self.fail:
+            return None
+        return self._snapshot()
 
     def read_breakdown(self) -> dict[str, int] | None:
         if self.fail:
@@ -245,7 +268,7 @@ class TestDegradedMode:
             t._ledger = fake
             t._seeded = False
             t._combined_total = 0
-            t._unsynced_delta = 0
+            t._unsynced_deltas = {}
             t._ledger_degraded = False
             t._last_ledger_sync_monotonic = 0.0
 

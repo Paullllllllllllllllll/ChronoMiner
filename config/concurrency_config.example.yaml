@@ -110,7 +110,44 @@ concurrency:
 
 daily_token_limit:
   enabled: false
+  # Combined cap across tools (the secondary guard). A bare integer keeps its
+  # classic combined-cap meaning.
   daily_tokens: 10_000_000
+
+  # Which calls the combined daily_tokens cap blocks:
+  #   pooled (default) = only calls whose model belongs to a defined pool are
+  #     subject to the combined cap; calls outside any pool (e.g. providers
+  #     without a daily-allowance program, local endpoints) are counted but
+  #     never blocked by other providers' usage.
+  #   all = legacy behaviour: the combined cap blocks every call.
+  scope: pooled
+
+  # Per-(API key, pool) daily token allowances. A "pool" is a named set of
+  # models that shares one daily budget per API key; enforcement is per key
+  # env-var name (e.g. OPENAI_API_KEY_2), across all ChronoPipeline tools via
+  # the shared ledger. OpenAI's complimentary daily token program ships as the
+  # built-in default (pools "large" and "small"); override its caps or model
+  # lists to match your own account terms, define pools for any other
+  # provider, or set enabled: false to disable per-key caps entirely. When
+  # this block is omitted the built-in defaults still apply.
+  #
+  # Each pool entry is EITHER a bare integer (cap in tokens/day; the model
+  # list comes from the built-ins for that provider+pool) OR a mapping with
+  # the optional keys:
+  #   cap:    tokens/day for this pool per key (omit to track without a cap)
+  #   models: list of model-name prefixes (longest prefix wins; a configured
+  #           list REPLACES the built-in pools for that provider)
+  per_key_pool_caps:
+    enabled: true
+    openai:
+      small: 9_750_000        # bare int: cap only, built-in model list
+      large:
+        cap: 975_000          # mapping form; add models: [...] to override
+    # Example custom pool for another provider:
+    # myhost:
+    #   standard:
+    #     cap: 5_000_000
+    #     models: ["my-model"]
 
   # Chunk-level enforcement: when the limit is enabled, the budget is checked
   # before each chunk/page (not just between files), so a single large file

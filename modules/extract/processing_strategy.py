@@ -211,7 +211,12 @@ def parse_retry_after(exc: BaseException | None) -> float | None:
         return None
 
 
-def commit_tokens_from_exception(exc: BaseException) -> None:
+def commit_tokens_from_exception(
+    exc: BaseException,
+    provider: str | None = None,
+    key_env: str | None = None,
+    model: str | None = None,
+) -> None:
     """Best-effort: recover token usage from a failed call and commit it.
 
     Provider SDK exceptions often carry usage data in ``exc.body["usage"]`` or
@@ -261,7 +266,9 @@ def commit_tokens_from_exception(exc: BaseException) -> None:
                     total = inp + out
 
         if isinstance(total, int) and total > 0:
-            get_token_tracker().add_tokens(total)
+            get_token_tracker().add_tokens(
+                total, provider=provider, key_env=key_env, model=model
+            )
             logger.info(
                 "[TOKEN] Recovered %s tokens from a failed request.", f"{total:,}"
             )
@@ -369,6 +376,15 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         else:
             provider = ProviderConfig._detect_provider(model_name)
         api_key = ProviderConfig._get_api_key(provider)
+        # Resolve the serving key's env-var NAME once (never the secret value)
+        # so reservations and recovered usage land in the same per-key pool
+        # bucket the extractor's add_tokens() will stamp. Best-effort: a
+        # resolution failure degrades to unattributed accounting, never blocks
+        # processing.
+        try:
+            key_env = ProviderConfig.resolve_key_env_var(provider)
+        except Exception:
+            key_env = None
 
         if not api_key:
             error_msg = (
@@ -547,7 +563,12 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             rate_limiter.report_error(
                                 is_rate_limit=is_429 or is_server_error
                             )
-                            commit_tokens_from_exception(e)
+                            commit_tokens_from_exception(
+                                e,
+                                provider=provider,
+                                key_env=key_env,
+                                model=model_name,
+                            )
 
                             if is_retryable and attempt < (retry_attempts - 1):
                                 base_wait = min(
@@ -627,6 +648,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                         unit_label=unit_label,
                         tracker=tracker,
                         exhausted=exhausted,
+                        provider=provider,
+                        key_env=key_env,
+                        model=model_name,
                     )
                 else:
                     semaphore = asyncio.Semaphore(concurrency_limit)
@@ -666,14 +690,24 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 if img_data is not None
                                 else TextProcessor.estimate_tokens(chunk)
                             )
-                            reserved = tracker.try_reserve(estimate)
+                            reserved = tracker.try_reserve(
+                                estimate,
+                                provider=provider,
+                                key_env=key_env,
+                                model=model_name,
+                            )
                             if reserved is None:
                                 exhausted.set()
                                 return _budget_deferred(idx)
                             try:
                                 return await call_and_record(idx, chunk, img_data, rng)
                             finally:
-                                tracker.release(reserved)
+                                tracker.release(
+                                    reserved,
+                                    provider=provider,
+                                    key_env=key_env,
+                                    model=model_name,
+                                )
 
                     # Process chunks (skipping already-completed ones)
                     tasks = [
@@ -698,6 +732,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         unit_label: str,
         tracker: Any,
         exhausted: asyncio.Event,
+        provider: str | None = None,
+        key_env: str | None = None,
+        model: str | None = None,
     ) -> list[dict[str, Any]]:
         """Producer-consumer execution over a streaming page source.
 
@@ -747,7 +784,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                 if exhausted.is_set():
                     collected.append(_budget_deferred(item.index))
                     continue
-                reserved = tracker.try_reserve()
+                reserved = tracker.try_reserve(
+                    provider=provider, key_env=key_env, model=model
+                )
                 if reserved is None:
                     exhausted.set()
                     collected.append(_budget_deferred(item.index))
@@ -757,7 +796,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                         await call_and_record(item.index, "", item.as_chunk())
                     )
                 finally:
-                    tracker.release(reserved)
+                    tracker.release(
+                        reserved, provider=provider, key_env=key_env, model=model
+                    )
             return collected
 
         producer_task = asyncio.create_task(producer())

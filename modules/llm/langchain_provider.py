@@ -21,7 +21,11 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from modules.config.capabilities import detect_provider as _canonical_detect_provider
-from modules.config.loader import get_config_loader, resolve_api_key
+from modules.config.loader import (
+    get_config_loader,
+    resolve_api_key,
+    resolve_api_key_env_var,
+)
 from modules.infra.logger import setup_logger
 from modules.infra.token_tracker import get_token_tracker
 
@@ -363,6 +367,22 @@ class ProviderConfig:
             return None
         return resolve_api_key(provider)
 
+    @staticmethod
+    def resolve_key_env_var(provider: ProviderType) -> str | None:
+        """Return the NAME of the env var holding a provider's API key.
+
+        Mirrors :meth:`_get_api_key` but yields the variable NAME (never the
+        secret value) so token accounting can stamp usage per key. Custom
+        endpoints read their dedicated ``api_key_env_var`` from model config;
+        standard providers resolve through the api_keys_config mapping.
+        """
+        if provider == "custom":
+            model_cfg = get_config_loader().get_model_config()
+            tm = model_cfg.get("extraction_model", {})
+            custom_cfg = tm.get("custom_endpoint", {})
+            return custom_cfg.get("api_key_env_var")
+        return resolve_api_key_env_var(provider)
+
 
 class LangChainLLM:
     """
@@ -386,6 +406,12 @@ class LangChainLLM:
         self._chat_model = None
         self._initialized = False
         self._capabilities = None
+        # Resolve the serving key's env-var NAME once (never the secret value)
+        # so every token-accounting call can be stamped per key pool.
+        try:
+            self._key_env = ProviderConfig.resolve_key_env_var(config.provider)
+        except Exception:  # pragma: no cover - defensive: never block init
+            self._key_env = None
 
     def _ensure_initialized(self) -> None:
         """Lazily initialize the chat model."""
@@ -1031,7 +1057,12 @@ class LangChainLLM:
                     committed_total = self._committed_total_tokens(usage_counts)
                     if committed_total > 0:
                         token_tracker = get_token_tracker()
-                        token_tracker.add_tokens(committed_total)
+                        token_tracker.add_tokens(
+                            committed_total,
+                            provider=self.config.provider,
+                            key_env=self._key_env,
+                            model=self.config.model,
+                        )
                         logger.debug(
                             f"[TOKEN] API call consumed {committed_total:,} tokens "
                             f"(daily total: {token_tracker.get_tokens_used_today():,})"
