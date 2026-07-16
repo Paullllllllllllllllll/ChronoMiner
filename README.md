@@ -1,4 +1,4 @@
-# ChronoMiner v1.28.0
+# ChronoMiner v2.0.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -783,6 +783,12 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.0.0** (16 July 2026) -- New recommended standard configuration for
+    best processing results, shipped as the bundled example defaults: OpenAI
+    gpt-5.6-luna at reasoning effort high, original (full-resolution) image
+    detail, flex service tier with a 900 s request timeout, and extraction
+    concurrency of 12 tuned for OpenAI API tier 3. Major bump because the
+    public defaults change processing behavior for fresh clones.
 - **v1.28.0** (12 July 2026) -- Per-key token accounting and definable daily
     pools. The shared cross-tool ledger moves to schema v2: every API call is
     stamped with its provider, the NAME of the env var that served it (key

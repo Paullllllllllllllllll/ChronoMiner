@@ -59,7 +59,10 @@ extraction_model:
   # OpenRouter (100+ models via unified API):
   #   - openai/gpt-5.1, anthropic/claude-sonnet-4-5, google/gemini-3-pro
   #   - deepseek/deepseek-r1, meta/llama-3.2-90b, mistral/pixtral-large
-  name: gpt-5.4-mini
+  # Recommended configuration for best processing results: gpt-5.6-luna at
+  # reasoning effort high (with original image detail, flex service tier, and
+  # a 900 s timeout in the sibling configs).
+  name: gpt-5.6-luna
 
   # -------------------------------------------------------------------------
   # Output Token Limit
@@ -80,10 +83,10 @@ extraction_model:
   #
   # Values for effort: low | medium | high
   #   - low: Minimal reasoning overhead, faster responses
-  #   - medium: Balanced reasoning depth (recommended)
-  #   - high: Maximum reasoning depth, slower but more thorough
+  #   - medium: Balanced reasoning depth
+  #   - high: Maximum reasoning depth, slower but more thorough (recommended)
   reasoning:
-    effort: medium
+    effort: high
 
   # Text output controls (OpenAI GPT-5 only).
   # Verbosity: low | medium | high

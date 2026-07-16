@@ -28,7 +28,8 @@ api_image_processing:
   handle_transparency: true
   jpeg_quality: 95
   resize_profile: original
-  llm_detail: high
+  # Recommended: original (full-resolution input) for best results.
+  llm_detail: original
   low_max_side_px: 512
   high_target_box: [768, 1536]
   original_max_side_px: 6000

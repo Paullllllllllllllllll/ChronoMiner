@@ -27,12 +27,13 @@ concurrency:
   # Used by: modules/core/processing_strategy.py, modules/llm/langchain_provider.py
   extraction:
     # How many chunks/pages to extract concurrently.
-    # Recommended: 20-50 for moderate workloads; higher for bulk runs.
+    # Recommended: 12 (tuned for OpenAI API tier 3; also bounds how far
+    # in-flight chunks can drain past a per-key daily pool cap).
     # All providers respect this value. Anthropic users on lower
     # API tiers may need a smaller limit (e.g., 5) to avoid 429
     # rate limits; the retry logic handles transient 429s
     # automatically.
-    concurrency_limit: 5
+    concurrency_limit: 12
 
     # How many FILES may be processed at the same time when the daily token
     # limit is disabled (with the token limit enabled, files always run
@@ -51,8 +52,9 @@ concurrency:
     service_tier: flex
 
     # Request-level timeout (seconds). Covers the full HTTP round-trip.
+    # Recommended: 900 (15 minutes), matching OpenAI's flex-tier guidance.
     timeouts:
-      total: 3600
+      total: 900
 
     # Retry policy for transient errors (HTTP 429 / 5xx / timeouts).
     # ChronoMiner's own retry loop is the single authority (the SDK's internal
