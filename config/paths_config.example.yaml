@@ -112,12 +112,6 @@ schemas_paths:
     csv_output: False
     docx_output: False
     txt_output: False
-  MichelinGuides:
-    input: ''
-    output: ''
-    csv_output: False
-    docx_output: False
-    txt_output: False
   MichelinGuidesLight:
     input: ''
     output: ''

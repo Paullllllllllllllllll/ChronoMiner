@@ -78,7 +78,6 @@ for schema in [
     "CulinaryWorksEntries",
     "CulinaryEntitiesEntries",
     "HistoricalRecipesEntriesProduction",
-    "MichelinGuides",
     "MichelinGuidesLight",
     "CookbookMetadataEntries",
     "HistoricalPriceEntries",

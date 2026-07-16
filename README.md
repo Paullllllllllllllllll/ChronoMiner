@@ -1,4 +1,4 @@
-# ChronoMiner v2.0.0
+# ChronoMiner v2.1.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -484,7 +484,7 @@ Place JSON schemas in `schemas/`. Thirteen schemas are included:
   `culinary_places.json`, `culinary_entities.json`,
   `cookbook_metadata_schema.json`,
   `historical_recipes_schema_production.json`,
-  `michelin_guides.json`, `michelin_guides_light.json`,
+  `michelin_guides_light.json`,
   `historical_price_entries_schema.json`
 
 To add a custom schema: create the JSON schema file in `schemas/`,
@@ -782,6 +782,17 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v2.1.0** (16 July 2026) -- `MichelinGuidesLight` schema v3.4-light: the
+    conflated 16-value `cuisine.styles` enum is replaced by two orthogonal
+    fields, `cuisine.cuisine_origin` (20-value national/geographic tradition
+    enum) and `cuisine.culinary_style` (17-value stylistic-register enum),
+    both nullable arrays whose vocabularies mirror the NetworksOfTaste
+    enrichment enums verbatim; extraction guidance instructs abstention
+    (null) when the page states no cuisine information. The superseded full
+    `MichelinGuides` schema is deprecated: deregistered from the handler
+    registry and the bundled path configs, with the schema file retired to
+    `schemas/deprecated/` (out of schema auto-discovery).
 
 - **v2.0.0** (16 July 2026) -- New recommended standard configuration for
     best processing results, shipped as the bundled example defaults: OpenAI

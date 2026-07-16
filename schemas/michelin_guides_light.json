@@ -1,6 +1,6 @@
 {
   "name": "MichelinGuidesLight",
-  "schema_version": "3.3-light",
+  "schema_version": "3.4-light",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -108,32 +108,62 @@
             },
             "cuisine": {
               "type": "object",
-              "description": "Culinary style and specialty information.",
+              "description": "Culinary origin, style, and specialty information. Derive cuisine_origin and culinary_style ONLY from what this guide page states about the entry (printed cuisine descriptors, e.g. 'Cuisine italienne', 'Italian', and specialty dish mentions). If the page gives no cuisine information for the entry, set both to null -- do not guess from the establishment's location or name.",
               "properties": {
-                "styles": {
+                "cuisine_origin": {
                   "type": ["array", "null"],
-                  "description": "Primary cuisine type label as printed (e.g. 'Cuisine traditionnelle', 'Italian') or inferred from inspectors' note dish mentions.",
+                  "description": "National or geographic culinary tradition(s) of the cooking, as stated on the page (cuisine text descriptors or clearly attributable specialties). Null if the page gives no cuisine information.",
                   "items": {
-                            "type": "string",
-                            "enum": [
-                              "french",
-                              "italian",
-                              "german_austrian",
-                              "iberian",
-                              "british",
-                              "nordic_scandinavian",
-                              "benelux",
-                              "mediterranean",
-                              "asian",
-                              "fusion",
-                              "haute_cuisine",
-                              "contemporary_european",
-                              "avant_garde",
-                              "traditional_regional",
-                              "international",
-                              "other"
-                            ]
-                          }
+                    "type": "string",
+                    "enum": [
+                      "french",
+                      "italian",
+                      "german_austrian_swiss",
+                      "iberian",
+                      "british",
+                      "nordic_scandinavian",
+                      "belgian_dutch",
+                      "mediterranean",
+                      "japanese",
+                      "chinese",
+                      "south_asian",
+                      "southeast_asian",
+                      "middle_eastern",
+                      "north_african",
+                      "african",
+                      "mexican",
+                      "south_american",
+                      "american",
+                      "international",
+                      "other"
+                    ]
+                  }
+                },
+                "culinary_style": {
+                  "type": ["array", "null"],
+                  "description": "Stylistic register(s) of the cooking (named movement or school, e.g. haute cuisine classique, nouvelle cuisine, bistronomy), as stated on the page. Independent of geographic origin: an entry may carry both an origin and a style, either one, or neither. Null if the page gives no stylistic information.",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "haute_cuisine_classique",
+                      "nouvelle_cuisine",
+                      "farm_to_table",
+                      "neue_deutsche_kueche",
+                      "cuisine_du_terroir",
+                      "nueva_cocina_vasca",
+                      "cucina_italiana_moderna",
+                      "fusion",
+                      "molecular_gastronomy",
+                      "plant_forward",
+                      "live_fire",
+                      "modern_british",
+                      "avant_garde",
+                      "bistronomy",
+                      "new_nordic",
+                      "zero_waste",
+                      "other"
+                    ]
+                  }
                 },
                 "specialties": {
                   "type": ["array", "null"],
@@ -143,7 +173,7 @@
                   }
                 }
               },
-              "required": ["styles", "specialties"],
+              "required": ["cuisine_origin", "culinary_style", "specialties"],
               "additionalProperties": false
             },
             "pricing": {
