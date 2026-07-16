@@ -19,6 +19,7 @@ import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import ModuleType
+from typing import Any
 
 import pytest
 
@@ -60,10 +61,10 @@ def _load_module() -> ModuleType:
     return module
 
 
-sl = _load_module()
+sl: Any = _load_module()
 
 
-def _make(tmp_path: Path, tool: str = "chronominer", **kwargs: object) -> object:
+def _make(tmp_path: Path, tool: str = "chronominer", **kwargs: object) -> Any:
     return sl.SharedTokenLedger(tool, ledger_dir=tmp_path, **kwargs)
 
 
@@ -220,7 +221,9 @@ class TestAtomicWrites:
         leftovers = list(tmp_path.glob("*.tmp"))
         assert leftovers == []
 
-    def test_temp_name_contains_pid(self, tmp_path: Path, monkeypatch: object) -> None:
+    def test_temp_name_contains_pid(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         ledger = _make(tmp_path)
         captured: list[str] = []
         original_replace = Path.replace
@@ -398,7 +401,7 @@ def _bucket(
     provider: str = "openai",
     key_env: str = "OPENAI_API_KEY",
     pool: str | None = "small",
-) -> object:
+) -> Any:
     return sl.BucketKey(provider, key_env, pool)
 
 
@@ -597,26 +600,30 @@ class TestModuleDrift:
 class TestResetBoundary:
     """The budget day rolls over at 00:01 UTC, not exact UTC midnight."""
 
-    def test_day_key_before_buffer_is_previous_day(self, monkeypatch: object) -> None:
+    def test_day_key_before_buffer_is_previous_day(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from datetime import UTC
         from datetime import datetime as real_datetime
 
         class _FrozenDateTime(real_datetime):
             @classmethod
-            def now(cls, tz: object = None) -> real_datetime:
-                return real_datetime(2026, 7, 5, 0, 0, 30, tzinfo=UTC)
+            def now(cls, tz: object = None) -> _FrozenDateTime:
+                return cls(2026, 7, 5, 0, 0, 30, tzinfo=UTC)
 
         monkeypatch.setattr(sl, "datetime", _FrozenDateTime)
         assert sl._today() == "2026-07-04"
 
-    def test_day_key_after_buffer_is_new_day(self, monkeypatch: object) -> None:
+    def test_day_key_after_buffer_is_new_day(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
         from datetime import UTC
         from datetime import datetime as real_datetime
 
         class _FrozenDateTime(real_datetime):
             @classmethod
-            def now(cls, tz: object = None) -> real_datetime:
-                return real_datetime(2026, 7, 5, 0, 1, 30, tzinfo=UTC)
+            def now(cls, tz: object = None) -> _FrozenDateTime:
+                return cls(2026, 7, 5, 0, 1, 30, tzinfo=UTC)
 
         monkeypatch.setattr(sl, "datetime", _FrozenDateTime)
         assert sl._today() == "2026-07-05"

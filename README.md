@@ -1,4 +1,4 @@
-# ChronoMiner v2.1.3
+# ChronoMiner v2.1.4
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -783,6 +783,11 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.1.4** (16 July 2026) -- Adopt the fully typed shared-ledger test
+    (vendored byte-identically across the ChronoTools repos; the ledger module
+    itself is unchanged at v2.1.1): Any-typed dynamic module handle,
+    `pytest.MonkeyPatch` annotations, and a covariant frozen-datetime
+    override, keeping the three vendored copies in sync.
 - **v2.1.3** (16 July 2026) -- Adopt production recipe schema v3.0:
     `historical_recipes_schema_production.json` is updated from schema_version
     1.3 to 3.0 (`HistoricalRecipesEntriesProductionV3`), which adds the
