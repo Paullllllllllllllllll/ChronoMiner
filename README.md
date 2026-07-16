@@ -1,4 +1,4 @@
-# ChronoMiner v2.1.2
+# ChronoMiner v2.1.3
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -783,6 +783,12 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.1.3** (16 July 2026) -- Adopt production recipe schema v3.0:
+    `historical_recipes_schema_production.json` is updated from schema_version
+    1.3 to 3.0 (`HistoricalRecipesEntriesProductionV3`), which adds the
+    validity gate excluding medical remedies, menus and bills of fare, and
+    non-consumable craft recipes; the interim `_v2`/`_v3` working copies are
+    removed.
 - **v2.1.2** (16 July 2026) -- Hygiene and hardening follow-up. The
     Anthropic thinking block is now gated on a new
     `supports_thinking_budget` capability flag, so pre-3.7 Claude models

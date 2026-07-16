@@ -1,6 +1,6 @@
 {
-  "name": "HistoricalRecipesEntriesProduction",
-  "schema_version": "1.3",
+  "name": "HistoricalRecipesEntriesProductionV3",
+  "schema_version": "3.0",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -8,17 +8,17 @@
     "properties": {
       "contains_no_content_of_requested_type": {
         "type": "boolean",
-        "description": "Set to true if the input text contains no recipes. Otherwise, set to false."
+        "description": "Set to true if the input text contains no valid recipe entries after applying the validity gate; otherwise false. Three whole-passage classes MUST yield true with an empty entries array even though their items look procedural: (1) medical remedy sections — ailment-headed receipt collections, dose-and-indication framed preparations, physician-attributed cures — even when the items are ingestible ales, wines, or waters; (2) menus, bills of fare, and past-tense banquet or service relations (accounts of what was served at named events, course lists, scalcheria) — even when individual items carry embedded preparation detail; (3) craft or technical secrets and non-consumable production (dyes, metallurgy, cosmetics, inks, topical salves and plasters, household cleaning)."
       },
       "entries": {
         "type": "array",
-        "description": "List of historical recipes extracted from text. If no recipes are found, return an empty array. Each object in this list has to be one individual recipe; and you may need to divide the input text into individual recipes.",
+        "description": "List of historical recipe entries extracted from the text; empty array if none. An entry is a preparation of a CONSUMABLE foodstuff or beverage with enough procedural text present in the input to execute it. VALIDITY GATE — never extract: (a) therapeutic preparations framed by dose-and-indication (ailment heading, a dose tied to a complaint, or physician attribution); an ordinary consumable (cordial, liqueur, flavored wine or spirit) IS an entry even inside a medical section — judge framing per item, not per chapter; (b) menu/bill-of-fare items and past-tense banquet or service accounts, even when an item embeds preparation detail; (c) non-consumables (craft secrets, dyes, cosmetics, topical salves/plasters/ointments, metallurgy, household cleaning). SEGMENTATION — one entry per individual recipe: each TITLED variant in a variant run is its own entry, including terse 'make like the previous' variants that name a distinct principal ingredient or subject (e.g. '... ganz nach Nr. 4', 'bereidt men evenals de vorige', 'ARE made with lemons as these'), with fields inherited from the anchor where textually supported; never merge a run of sub-titled variants under a group heading into a single entry (a group heading carrying its own procedural text is an additional entry); when several title-only variants share ONE closing instruction block, create one entry per variant and attach the shared block to each; untitled but self-contained preparations (e.g. a run of headerless sauces, each for a different dish) are entries with title_original null; base preparations and technique recipes (stocks, doughs, sugar-boiling stages, clarification) are entries; do NOT split a single continuous preparation or a numbered yield/statistics report into multiple entries. NOT entries: pure cross-reference pointer stubs whose only body redirects elsewhere ('See page N.', 'Zie n°. 98'); bare titles with no method text; a chunk-opening orphan fragment that continues a recipe begun before this input (headerless text starting mid-sentence). A recipe truncated at the END of the input IS extracted with the text available in the input. Work through the ENTIRE input before finishing — long inputs routinely contain 15-25 entries; do not stop mid-list.",
         "items": {
           "type": "object",
           "properties": {
             "recipe_text_original": {
               "type": "string",
-              "description": "Complete recipe text verbatim in its original language (preserve spelling, diacritics, and formatting), without page numbers or other formatting elements."
+              "description": "Complete recipe text verbatim in its original language (preserve spelling, diacritics, and formatting), without page numbers or other formatting elements. Reproduce the source exactly, INCLUDING OCR corruption and archaic spellings — never repair, normalize, or modernize in this field (all repairs belong in recipe_text_modern_english). For a titled variant governed by a shared closing instruction block, append that block verbatim after the variant's own title/line."
             },
             "recipe_text_modern_english": {
               "type": "string",
@@ -58,7 +58,7 @@
                 "Other",
                 "Unknown"
               ],
-              "description": "Primary category based on the recipe's main purpose. 'Brewing/Winemaking' and 'Distillation' for production processes; 'Beverage' for drink-serving preparations. 'Dairy Production' for cheesemaking, butter churning, etc. 'Vinegar/Oil/Essence' for vinegar, oil pressing, rosewater, herb essences. 'Household Recipe' for non-food items; 'Preparation Technique' for base preparations (stocks, pastry doughs). 'Other' if identifiable but not listed; 'Unknown' if classification is impossible."
+              "description": "Primary category based on the recipe's main purpose. 'Brewing/Winemaking' and 'Distillation' for production processes; 'Beverage' for drink-serving preparations. 'Dairy Production' for cheesemaking, butter churning, etc. 'Vinegar/Oil/Essence' for vinegar, oil pressing, rosewater, herb essences. 'Household Recipe' only for the rare non-food preparation that nonetheless passes the validity gate — medicinal salves, plasters, and remedies are NOT entries of any type and must not be extracted at all. 'Preparation Technique' for base preparations (stocks, pastry doughs). 'Other' if identifiable but not listed; 'Unknown' if classification is impossible."
             },
             "ingredients": {
               "type": "array",
@@ -86,19 +86,19 @@
                     "type": ["integer", "null"],
                     "minimum": 1,
                     "maximum": 7,
-                    "description": "Rate ingredient's status/luxury connotation in the historical context given. Base rating on period-appropriate valuation, not modern standards. General conventions: 1 = everyday staple accessible to common households (e.g., bread, onions, local vegetables); 4 = moderately valued or regionally variable; 7 = high-status luxury item (e.g., exotic spices, imported delicacies, expensive cuts). Use null if insufficient evidence."
+                    "description": "TIME-INVARIANT luxury signal, anchored to ONE fixed reference frame: the ingredient's relative cost and prestige in European markets around the year 1650. Rate every work on this single pan-European c. 1650 frame — do NOT adjust for the work's own date, and do NOT adjust for its region; an ingredient receives the same score in a 1550 Italian work and an 1880 German one. 1 = staple cheap and ubiquitous across Europe c. 1650 (bread grain, onions, cabbage, local vegetables, lard); 2 = common local produce; 3 = modest market goods; 4 = moderately valued goods c. 1650 (e.g. common spices such as pepper, refined sugar in ordinary use); 5 = prosperous-household ingredient c. 1650 (finer spices, imported dried fruits, almonds in quantity); 6 = elite luxury c. 1650 (saffron, fine sugar confectionery stock, costly imported delicacies); 7 = the highest-cost rarities c. 1650 (exotic imported delicacies, extreme rarities, ambergris-grade luxuries). Borderline convention: when an ingredient sits between two bands, score the lower band unless the item is unambiguously a prestige good in the c. 1650 frame. Use null only if the ingredient cannot be identified well enough to place it."
                   },
                   "ingredient_trade_distance_rating_1_7": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 7,
-                    "description": "Rate how far this ingredient traveled to reach the kitchen, based on its geographic origin and the period. 1 = entirely local or domestic production (local grain, domestic vegetables, game); 4 = pan-European or established long-distance European trade (Baltic herring, Levantine goods); 7 = far-flung intercontinental import (spice-route, trans-Atlantic colonial). Calibrate to the period: as trade routes matured, the effective distance of once-exotic goods declined over time."
+                    "description": "TIME-INVARIANT geographic-origin class of the ingredient. Rate the ingredient's ORIGIN CLASS on a FIXED scale, identical across the whole corpus; do NOT adjust for the work's period (once-exotic goods do NOT descend the scale as trade matures) and do NOT adjust for local availability or price. 1 = ubiquitous local European produce (onions, cabbage, lard, local grain, domestic vegetables, game); 2 = nearby regional European trade (regional grains, dairy, freshwater and coastal fish, Baltic herring); 3 = broader intra-European trade (olive oil carried north, citrus, rice, wine moved over distance, Mediterranean nuts); 4 = Mediterranean and Levantine imports (dried fruits of the Levant — currants, raisins, dates, figs — almonds, capers); 5 = Atlantic-fringe and early-colonial staples (cane sugar, Madeira/Canaries produce, Atlantic-island imports); 6 = established trans-oceanic commodities (pepper, cinnamon, nutmeg, cloves, ginger, mace, and other established East-Indies or New-World trade goods); 7 = far trans-oceanic or rare-route rarities (exotic New World or East Asian rarities reaching Europe only by long or unusual routes). Score the origin class the ingredient belongs to, not how common it had become by the work's date."
                   },
                   "ingredient_novelty_rating_1_7": {
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 7,
-                    "description": "Rate how recently this ingredient had been introduced or adopted in European kitchens at the time of writing. 1 = ancient European staple known for millennia (wheat, pork, onions, honey); 4 = early modern arrival, established across most European regions by the late 16th century; 7 = novelty or still contested at the time of this recipe's writing (e.g. potato or tomato in an early 17th-century source). Base the rating on the approximate date of widespread European adoption, not regional specifics."
+                    "description": "TIME-INVARIANT novelty, anchored PURELY to the ingredient's date of WIDESPREAD EUROPEAN ADOPTION — a per-ingredient constant, the same in every work regardless of the work's own date. Do NOT adjust for whether the ingredient would 'still have seemed novel' when this particular work was written; a New World crop scores the same in a 1600 source and an 1850 source. 1 = antiquity or early-medieval staple known in Europe for a millennium or more (wheat, pork, onions, honey, wine, cabbage); 2 = ingredient established in Europe before c. 1400 by long-distance trade or medieval diffusion (rice, buckwheat, Levantine spices such as pepper and cinnamon); 3 = late-medieval to early-16th-century groceries widespread before c. 1500 (refined cane sugar, distilled spirits); 4 = 16th-century New World or exotic arrivals adopted in Europe during the 1500s (turkey, common beans, maize where used); 5 = 17th-century adoptions that became widespread across Europe (coffee, tea, chocolate/cocoa, tomato and chocolate in cookery); 6 = 18th-century adoptions reaching general European use (the potato as a widespread staple, and comparable 1700s introductions); 7 = post-1800 adoptions (19th-century novelties and newly introduced ingredients). Base the score solely on the fixed adoption date; refined sugar rates 3, never 1."
                   }
                 },
                 "required": [
@@ -280,7 +280,7 @@
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "Position on the culinary-historical spectrum. 1 = late-medieval style; 4 = transitional; 7 = mature 18th/19th-c. haute cuisine. Use null if ambiguous or absent."
+                  "description": "Position on the culinary-historical spectrum. 1 = late-medieval style; 4 = transitional; 7 = mature 18th/19th-c. haute cuisine. Use null if ambiguous or absent. Calibration: anchor on the work's date and style regime rather than defaulting to the middle of the scale — a routine recipe in a 19th-century professional or bourgeois cookbook normally sits at 5-6, a 16th-17th-century recipe with archaic markers at 2-3; reserve 4 for genuinely transitional evidence."
                 },
                 "innovation_markers_observed": {
                   "type": "array",
@@ -444,7 +444,7 @@
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "Overall luxury/prestige signaling of the entire recipe. 1 = no luxury signaling; 4 = moderate status markers; 7 = maximal prestige display. Use null if ambiguous."
+                  "description": "TIME-INVARIANT overall luxury/prestige signaling of the whole recipe, anchored to ONE fixed reference frame: the relative cost and prestige of its ingredients, technique, and presentation in European markets around the year 1650. Rate every work on this single pan-European c. 1650 frame — do NOT adjust for the work's own date, and do NOT adjust for its region. 1 = no luxury signaling (subsistence fare cheap everywhere c. 1650); 4 = moderate status markers c. 1650; 7 = maximal prestige display (elite or courtly extravagance in the c. 1650 frame). Borderline convention: an ordinary recipe without explicit status markers sits at 2-3, and the mere presence of sugar, common spices, or butter does not by itself raise it above 3-4; reserve 5 for genuine prosperous-household display and 6-7 for elite or courtly extravagance, all judged against c. 1650. Use null if ambiguous."
                 },
                 "occasion_type": {
                   "type": "array",
