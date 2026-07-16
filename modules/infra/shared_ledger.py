@@ -68,7 +68,7 @@ from typing import IO, Any, NamedTuple
 logger = logging.getLogger(__name__)
 
 LEDGER_SCHEMA_VERSION = 2
-LEDGER_MODULE_VERSION = "2.1.0"
+LEDGER_MODULE_VERSION = "2.1.1"
 
 # One-minute safety buffer past OpenAI's 00:00 UTC free-tier reset, so the
 # ledger never frees its budget before the upstream quota has actually reset.
@@ -450,6 +450,8 @@ class SharedTokenLedger:
             data = json.loads(self.ledger_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             return None
+        if not isinstance(data, dict):
+            return None
         if data.get("date") != _today():
             return 0
         return self._sum_tools(data)
@@ -459,6 +461,8 @@ class SharedTokenLedger:
         try:
             data = json.loads(self.ledger_path.read_text(encoding="utf-8"))
         except (OSError, ValueError):
+            return None
+        if not isinstance(data, dict):
             return None
         if data.get("date") != _today():
             return {}

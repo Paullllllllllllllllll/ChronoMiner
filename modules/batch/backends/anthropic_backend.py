@@ -314,8 +314,7 @@ class AnthropicBatchBackend(BatchBackend):
                     else:
                         result_item.success = False
                         result_item.error = (
-                            "Anthropic batch result succeeded but carried "
-                            "no message"
+                            "Anthropic batch result succeeded but carried no message"
                         )
 
                 elif result_type == "errored":

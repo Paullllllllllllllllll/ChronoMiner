@@ -57,6 +57,13 @@ class Capabilities:
 
     supports_sampler_controls: bool = True
 
+    # Anthropic explicit extended-thinking budget (``thinking: {type:
+    # enabled, budget_tokens}``). True only for budget-thinking Claude
+    # models (3.7 through Opus 4.6 era); False for adaptive-thinking
+    # models (which reject budget_tokens with HTTP 400) and for older
+    # models without extended thinking.
+    supports_thinking_budget: bool = False
+
     # Prompt caching support (explicit cache_control breakpoints)
     supports_prompt_caching: bool = False
 
@@ -433,12 +440,20 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
             supports_sampler_controls=False,
         ),
     ),
-    (("claude-opus-4-6", "claude-opus-4.6"), "claude-opus-4.6", _ANTHROPIC_BASE, {}),
+    (
+        ("claude-opus-4-6", "claude-opus-4.6"),
+        "claude-opus-4.6",
+        _ANTHROPIC_BASE,
+        dict(
+            supports_thinking_budget=True,
+        ),
+    ),
     (
         ("claude-opus-4-5", "claude-opus-4.5"),
         "claude-opus-4.5",
         _ANTHROPIC_BASE,
         dict(
+            supports_thinking_budget=True,
             max_output_tokens=64000,
         ),
     ),
@@ -447,6 +462,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-opus-4.1",
         _ANTHROPIC_BASE,
         dict(
+            supports_thinking_budget=True,
             max_output_tokens=32000,
         ),
     ),
@@ -455,6 +471,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-opus-4",
         _ANTHROPIC_BASE,
         dict(
+            supports_thinking_budget=True,
             max_output_tokens=32000,
         ),
     ),
@@ -473,6 +490,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-sonnet-4.6",
         _ANTHROPIC_BASE,
         dict(
+            supports_thinking_budget=True,
             max_output_tokens=64000,
         ),
     ),
@@ -481,6 +499,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-sonnet-4.5",
         _ANTHROPIC_BASE,
         dict(
+            supports_thinking_budget=True,
             max_output_tokens=64000,
         ),
     ),
@@ -489,6 +508,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-sonnet-4",
         _ANTHROPIC_BASE,
         dict(
+            supports_thinking_budget=True,
             max_output_tokens=64000,
         ),
     ),
@@ -497,6 +517,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-haiku-4.5",
         _ANTHROPIC_BASE,
         dict(
+            supports_thinking_budget=True,
             max_output_tokens=64000,
         ),
     ),
@@ -505,6 +526,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-3.7-sonnet",
         _ANTHROPIC_BASE,
         dict(
+            supports_thinking_budget=True,
             max_output_tokens=64000,
         ),
     ),

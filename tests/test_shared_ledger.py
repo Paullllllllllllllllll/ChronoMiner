@@ -25,7 +25,7 @@ import pytest
 # Content hash of shared_ledger.py with newlines normalized to LF.
 # Update ONLY when intentionally releasing a new ledger module version,
 # then re-copy module + tests to all sibling repos.
-EXPECTED_SHA256 = "00679a7f517cbdbe5a41050deaf787b2fe1e4eeda77175e4a5c830ae3aca3fd8"
+EXPECTED_SHA256 = "b594e617c377a6678e4048418710068f23ad86f9040ac052c20b948ca736773c"
 
 _SKIP_DIRS = {".venv", ".git", "scratch", "backup", "node_modules", ".mypy_cache"}
 
@@ -169,6 +169,17 @@ class TestRolloverAndRecovery:
     def test_read_combined_missing_file_is_none(self, tmp_path: Path) -> None:
         ledger = _make(tmp_path)
         assert ledger.read_combined() is None
+
+    def test_lock_free_reads_survive_non_dict_json(self, tmp_path: Path) -> None:
+        """Regression (module v2.1.1): valid-but-non-dict ledger JSON
+        (``null``, ``[]``) must degrade to None like unreadable content,
+        not raise AttributeError on ``data.get`` -- the module contract is
+        that the host tool NEVER crashes because of the ledger."""
+        ledger = _make(tmp_path)
+        for corrupt in ("null", "[]", "42"):
+            (tmp_path / sl.LEDGER_FILENAME).write_text(corrupt, encoding="utf-8")
+            assert ledger.read_combined() is None
+            assert ledger.read_breakdown() is None
 
 
 class TestDegradation:
@@ -580,7 +591,7 @@ class TestModuleDrift:
         )
 
     def test_module_version_matches(self) -> None:
-        assert sl.LEDGER_MODULE_VERSION == "2.1.0"
+        assert sl.LEDGER_MODULE_VERSION == "2.1.1"
 
 
 class TestResetBoundary:

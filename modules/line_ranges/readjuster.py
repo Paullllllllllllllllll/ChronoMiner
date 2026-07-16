@@ -1556,7 +1556,10 @@ class LineRangeReadjuster:
         self, line_ranges_file: Path, ranges: Sequence[tuple[int, int]]
     ) -> None:
         safe_line_ranges_file = ensure_path_safe(line_ranges_file)
-        with safe_line_ranges_file.open("w", encoding="utf-8") as handle:
+        # newline="\n": emit LF like the generator, so the rewritten file
+        # keeps the same byte format on Windows (readers are newline-agnostic,
+        # but the ranges fingerprint hashes raw bytes).
+        with safe_line_ranges_file.open("w", encoding="utf-8", newline="\n") as handle:
             for start, end in ranges:
                 handle.write(f"({start}, {end})\n")
 

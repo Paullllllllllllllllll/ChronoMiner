@@ -573,23 +573,25 @@ class LangChainLLM:
                     anthropic_params.pop("temperature", None)
 
             # Add extended thinking for Anthropic when reasoning is configured
-            # (CM-4). Adaptive-thinking models (supports_sampler_controls=False,
-            # e.g. claude-sonnet-5, claude-opus-4.7/4.8, claude-fable-5) reject
-            # thinking budget_tokens and temperature with HTTP 400 (see the
-            # capability registry); they think adaptively by default, so the
-            # explicit budget block is only sent to budget-thinking models.
+            # (CM-4). The explicit budget block is only valid for
+            # budget-thinking models (supports_thinking_budget=True in the
+            # capability registry): adaptive-thinking models (claude-sonnet-5,
+            # claude-opus-4.7/4.8, claude-fable-5) reject budget_tokens and
+            # temperature with HTTP 400 and think adaptively by default, and
+            # pre-3.7 models do not support extended thinking at all.
             reasoning_config = self.config.extra_params.get("reasoning_config", {})
             reasoning_requested = bool(
                 reasoning_config
                 and reasoning_config.get("effort")
                 and reasoning_config.get("effort") != "none"
             )
-            if reasoning_requested and not caps.supports_sampler_controls:
+            if reasoning_requested and not caps.supports_thinking_budget:
                 logger.info(
-                    f"Model {self.config.model} uses adaptive thinking; "
-                    "skipping explicit thinking budget_tokens/temperature."
+                    f"Model {self.config.model} does not take an explicit "
+                    "thinking budget (adaptive-thinking or pre-thinking "
+                    "model); skipping thinking budget_tokens/temperature."
                 )
-            if reasoning_requested and caps.supports_sampler_controls:
+            if reasoning_requested and caps.supports_thinking_budget:
                 effort = reasoning_config.get("effort", "medium")
                 budget = _compute_reasoning_budget(
                     max_tokens=max_tokens, effort=str(effort)

@@ -250,12 +250,16 @@ class TestCM4ReasoningAnthropicGoogle:
 
     @pytest.mark.unit
     def test_anthropic_extended_thinking_passed(self):
-        """ChatAnthropic gets thinking param and betas when reasoning is configured."""
+        """ChatAnthropic gets thinking param and betas when reasoning is configured.
+
+        Uses a budget-thinking model (supports_thinking_budget=True); pre-3.7
+        and adaptive-thinking models must NOT receive the block (see
+        TestAnthropicThinkingBudgetGate)."""
         from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="anthropic",
-            model="claude-3-5-sonnet-20241022",
+            model="claude-3-7-sonnet-20250219",
             api_key="test-key",
             max_tokens=10000,
             extra_params={
@@ -277,12 +281,13 @@ class TestCM4ReasoningAnthropicGoogle:
 
     @pytest.mark.unit
     def test_anthropic_no_thinking_when_effort_none(self):
-        """ChatAnthropic does NOT get thinking when effort is 'none'."""
+        """ChatAnthropic does NOT get thinking when effort is 'none' (even on
+        a budget-thinking model)."""
         from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
             provider="anthropic",
-            model="claude-3-5-sonnet-20241022",
+            model="claude-3-7-sonnet-20250219",
             api_key="test-key",
             max_tokens=10000,
             extra_params={
@@ -859,10 +864,11 @@ class TestCM11GatherReturnExceptions:
         )
 
 
-class TestAnthropicAdaptiveThinkingGate:
-    """Regression: adaptive-thinking Claude models (supports_sampler_controls
-    False, e.g. claude-sonnet-5) reject thinking budget_tokens and temperature
-    with HTTP 400; the explicit thinking block must not be sent to them."""
+class TestAnthropicThinkingBudgetGate:
+    """Regression: the explicit thinking block is gated on
+    supports_thinking_budget. Adaptive-thinking models (claude-sonnet-5 etc.)
+    reject budget_tokens and temperature with HTTP 400, and pre-3.7 models do
+    not support extended thinking at all."""
 
     @pytest.mark.unit
     def test_adaptive_model_gets_no_thinking_budget_or_temperature(self):
@@ -886,6 +892,30 @@ class TestAnthropicAdaptiveThinkingGate:
             call_kwargs = MockAnthropic.call_args[1]
             assert "thinking" not in call_kwargs
             assert "temperature" not in call_kwargs
+
+    @pytest.mark.unit
+    def test_pre_thinking_model_gets_no_thinking_block(self):
+        """Models without extended thinking (claude-3-5-*) must not receive
+        the thinking block they would reject."""
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
+
+        config = ProviderConfig(
+            provider="anthropic",
+            model="claude-3-5-sonnet-20241022",
+            api_key="test-key",
+            max_tokens=8000,
+            extra_params={
+                "reasoning_config": {"effort": "high"},
+                "reasoning_effort": "high",
+            },
+        )
+        llm = LangChainLLM(config)
+
+        with patch("langchain_anthropic.ChatAnthropic") as MockAnthropic:
+            MockAnthropic.return_value = MagicMock()
+            llm._create_chat_model()
+            call_kwargs = MockAnthropic.call_args[1]
+            assert "thinking" not in call_kwargs
 
     @pytest.mark.unit
     def test_budget_thinking_model_still_gets_thinking(self):

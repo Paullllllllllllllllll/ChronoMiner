@@ -1,4 +1,4 @@
-# ChronoMiner v2.1.1
+# ChronoMiner v2.1.2
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -782,6 +782,19 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v2.1.2** (16 July 2026) -- Hygiene and hardening follow-up. The
+    Anthropic thinking block is now gated on a new
+    `supports_thinking_budget` capability flag, so pre-3.7 Claude models
+    (no extended thinking) and adaptive-thinking models alike no longer
+    receive `budget_tokens`/`temperature` parameters they reject; the
+    shared cross-tool token ledger (module v2.1.1, propagated to
+    ChronoTranscriber and AutoExcerpter) degrades gracefully on
+    valid-but-non-dict ledger JSON instead of raising `AttributeError`;
+    the line-range readjuster writes `_line_ranges.txt` with LF newlines
+    like the generator; and the UTF-8 BOM that made Git mis-parse
+    `.gitattributes` line 1 (the `policy:` warning on every checkout) is
+    removed.
 
 - **v2.1.1** (16 July 2026) -- Bug-fix pass across batch finalization and
     the provider layer. `check_batches` no longer counts terminally

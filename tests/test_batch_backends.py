@@ -1093,9 +1093,7 @@ class TestEmptyContentBatchResults:
         clear_backend_cache()
 
     @patch("openai.OpenAI")
-    def test_openai_incomplete_body_without_text_marks_failure(
-        self, mock_openai_class
-    ):
+    def test_openai_incomplete_body_without_text_marks_failure(self, mock_openai_class):
         mock_client = MagicMock()
         mock_openai_class.return_value = mock_client
 

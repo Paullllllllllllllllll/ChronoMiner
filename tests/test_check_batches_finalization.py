@@ -38,9 +38,7 @@ def _write_temp_file(path, stem, batch_ids):
         )
     for batch_id in batch_ids:
         lines.append(
-            json.dumps(
-                {"batch_tracking": {"batch_id": batch_id, "provider": "openai"}}
-            )
+            json.dumps({"batch_tracking": {"batch_id": batch_id, "provider": "openai"}})
         )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
@@ -67,9 +65,7 @@ class TestPartialFinalization:
         backend = _mock_backend(
             {"b1": BatchStatus.COMPLETED, "b2": BatchStatus.EXPIRED}
         )
-        responses = [
-            {"custom_id": f"{stem}-chunk-1", "response": '{"entries": []}'}
-        ]
+        responses = [{"custom_id": f"{stem}-chunk-1", "response": '{"entries": []}'}]
         agg: dict[str, int] = {}
 
         with (
