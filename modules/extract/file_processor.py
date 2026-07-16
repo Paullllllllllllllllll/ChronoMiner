@@ -614,11 +614,28 @@ class FileProcessor:
         if use_batch:
             # Batch submission needs the materialized request set; raw pages
             # are still rendered/freed one at a time by the producer.
-            image_chunks = [
-                payload.as_chunk()
-                async for payload in make_page_source(needed_indices)
-                if isinstance(payload, PagePayload)
-            ]
+            # PageErrors must not be silently filtered out: the failed pages
+            # would never be submitted, never recorded as failed chunks, and
+            # the finalized output would be stamped complete without them.
+            image_chunks = []
+            render_failures: list[Any] = []
+            async for payload in make_page_source(needed_indices):
+                if isinstance(payload, PagePayload):
+                    image_chunks.append(payload.as_chunk())
+                else:
+                    render_failures.append(payload)
+            if render_failures:
+                failed_pages = ", ".join(
+                    str(getattr(err, "index", "?")) for err in render_failures
+                )
+                messenger.error(
+                    f"{len(render_failures)} page(s) failed to render for "
+                    f"batch submission (page(s): {failed_pages}). Aborting "
+                    "this file so the failures are not silently dropped; fix "
+                    "the source or use synchronous mode, which records "
+                    "failed pages and resumes them."
+                )
+                return "failed"
             messenger.info(f"Preprocessed {len(image_chunks)} page(s) for batch")
         else:
             source_factory = make_page_source

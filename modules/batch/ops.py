@@ -195,22 +195,32 @@ def _recover_missing_batch_ids(
     temp_file: Path,
     identifier: str,
     persist: bool,
-) -> set[str]:
+) -> tuple[set[str], str | None]:
+    """Recover batch ids (and their provider) from the submission debug artifact.
+
+    Returns ``(batch_ids, provider)``; ``provider`` is ``None`` when the
+    artifact does not record one. Dropping the provider would make callers
+    default recovered Anthropic/Google batches to the OpenAI backend.
+    """
     recovered: set[str] = set()
+    provider: str | None = None
     debug_artifact = temp_file.parent / f"{identifier}_batch_submission_debug.json"
     if not debug_artifact.exists():
-        return recovered
+        return recovered, provider
 
     try:
         artifact = json.loads(debug_artifact.read_text(encoding="utf-8"))
         for candidate in artifact.get("batch_ids", []) or []:
             if isinstance(candidate, str) and candidate:
                 recovered.add(candidate)
+        artifact_provider = artifact.get("provider")
+        if isinstance(artifact_provider, str) and artifact_provider:
+            provider = artifact_provider
     except Exception as exc:
         logger.warning(
             "Failed to read batch debug artifact %s: %s", debug_artifact, exc
         )
-        return recovered
+        return recovered, provider
 
     if recovered and persist:
         try:
@@ -224,6 +234,8 @@ def _recover_missing_batch_ids(
                             "batch_file": str(temp_file),
                         }
                     }
+                    if provider:
+                        record["batch_tracking"]["provider"] = provider
                     handle.write(json.dumps(record) + "\n")
             logger.info(
                 "Persisted %s recovered batch id(s) into %s",
@@ -237,7 +249,7 @@ def _recover_missing_batch_ids(
                 exc,
             )
 
-    return recovered
+    return recovered, provider
 
 
 def is_batch_finished(batch_id: str, provider: str = "openai") -> bool:
@@ -362,9 +374,14 @@ def retrieve_responses_from_batch(
                 )
 
     except Exception as exc:
+        # Do NOT return the partial list here: finalization would treat it as
+        # the complete result set, write the output, and delete the temp files
+        # and remote batch outputs, making the un-retrieved chunks
+        # unrecoverable. Propagate so the caller's per-group error handling
+        # keeps the artifacts for a later retry.
         logger.error(
             f"Error downloading batch results for {batch_id} ({provider}): {exc}"
         )
-        return responses
+        raise
 
     return responses

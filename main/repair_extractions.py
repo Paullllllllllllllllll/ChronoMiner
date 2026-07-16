@@ -57,7 +57,7 @@ def _discover_candidate_temp_files(
                 result = process_batch_output_file(temp_file)
                 responses = result.get("responses", [])
                 tracking = result.get("tracking", [])
-                identifier = temp_file.stem.replace("_temp", "")
+                identifier = temp_file.stem.removesuffix("_temp")
                 # CM-6: the final output lives with the submission (the
                 # parent of temp_jsonl/), not next to the temp file itself.
                 final_json = (
@@ -112,13 +112,16 @@ def _repair_temp_file(
     batch_ids = {
         str(track.get("batch_id")) for track in tracking if track.get("batch_id")
     }
-    recovered_ids = set()
+    recovered_ids: set[str] = set()
     if not batch_ids:
-        recovered_ids = _recover_missing_batch_ids(
-            temp_file, temp_file.stem.replace("_temp", ""), persist_recovered
+        recovered_ids, recovered_provider = _recover_missing_batch_ids(
+            temp_file, temp_file.stem.removesuffix("_temp"), persist_recovered
         )
         for bid in recovered_ids:
-            tracking.append({"batch_id": bid})
+            track_record: dict[str, Any] = {"batch_id": bid}
+            if recovered_provider:
+                track_record["provider"] = recovered_provider
+            tracking.append(track_record)
             batch_ids.add(bid)
 
     if not batch_ids:
@@ -192,7 +195,7 @@ def _repair_temp_file(
         ui.print_warning("No responses retrieved; nothing to repair.")
         return
 
-    identifier = temp_file.stem.replace("_temp", "")
+    identifier = temp_file.stem.removesuffix("_temp")
     # CM-6: write the repaired output to the submission-local directory (the
     # parent of temp_jsonl/), matching check_batches finalization.
     output_dir = derive_submission_output_dir(temp_file)

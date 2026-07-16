@@ -124,7 +124,10 @@ class ConfigLoader:
                         lambda m: '"' + m.group(1).replace("\\", "/") + '"',
                         content,
                     )
-                return yaml.safe_load(content)
+                # ``or {}``: an empty (or all-comments) YAML file parses to
+                # None, which would crash key validation with an opaque
+                # TypeError instead of a clear "Missing '<key>'" error.
+                return yaml.safe_load(content) or {}
             except yaml.YAMLError as e:
                 logger.error(f"Error parsing YAML file {filename}: {e}")
                 raise

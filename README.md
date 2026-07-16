@@ -1,4 +1,4 @@
-# ChronoMiner v2.1.0
+# ChronoMiner v2.1.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -782,6 +782,28 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v2.1.1** (16 July 2026) -- Bug-fix pass across batch finalization and
+    the provider layer. `check_batches` no longer counts terminally
+    failed/expired batches as "still processing", so a group with one
+    completed and one expired batch writes its partial output instead of
+    staying pending forever; output identifiers strip only the trailing
+    `_temp` suffix (the previous substring replace mangled stems such as
+    `oven_temperature`); a mid-download failure now propagates instead of
+    finalizing a partial result set and deleting its temp files and remote
+    outputs; batch responses without text content (OpenAI `incomplete`
+    bodies, Anthropic messages without text blocks, Gemini inline results)
+    are recorded as failures rather than successful empty extractions;
+    batch-id recovery restores the provider from the submission debug
+    artifact instead of defaulting to OpenAI; the visual batch path aborts
+    with a clear error when pages fail to render instead of silently
+    dropping them from the submission; Anthropic adaptive-thinking models
+    (`supports_sampler_controls: false`) no longer receive the thinking
+    `budget_tokens`/`temperature` parameters they reject with HTTP 400.
+    Hardening: null-valued numeric model-config keys and empty YAML configs
+    fail back or raise clearly, empty inputs no longer produce a phantom
+    chunk, JSONL header rewrites are atomic, and one malformed schema entry
+    no longer aborts the `cancel_batches` scan.
 
 - **v2.1.0** (16 July 2026) -- `MichelinGuidesLight` schema v3.4-light: the
     conflated 16-value `cuisine.styles` enum is replaced by two orthogonal

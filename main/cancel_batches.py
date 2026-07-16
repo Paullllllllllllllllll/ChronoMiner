@@ -116,12 +116,21 @@ class CancelBatchesScript(DualModeScript):
             )
             schemas_paths = paths_config.get("schemas_paths", {})
 
-            for schema_config in schemas_paths.values():
-                folder = Path(
-                    schema_config["input"]
-                    if input_paths_is_output_path
-                    else schema_config["output"]
-                )
+            for schema, schema_config in schemas_paths.items():
+                # Per-entry guard: one malformed schema entry must not abort
+                # the whole scan, which would yield a false "no batches
+                # require cancellation" while real batches keep running.
+                try:
+                    folder = Path(
+                        schema_config["input"]
+                        if input_paths_is_output_path
+                        else schema_config["output"]
+                    )
+                except (KeyError, TypeError) as e:
+                    self.logger.warning(
+                        f"Skipping schema '{schema}' in paths_config: {e}"
+                    )
+                    continue
                 if folder not in self.root_folders:
                     self.root_folders.append(folder)
         except Exception as e:

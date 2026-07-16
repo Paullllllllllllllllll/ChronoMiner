@@ -456,3 +456,14 @@ class TestValidateModelConfigImageSupport:
         loader = ConfigLoader(config_dir=tmp_config_dir)
         with pytest.raises(ValueError, match="does not support image inputs"):
             loader.load_configs()
+
+
+@pytest.mark.unit
+def test_empty_required_config_raises_clear_keyerror(tmp_config_dir):
+    """Regression: an empty YAML file parses to None; validation must raise
+    the intended KeyError ("Missing '<key>'"), not an opaque TypeError
+    ("argument of type 'NoneType' is not iterable")."""
+    (tmp_config_dir / "model_config.yaml").write_text("", encoding="utf-8")
+    loader = ConfigLoader(config_dir=tmp_config_dir)
+    with pytest.raises(KeyError, match="extraction_model"):
+        loader.load_configs()

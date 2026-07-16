@@ -31,6 +31,12 @@ from modules.llm.prompt_utils import prompt_path
 logger = setup_logger(__name__)
 
 
+def _numeric(tm: dict[str, Any], key: str, default: float) -> float:
+    """Numeric config value; a present-but-null YAML key falls back to default."""
+    value = tm.get(key, default)
+    return float(default if value is None else value)
+
+
 class LLMExtractor:
     """
     A unified wrapper for interacting with LLM providers via LangChain.
@@ -84,12 +90,14 @@ class LLMExtractor:
 
         tm: dict[str, Any] = self.model_config.get("extraction_model", {})
 
-        # Model parameters
-        self.max_output_tokens: int = int(tm.get("max_output_tokens", 4096))
-        self.temperature: float = float(tm.get("temperature", 0.0))
-        self.top_p: float = float(tm.get("top_p", 1.0))
-        self.presence_penalty: float = float(tm.get("presence_penalty", 0.0))
-        self.frequency_penalty: float = float(tm.get("frequency_penalty", 0.0))
+        # Model parameters. Present-but-null YAML keys (e.g. ``temperature:``
+        # with no value) must fall back to the default instead of crashing
+        # with ``float(None)`` -- mirroring the reasoning/text handling below.
+        self.max_output_tokens: int = int(_numeric(tm, "max_output_tokens", 4096))
+        self.temperature: float = _numeric(tm, "temperature", 0.0)
+        self.top_p: float = _numeric(tm, "top_p", 1.0)
+        self.presence_penalty: float = _numeric(tm, "presence_penalty", 0.0)
+        self.frequency_penalty: float = _numeric(tm, "frequency_penalty", 0.0)
 
         # Reasoning / text controls (used for reasoning models)
         # `or` (not a get default) so a present-but-null YAML key falls back to

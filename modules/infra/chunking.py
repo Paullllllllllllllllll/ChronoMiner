@@ -140,7 +140,9 @@ class TokenBasedChunking(ChunkingStrategy):
                 current_tokens += line_tokens
             end_line = idx
 
-        if start_line <= end_line:
+        # Guard against empty input: without it the initial (1, 1) sentinel
+        # would be emitted as a phantom chunk for an empty file.
+        if lines and start_line <= end_line:
             ranges.append((start_line, end_line))
         logger.info(f"Created {len(ranges)} chunks based on token limits")
         return ranges

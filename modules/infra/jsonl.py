@@ -12,7 +12,9 @@ import datetime
 import hashlib
 import json
 import logging
+import os
 import re
+import uuid
 from collections.abc import Iterator
 from pathlib import Path
 from typing import IO, Any
@@ -285,7 +287,18 @@ def update_jsonl_header(path: Path, fields: dict[str, Any]) -> bool:
     header.update(fields)
 
     lines[0] = json.dumps(first_record, ensure_ascii=False) + "\n"
-    safe_path.write_text("".join(lines), encoding="utf-8")
+    # Atomic temp-write-plus-replace: a crash mid-write must not truncate the
+    # resume artifact (a direct write_text is not atomic).
+    tmp_path = safe_path.with_name(
+        f"{safe_path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
+    )
+    try:
+        tmp_path.write_text("".join(lines), encoding="utf-8")
+        tmp_path.replace(safe_path)
+    finally:
+        with contextlib.suppress(OSError):
+            if tmp_path.exists():
+                tmp_path.unlink()
     return True
 
 

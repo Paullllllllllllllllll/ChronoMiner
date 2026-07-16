@@ -478,7 +478,6 @@ class GoogleBatchBackend(BatchBackend):
                     continue
 
                 if hasattr(inline_response, "response") and inline_response.response:
-                    result_item.success = True
                     response = inline_response.response
 
                     # Extract text
@@ -495,6 +494,17 @@ class GoogleBatchBackend(BatchBackend):
                                 result_item.parsed_output = parsed
                         except json.JSONDecodeError:
                             pass
+
+                # Mirror the file-results guard above: a response with no
+                # text content (or a result with neither error nor response)
+                # must not be reported as a successful empty extraction.
+                if result_item.content:
+                    result_item.success = True
+                else:
+                    result_item.success = False
+                    result_item.error = (
+                        "No text content in Gemini inline batch response"
+                    )
 
                 yield result_item
 

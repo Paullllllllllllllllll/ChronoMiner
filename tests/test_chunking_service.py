@@ -237,9 +237,11 @@ class TestChunkingServiceEdgeCases:
 
         chunks, ranges = svc.chunk_text([], strategy="auto")
 
-        # Empty input produces a single empty chunk (actual behavior)
-        assert len(chunks) == 1
-        assert chunks[0] == ""
+        # Empty input produces no chunks (previously a phantom empty chunk
+        # covering the nonexistent range (1, 1) was emitted, wasting an LLM
+        # call on empty content).
+        assert chunks == []
+        assert ranges == []
 
     @pytest.mark.unit
     def test_single_line(self):

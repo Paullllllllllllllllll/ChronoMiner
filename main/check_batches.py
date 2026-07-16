@@ -286,13 +286,19 @@ def process_all_batches(
             if not batch_ids:
                 # Try to recover from any of the temp files in the group
                 for temp_file in temp_file_group:
-                    temp_identifier = temp_file.stem.replace("_temp", "")
-                    recovered = _recover_missing_batch_ids(
+                    # Strip only the trailing _temp suffix (str.replace would
+                    # also mangle internal occurrences, e.g. oven_temperature);
+                    # the debug artifact is named after the source stem.
+                    temp_identifier = base_identifier.removesuffix("_temp")
+                    recovered, recovered_provider = _recover_missing_batch_ids(
                         temp_file, temp_identifier, persist_recovered
                     )
                     recovered_ids.update(recovered)
                     for batch_id in recovered:
-                        tracking.append({"batch_id": batch_id})
+                        track_record: dict[str, Any] = {"batch_id": batch_id}
+                        if recovered_provider:
+                            track_record["provider"] = recovered_provider
+                        tracking.append(track_record)
                         batch_ids.add(batch_id)
 
             if not batch_ids:
@@ -401,9 +407,14 @@ def process_all_batches(
                 )
 
             if not all_finished:
-                in_progress_count = len(
-                    [t for t in tracking if t.get("batch_id") not in missing_batches]
-                ) - len(completed_batches)
+                # Count only genuinely non-terminal batches: completed and
+                # terminal failed/expired/missing ones (failed_batches holds
+                # both) must not defer finalization, or a group with one
+                # completed and one expired batch would stay "pending"
+                # forever and never write its partial output.
+                in_progress_count = (
+                    len(tracking) - len(completed_batches) - len(failed_batches)
+                )
                 if in_progress_count > 0:
                     _safe_print(
                         ui,
@@ -446,8 +457,9 @@ def process_all_batches(
                 continue
 
             # Write final output to output directory (not temp file parent)
-            # in the unified sync shape; remove _temp suffix from identifier.
-            final_identifier = base_identifier.replace("_temp", "")
+            # in the unified sync shape; strip only the trailing _temp suffix
+            # (str.replace would also mangle internal occurrences).
+            final_identifier = base_identifier.removesuffix("_temp")
             final_json_path: Path = output_dir / f"{final_identifier}_output.json"
 
             final_results: dict[str, Any] = build_unified_batch_output(

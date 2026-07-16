@@ -170,12 +170,13 @@ class TestProcessBatchOutputFile:
 @pytest.mark.unit
 class TestRecoverMissingBatchIds:
     def test_returns_empty_when_no_debug_artifact(self, tmp_path):
-        result = _recover_missing_batch_ids(
+        result, provider = _recover_missing_batch_ids(
             temp_file=tmp_path / "missing.jsonl",
             identifier="doc",
             persist=False,
         )
         assert result == set()
+        assert provider is None
 
     def test_reads_from_debug_artifact(self, tmp_path):
         temp_file = tmp_path / "doc_temp.jsonl"
@@ -184,22 +185,42 @@ class TestRecoverMissingBatchIds:
             json.dumps({"batch_ids": ["batch_a", "batch_b"]}),
             encoding="utf-8",
         )
-        result = _recover_missing_batch_ids(
+        result, provider = _recover_missing_batch_ids(
             temp_file=temp_file, identifier="doc", persist=False
         )
         assert result == {"batch_a", "batch_b"}
+        assert provider is None
+
+    def test_recovers_provider_from_debug_artifact(self, tmp_path):
+        # Regression: the artifact records the provider; dropping it made
+        # recovered Anthropic/Google batches default to the OpenAI backend.
+        temp_file = tmp_path / "doc_temp.jsonl"
+        artifact = tmp_path / "doc_batch_submission_debug.json"
+        artifact.write_text(
+            json.dumps({"batch_ids": ["batch_a"], "provider": "anthropic"}),
+            encoding="utf-8",
+        )
+        result, provider = _recover_missing_batch_ids(
+            temp_file=temp_file, identifier="doc", persist=False
+        )
+        assert result == {"batch_a"}
+        assert provider == "anthropic"
 
     def test_persist_appends_tracking_records(self, tmp_path):
         temp_file = tmp_path / "doc_temp.jsonl"
         temp_file.write_text("", encoding="utf-8")
         artifact = tmp_path / "doc_batch_submission_debug.json"
-        artifact.write_text(json.dumps({"batch_ids": ["b1"]}), encoding="utf-8")
+        artifact.write_text(
+            json.dumps({"batch_ids": ["b1"], "provider": "google"}),
+            encoding="utf-8",
+        )
 
         _recover_missing_batch_ids(temp_file=temp_file, identifier="doc", persist=True)
         content = temp_file.read_text(encoding="utf-8").strip()
         assert content, "persist=True must append a tracking record"
         record = json.loads(content)
         assert record["batch_tracking"]["batch_id"] == "b1"
+        assert record["batch_tracking"]["provider"] == "google"
 
 
 @pytest.mark.unit
@@ -213,3 +234,30 @@ class TestLoadConfigIntegration:
         assert all(len(entry) == 3 for entry in repo_info_list)
         assert isinstance(settings, dict)
         assert "retain_temporary_jsonl" in settings
+
+
+@pytest.mark.unit
+class TestRetrieveResponsesPropagatesDownloadFailure:
+    """Regression: a mid-stream download failure must propagate, not return a
+    partial list. Returning partial responses let finalization write them as
+    the complete result set and delete the temp files and remote outputs,
+    making the un-retrieved chunks unrecoverable."""
+
+    def test_download_error_reraises(self, tmp_path, monkeypatch):
+        from unittest.mock import MagicMock
+
+        import modules.batch.ops as ops
+        from modules.batch.backends import BatchResultItem
+
+        def _streaming_then_drop(handle):
+            yield BatchResultItem(custom_id="doc-chunk-1", content="ok")
+            raise ConnectionError("stream dropped mid-download")
+
+        backend = MagicMock()
+        backend.download_results.side_effect = _streaming_then_drop
+        monkeypatch.setattr(ops, "get_batch_backend", lambda provider: backend)
+
+        with pytest.raises(ConnectionError):
+            ops.retrieve_responses_from_batch(
+                {"batch_id": "b1", "provider": "openai"}, tmp_path, {}
+            )

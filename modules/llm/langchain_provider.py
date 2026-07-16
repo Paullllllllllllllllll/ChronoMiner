@@ -572,13 +572,24 @@ class LangChainLLM:
                 else:
                     anthropic_params.pop("temperature", None)
 
-            # Add extended thinking for Anthropic when reasoning is configured (CM-4)
+            # Add extended thinking for Anthropic when reasoning is configured
+            # (CM-4). Adaptive-thinking models (supports_sampler_controls=False,
+            # e.g. claude-sonnet-5, claude-opus-4.7/4.8, claude-fable-5) reject
+            # thinking budget_tokens and temperature with HTTP 400 (see the
+            # capability registry); they think adaptively by default, so the
+            # explicit budget block is only sent to budget-thinking models.
             reasoning_config = self.config.extra_params.get("reasoning_config", {})
-            if (
+            reasoning_requested = bool(
                 reasoning_config
                 and reasoning_config.get("effort")
                 and reasoning_config.get("effort") != "none"
-            ):
+            )
+            if reasoning_requested and not caps.supports_sampler_controls:
+                logger.info(
+                    f"Model {self.config.model} uses adaptive thinking; "
+                    "skipping explicit thinking budget_tokens/temperature."
+                )
+            if reasoning_requested and caps.supports_sampler_controls:
                 effort = reasoning_config.get("effort", "medium")
                 budget = _compute_reasoning_budget(
                     max_tokens=max_tokens, effort=str(effort)

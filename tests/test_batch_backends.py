@@ -1083,5 +1083,150 @@ class TestAnthropicErrorUnwrap:
         assert results[0].error_code == "invalid_request_error"
 
 
+class TestEmptyContentBatchResults:
+    """Regression: a transport-level success with no extractable text must be
+    reported as a failure in EVERY backend (the guard existed only on the
+    Google file-results path). A success with empty content is written as a
+    completed empty record, is skipped on resume, and its chunk is lost."""
+
+    def setup_method(self):
+        clear_backend_cache()
+
+    @patch("openai.OpenAI")
+    def test_openai_incomplete_body_without_text_marks_failure(
+        self, mock_openai_class
+    ):
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        mock_batch = MagicMock()
+        mock_batch.output_file_id = "output-file-1"
+        mock_client.batches.retrieve.return_value = mock_batch
+
+        mock_stream = MagicMock()
+        mock_stream.read.return_value = json.dumps(
+            {
+                "custom_id": "doc-chunk-1",
+                "response": {
+                    "status_code": 200,
+                    "body": {
+                        # Reasoning consumed max_output_tokens: no message item.
+                        "status": "incomplete",
+                        "output": [{"type": "reasoning"}],
+                    },
+                },
+            }
+        ).encode("utf-8")
+        mock_client.files.content.return_value = mock_stream
+
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+            backend = get_batch_backend("openai")
+            handle = BatchHandle(provider="openai", batch_id="batch-123")
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        assert results[0].success is False
+        assert "incomplete" in (results[0].error or "")
+
+    @patch("anthropic.Anthropic")
+    def test_anthropic_message_without_text_blocks_marks_failure(
+        self, mock_anthropic_class
+    ):
+        mock_client = MagicMock()
+        mock_anthropic_class.return_value = mock_client
+
+        thinking_block = MagicMock()
+        thinking_block.type = "thinking"
+        message = MagicMock()
+        message.content = [thinking_block]
+        message.stop_reason = "max_tokens"
+        message.usage = None
+
+        fake_result_data = MagicMock()
+        fake_result_data.type = "succeeded"
+        fake_result_data.message = message
+
+        fake_result = MagicMock()
+        fake_result.custom_id = "doc-chunk-1"
+        fake_result.result = fake_result_data
+
+        mock_client.messages.batches.results.return_value = iter([fake_result])
+
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+            backend = get_batch_backend("anthropic")
+            handle = BatchHandle(provider="anthropic", batch_id="batch-1")
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        assert results[0].success is False
+        assert "max_tokens" in (results[0].error or "")
+
+    @patch("anthropic.Anthropic")
+    def test_anthropic_succeeded_without_message_marks_failure(
+        self, mock_anthropic_class
+    ):
+        mock_client = MagicMock()
+        mock_anthropic_class.return_value = mock_client
+
+        fake_result_data = MagicMock()
+        fake_result_data.type = "succeeded"
+        fake_result_data.message = None
+
+        fake_result = MagicMock()
+        fake_result.custom_id = "doc-chunk-1"
+        fake_result.result = fake_result_data
+
+        mock_client.messages.batches.results.return_value = iter([fake_result])
+
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}):
+            backend = get_batch_backend("anthropic")
+            handle = BatchHandle(provider="anthropic", batch_id="batch-1")
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        assert results[0].success is False
+        assert results[0].error is not None
+
+    def test_google_inline_response_without_text_marks_failure(self):
+        import sys
+
+        mock_genai = MagicMock()
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        inline_response = MagicMock()
+        inline_response.error = None
+        mock_response = MagicMock()
+        mock_response.text = ""
+        inline_response.response = mock_response
+
+        mock_dest = MagicMock(spec=["inlined_responses"])
+        mock_dest.inlined_responses = [inline_response]
+        mock_batch_job = MagicMock()
+        mock_batch_job.dest = mock_dest
+        mock_client.batches.get.return_value = mock_batch_job
+
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}),
+            patch.dict(
+                sys.modules, {"google": mock_google, "google.genai": mock_genai}
+            ),
+        ):
+            backend = get_batch_backend("google")
+            handle = BatchHandle(
+                provider="google",
+                batch_id="batch-123",
+                metadata={"custom_id_map": {"doc-chunk-1": 0}},
+            )
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        assert results[0].success is False
+        assert "No text content" in (results[0].error or "")
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

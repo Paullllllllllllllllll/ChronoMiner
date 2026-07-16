@@ -857,3 +857,71 @@ class TestCM11GatherReturnExceptions:
             "process_text_files must type-check gather results against "
             "Exception to log rather than silently drop failures"
         )
+
+
+class TestAnthropicAdaptiveThinkingGate:
+    """Regression: adaptive-thinking Claude models (supports_sampler_controls
+    False, e.g. claude-sonnet-5) reject thinking budget_tokens and temperature
+    with HTTP 400; the explicit thinking block must not be sent to them."""
+
+    @pytest.mark.unit
+    def test_adaptive_model_gets_no_thinking_budget_or_temperature(self):
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
+
+        config = ProviderConfig(
+            provider="anthropic",
+            model="claude-sonnet-5",
+            api_key="test-key",
+            max_tokens=10000,
+            extra_params={
+                "reasoning_config": {"effort": "high"},
+                "reasoning_effort": "high",
+            },
+        )
+        llm = LangChainLLM(config)
+
+        with patch("langchain_anthropic.ChatAnthropic") as MockAnthropic:
+            MockAnthropic.return_value = MagicMock()
+            llm._create_chat_model()
+            call_kwargs = MockAnthropic.call_args[1]
+            assert "thinking" not in call_kwargs
+            assert "temperature" not in call_kwargs
+
+    @pytest.mark.unit
+    def test_budget_thinking_model_still_gets_thinking(self):
+        """The gate must not disable thinking for budget-thinking models."""
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
+
+        config = ProviderConfig(
+            provider="anthropic",
+            model="claude-sonnet-4-5",
+            api_key="test-key",
+            max_tokens=10000,
+            extra_params={
+                "reasoning_config": {"effort": "high"},
+                "reasoning_effort": "high",
+            },
+        )
+        llm = LangChainLLM(config)
+
+        with patch("langchain_anthropic.ChatAnthropic") as MockAnthropic:
+            MockAnthropic.return_value = MagicMock()
+            llm._create_chat_model()
+            call_kwargs = MockAnthropic.call_args[1]
+            assert "thinking" in call_kwargs
+            assert call_kwargs["thinking"]["budget_tokens"] > 0
+
+
+class TestNumericConfigCoercion:
+    """Regression: a present-but-null YAML numeric key (``temperature:`` with
+    no value) must fall back to the default instead of ``float(None)``."""
+
+    @pytest.mark.unit
+    def test_null_values_fall_back_to_defaults(self):
+        from modules.llm.openai_utils import _numeric
+
+        tm = {"temperature": None, "max_output_tokens": None, "top_p": 0.5}
+        assert _numeric(tm, "temperature", 0.0) == 0.0
+        assert _numeric(tm, "max_output_tokens", 4096) == 4096
+        assert _numeric(tm, "top_p", 1.0) == 0.5
+        assert _numeric(tm, "absent_key", 2.5) == 2.5

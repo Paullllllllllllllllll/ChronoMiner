@@ -472,6 +472,22 @@ class OpenAIBatchBackend(BatchBackend):
                         result_item.input_tokens = usage.get("input_tokens", 0)
                         result_item.output_tokens = usage.get("output_tokens", 0)
 
+            # A transport-level success with no extractable text (e.g.
+            # body.status "incomplete" after the reasoning budget consumed
+            # max_output_tokens) must not be reported as a successful empty
+            # extraction; doing so silently corrupts downstream aggregation
+            # and the chunk would never be retried on resume.
+            if result_item.success and not result_item.content:
+                body_status = None
+                resp_body = resp.get("body") if isinstance(resp, dict) else None
+                if isinstance(resp_body, dict):
+                    body_status = resp_body.get("status")
+                result_item.success = False
+                result_item.error = (
+                    "No text content in OpenAI batch response "
+                    f"(status={body_status or 'unknown'})"
+                )
+
             yield result_item
 
     def cancel(self, handle: BatchHandle) -> bool:

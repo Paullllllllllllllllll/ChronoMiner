@@ -299,9 +299,24 @@ class AnthropicBatchBackend(BatchBackend):
                             result_item.output_tokens = getattr(
                                 usage, "output_tokens", 0
                             )
+
+                        # A message with no text blocks (e.g. stop_reason
+                        # max_tokens after thinking-only output) must not be
+                        # reported as a successful empty extraction; the
+                        # chunk would be marked complete and never retried.
+                        if not result_item.content:
+                            stop_reason = getattr(message, "stop_reason", None)
+                            result_item.success = False
+                            result_item.error = (
+                                "No text content in Anthropic batch response "
+                                f"(stop_reason={stop_reason or 'unknown'})"
+                            )
                     else:
-                        result_item.success = True
-                        result_item.content = ""
+                        result_item.success = False
+                        result_item.error = (
+                            "Anthropic batch result succeeded but carried "
+                            "no message"
+                        )
 
                 elif result_type == "errored":
                     # result_data.error is an ErrorResponse wrapping the actual
