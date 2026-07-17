@@ -109,7 +109,7 @@ class PDFProcessor:
         pix = page.get_pixmap(
             matrix=fitz.Matrix(effective_dpi / 72, effective_dpi / 72), alpha=False
         )
-        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+        img = Image.frombytes("RGB", (pix.width, pix.height), pix.samples_mv)
         # Image.frombytes copies the buffer; drop the pixmap immediately so
         # only one full-resolution copy of the page stays alive.
         del pix

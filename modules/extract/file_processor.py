@@ -452,7 +452,10 @@ class FileProcessor:
             build_image_provenance,
             stream_page_payloads,
         )
-        from modules.images.page_stream import resolve_image_section
+        from modules.images.page_stream import (
+            resolve_image_section,
+            resolve_target_dpi,
+        )
 
         messenger = _MessagingAdapter()
         messenger.info(f"Processing visual file: {file_path.name}")
@@ -500,7 +503,7 @@ class FileProcessor:
             except Exception as e:
                 messenger.error(f"Failed to open PDF {file_path.name}: {e}", exc_info=e)
                 return "failed"
-            target_dpi = int(image_config.get("target_dpi", 300))
+            target_dpi = resolve_target_dpi(image_config, provider, model_name)
             messenger.info(
                 f"PDF has {page_count} page(s); streaming at {target_dpi} DPI"
             )

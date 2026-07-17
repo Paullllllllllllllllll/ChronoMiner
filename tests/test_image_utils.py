@@ -162,6 +162,98 @@ class TestResizeForDetail:
         assert result.mode == "L"
 
 
+class TestComputeResizeScale:
+    """The downscale ratio must mirror what resize_for_detail applies."""
+
+    def test_none_profile_no_scale(self):
+        cfg = {"resize_profile": "none"}
+        assert ImageProcessor.compute_resize_scale(5000, 3000, "high", cfg) == 1.0
+
+    def test_low_scale(self):
+        cfg = {"low_max_side_px": 512}
+        assert ImageProcessor.compute_resize_scale(1000, 800, "low", cfg) == 512 / 1000
+
+    def test_low_no_upscale(self):
+        cfg = {"low_max_side_px": 512}
+        assert ImageProcessor.compute_resize_scale(200, 100, "low", cfg) == 1.0
+
+    def test_original_within_caps(self):
+        cfg = {"original_max_side_px": 6000, "original_max_pixels": 10240000}
+        assert ImageProcessor.compute_resize_scale(1000, 800, "original", cfg) == 1.0
+
+    def test_original_pixel_cap_binds(self):
+        cfg = {"original_max_side_px": 6000, "original_max_pixels": 10240000}
+        # 8000x4000 = 32 MP > 6000 side and > 10.24 MP: pixel cap is tighter
+        scale = ImageProcessor.compute_resize_scale(8000, 4000, "original", cfg)
+        assert scale == pytest.approx((10240000 / (8000 * 4000)) ** 0.5)
+
+    def test_anthropic_high_uses_high_max_side(self):
+        cfg = {"high_max_side_px": 2576}
+        scale = ImageProcessor.compute_resize_scale(
+            3000, 2000, "high", cfg, model_type="anthropic"
+        )
+        assert scale == 2576 / 3000
+
+    def test_box_fit_downscale(self):
+        cfg = {"high_target_box": [768, 1536]}
+        scale = ImageProcessor.compute_resize_scale(
+            1536, 2000, "high", cfg, model_type="openai"
+        )
+        assert scale == 0.5
+
+    def test_box_fit_clamped_no_upscale(self):
+        cfg = {"high_target_box": [768, 1536]}
+        scale = ImageProcessor.compute_resize_scale(
+            400, 300, "high", cfg, model_type="openai"
+        )
+        assert scale == 1.0
+
+
+class TestComputeDirectRenderDpi:
+    _ORIG_CFG = {
+        "resize_profile": "original",
+        "original_max_side_px": 6000,
+        "original_max_pixels": 10240000,
+    }
+
+    def test_within_caps_keeps_target_dpi(self):
+        # US Letter at 300 DPI = 2550x3300 = 8.4 MP, under all caps.
+        dpi = ImageProcessor.compute_direct_render_dpi(
+            612, 792, 300, "original", self._ORIG_CFG
+        )
+        assert dpi == 300
+
+    def test_never_exceeds_target_dpi(self):
+        # Tiny page would "want" a higher DPI for the box, but render never
+        # upscales past target.
+        cfg = {"resize_profile": "auto", "high_target_box": [768, 1536]}
+        dpi = ImageProcessor.compute_direct_render_dpi(
+            100, 100, 300, "high", cfg, model_type="openai"
+        )
+        assert dpi == 300
+
+    def test_oversized_page_reduces_dpi(self):
+        # Large fold-out: 1400x1000 pt at 300 DPI = 5833x4166 = 24.3 MP,
+        # exceeds the 10.24 MP original pixel cap -> DPI drops.
+        dpi = ImageProcessor.compute_direct_render_dpi(
+            1400, 1000, 300, "original", self._ORIG_CFG
+        )
+        assert dpi < 300
+        # Rendered pixels at the derived DPI stay within the cap.
+        w = 1400 / 72 * dpi
+        h = 1000 / 72 * dpi
+        assert w * h <= 10240000 * 1.02  # rounding tolerance
+
+    def test_anthropic_caps_long_edge(self):
+        cfg = {"resize_profile": "auto", "high_max_side_px": 2576}
+        # 800x600 pt at 300 DPI = 3333x2500; long edge 3333 > 2576 -> reduce.
+        dpi = ImageProcessor.compute_direct_render_dpi(
+            800, 600, 300, "auto", cfg, model_type="anthropic"
+        )
+        assert dpi < 300
+        assert max(800 / 72 * dpi, 600 / 72 * dpi) <= 2576 * 1.02
+
+
 class TestImageProcessorInit:
     def test_unsupported_extension_raises(self, tmp_path):
         bad_path = tmp_path / "test.doc"

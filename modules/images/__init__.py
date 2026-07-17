@@ -21,6 +21,8 @@ from modules.images.page_stream import (
     PageError,
     PagePayload,
     build_image_provenance,
+    resolve_image_section,
+    resolve_target_dpi,
     stream_page_payloads,
 )
 from modules.images.pdf_utils import PDFProcessor
@@ -37,5 +39,7 @@ __all__ = [
     "encode_bytes_to_base64",
     "encode_image_to_base64",
     "get_image_config_section_name",
+    "resolve_image_section",
+    "resolve_target_dpi",
     "stream_page_payloads",
 ]

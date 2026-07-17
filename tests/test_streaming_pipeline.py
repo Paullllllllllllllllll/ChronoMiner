@@ -27,6 +27,7 @@ from modules.images.page_stream import (
     PageError,
     PagePayload,
     build_image_provenance,
+    resolve_target_dpi,
     stream_page_payloads,
 )
 
@@ -271,6 +272,113 @@ def test_build_image_provenance(tmp_path: Path) -> None:
     assert cfg["resize_profile"] == "original"
     assert cfg["jpeg_quality"] == 90
     assert cfg["detail"] == "high"
+
+
+# ---------------------------------------------------------------------------
+# Per-provider target_dpi resolution
+# ---------------------------------------------------------------------------
+
+
+def test_resolve_target_dpi_prefers_provider_section() -> None:
+    cfg = {
+        "target_dpi": 300,
+        "custom_image_processing": {"target_dpi": 150},
+    }
+    # Custom endpoint's 150 DPI is now honored (previously silently ignored).
+    assert resolve_target_dpi(cfg, "custom", "local-model") == 150
+
+
+def test_resolve_target_dpi_falls_back_to_top_level() -> None:
+    cfg = {"target_dpi": 220, "api_image_processing": {}}
+    assert resolve_target_dpi(cfg, "openai", "gpt-5-mini") == 220
+
+
+def test_resolve_target_dpi_defaults_to_300() -> None:
+    assert resolve_target_dpi({}, "openai", "gpt-5-mini") == 300
+
+
+# ---------------------------------------------------------------------------
+# Direct render strategy
+# ---------------------------------------------------------------------------
+
+
+# Config exercising the shipped OpenAI "original" profile (not the box-fit
+# high path), where the direct/supersample byte-equivalence guarantee holds.
+_ORIGINAL_CONFIG: dict[str, Any] = {
+    "target_dpi": 300,
+    "max_pixels_per_page": 0,
+    "api_image_processing": {
+        "grayscale_conversion": False,
+        "handle_transparency": True,
+        "jpeg_quality": 90,
+        "resize_profile": "original",
+        "llm_detail": "original",
+        "original_max_side_px": 6000,
+        "original_max_pixels": 10240000,
+    },
+}
+
+
+@pytest.mark.asyncio
+async def test_direct_matches_supersample_when_within_caps(tmp_path: Path) -> None:
+    """Small page under the original caps: direct == supersample, byte-exact."""
+    pdf_path = tmp_path / "doc.pdf"
+    _make_pdf(pdf_path, pages=1)
+
+    base = dict(_ORIGINAL_CONFIG)
+
+    async def _render(strategy: str) -> PagePayload:
+        cfg = dict(base)
+        cfg["render_strategy"] = strategy
+        payloads = [
+            p
+            async for p in stream_page_payloads(
+                file_path=pdf_path,
+                page_indices=[1],
+                image_config=cfg,
+                provider="openai",
+                model_name="gpt-5-mini",
+                image_detail="high",
+            )
+        ]
+        assert isinstance(payloads[0], PagePayload)
+        return payloads[0]
+
+    direct = await _render("direct")
+    supersample = await _render("supersample")
+    assert direct.effective_dpi == 300
+    assert supersample.effective_dpi == 300
+    assert direct.sha256 == supersample.sha256
+
+
+@pytest.mark.asyncio
+async def test_direct_reduces_dpi_for_oversized_page(tmp_path: Path) -> None:
+    """A page exceeding the original pixel cap renders below target_dpi."""
+    pdf_path = tmp_path / "big.pdf"
+    doc = fitz.open()
+    # 1400x1000 pt at 300 DPI = 24.3 MP > 10.24 MP original cap.
+    doc.new_page(width=1400, height=1000)
+    doc.save(pdf_path)
+    doc.close()
+
+    cfg = dict(_ORIGINAL_CONFIG)
+    cfg["render_strategy"] = "direct"
+
+    payloads = [
+        p
+        async for p in stream_page_payloads(
+            file_path=pdf_path,
+            page_indices=[1],
+            image_config=cfg,
+            provider="openai",
+            model_name="gpt-5-mini",
+            image_detail="high",
+        )
+    ]
+    payload = payloads[0]
+    assert isinstance(payload, PagePayload)
+    assert payload.effective_dpi is not None and payload.effective_dpi < 300
+    assert payload.width * payload.height <= 10240000 * 1.02
 
 
 # ---------------------------------------------------------------------------

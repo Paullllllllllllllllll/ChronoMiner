@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import functools
 import logging
+import re
 from abc import ABC, abstractmethod
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -49,6 +50,24 @@ def _get_encoding_for_model(model_name: str) -> tiktoken.Encoding:
         return tiktoken.encoding_for_model(model_name)
     except (KeyError, ValueError):
         return _get_cl100k_encoding()
+
+
+@functools.lru_cache(maxsize=8)
+def _special_token_pattern(encoding_name: str) -> re.Pattern[str] | None:
+    """Return a compiled alternation matching any special-token string.
+
+    Cached per encoding name. Returns ``None`` when the encoding declares no
+    special tokens. Used to decide whether a text can safely be tokenized with
+    ``encode_ordinary`` (faster, skips the special-token disallow check) without
+    changing behavior: ``encode`` raises ``ValueError`` on a literal special
+    token, whereas ``encode_ordinary`` would silently tokenize it. When no
+    special token is present anywhere, both produce identical token counts.
+    """
+    specials = tiktoken.get_encoding(encoding_name).special_tokens_set
+    if not specials:
+        return None
+    alternation = "|".join(re.escape(tok) for tok in sorted(specials))
+    return re.compile(alternation)
 
 
 # ---------------------------------------------------------------------------
@@ -93,6 +112,13 @@ class TextProcessor:
         if not text:
             return 0
         encoding = _get_cl100k_encoding()
+        # Fast path: when the text contains no literal special-token string,
+        # encode_ordinary yields identical counts and skips the per-call
+        # disallow check. Otherwise fall back to encode so its ValueError is
+        # raised exactly as before.
+        pattern = _special_token_pattern(encoding.name)
+        if pattern is None or pattern.search(text) is None:
+            return len(encoding.encode_ordinary(text))
         return len(encoding.encode(text))
 
 
@@ -125,7 +151,19 @@ class TokenBasedChunking(ChunkingStrategy):
         start_line = 1
         end_line = 1
         tokens_per_chunk = self.tokens_per_chunk
-        encode = _get_encoding_for_model(self.model_name).encode
+        encoding = _get_encoding_for_model(self.model_name)
+        # One pre-scan over the whole text decides the tokenizer for the loop:
+        # if no literal special-token string occurs anywhere, encode_ordinary
+        # gives identical counts and skips the per-line disallow check (faster).
+        # If one is present, use encode so its ValueError is raised at the same
+        # line with the same message as before. Special tokens contain no
+        # newline, so scanning the joined text is equivalent to scanning each
+        # line individually.
+        pattern = _special_token_pattern(encoding.name)
+        if pattern is None or pattern.search("\n".join(lines)) is None:
+            encode = encoding.encode_ordinary
+        else:
+            encode = encoding.encode
 
         for idx, line in enumerate(lines, 1):
             # Count the newline too: chunks are joined with "\n" downstream

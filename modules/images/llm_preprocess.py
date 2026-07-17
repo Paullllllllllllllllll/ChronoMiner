@@ -124,6 +124,107 @@ class ImageProcessor:
         return image
 
     @staticmethod
+    def _normalize_detail(detail: str) -> str:
+        """Normalize a detail string to the set understood by resizing."""
+        detail_norm = (detail or "high").lower()
+        if detail_norm not in (
+            "low",
+            "high",
+            "auto",
+            "medium",
+            "ultra_high",
+            "original",
+        ):
+            detail_norm = "high"
+        return detail_norm
+
+    @staticmethod
+    def compute_resize_scale(
+        width_px: float,
+        height_px: float,
+        detail: str,
+        img_cfg: dict,
+        model_type: str = "openai",
+    ) -> float:
+        """Return the downscale ratio ``resize_for_detail`` would apply.
+
+        Given the pixel dimensions of a render, report the linear scale factor
+        (``<= 1.0``; the resize pipeline never upscales content it is fed) that
+        the active resize profile would apply to that render. This is the sole
+        knowledge the "direct" render strategy needs to rasterize a page at the
+        final target size instead of rendering high and downscaling afterwards.
+
+        For the white-padded box-fit profiles (OpenAI/Google high) the ratio is
+        the fit-into-box scale clamped to ``1.0``: a page smaller than the box
+        is left for :meth:`resize_for_detail` to upscale and pad, since the
+        render itself must never exceed ``target_dpi``.
+        """
+        resize_profile = (img_cfg.get("resize_profile", "auto") or "auto").lower()
+        if resize_profile == "none":
+            return 1.0
+        if width_px <= 0 or height_px <= 0:
+            return 1.0
+        detail_norm = ImageProcessor._normalize_detail(detail)
+        longest = max(width_px, height_px)
+
+        if detail_norm == "low":
+            max_side = int(img_cfg.get("low_max_side_px", 512))
+            return min(1.0, max_side / longest)
+
+        if detail_norm == "original":
+            max_side = int(img_cfg.get("original_max_side_px", 6000))
+            max_pixels = int(img_cfg.get("original_max_pixels", 10240000))
+            ratio = 1.0
+            if longest > max_side:
+                ratio = min(ratio, max_side / longest)
+            pixels = width_px * height_px
+            if pixels > max_pixels:
+                ratio = min(ratio, (max_pixels / pixels) ** 0.5)
+            return ratio
+
+        if model_type == "anthropic":
+            max_side = int(img_cfg.get("high_max_side_px", 1568))
+            return min(1.0, max_side / longest)
+
+        # OpenAI/Google high: fit into box (clamped; render never upscales)
+        box = img_cfg.get("high_target_box", [768, 1536])
+        try:
+            box_w = int(box[0])
+            box_h = int(box[1])
+        except Exception:
+            box_w, box_h = 768, 1536
+        scale = min(box_w / width_px, box_h / height_px)
+        return min(1.0, scale)
+
+    @staticmethod
+    def compute_direct_render_dpi(
+        page_width_pt: float,
+        page_height_pt: float,
+        target_dpi: int,
+        detail: str,
+        img_cfg: dict,
+        model_type: str = "openai",
+    ) -> int:
+        """Derive the DPI at which to rasterize a page under "direct" strategy.
+
+        Rendering directly at this DPI produces a page whose pixel dimensions
+        already match what the resize profile would downscale a full
+        ``target_dpi`` render to, avoiding the wasted work of rendering high
+        and shrinking. The DPI never exceeds ``target_dpi`` (no render
+        upscaling; matches the no-upscale semantics of the resize pipeline), so
+        when the resize profile would not shrink the page the render is left at
+        ``target_dpi`` and the payload is byte-identical to the supersample
+        path.
+        """
+        zoom = target_dpi / 72.0
+        width_px = page_width_pt * zoom
+        height_px = page_height_pt * zoom
+        ratio = ImageProcessor.compute_resize_scale(
+            width_px, height_px, detail, img_cfg, model_type
+        )
+        return max(1, round(target_dpi * ratio))
+
+    @staticmethod
     def _cap_longest_side(image: Image.Image, max_side: int) -> Image.Image:
         """Downscale so the longest side is at most ``max_side`` (no upscaling)."""
         w, h = image.size
@@ -151,16 +252,7 @@ class ImageProcessor:
         resize_profile = (img_cfg.get("resize_profile", "auto") or "auto").lower()
         if resize_profile == "none":
             return image
-        detail_norm = (detail or "high").lower()
-        if detail_norm not in (
-            "low",
-            "high",
-            "auto",
-            "medium",
-            "ultra_high",
-            "original",
-        ):
-            detail_norm = "high"
+        detail_norm = ImageProcessor._normalize_detail(detail)
 
         # Low detail: cap longest side (same for all providers)
         if detail_norm == "low":

@@ -12,6 +12,17 @@
 # PDF rendering resolution
 target_dpi: 300
 
+# Render strategy for PDF pages:
+#   direct      - rasterize each page straight at the size the active resize
+#                 profile targets (never above target_dpi), skipping the wasted
+#                 work of rendering high then downscaling. Providers downscale
+#                 server-side above their caps anyway, so pixels beyond the cap
+#                 are discarded. Payload is byte-identical to supersample
+#                 whenever the target_dpi render already fits the profile caps.
+#   supersample - always render at target_dpi, then LANCZOS-downscale in the
+#                 resize step (legacy behavior).
+render_strategy: direct
+
 # Maximum pixel count per rendered page before automatic DPI reduction.
 # When a page would exceed this budget at target_dpi, DPI is scaled down just
 # enough to stay within the limit. Set to 0 to disable.
@@ -43,7 +54,10 @@ anthropic_image_processing:
   handle_transparency: true
   jpeg_quality: 95
   resize_profile: auto
-  high_max_side_px: 1568
+  # High-res tier models only (Claude Opus 4.7+/Sonnet 5): ~3x image-token
+  # cost vs 1568. Older Claude models are server-side downscaled to 1568
+  # anyway, so raising this above 1568 only pays off on the newer models.
+  high_max_side_px: 2576
   low_max_side_px: 512
 
 # =============================================================================

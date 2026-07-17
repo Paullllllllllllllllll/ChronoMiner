@@ -150,12 +150,29 @@ async def stream_page_payloads(
     ext = file_path.suffix.lower()
 
     if ext in SUPPORTED_PDF_EXTENSIONS:
-        target_dpi = int(image_config.get("target_dpi", 300))
+        target_dpi = resolve_target_dpi(image_config, provider, model_name)
         max_pixels = int(image_config.get("max_pixels_per_page", 0))
+        render_strategy = str(
+            image_config.get("render_strategy", "direct") or "direct"
+        ).lower()
+        # Detail actually driving the resize profile (may differ from the
+        # detail recorded on the payload); needed to derive the direct DPI.
+        resize_detail = processor._effective_detail()
 
         def _render_and_process(page_number: int) -> PagePayload:
+            render_dpi = target_dpi
+            if render_strategy == "direct":
+                rect = pdf.doc[page_number - 1].rect  # type: ignore[index]
+                render_dpi = ImageProcessor.compute_direct_render_dpi(
+                    rect.width,
+                    rect.height,
+                    target_dpi,
+                    resize_detail,
+                    processor.img_cfg,
+                    processor.model_type,
+                )
             img, effective_dpi = pdf.render_page_with_dpi(
-                page_number - 1, target_dpi, max_pixels=max_pixels
+                page_number - 1, render_dpi, max_pixels=max_pixels
             )
             try:
                 return _payload_from_pil(
@@ -200,6 +217,22 @@ def resolve_image_section(
     model_type = detect_model_type(provider, model_name)
     section_name = get_image_config_section_name(model_type)
     return image_config.get(section_name, {})
+
+
+def resolve_target_dpi(
+    image_config: dict[str, Any], provider: str, model_name: str
+) -> int:
+    """Resolve the render DPI for the active provider.
+
+    Prefers a ``target_dpi`` in the provider-specific section, falls back to
+    the top-level ``target_dpi``, then to 300. This mirrors ChronoTranscriber's
+    ``resolve_image_settings`` and makes per-provider overrides (e.g. the
+    custom endpoint's 150 DPI) actually take effect.
+    """
+    section = resolve_image_section(image_config, provider, model_name)
+    if section.get("target_dpi") is not None:
+        return int(section["target_dpi"])
+    return int(image_config.get("target_dpi", 300))
 
 
 def build_image_provenance(

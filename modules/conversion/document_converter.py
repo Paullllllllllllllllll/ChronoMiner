@@ -172,6 +172,7 @@ class DocumentConverter(BaseConverter):
         by bullet-pointed summaries. The keywords are formatted in italic
         (without asterisks).
         """
+        list_bullet = document.styles["List Bullet"]
         literature_set = set()
         for entry in entries:
             page = entry.get("page")
@@ -190,7 +191,7 @@ class DocumentConverter(BaseConverter):
             # For keywords: add a bullet point with italic text, without asterisks.
             if keywords and isinstance(keywords, list):
                 formatted_keywords = ", ".join(kw for kw in keywords if kw)
-                p_keyword = document.add_paragraph(style="List Bullet")
+                p_keyword = document.add_paragraph(style=list_bullet)
                 p_keyword.add_run("Keywords: ")
                 run_keywords = p_keyword.add_run(formatted_keywords)
                 run_keywords.italic = True
@@ -199,7 +200,7 @@ class DocumentConverter(BaseConverter):
             if bullet_points and isinstance(bullet_points, list):
                 for bp in bullet_points:
                     if bp:
-                        p_bp = document.add_paragraph(style="List Bullet")
+                        p_bp = document.add_paragraph(style=list_bullet)
                         p_bp.add_run(str(bp))
             else:
                 document.add_paragraph("No bullet points available.")
@@ -207,7 +208,7 @@ class DocumentConverter(BaseConverter):
             # Add literature references if available.
             if literature and isinstance(literature, list):
                 formatted_refs = ", ".join(str(ref) for ref in literature if ref)
-                p_ref = document.add_paragraph(style="List Bullet")
+                p_ref = document.add_paragraph(style=list_bullet)
                 p_ref.add_run(f"References: {formatted_refs}")
 
             # Accumulate literature for the consolidated literature section.
@@ -224,11 +225,12 @@ class DocumentConverter(BaseConverter):
             document.add_page_break()
             document.add_heading("Literature", level=1)
             for lit in sorted(literature_set):
-                document.add_paragraph(str(lit), style="List Bullet")
+                document.add_paragraph(str(lit), style=list_bullet)
 
     def _convert_bibliographic_entries_to_docx(
         self, entries: list[Any], document: _DocxDocument
     ) -> None:
+        list_bullet = document.styles["List Bullet"]
         for entry in entries:
             # Extract primary entry data
             full_title = entry.get("full_title", "Unknown")
@@ -358,10 +360,10 @@ class DocumentConverter(BaseConverter):
                     if short_note:
                         edition_text += f"\nNote: {short_note}"
 
-                    document.add_paragraph(edition_text, style="List Bullet")
+                    document.add_paragraph(edition_text, style=list_bullet)
             else:
                 document.add_paragraph(
-                    "No edition information available.", style="List Bullet"
+                    "No edition information available.", style=list_bullet
                 )
 
             document.add_page_break()
@@ -374,6 +376,7 @@ class DocumentConverter(BaseConverter):
             "Place": "place_entry",
             "Work": "work_entry",
         }
+        list_bullet = document.styles["List Bullet"]
 
         for entry in entries:
             if not isinstance(entry, dict):
@@ -454,7 +457,7 @@ class DocumentConverter(BaseConverter):
             if associations:
                 document.add_paragraph("Associations:")
                 for assoc in associations:
-                    document.add_paragraph(assoc, style="List Bullet")
+                    document.add_paragraph(assoc, style=list_bullet)
 
             document.add_page_break()
 
@@ -789,6 +792,7 @@ class DocumentConverter(BaseConverter):
     ) -> None:
         """Converts culinary persons entries to DOCX format."""
         entries = self._normalize_entries(entries)
+        list_bullet = document.styles["List Bullet"]
         for entry in entries:
             name = entry.get("canonical_name_original", "Unknown")
             document.add_heading(name, level=1)
@@ -815,7 +819,7 @@ class DocumentConverter(BaseConverter):
                 for work in associated_works:
                     title = work.get("title_original", "")
                     role = work.get("role", "")
-                    document.add_paragraph(f"{title} ({role})", style="List Bullet")
+                    document.add_paragraph(f"{title} ({role})", style=list_bullet)
 
             associated_places = entry.get("associated_places", [])
             if associated_places:
@@ -824,7 +828,7 @@ class DocumentConverter(BaseConverter):
                     place_name = place.get("place_original", "")
                     assoc_type = place.get("association_type", "")
                     document.add_paragraph(
-                        f"{place_name} - {assoc_type}", style="List Bullet"
+                        f"{place_name} - {assoc_type}", style=list_bullet
                     )
 
             notes = entry.get("notes")
@@ -839,6 +843,7 @@ class DocumentConverter(BaseConverter):
     ) -> None:
         """Converts culinary places entries to DOCX format."""
         entries = self._normalize_entries(entries)
+        list_bullet = document.styles["List Bullet"]
         for entry in entries:
             name = entry.get("name_original", "Unknown")
             document.add_heading(name, level=1)
@@ -866,13 +871,13 @@ class DocumentConverter(BaseConverter):
             if products:
                 document.add_heading("Associated Products", level=2)
                 for product in products:
-                    document.add_paragraph(product, style="List Bullet")
+                    document.add_paragraph(product, style=list_bullet)
 
             establishments = entry.get("notable_establishments", [])
             if establishments:
                 document.add_heading("Notable Establishments", level=2)
                 for est in establishments:
-                    document.add_paragraph(est, style="List Bullet")
+                    document.add_paragraph(est, style=list_bullet)
 
             notes = entry.get("notes")
             if notes:
@@ -886,6 +891,7 @@ class DocumentConverter(BaseConverter):
     ) -> None:
         """Converts culinary works entries to DOCX format."""
         entries = self._normalize_entries(entries)
+        list_bullet = document.styles["List Bullet"]
         for entry in entries:
             title = entry.get("title_original", "Unknown")
             document.add_heading(title, level=1)
@@ -925,14 +931,14 @@ class DocumentConverter(BaseConverter):
                 for contrib in contributors:
                     name = contrib.get("name_original", "")
                     role = contrib.get("role", "")
-                    document.add_paragraph(f"{name} ({role})", style="List Bullet")
+                    document.add_paragraph(f"{name} ({role})", style=list_bullet)
 
             pub_places = entry.get("publication_places", [])
             if pub_places:
                 document.add_heading("Publication Places", level=2)
                 for place in pub_places:
                     place_name = place.get("name_original", "")
-                    document.add_paragraph(place_name, style="List Bullet")
+                    document.add_paragraph(place_name, style=list_bullet)
 
             notes = entry.get("notes")
             if notes:
@@ -1376,6 +1382,7 @@ class DocumentConverter(BaseConverter):
     ) -> None:
         """Converts HistoricalRecipesEntriesProduction entries to DOCX (schema v1.2)."""
         entries = self._normalize_entries(entries)
+        list_bullet = document.styles["List Bullet"]
         for entry in entries:
             title = entry.get("title_original", "Unknown Recipe")
             document.add_heading(title, level=1)
@@ -1424,7 +1431,7 @@ class DocumentConverter(BaseConverter):
                     )
                     if ratings:
                         ing_text += f" [{ratings}]"
-                    document.add_paragraph(ing_text, style="List Bullet")
+                    document.add_paragraph(ing_text, style=list_bullet)
 
             # Cooking methods with per-method complexity rating
             methods = entry.get("cooking_methods", [])
@@ -1438,7 +1445,7 @@ class DocumentConverter(BaseConverter):
                     method_text = method_name
                     if complexity is not None:
                         method_text += f" [Complexity: {complexity}]"
-                    document.add_paragraph(method_text, style="List Bullet")
+                    document.add_paragraph(method_text, style=list_bullet)
 
             # Culinary style
             culinary_style = entry.get("culinary_style", {}) or {}

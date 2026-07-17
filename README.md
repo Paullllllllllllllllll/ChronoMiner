@@ -1,4 +1,4 @@
-# ChronoMiner v2.1.5
+# ChronoMiner v2.2.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -386,9 +386,19 @@ anthropic_image_processing:
 google_image_processing:
   media_resolution: high    # Google Gemini
 target_dpi: 300             # PDF-to-image rendering
+render_strategy: direct     # direct: render at the profile's target
+                            # size (default); supersample: render high
+                            # then downscale (legacy)
 max_pixels_per_page: 24000000  # Per-page render budget (auto DPI
                                # reduction above this)
 ```
+
+Under `direct` (the default), each page is rasterized straight at the
+size the active provider profile targets rather than rendered high and
+downscaled, so pages are produced faster with no quality loss (providers
+downscale server-side above their caps regardless). When a page already
+fits the profile's caps at `target_dpi`, the payload is byte-identical to
+the legacy `supersample` path.
 
 PDF pages are rendered, preprocessed, and encoded one at a time
 (streaming), so memory usage stays constant regardless of document
@@ -788,6 +798,23 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.2.0** (17 July 2026) -- Performance release for local file I/O, image
+    processing, and hot-path Python; API concurrency and payload semantics
+    for in-cap pages are unchanged. PDF rasterization uses zero-copy pixel
+    buffers (~29 percent faster, pixels hash-identical); DOCX conversion
+    resolves the List Bullet style once per document instead of per
+    paragraph (~1.3-1.4x on the largest local cost); chunking tokenization
+    takes a guarded `encode_ordinary` fast path with a whole-text
+    special-token pre-scan (~15 percent, chunk boundaries bit-identical). A
+    new `render_strategy` option (`direct`, the default, vs. the legacy
+    `supersample`) derives the render DPI from the active provider resize
+    profile so oversized pages rasterize straight to their final pixel
+    budget (~1.9-2.3x on render+resize; within-cap pages under the OpenAI
+    `original` profile remain byte-identical). `target_dpi` is now resolved
+    from the active provider section before the top-level default, making
+    the previously dead `custom_image_processing.target_dpi` setting live,
+    and the Anthropic `high_max_side_px` default rises from 1568 to 2576 to
+    match the Claude high-resolution tier.
 - **v2.1.5** (17 July 2026) -- Documentation reorganization release with no
     code changes. The README drops its stale counts and gaps: the schema count
     is unified at 13 with `inequality_benchmarks_schema.json` added to the
