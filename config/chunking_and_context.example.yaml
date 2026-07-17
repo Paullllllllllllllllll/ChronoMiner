@@ -1,11 +1,11 @@
 # chunking_and_context.yaml
 # ==========================
 # Controls text chunking and semantic boundary detection.
-# Used by: modules/core/chunking_service.py, modules/operations/line_ranges/readjuster.py
+# Used by: modules/infra/chunking.py, modules/line_ranges/readjuster.py
 #
-# Note: Context is now resolved automatically via modules/core/context_resolver.py
+# Note: Context is resolved automatically via modules/config/context.py
 # using hierarchical fallback (file-specific > folder-specific > schema-specific > global).
-# See context/extraction/ and context/line_ranges/ directories.
+# See the context/ directory (extract_context.txt, adjust_context.txt).
 
 # ── Chunking ───────────────────────────────────────────────────────────────────
 # Controls how source text is split into chunks for LLM processing.
@@ -17,7 +17,7 @@ chunking:
 # ── Matching ───────────────────────────────────────────────────────────────────
 # Text normalization settings for semantic boundary marker matching.
 # These control how the LLM's suggested boundary markers are matched against source text.
-# Used by: modules/operations/line_ranges/readjuster.py
+# Used by: modules/line_ranges/readjuster.py
 matching:
   normalize_whitespace: true       # Collapse multiple whitespace chars into single spaces
   case_sensitive: false            # When false, "CHAPTER" matches "chapter"
@@ -33,7 +33,7 @@ matching:
 # ── Retry ──────────────────────────────────────────────────────────────────────
 # Retry and validation settings for semantic boundary detection.
 # Controls how the system handles low-confidence or failed boundary detections.
-# Used by: modules/operations/line_ranges/readjuster.py
+# Used by: modules/line_ranges/readjuster.py
 retry:
   certainty_threshold: 70          # Minimum confidence (0-100) to accept LLM response
                                    # Below this triggers retry with adjusted context

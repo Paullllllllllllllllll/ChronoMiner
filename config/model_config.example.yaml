@@ -5,9 +5,9 @@
 #
 # Used by:
 #   - modules/llm/langchain_provider.py (LangChain-based multi-provider extraction)
-#   - modules/llm/providers/*.py (provider-specific implementations)
-#   - modules/llm/batch/backends/*.py (batch processing backends)
-#   - modules/config/config_loader.py (model validation at startup)
+#   - modules/llm/payload_builder.py, modules/llm/response_parser.py (provider-specific handling)
+#   - modules/batch/backends/*.py (batch processing backends)
+#   - modules/config/loader.py (model validation at startup)
 #
 # API Keys (environment variables):
 #   - OpenAI: OPENAI_API_KEY
@@ -21,7 +21,8 @@ extraction_model:
   # Provider Selection
   # -------------------------------------------------------------------------
   # Supported: openai, anthropic, google, openrouter, custom
-  # If omitted, auto-detected from model name (see modules/llm/providers/factory.py).
+  # If omitted, auto-detected from model name (see
+  # modules/config/capabilities/detection.py: detect_provider()).
   # provider: openai
 
   # -------------------------------------------------------------------------

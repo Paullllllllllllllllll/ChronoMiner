@@ -43,6 +43,8 @@ eval/
 ├── eval_config.yaml             # Configuration for models and paths
 ├── metrics.py                   # Precision/recall/F1 computation
 ├── jsonl_eval.py                # JSONL parsing for chunk-level evaluation
+├── prepare_ground_truth.py      # Ground-truth extraction/editing helper
+├── convert_ra_ground_truth.py   # Convert RA-corrected ground truth
 ├── extraction_eval.ipynb        # Main evaluation notebook
 ├── test_data/
 │   ├── input/                   # Transcribed text files (from ChronoTranscriber ground truth)
@@ -260,7 +262,8 @@ Uses standard ChronoMiner dependencies plus:
 - `pyyaml` - Configuration loading
 - `matplotlib` (optional) - Visualization
 
-These should already be installed via ChronoMiner's `requirements.txt`.
+These are installed with the project environment via `uv sync --all-extras`
+(dependencies are declared in `pyproject.toml`).
 
 ## Example Usage
 

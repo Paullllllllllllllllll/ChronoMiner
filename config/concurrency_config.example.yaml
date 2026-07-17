@@ -24,7 +24,7 @@ concurrency:
   # extraction (main/process_text_files.py). Each text chunk or image page
   # is one API call; this limit caps how many are in flight at once.
   #
-  # Used by: modules/core/processing_strategy.py, modules/llm/langchain_provider.py
+  # Used by: modules/extract/processing_strategy.py, modules/llm/langchain_provider.py
   extraction:
     # How many chunks/pages to extract concurrently.
     # Recommended: 12 (tuned for OpenAI API tier 3; also bounds how far
@@ -107,7 +107,8 @@ concurrency:
 # pauses processing when the cap is reached. Resets at 00:01 UTC, one minute
 # after OpenAI's free-tier counter reset at 00:00 UTC.
 #
-# Used by: modules/core/token_tracker.py, modules/operations/extraction/run.py
+# Used by: modules/infra/token_tracker.py, modules/extract/file_processor.py,
+# modules/extract/processing_strategy.py
 # =============================================================================
 
 daily_token_limit:

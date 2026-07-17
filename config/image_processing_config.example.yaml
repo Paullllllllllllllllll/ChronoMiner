@@ -5,8 +5,8 @@
 # images to vision-capable models for structured data extraction.
 #
 # Used by:
-#   - modules/processing/image_utils.py (image preprocessing)
-#   - modules/processing/pdf_utils.py (PDF page rendering DPI)
+#   - modules/images/llm_preprocess.py (image preprocessing)
+#   - modules/images/pdf_utils.py (PDF page rendering DPI)
 # =============================================================================
 
 # PDF rendering resolution

@@ -4,10 +4,10 @@
 # General settings, file paths, and schema-specific configurations.
 #
 # Used by:
-#   - modules/core/mode_selector.py (interactive_mode)
-#   - modules/operations/extraction/file_processor.py (output paths, temp file retention)
+#   - main/mode_detector.py (interactive_mode)
+#   - modules/extract/file_processor.py (output paths, temp file retention)
 #   - modules/ui/core.py (schema path resolution)
-#   - modules/core/logger.py (logs_dir)
+#   - modules/infra/logger.py (logs_dir)
 # =============================================================================
 
 general:
@@ -58,7 +58,7 @@ general:
 #
 # Used by:
 #   - modules/ui/core.py (path resolution)
-#   - modules/operations/extraction/file_processor.py (output generation)
+#   - modules/extract/file_processor.py (output generation)
 #   - main/check_batches.py (batch result processing)
 #   - main/repair_extractions.py (extraction repair)
 # =============================================================================

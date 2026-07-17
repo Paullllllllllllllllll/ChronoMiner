@@ -1,4 +1,4 @@
-# ChronoMiner v2.1.4
+# ChronoMiner v2.1.5
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -34,6 +34,7 @@ pipeline.
 - [Contributing](#contributing)
 - [Development](#development)
 - [Versioning](#versioning)
+- [Changelog](#changelog)
 - [License](#license)
 
 ## Overview
@@ -41,7 +42,7 @@ pipeline.
 ChronoMiner enables researchers and archivists to extract structured
 data from historical and academic documents at scale with minimal
 cost and effort. It supports multiple AI providers through a unified
-LangChain-based architecture, schema-driven extraction with 12
+LangChain-based architecture, schema-driven extraction with 13
 built-in templates, and fine-grained control over chunking,
 concurrency, and output.
 
@@ -261,6 +262,9 @@ python main/repair_extractions.py --schema BibliographicEntries
 --context-image            Enable context image injection (see below)
 --first-n-chunks N         Process only the first N chunks/pages
 --last-n-chunks N          Process only the last N chunks/pages
+--page-range START-END     Process a 1-based inclusive page range
+--output-mode MODE         flat | mirror (replicate input hierarchy
+                           under the output root)
 --resume / --force         Skip vs overwrite existing output
 --interactive / --non-interactive
                            Force the run mode, overriding the config-file mode
@@ -396,11 +400,11 @@ SHA-256 of every image sent to the model for reproducibility.
 ```yaml
 concurrency:
   extraction:
-    concurrency_limit: 20
-    max_concurrent_files: 4
+    concurrency_limit: 12
+    max_concurrent_files: 1
     delay_between_tasks: 0.1
     retry:
-      attempts: 150
+      attempts: 8
 daily_token_limit:
   enabled: true
   daily_tokens: 9000000   # combined cap across tools (secondary guard)
@@ -485,7 +489,8 @@ Place JSON schemas in `schemas/`. Thirteen schemas are included:
   `cookbook_metadata_schema.json`,
   `historical_recipes_schema_production.json`,
   `michelin_guides_light.json`,
-  `historical_price_entries_schema.json`
+  `historical_price_entries_schema.json`,
+  `inequality_benchmarks_schema.json`
 
 To add a custom schema: create the JSON schema file in `schemas/`,
 register it in `modules/extract/schema_handlers.py`, add context
@@ -770,8 +775,8 @@ uv run ruff format --check .
 uv run mypy .
 ```
 
-The suite contains 980+ tests (unit and integration) covering all
-modules, providers, batch backends, and CLI parsers.
+The suite contains about 1,200 tests (unit and integration) covering
+all modules, providers, batch backends, and CLI parsers.
 
 ## Versioning
 
@@ -783,6 +788,19 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.1.5** (17 July 2026) -- Documentation reorganization release with no
+    code changes. The README drops its stale counts and gaps: the schema count
+    is unified at 13 with `inequality_benchmarks_schema.json` added to the
+    bundled-schema list, the test count is updated to about 1,200, the CLI
+    reference gains the missing `--page-range` and `--output-mode` flags, and
+    the concurrency snippet mirrors the shipped example defaults
+    (concurrency 12, 8 retry attempts). `tests/README.md` is rewritten for the
+    uv era (markers incl. the opt-in `live` marker, current fixtures, no stale
+    per-file inventory); `eval/README.md` corrects its `requirements.txt`
+    reference and directory tree; the pre-squash `tests/VERIFICATION_v5.0.md`
+    is removed. All six `config/*.example.yaml` templates have their `Used
+    by:` comments repaired from the retired `modules/core`/`modules/
+    operations` layout to the current package paths (18 stale references).
 - **v2.1.4** (16 July 2026) -- Adopt the fully typed shared-ledger test
     (vendored byte-identically across the ChronoTools repos; the ledger module
     itself is unchanged at v2.1.1): Any-typed dynamic module handle,
