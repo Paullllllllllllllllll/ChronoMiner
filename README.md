@@ -1,4 +1,4 @@
-# ChronoMiner v2.3.0
+# ChronoMiner v2.4.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -797,6 +797,31 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v2.4.0** (19 July 2026) -- Batch-reliability and interactive-safety
+    release from the second full-repo maintenance sweep. The batch chain is
+    now loss-proof at every seam: batch IDs are persisted to the recovery
+    artifact before any tracking write, stale multi-part temp files are
+    cleaned on resubmission, repair_extractions finally sees and groups
+    multi-part submissions, temp-file groups are keyed by directory so
+    identically named files are never merged, unreachable batches
+    (UNKNOWN-with-error) no longer wedge their group forever, OpenAI error
+    files are read and cleaned up, paid partial results of expired or
+    cancelled batches are downloaded, batch partitioning accounts for the
+    embedded system prompt, and batch records now carry token usage.
+    Recovered Google inline batches keep their custom-id map instead of
+    positional relabeling. The sync path refuses to persist empty model
+    outputs (truncation/refusal) as completed chunks, visual resumes no
+    longer re-render and re-bill recovered pages, context-image text runs
+    no longer 400 on chat-completions models, transparent single-image
+    inputs are flattened correctly, and mixed-input folders exclude the
+    tool's own sidecar files. Interactive safety: allow_quit is honored
+    (no more hard exits mid-run), prompting chunking modes run
+    sequentially instead of freezing the event loop, --chunking
+    auto-adjust fails fast without a TTY, and Ctrl+C on async entry points
+    exits cleanly. Dead code removed (WorkflowUI, display_batch_summary,
+    metadata_indicates_complete, create_adjust_ranges_parser, and unused
+    CLI validators); 20 new offline regression tests.
 
 - **v2.3.0** (19 July 2026) -- Correctness and robustness release from a
     full-repo maintenance sweep. Resume/state handling is hardened: final
