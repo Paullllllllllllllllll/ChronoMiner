@@ -1,4 +1,4 @@
-# ChronoMiner v2.4.0
+# ChronoMiner v2.5.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -531,8 +531,12 @@ batch mode.
    byte limits into `_part{n}` submissions (one tracking record per part);
    `check_batches.py` merges the parts back into one final output
 4. Metadata is saved to a temporary JSONL for tracking and repair
-5. A debug artifact (`*_batch_submission_debug.json`) listing every submitted
-   batch id is saved next to the temp file for recovery
+5. A recovery artifact (`*_batch_submission_debug.json`) is rewritten next to
+   the temp file before each part's tracking record, so a crash between
+   submission and the tracking write can never orphan a paid-for batch. It
+   holds the submitted `batch_ids`, the `provider`, and a `batch_metadata` map
+   (batch id to the handle's metadata) that lets recovery restore each batch's
+   context, such as a Google inline batch's custom-id map
 6. Remote input/output files are deleted only after the final output JSON is
    durably written locally, so a mid-download failure never destroys results
 7. Finalization writes the same `{stem}_output.json` shape as synchronous
@@ -596,10 +600,13 @@ Recover partial results from incomplete batch jobs:
 python main/repair_extractions.py --schema BibliographicEntries
 ```
 
-Discovers incomplete jobs, recovers batch IDs from debug artifacts,
-retrieves available responses, and regenerates outputs. Status checks route
-through the provider-agnostic backend (not OpenAI-only), and the regenerated
-output is marked `fully_completed` only when no batch failed or is missing.
+Discovers incomplete jobs, groups multi-part (`_part{n}`) submissions of the
+same source into one repair unit, recovers batch IDs from the recovery
+artifact, and retrieves available responses, including paid partial results
+from expired or cancelled batches. Status checks route through the
+provider-agnostic backend (not OpenAI-only); the repaired output merges with
+any existing output and is marked `fully_completed` only when no batch failed
+or is missing.
 
 ### Daily Token Budget
 
@@ -684,7 +691,7 @@ modules/
 |                  cancel / repair
 +-- extract/       Extraction workflow, file processor, resume
 +-- line_ranges/   Line-range generation and semantic readjustment
-+-- ui/            Interactive prompts, workflow wizard
++-- ui/            Interactive prompts and console UI
 
 main/
 +-- process_text_files.py       Primary entry point
@@ -798,6 +805,22 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.5.0** (19 July 2026) -- Dependency and documentation release from the
+    third full-repo maintenance sweep. All dependencies are upgraded to their
+    latest compatible versions within current majors (notably anthropic 0.117,
+    google-genai 2.12, openai 2.46, langchain-google-genai 4.2.7, PyMuPDF 1.28,
+    Pillow 12.3; dev: mypy 2.3, ruff 0.15.22), with pyproject floors raised to
+    match and uv.lock regenerated; a dependency-drift test guard was relaxed
+    because langchain-google-genai now officially supports thinking_config
+    (ChronoMiner continues to emit thinking_level/thinking_budget). Verified
+    dead code is removed: the uncalled LLMProvider factory cache, the unused
+    is_batch_finished, OUTPUT_FILE_KEYS/ERROR_FILE_KEYS and
+    _resolve_file_id_by_keys helpers in batch ops, and the unused
+    temp_dir/status_cache parameters of retrieve_responses_from_batch.
+    Documentation is reconciled with the round-2 batch changes: the recovery
+    artifact's loss-proof write ordering and batch_metadata schema, multi-part
+    repair grouping with paid-partial retrieval, the ui/ module description,
+    and the v1.7.1 changelog entry no longer referencing a removed symbol.
 - **v2.4.0** (19 July 2026) -- Batch-reliability and interactive-safety
     release from the second full-repo maintenance sweep. The batch chain is
     now loss-proof at every seam: batch IDs are persisted to the recovery
@@ -1299,10 +1322,13 @@ v1.0.0 do not exist.
     whose record count met its `total_chunks`, ignoring the `partial` flag and
     `failed_chunks` list; because a partial run stamped `total_chunks` as its own
     success count, the file looked complete and the failed pages were never re-queued.
-    The gate now skips only a self-declared full success (the new
-    `metadata_indicates_complete` predicate in `modules/extract/resume.py`), so
-    partial outputs fall through to the authoritative `detect_extraction_status` and
-    resume. Separately, `total_chunks` is now stamped from the true unit count
+    The gate now skips only a self-declared full success -- an output that is
+    not flagged `partial`, lists no `failed_chunks`, and holds at least its
+    stamped `total_chunks` records -- so partial outputs fall through to the
+    authoritative `detect_extraction_status` and resume. (The metadata-only
+    helper that encoded this early check was later superseded by a direct
+    `detect_extraction_status` gate and removed in v2.4.0.) Separately,
+    `total_chunks` is now stamped from the true unit count
     (`len(chunks)`) rather than the number of successful records, so the persisted
     metadata is no longer self-contradictory and stays correct even when a run ends
     partial or is cancelled. Existing partial outputs need no migration: the flags
