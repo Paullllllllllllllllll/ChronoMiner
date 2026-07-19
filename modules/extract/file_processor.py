@@ -37,6 +37,7 @@ from modules.infra.chunking import (
     apply_chunk_slice,
     chunk_slice_indices,
 )
+from modules.infra.jsonl import atomic_write_json
 from modules.infra.paths import ensure_path_safe
 from modules.infra.token_tracker import check_and_wait_for_token_limit
 from modules.llm.prompt_utils import (
@@ -137,9 +138,12 @@ def _read_temp_records(temp_jsonl_path: Path) -> list[dict[str, Any]]:
 
 
 def _write_output_json(output_json_path: Path, output_data: dict[str, Any]) -> None:
-    """Write the final output JSON to disk (blocking; run via to_thread)."""
-    with output_json_path.open("w", encoding="utf-8") as outf:
-        json.dump(output_data, outf, indent=2, ensure_ascii=False)
+    """Write the final output JSON to disk (blocking; run via to_thread).
+
+    Atomic (temp-write-then-replace): a crash mid-write must not truncate or
+    destroy the previously merged output records.
+    """
+    atomic_write_json(output_json_path, output_data)
 
 
 class _MessagingAdapter:
@@ -375,6 +379,11 @@ class FileProcessor:
                 if line_ranges_file.exists()
                 else None,
                 original_start_line=1,
+                # Route the auto-adjust chunk overview to the console: the
+                # console log handler is WARNING-level, so a logger.info
+                # fallback would leave the interactive input() prompts with no
+                # visible context.
+                console_print=messenger.console_print,
             )
             messenger.info(f"Generated {len(chunks)} text chunks from {file_path.name}")
             logger.info(f"Total chunks generated from {file_path.name}: {len(chunks)}")
@@ -819,16 +828,27 @@ class FileProcessor:
                     "present in existing output; they will not be re-submitted."
                 )
         elif resume and not use_batch:
-            status, completed_chunk_indices = detect_extraction_status(
+            _, completed_chunk_indices = detect_extraction_status(
                 output_json_path, expected_chunks=len(chunks)
             )
-            if status == FileStatus.COMPLETE:
+            # Gate the skip on MEMBERSHIP, not cardinality. `completed` holds
+            # absolute document indices from a prior run; on a sliced resume
+            # len(completed) can meet or exceed len(chunks) (the sliced list)
+            # while none of THIS run's indices are actually done. Compute the
+            # indices this run needs (document-space, from `chunk_indices` if a
+            # slice was applied) and skip only if every one is present.
+            needed_this_run = (
+                list(chunk_indices)
+                if chunk_indices is not None
+                else list(range(1, len(chunks) + 1))
+            )
+            if all(i in completed_chunk_indices for i in needed_this_run):
                 messenger.info(
                     f"Skipping {file_path.name}: already fully processed "
                     f"({len(completed_chunk_indices)} {unit_label}s)"
                 )
                 return "skipped"
-            if status == FileStatus.PARTIAL:
+            if completed_chunk_indices:
                 messenger.info(
                     f"Resuming {file_path.name}:"
                     f" {len(completed_chunk_indices)}/{len(chunks)}"
@@ -837,13 +857,16 @@ class FileProcessor:
 
         # Refuse to resume a temp JSONL written by an older, incompatible
         # format (its custom_ids may be slice-relative, which would corrupt the
-        # resume/merge). Decision 1: version + refuse, no migration.
+        # resume/merge). Decision 1: version + refuse, no migration. The temp
+        # having any content is enough to warrant a refusal even when the
+        # output JSON was never written (a hard crash leaves records only in
+        # the temp), so gate on either a prior output set or a non-empty temp.
         if (
             resume
             and not use_batch
-            and completed_chunk_indices
             and temp_jsonl_path.exists()
             and not is_resumable_temp_jsonl(temp_jsonl_path)
+            and (completed_chunk_indices or temp_jsonl_path.stat().st_size > 0)
         ):
             messenger.error(
                 f"Refusing to resume {file_path.name}: its temp file "
@@ -852,6 +875,28 @@ class FileProcessor:
                 f"finish it with the ChronoMiner version that created it."
             )
             return "failed"
+
+        # A hard crash (no finally) can leave chunk records durably appended to
+        # the resumable temp JSONL while the output JSON was never written. The
+        # skip set above is sourced only from the output, so those records would
+        # be re-processed and, worse, truncated (an empty skip set makes the
+        # strategy open the temp in "w" mode). Union the indices already present
+        # in the temp so they are skipped (append mode) and their records are
+        # preserved for the final merge.
+        if (
+            resume
+            and not use_batch
+            and temp_jsonl_path.exists()
+            and is_resumable_temp_jsonl(temp_jsonl_path)
+        ):
+            temp_indices = _completed_indices_from_temp(temp_jsonl_path)
+            recovered = temp_indices - completed_chunk_indices
+            if recovered:
+                completed_chunk_indices = completed_chunk_indices | temp_indices
+                messenger.info(
+                    f"Recovered {len(recovered)} {unit_label}(s) from an "
+                    f"interrupted run's temp file; they will not be re-processed."
+                )
 
         # Create processing strategy and execute
         strategy = create_processing_strategy(use_batch, self.concurrency_config)
@@ -996,7 +1041,11 @@ class FileProcessor:
                                 _cs_info["last_n"] = chunk_slice.last_n
                             if chunk_slice.page_range is not None:
                                 _cs_info["page_range"] = list(chunk_slice.page_range)
-                        await asyncio.shield(
+                        # wrote_output reflects whether the JSON was actually
+                        # written: _generate_output_files now reports success so
+                        # a swallowed write failure does not let the temp (the
+                        # run's only copy) be deleted below.
+                        wrote_output = await asyncio.shield(
                             self._generate_output_files(
                                 temp_jsonl_path,
                                 output_json_path,
@@ -1014,7 +1063,6 @@ class FileProcessor:
                                 image_provenance=image_provenance,
                             )
                         )
-                        wrote_output = True
                     elif processing_cancelled:
                         messenger.warning(
                             f"Processing was interrupted before any {unit_label}s "
@@ -1025,7 +1073,9 @@ class FileProcessor:
                         f"Failed to write final output: {gen_exc}", exc_info=gen_exc
                     )
 
-            self._cleanup_temp_files(use_batch, temp_jsonl_path, messenger)
+            self._cleanup_temp_files(
+                use_batch, temp_jsonl_path, messenger, wrote_output=wrote_output
+            )
 
             if processing_cancelled:
                 if wrote_output:
@@ -1034,7 +1084,21 @@ class FileProcessor:
                         f"{output_json_path}"
                     )
             elif processing_exception is None:
-                messenger.success(f"Completed processing of file: {file_path.name}")
+                # Only claim success when the file is truly complete. A run that
+                # left failed chunks or stopped on the daily token budget prints
+                # a warning-level partial line instead (it may sit right after a
+                # "Partial output" warning).
+                if failed_indices or budget_incomplete:
+                    if failed_indices:
+                        reason = f"{len(failed_indices)} chunk(s) failed"
+                    else:
+                        reason = "daily token budget reached"
+                    messenger.warning(
+                        f"Partial completion of file: {file_path.name} "
+                        f"({reason}); re-run in resume mode to finish."
+                    )
+                else:
+                    messenger.success(f"Completed processing of file: {file_path.name}")
 
         # Machine-readable per-file status for exit-code aggregation.
         if processing_exception is not None:
@@ -1139,8 +1203,12 @@ class FileProcessor:
         chunk_slice_info: dict | None = None,
         merge_existing: bool = False,
         image_provenance: dict[str, Any] | None = None,
-    ) -> None:
+    ) -> bool:
         """Generate final output files from temporary JSONL.
+
+        Returns ``True`` when the output JSON was written, ``False`` when the
+        write failed. The caller must not delete the temp JSONL on ``False``:
+        the temp may hold the run's only durable copy of the records.
 
         When ``merge_existing`` is set (resume of a partial extraction), the
         records already saved in ``output_json_path`` are merged with those
@@ -1220,12 +1288,13 @@ class FileProcessor:
                 )
         except Exception as e:
             messenger.error(f"Failed to write final output: {e}", exc_info=e)
-            return
+            return False
 
         # Generate additional formats
         self._generate_additional_formats(
             output_json_path, handler, schema_paths, messenger
         )
+        return True
 
     def _merge_with_existing_output(
         self,
@@ -1321,12 +1390,28 @@ class FileProcessor:
                 messenger.warning(f"Failed to generate TXT output: {e}")
 
     def _cleanup_temp_files(
-        self, use_batch: bool, temp_jsonl_path: Path, messenger: _MessagingAdapter
+        self,
+        use_batch: bool,
+        temp_jsonl_path: Path,
+        messenger: _MessagingAdapter,
+        *,
+        wrote_output: bool = True,
     ) -> None:
-        """Clean up temporary files if not needed."""
+        """Clean up temporary files if not needed.
+
+        Deletion is skipped entirely when ``wrote_output`` is false: if the
+        final output was not written (a write failure, or no records at all),
+        the temp JSONL may be the run's only durable copy and must be kept
+        regardless of the ``retain_temporary_jsonl`` setting.
+        """
         if use_batch:
             logger.info("Batch processing enabled. Keeping temporary JSONL")
             messenger.info(f"Preserving {temp_jsonl_path.name} for batch tracking")
+        elif not wrote_output:
+            logger.info(
+                "Final output was not written; keeping temporary JSONL %s",
+                temp_jsonl_path.name,
+            )
         else:
             keep_temp = self.paths_config["general"].get("retain_temporary_jsonl", True)
             if not keep_temp:

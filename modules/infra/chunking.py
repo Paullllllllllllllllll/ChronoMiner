@@ -227,8 +227,24 @@ class ChunkHandler:
         initial_ranges: list[tuple[int, int]],
         original_start_line: int,
         total_processed_lines: int,
+        console_print: Callable[[str], None] | None = None,
     ) -> list[tuple[int, int] | None]:
-        """Interactively adjust the default line ranges."""
+        """Interactively adjust the default line ranges.
+
+        User-facing lines are routed through ``console_print`` (the console log
+        handler is WARNING-level, so a bare ``logger.info`` fallback leaves the
+        interactive ``input()`` prompts with no visible context). Logging is
+        kept as a secondary sink.
+        """
+
+        def _tell(message: str, *, error: bool = False) -> None:
+            if console_print is not None:
+                console_print(message)
+            if error:
+                logger.error(message)
+            else:
+                logger.info(message)
+
         final_ranges: list[tuple[int, int] | None] = []
         current_start: int = original_start_line
         total_lines: int = original_start_line + total_processed_lines - 1
@@ -241,7 +257,7 @@ class ChunkHandler:
             else:
                 initial_end = total_lines
 
-            logger.info(f"Chunk {i + 1}: Lines {actual_start} - {initial_end}")
+            _tell(f"Chunk {i + 1}: Lines {actual_start} - {initial_end}")
             while True:
                 user_input: str = input(
                     f"Enter the new end line for Chunk {i + 1} "
@@ -251,7 +267,7 @@ class ChunkHandler:
                 if user_input == "":
                     actual_end = initial_end
                     final_ranges.append((actual_start, actual_end))
-                    logger.info(
+                    _tell(
                         f"Chunk {i + 1} kept as Lines {actual_start} - {actual_end}\n"
                     )
                     break
@@ -261,18 +277,22 @@ class ChunkHandler:
                         if actual_start <= new_end <= total_lines:
                             actual_end = new_end
                             final_ranges.append((actual_start, actual_end))
-                            logger.info(
+                            _tell(
                                 f"Chunk {i + 1} redefined to Lines "
                                 f"{actual_start} - {actual_end}\n"
                             )
                             break
                         else:
-                            logger.error(
+                            _tell(
                                 f"Invalid end line. It must be between "
-                                f"{actual_start} and {total_lines}."
+                                f"{actual_start} and {total_lines}.",
+                                error=True,
                             )
                     except ValueError:
-                        logger.error("Invalid input. Please enter a valid integer.")
+                        _tell(
+                            "Invalid input. Please enter a valid integer.",
+                            error=True,
+                        )
             current_start = actual_end + 1
             i += 1
         return final_ranges
@@ -283,7 +303,10 @@ def load_line_ranges(line_ranges_file: Path) -> list[tuple[int, int]]:
     ranges = []
     try:
         safe_file = ensure_path_safe(line_ranges_file)
-        with safe_file.open("r", encoding="utf-8") as f:
+        # utf-8-sig strips a leading BOM (Windows "UTF-8 with BOM" from Notepad)
+        # that would otherwise cling to the first line and make the first range
+        # fail its parse checks, silently shifting every chunk index.
+        with safe_file.open("r", encoding="utf-8-sig") as f:
             for line in f:
                 line = line.strip()
                 if not line:
@@ -540,7 +563,10 @@ class ChunkingService:
         )
 
         final_ranges = self.chunk_handler.adjust_line_ranges(
-            token_ranges, original_start_line, len(lines)
+            token_ranges,
+            original_start_line,
+            len(lines),
+            console_print=console_print,
         )
 
         # adjust_line_ranges already offsets its ranges into document space

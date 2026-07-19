@@ -104,6 +104,26 @@ def build_unified_batch_output(
     custom_id_map = custom_id_map or {}
     ordered = _order_responses(list(responses), order_map)
 
+    # Deduplicate by custom_id, last occurrence wins: downloaded results are
+    # appended after the temp-file records, so a later entry for the same
+    # custom_id is the freshest. Without this, overlapping temp parts or
+    # resubmissions duplicate records, inflate total_chunks, and yield
+    # duplicated CSV/DOCX rows downstream. The first occurrence's position is
+    # kept so the established ordering is preserved.
+    deduped: list[Any] = []
+    seen_positions: dict[Any, int] = {}
+    for entry in ordered:
+        cid = entry.get("custom_id") if isinstance(entry, dict) else None
+        if cid is None:
+            deduped.append(entry)
+            continue
+        if cid in seen_positions:
+            deduped[seen_positions[cid]] = entry
+        else:
+            seen_positions[cid] = len(deduped)
+            deduped.append(entry)
+    ordered = deduped
+
     records: list[dict[str, Any]] = []
     failed_chunks: list[int] = []
     for entry in ordered:

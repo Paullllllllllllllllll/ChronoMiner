@@ -302,6 +302,29 @@ def update_jsonl_header(path: Path, fields: dict[str, Any]) -> bool:
     return True
 
 
+def atomic_write_json(path: Path, data: Any) -> None:
+    """Write ``data`` as pretty JSON to ``path`` atomically.
+
+    Serializes to a uniquely-named sibling temp file, then ``replace()``s it
+    onto the destination so a crash mid-write cannot truncate or destroy a
+    previously written file. Mirrors ``update_jsonl_header``'s temp-then-
+    replace pattern.
+    """
+    safe_path = ensure_path_safe(path)
+    tmp_path = safe_path.with_name(
+        f"{safe_path.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
+    )
+    try:
+        tmp_path.write_text(
+            json.dumps(data, indent=2, ensure_ascii=False), encoding="utf-8"
+        )
+        tmp_path.replace(safe_path)
+    finally:
+        with contextlib.suppress(OSError):
+            if tmp_path.exists():
+                tmp_path.unlink()
+
+
 def finalize_jsonl_header(
     path: Path,
     *,

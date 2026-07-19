@@ -6,7 +6,6 @@ Supports two execution modes:
 2. CLI Mode: Command-line arguments for automation
 """
 
-import json
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -33,6 +32,7 @@ from modules.extract.batch_output import (
     merge_existing_batch_output,
 )
 from modules.extract.schema_handlers import get_schema_handler
+from modules.infra.jsonl import atomic_write_json
 from modules.infra.logger import setup_logger
 from modules.ui.core import UserInterface
 
@@ -223,9 +223,9 @@ def _repair_temp_file(
     # subset.
     final_results = merge_existing_batch_output(final_results, final_json_path)
 
-    final_json_path.write_text(
-        json.dumps(final_results, indent=2, ensure_ascii=False), encoding="utf-8"
-    )
+    # Atomic write: a crash mid-write must not destroy the merged output from
+    # earlier runs.
+    atomic_write_json(final_json_path, final_results)
     ui.print_success(f"Final output regenerated: {final_json_path.name}")
     logger.info("Repaired extraction written to %s", final_json_path)
 
@@ -294,7 +294,7 @@ class RepairExtractionsScript(DualModeScript):
             final_exists = candidate["has_final"]
             responses_count = candidate["responses_count"]
             tracking_count = candidate["tracking_count"]
-            status = "✓ FINAL EXISTS" if final_exists else "⚠ PENDING"
+            status = "[OK] FINAL EXISTS" if final_exists else "[PENDING]"
             self.ui.console_print(f"  {idx}. {temp_file.name}")
             self.ui.console_print(
                 f"      Schema: {candidate['schema_name']} | "
@@ -488,7 +488,7 @@ def main() -> None:
         script = RepairExtractionsScript()
         script.execute()
     except KeyboardInterrupt:
-        print("\n✓ Repair session cancelled by user.")
+        print("\n[INFO] Repair session cancelled by user.")
         sys.exit(0)
 
 
