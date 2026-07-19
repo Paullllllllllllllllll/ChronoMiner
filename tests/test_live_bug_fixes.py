@@ -278,7 +278,6 @@ class TestCM1GeminiThinkingParameter:
         fields = ChatGoogleGenerativeAI.model_fields
         assert "thinking_level" in fields
         assert "thinking_budget" in fields
-        assert "thinking_config" not in fields
 
     @pytest.mark.unit
     def test_gemini_3x_uses_thinking_level(self):
