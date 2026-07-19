@@ -70,6 +70,10 @@ class SchemaManager:
         """
         Load developer messages from text files in the developer_messages directory.
         """
+        # The directory is optional; absent it there is nothing to load. Guard
+        # before iterdir(), which (unlike glob) raises FileNotFoundError.
+        if not self.dev_messages_dir.is_dir():
+            return
         # Load top-level message files.
         for message_file in self.dev_messages_dir.glob("*.txt"):
             schema_name = message_file.stem

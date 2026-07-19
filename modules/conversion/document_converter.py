@@ -102,7 +102,11 @@ class DocumentConverter(BaseConverter):
             "historicalrecipesentriesproduction": (
                 self._convert_historical_recipes_production_to_docx
             ),
+            "historicalrecipesentriesproductionv3": (
+                self._convert_historical_recipes_production_to_docx
+            ),
             "michelinguides": self._convert_michelin_guides_to_docx,
+            "michelinguideslight": self._convert_michelin_guides_light_to_docx,
             "cookbookmetadataentries": self._convert_cookbook_metadata_to_docx,
         }
         converter = self.get_converter(converters)
@@ -143,7 +147,11 @@ class DocumentConverter(BaseConverter):
             "historicalrecipesentriesproduction": (
                 self._convert_historical_recipes_production_to_txt
             ),
+            "historicalrecipesentriesproductionv3": (
+                self._convert_historical_recipes_production_to_txt
+            ),
             "michelinguides": self._convert_michelin_guides_to_txt,
+            "michelinguideslight": self._convert_michelin_guides_light_to_txt,
             "cookbookmetadataentries": self._convert_cookbook_metadata_to_txt,
         }
 
@@ -167,34 +175,32 @@ class DocumentConverter(BaseConverter):
         self, entries: list, document: _DocxDocument
     ) -> None:
         """
-        Converts structured summaries entries to a DOCX document.
-        For each entry, writes the page number in bold (as simple text) followed
-        by bullet-pointed summaries. The keywords are formatted in italic
-        (without asterisks).
+        Converts structured summaries entries to a DOCX document (schema v4.0).
+
+        For each entry, writes the page number in bold followed by bullet-pointed
+        summaries and any references. Reads the schema keys ``page_number``
+        (nested integer), ``bullet_points``, and ``references``.
         """
         list_bullet = document.styles["List Bullet"]
-        literature_set = set()
+        reference_set: set[str] = set()
         for entry in entries:
-            page = entry.get("page")
+            if not isinstance(entry, dict):
+                continue
+            page_info = entry.get("page_number") or {}
+            page = (
+                page_info.get("page_number_integer")
+                if isinstance(page_info, dict)
+                else None
+            )
             bullet_points = entry.get("bullet_points")
-            keywords = entry.get("keywords")
-            literature = entry.get("literature")
+            references = entry.get("references")
 
-            # Instead of adding a heading, add a paragraph with bold text for
-            # the page number.
+            # Add a paragraph with bold text for the page number.
             p_page = document.add_paragraph()
             run_page = p_page.add_run(
                 f"Page {page}" if page is not None else "Page Unknown"
             )
             run_page.bold = True
-
-            # For keywords: add a bullet point with italic text, without asterisks.
-            if keywords and isinstance(keywords, list):
-                formatted_keywords = ", ".join(kw for kw in keywords if kw)
-                p_keyword = document.add_paragraph(style=list_bullet)
-                p_keyword.add_run("Keywords: ")
-                run_keywords = p_keyword.add_run(formatted_keywords)
-                run_keywords.italic = True
 
             # Add each bullet point as a separate bullet item.
             if bullet_points and isinstance(bullet_points, list):
@@ -205,27 +211,25 @@ class DocumentConverter(BaseConverter):
             else:
                 document.add_paragraph("No bullet points available.")
 
-            # Add literature references if available.
-            if literature and isinstance(literature, list):
-                formatted_refs = ", ".join(str(ref) for ref in literature if ref)
-                p_ref = document.add_paragraph(style=list_bullet)
-                p_ref.add_run(f"References: {formatted_refs}")
-
-            # Accumulate literature for the consolidated literature section.
-            if literature and isinstance(literature, list):
-                for lit in literature:
-                    if lit:
-                        literature_set.add(lit)
+            # Add references if available, and accumulate for the final section.
+            if references and isinstance(references, list):
+                formatted_refs = ", ".join(str(ref) for ref in references if ref)
+                if formatted_refs:
+                    p_ref = document.add_paragraph(style=list_bullet)
+                    p_ref.add_run(f"References: {formatted_refs}")
+                for ref in references:
+                    if ref:
+                        reference_set.add(str(ref))
 
             # Add an empty paragraph for spacing.
             document.add_paragraph("")
 
-        # If any literature was found, add a final section.
-        if literature_set:
+        # If any references were found, add a consolidated final section.
+        if reference_set:
             document.add_page_break()
-            document.add_heading("Literature", level=1)
-            for lit in sorted(literature_set):
-                document.add_paragraph(str(lit), style=list_bullet)
+            document.add_heading("References", level=1)
+            for ref in sorted(reference_set):
+                document.add_paragraph(ref, style=list_bullet)
 
     def _convert_bibliographic_entries_to_docx(
         self, entries: list[Any], document: _DocxDocument
@@ -259,7 +263,9 @@ class DocumentConverter(BaseConverter):
 
             # Add culinary focus areas
             if culinary_focus and isinstance(culinary_focus, list):
-                document.add_paragraph(f"Culinary Focus: {', '.join(culinary_focus)}")
+                document.add_paragraph(
+                    f"Culinary Focus: {self.join_list(culinary_focus)}"
+                )
             else:
                 document.add_paragraph("Culinary Focus: Unknown")
 
@@ -653,18 +659,21 @@ class DocumentConverter(BaseConverter):
 
     # --- Schema-Specific TXT Converters ---
     def _convert_structured_summaries_to_txt(self, entries: list[Any]) -> list[str]:
+        """Converts structured summaries entries to TXT format (schema v4.0)."""
         lines: list[str] = []
-        literature_set = set()
+        reference_set: set[str] = set()
         for entry in entries:
-            page = entry.get("page", "Unknown")
+            if not isinstance(entry, dict):
+                continue
+            page_info = entry.get("page_number") or {}
+            page = (
+                page_info.get("page_number_integer")
+                if isinstance(page_info, dict)
+                else None
+            )
             bullet_points = entry.get("bullet_points", [])
-            keywords = entry.get("keywords", [])
-            literature = entry.get("literature", [])
-            lines.append(f"Page {page}")
-            # Add keywords bullet point.
-            if keywords and isinstance(keywords, list):
-                formatted_keywords = ", ".join(f"*{kw}*" for kw in keywords if kw)
-                lines.append(f" - Keywords: {formatted_keywords}")
+            references = entry.get("references", [])
+            lines.append(f"Page {page}" if page is not None else "Page Unknown")
             # List the bullet points.
             if bullet_points and isinstance(bullet_points, list):
                 for bp in bullet_points:
@@ -672,93 +681,103 @@ class DocumentConverter(BaseConverter):
                         lines.append(f" - {bp}")
             else:
                 lines.append("No bullet points available.")
-            # Append a bullet point for literature references.
-            if literature and isinstance(literature, list):
-                formatted_refs = ", ".join(str(ref) for ref in literature if ref)
-                lines.append(f" - References: {formatted_refs}")
-            # Collect literature for the final consolidated section.
-            if literature and isinstance(literature, list):
-                for lit in literature:
-                    if lit:
-                        literature_set.add(lit)
+            # Append a bullet point for references and collect for final section.
+            if references and isinstance(references, list):
+                formatted_refs = ", ".join(str(ref) for ref in references if ref)
+                if formatted_refs:
+                    lines.append(f" - References: {formatted_refs}")
+                for ref in references:
+                    if ref:
+                        reference_set.add(str(ref))
             lines.append("")
-        if literature_set:
-            lines.append("Literature:")
-            for lit in sorted(literature_set):
-                lines.append(f" - {lit}")
+        if reference_set:
+            lines.append("References:")
+            for ref in sorted(reference_set):
+                lines.append(f" - {ref}")
         return lines
 
     def _convert_bibliographic_entries_to_txt(self, entries: list[Any]) -> list[str]:
+        """Converts bibliographic entries to TXT format (schema v4.4).
+
+        Reads the current schema keys: entry-level ``full_title``,
+        ``short_title``, ``main_author``, ``institutional_main_author``,
+        ``short_note``, ``library_abbreviation``, ``volumes_overview``,
+        ``volume_numbers``; edition-level ``year``, ``edition_number``,
+        ``publication_locations`` (modern/original place), ``contributors``
+        (name/role), ``edition_category``, ``language``, ``translated_from``.
+        """
         lines: list[str] = []
         for entry in entries:
-            if entry is None:
-                continue  # Skip None entries
+            if not isinstance(entry, dict):
+                continue
 
             lines.append(
                 f"Full Title: {self.safe_str(entry.get('full_title', 'Unknown Title'))}"
             )
             lines.append(f"Short Title: {self.safe_str(entry.get('short_title', ''))}")
-            bib_num = self.safe_str(entry.get("bibliography_number", ""))
-            lines.append(f"Bibliography Number: {bib_num}")
-
-            authors = entry.get("authors", [])
-            if authors is None:
-                authors = []
-            # Filter out None values in authors list
-            authors = [author for author in authors if author is not None]
-            lines.append(f"Authors: {', '.join(authors) if authors else 'Anonymous'}")
-
-            roles = entry.get("roles", [])
-            if roles is None:
-                roles = []
-            # Filter out None values in roles list
-            roles = [role for role in roles if role is not None]
-            lines.append(f"Roles: {', '.join(roles)}")
-
-            culinary_focus = entry.get("culinary_focus", [])
-            if culinary_focus is None:
-                culinary_focus = []
-            # Filter out None values in culinary_focus list
-            culinary_focus = [focus for focus in culinary_focus if focus is not None]
-            lines.append(f"Culinary Focus: {', '.join(culinary_focus)}")
-
-            lines.append(f"Format: {self.safe_str(entry.get('format', ''))}")
-            lines.append(f"Pages: {self.safe_str(entry.get('pages', ''))}")
             lines.append(
-                f"Total Editions: {self.safe_str(entry.get('total_editions', ''))}"
+                f"Main Author: {self.safe_str(entry.get('main_author', 'Anonymous'))}"
             )
+            inst = entry.get("institutional_main_author")
+            if inst is not None:
+                lines.append(f"Institutional Author: {self.safe_str(inst)}")
+
+            short_note = entry.get("short_note")
+            if short_note:
+                lines.append(f"Note: {self.safe_str(short_note)}")
+
+            library = entry.get("library_abbreviation")
+            if library:
+                lines.append(f"Library: {self.safe_str(library)}")
+
+            volumes_overview = entry.get("volumes_overview")
+            if volumes_overview:
+                lines.append(f"Volumes: {self.safe_str(volumes_overview)}")
+
+            volume_numbers = self.join_list(entry.get("volume_numbers"))
+            if volume_numbers:
+                lines.append(f"Volume Numbers: {volume_numbers}")
 
             lines.append("Edition Information:")
             editions = entry.get("edition_info", [])
-            if editions is None:
+            if not isinstance(editions, list):
                 editions = []
 
             for edition in editions:
-                if edition is None:
-                    continue  # Skip None editions
+                if not isinstance(edition, dict):
+                    continue
 
-                # Safely get location info with null checks
-                location = edition.get("location", {}) or {}
-                city = self.safe_str(location.get("city", "Unknown"))
-                country = self.safe_str(location.get("country", "Unknown"))
+                pub_locations = edition.get("publication_locations") or []
+                places = [
+                    loc.get("modern_place") or loc.get("original_place")
+                    for loc in pub_locations
+                    if isinstance(loc, dict)
+                    and (loc.get("modern_place") or loc.get("original_place"))
+                ]
+                location_str = ", ".join(str(p) for p in places) or "Unknown"
 
-                # Safely get roles with null checks
-                ed_roles = edition.get("roles", []) or []
-                ed_roles = [role for role in ed_roles if role is not None]
+                contributors = edition.get("contributors") or []
+                contributor_strs = [
+                    f"{self.safe_str(c.get('name'))} ({self.safe_str(c.get('role'))})"
+                    for c in contributors
+                    if isinstance(c, dict)
+                ]
+                contributors_str = (
+                    ", ".join(contributor_strs) if contributor_strs else "Unknown"
+                )
 
-                ed_num_txt = self.safe_str(edition.get("edition_number", "Unknown"))
-                ed_year_txt = self.safe_str(edition.get("year", "Unknown"))
-                ed_orig = self.safe_str(edition.get("original_language", ""))
+                ed_year = self.safe_str(edition.get("year", "Unknown"))
+                ed_num = self.safe_str(edition.get("edition_number", "Unknown"))
+                ed_cat = self.safe_str(edition.get("edition_category", ""))
+                ed_lang = self.safe_str(edition.get("language", ""))
                 ed_trans = self.safe_str(edition.get("translated_from", ""))
                 edition_text = (
-                    f"Year: {ed_year_txt}, "
-                    f"Edition: {ed_num_txt}, "
-                    f"Location: {city}, {country}, "
-                    f"Roles: {', '.join(ed_roles)}, "
-                    f"Note: {self.safe_str(edition.get('short_note', ''))}, "
-                    f"Category: {self.safe_str(edition.get('edition_category', ''))}, "
-                    f"Language: {self.safe_str(edition.get('language', ''))}, "
-                    f"Orig Lang: {ed_orig}, "
+                    f"Year: {ed_year}, "
+                    f"Edition: {ed_num}, "
+                    f"Location: {location_str}, "
+                    f"Contributors: {contributors_str}, "
+                    f"Category: {ed_cat}, "
+                    f"Language: {ed_lang}, "
                     f"Translated From: {ed_trans}"
                 )
                 lines.append(f" - {edition_text}")
@@ -1323,6 +1342,181 @@ class DocumentConverter(BaseConverter):
             amenity_list = self._build_michelin_amenities(amenities, compact=True)
             if amenity_list:
                 lines.append(f"Amenities: {', '.join(amenity_list)}")
+
+            lines.append("")
+
+        return lines
+
+    # --- Michelin Guides Light Converters (schema 3.4-light) ---
+
+    def _convert_michelin_guides_light_to_docx(
+        self, entries: list[Any], document: _DocxDocument
+    ) -> None:
+        """Convert MichelinGuidesLight entries to DOCX format (schema 3.4-light)."""
+        entries = self._normalize_entries(entries)
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+
+            name = entry.get("establishment_name", "Unknown Establishment")
+            awards = entry.get("awards", {}) or {}
+            stars = awards.get("stars") or 0
+            star_display = "⭐" * stars if stars else ""
+            document.add_heading(f"{name} {star_display}".strip(), level=1)
+
+            location = entry.get("location", {}) or {}
+            address = entry.get("address", {}) or {}
+            location_parts = [
+                p
+                for p in [
+                    location.get("neighbourhood_or_area"),
+                    location.get("city_or_town"),
+                ]
+                if p
+            ]
+            if location_parts:
+                document.add_paragraph(f"Location: {', '.join(location_parts)}")
+            address_parts = [
+                str(p)
+                for p in [
+                    address.get("street"),
+                    address.get("house_number"),
+                    address.get("postal_code"),
+                ]
+                if p
+            ]
+            if address_parts:
+                document.add_paragraph(f"Address: {' '.join(address_parts)}")
+
+            award_bits: list[str] = []
+            if awards.get("bib_gourmand"):
+                award_bits.append("Bib Gourmand")
+            if awards.get("michelin_plate"):
+                award_bits.append("Michelin Plate")
+            if awards.get("pleasant_marker"):
+                award_bits.append("Pleasant")
+            if awards.get("hotel_class"):
+                award_bits.append(f"Hotel class {awards.get('hotel_class')}")
+            if awards.get("restaurant_class"):
+                award_bits.append(f"Restaurant class {awards.get('restaurant_class')}")
+            if award_bits:
+                document.add_paragraph(f"Awards: {', '.join(award_bits)}")
+
+            cuisine = entry.get("cuisine", {}) or {}
+            origin = self.join_list(cuisine.get("cuisine_origin"))
+            if origin:
+                document.add_paragraph(f"Cuisine: {origin}")
+            style = self.join_list(cuisine.get("culinary_style"))
+            if style:
+                document.add_paragraph(f"Style: {style}")
+            specialties = self.join_list(cuisine.get("specialties"))
+            if specialties:
+                document.add_paragraph(f"Specialties: {specialties}")
+
+            pricing = entry.get("pricing", {}) or {}
+            currency = pricing.get("currency") or ""
+            menu_min = pricing.get("menu_price_min")
+            menu_max = pricing.get("menu_price_max")
+            if menu_min or menu_max:
+                document.add_paragraph(
+                    f"Menu Price: {currency} {menu_min or '?'} - {menu_max or '?'}"
+                )
+            alc_min = pricing.get("a_la_carte_price_min")
+            alc_max = pricing.get("a_la_carte_price_max")
+            if alc_min or alc_max:
+                document.add_paragraph(
+                    f"À la carte: {currency} {alc_min or '?'} - {alc_max or '?'}"
+                )
+
+            note = entry.get("inspector_note")
+            if note:
+                document.add_paragraph(f"Inspector Note: {note}")
+
+            document.add_page_break()
+
+    def _convert_michelin_guides_light_to_txt(self, entries: list[Any]) -> list[str]:
+        """Convert MichelinGuidesLight entries to TXT format (schema 3.4-light)."""
+        entries = self._normalize_entries(entries)
+        lines: list[str] = []
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+
+            name = entry.get("establishment_name", "Unknown Establishment")
+            awards = entry.get("awards", {}) or {}
+            stars = awards.get("stars") or 0
+            star_display = "*" * stars if stars else "No stars"
+
+            lines.append(f"{'=' * 60}")
+            lines.append(f"{name}")
+            lines.append(f"Stars: {star_display}")
+            lines.append(f"{'=' * 60}")
+
+            location = entry.get("location", {}) or {}
+            address = entry.get("address", {}) or {}
+            loc_parts = [
+                p
+                for p in [
+                    location.get("neighbourhood_or_area"),
+                    location.get("city_or_town"),
+                ]
+                if p
+            ]
+            if loc_parts:
+                lines.append(f"Location: {', '.join(loc_parts)}")
+            addr_parts = [
+                str(p)
+                for p in [
+                    address.get("street"),
+                    address.get("house_number"),
+                    address.get("postal_code"),
+                ]
+                if p
+            ]
+            if addr_parts:
+                lines.append(f"Address: {' '.join(addr_parts)}")
+
+            award_bits: list[str] = []
+            if awards.get("bib_gourmand"):
+                award_bits.append("Bib Gourmand")
+            if awards.get("michelin_plate"):
+                award_bits.append("Michelin Plate")
+            if awards.get("pleasant_marker"):
+                award_bits.append("Pleasant")
+            if awards.get("hotel_class"):
+                award_bits.append(f"Hotel class {awards.get('hotel_class')}")
+            if awards.get("restaurant_class"):
+                award_bits.append(f"Restaurant class {awards.get('restaurant_class')}")
+            if award_bits:
+                lines.append(f"Awards: {', '.join(award_bits)}")
+
+            cuisine = entry.get("cuisine", {}) or {}
+            origin = self.join_list(cuisine.get("cuisine_origin"))
+            if origin:
+                lines.append(f"Cuisine: {origin}")
+            style = self.join_list(cuisine.get("culinary_style"))
+            if style:
+                lines.append(f"Style: {style}")
+            specialties = self.join_list(cuisine.get("specialties"))
+            if specialties:
+                lines.append(f"Specialties: {specialties}")
+
+            pricing = entry.get("pricing", {}) or {}
+            currency = pricing.get("currency") or ""
+            menu_min = pricing.get("menu_price_min")
+            menu_max = pricing.get("menu_price_max")
+            if menu_min or menu_max:
+                lines.append(f"Menu: {currency} {menu_min or '?'} - {menu_max or '?'}")
+            alc_min = pricing.get("a_la_carte_price_min")
+            alc_max = pricing.get("a_la_carte_price_max")
+            if alc_min or alc_max:
+                lines.append(
+                    f"À la carte: {currency} {alc_min or '?'} - {alc_max or '?'}"
+                )
+
+            note = entry.get("inspector_note")
+            if note:
+                lines.append(f"Inspector Note: {note}")
 
             lines.append("")
 

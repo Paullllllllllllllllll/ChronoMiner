@@ -110,6 +110,12 @@ class ImageProcessor:
             image.mode in ("RGBA", "LA")
             or (image.mode == "P" and "transparency" in image.info)
         ):
+            # Palette ("P") images store transparency as an info entry, not an
+            # alpha band, so split()[-1] would yield the palette-index band and
+            # raise "bad transparency mask". Convert to RGBA first for a real
+            # alpha mask.
+            if image.mode == "P":
+                image = image.convert("RGBA")
             background = Image.new("RGB", image.size, (255, 255, 255))
             background.paste(image, mask=image.split()[-1])
             return background

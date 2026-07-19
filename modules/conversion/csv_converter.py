@@ -66,11 +66,27 @@ class CSVConverter(BaseConverter):
             "historicalrecipesentriesproduction": (
                 self._convert_historical_recipes_production_to_df
             ),
+            "historicalrecipesentriesproductionv3": (
+                self._convert_historical_recipes_production_to_df
+            ),
             "michelinguides": self._convert_michelin_guides_to_df,
+            "michelinguideslight": self._convert_michelin_guides_light_to_df,
             "cookbookmetadataentries": self._convert_cookbook_metadata_to_df,
         }
         converter = self.get_converter(converters)
-        df = converter(entries) if converter else pd.json_normalize(entries, sep="_")
+        # Run the converter inside the guard so a single hostile element degrades
+        # to the json_normalize fallback rather than aborting the whole file.
+        try:
+            if converter:
+                df = converter(entries)
+            else:
+                df = pd.json_normalize(entries, sep="_")
+        except Exception as e:
+            logger.warning(
+                f"Converter for schema '{self.schema_name}' failed ({e}); "
+                "falling back to json_normalize."
+            )
+            df = pd.json_normalize(entries, sep="_")
         try:
             df.to_csv(output_csv, index=False)
             logger.info(f"CSV file generated at {output_csv}")
@@ -370,6 +386,8 @@ class CSVConverter(BaseConverter):
     ) -> pd.DataFrame:
         rows: list[dict[str, Any]] = []
         for entry in entries:
+            if not isinstance(entry, dict):
+                continue
             row = {
                 col: resolve_field(entry, key, default)
                 for col, key, default in self._BRAZILIAN_CSV_FIELDS
@@ -384,116 +402,98 @@ class CSVConverter(BaseConverter):
 
     def _convert_bibliographic_entries_to_df(self, entries: list[Any]) -> pd.DataFrame:
         """
-        Converts bibliographic entries to a pandas DataFrame according to
-        schema version 3.3. Creates one row per edition with all entry-level
-        data repeated.
+        Converts bibliographic entries to a pandas DataFrame (schema v4.4).
+
+        Creates one row per edition with all entry-level data repeated. Reads
+        the current schema keys only; columns for retired fields (library
+        location, culinary_focus, publishers, dimensions) are dropped rather
+        than emitted empty.
 
         :param entries: List of bibliographic entry dictionaries
         :return: pandas DataFrame with normalized bibliographic data
         """
-        rows = []
+        rows: list[dict[str, Any]] = []
 
         for entry in entries:
-            # Extract primary entry data
-            full_title = entry.get("full_title", "")
-            short_title = entry.get("short_title", "")
-            main_author = entry.get("main_author", "")
-
-            # Extract library location
-            library_location = entry.get("library_location")
-            library_name = None
-            library_city = None
-            if library_location and isinstance(library_location, dict):
-                library_name = library_location.get("library_name")
-                library_city = library_location.get("library_city")
-
-            culinary_focus = entry.get("culinary_focus", [])
-            culinary_focus_str = (
-                ", ".join(culinary_focus)
-                if isinstance(culinary_focus, list)
-                else str(culinary_focus)
-            )
-
-            # Process edition info
-            edition_info = entry.get("edition_info", [])
-            if not edition_info or not isinstance(edition_info, list):
-                edition_info = []
-
-            # If no editions, create a single row with entry data
-            if not edition_info:
-                rows.append(
-                    {
-                        "full_title": full_title,
-                        "short_title": short_title,
-                        "main_author": main_author,
-                        "library_name": library_name,
-                        "library_city": library_city,
-                        "culinary_focus": culinary_focus_str,
-                    }
-                )
+            if not isinstance(entry, dict):
                 continue
 
-            # Create one row per edition
+            entry_row: dict[str, Any] = {
+                "full_title": entry.get("full_title", ""),
+                "short_title": entry.get("short_title", ""),
+                "main_author": entry.get("main_author", ""),
+                "institutional_main_author": entry.get("institutional_main_author"),
+                "short_note": entry.get("short_note"),
+                "library_abbreviation": entry.get("library_abbreviation"),
+                "volumes_overview": entry.get("volumes_overview"),
+                "volume_numbers": self.join_list(entry.get("volume_numbers")),
+            }
+
+            edition_info = entry.get("edition_info", [])
+            if not isinstance(edition_info, list) or not edition_info:
+                rows.append(dict(entry_row))
+                continue
+
             for edition in edition_info:
-                # Extract publication locations
-                pub_locations = edition.get("publication_locations", [])
-                cities = [loc.get("city") for loc in pub_locations if loc.get("city")]
-                countries = [
-                    loc.get("country") for loc in pub_locations if loc.get("country")
+                if not isinstance(edition, dict):
+                    continue
+
+                # Publication locations: prefer modern equivalents.
+                pub_locations = edition.get("publication_locations") or []
+                places = [
+                    loc.get("modern_place") or loc.get("original_place")
+                    for loc in pub_locations
+                    if isinstance(loc, dict)
+                    and (loc.get("modern_place") or loc.get("original_place"))
+                ]
+                regions = [
+                    loc.get("modern_region") or loc.get("original_region")
+                    for loc in pub_locations
+                    if isinstance(loc, dict)
+                    and (loc.get("modern_region") or loc.get("original_region"))
                 ]
 
-                # Extract contributors with roles
-                contributors = edition.get("contributors", [])
+                contributors = edition.get("contributors") or []
                 contributor_strs = [
-                    f"{c.get('name', '')} ({c.get('role', '')})"
+                    f"{self.safe_str(c.get('name'))} ({self.safe_str(c.get('role'))})"
                     for c in contributors
                     if isinstance(c, dict)
                 ]
 
-                # Extract publishers
-                publishers = edition.get("publishers", [])
-                publishers_str = (
-                    ", ".join(publishers) if isinstance(publishers, list) else ""
-                )
-
-                # Extract price info
-                price_info = edition.get("price_information")
+                price_info = edition.get("price_information") or {}
                 price_str = ""
-                if price_info and isinstance(price_info, dict):
+                if isinstance(price_info, dict) and (
+                    price_info.get("price") is not None or price_info.get("currency")
+                ):
                     price_str = (
-                        f"{price_info.get('price', '')} "
-                        f"{price_info.get('currency', '')}"
-                    )
+                        f"{self.safe_str(price_info.get('price'))} "
+                        f"{self.safe_str(price_info.get('currency'))}"
+                    ).strip()
 
-                edition_row = {
-                    # Entry-level fields
-                    "full_title": full_title,
-                    "short_title": short_title,
-                    "main_author": main_author,
-                    "library_name": library_name,
-                    "library_city": library_city,
-                    "culinary_focus": culinary_focus_str,
-                    # Edition-level fields
-                    "edition_year": edition.get("year"),
-                    "edition_number": edition.get("edition_number"),
-                    "publication_cities": ", ".join(cities),
-                    "publication_countries": ", ".join(countries),
-                    "contributors": "; ".join(contributor_strs),
-                    "publishers": publishers_str,
-                    "edition_category": edition.get("edition_category"),
-                    "short_note": edition.get("short_note"),
-                    "language": edition.get("language"),
-                    "translated_from": edition.get("translated_from"),
-                    "format": edition.get("format"),
-                    "pages": edition.get("pages"),
-                    "has_illustrations": edition.get("has_illustrations"),
-                    "dimensions": edition.get("dimensions"),
-                    "price": price_str,
-                }
+                edition_row = dict(entry_row)
+                edition_row.update(
+                    {
+                        "edition_year": edition.get("year"),
+                        "edition_number": edition.get("edition_number"),
+                        "edition_volume_numbers": self.join_list(
+                            edition.get("volume_numbers")
+                        ),
+                        "publication_places": ", ".join(str(p) for p in places),
+                        "publication_regions": ", ".join(str(r) for r in regions),
+                        "contributors": "; ".join(contributor_strs),
+                        "edition_category": edition.get("edition_category"),
+                        "language": edition.get("language"),
+                        "translated_from": edition.get("translated_from"),
+                        "format": edition.get("format"),
+                        "pages": edition.get("pages"),
+                        "has_illustrations": edition.get("has_illustrations"),
+                        "is_manuscript": edition.get("is_manuscript"),
+                        "price": price_str,
+                    }
+                )
                 rows.append(edition_row)
 
-        df = pd.DataFrame(rows)
-        return df
+        return pd.DataFrame(rows)
 
     def _convert_culinary_entities_to_df(self, entries: list[Any]) -> pd.DataFrame:
         """Flatten unified culinary entities entries (schema v3.0) into tabular rows."""
@@ -661,31 +661,19 @@ class CSVConverter(BaseConverter):
             # Cuisine
             cuisine = entry.get("cuisine", {}) or {}
             styles = cuisine.get("styles", [])
-            styles_str = (
-                ", ".join(styles) if isinstance(styles, list) and styles else ""
-            )
+            styles_str = self.join_list(styles)
             specialties = cuisine.get("specialties", [])
-            specialties_str = (
-                ", ".join(specialties)
-                if isinstance(specialties, list) and specialties
-                else ""
-            )
+            specialties_str = self.join_list(specialties)
             chef = cuisine.get("chef")
             keywords = cuisine.get("keywords", [])
-            keywords_str = (
-                ", ".join(keywords) if isinstance(keywords, list) and keywords else ""
-            )
+            keywords_str = self.join_list(keywords)
 
             # Opening
             opening = entry.get("opening", {}) or {}
             lunch_hours = opening.get("lunch_hours")
             dinner_hours = opening.get("dinner_hours")
             days_closed = opening.get("days_closed", [])
-            days_closed_str = (
-                ", ".join(days_closed)
-                if isinstance(days_closed, list) and days_closed
-                else ""
-            )
+            days_closed_str = self.join_list(days_closed)
             annual_closure = opening.get("annual_closure")
             open_for_breakfast = opening.get("open_for_breakfast")
 
@@ -791,6 +779,65 @@ class CSVConverter(BaseConverter):
 
         df = pd.DataFrame(rows)
         return df
+
+    # ------------------------------------------------------------------
+    # MichelinGuidesLight (schema 3.4-light)
+    # ------------------------------------------------------------------
+
+    def _convert_michelin_guides_light_to_df(self, entries: list[Any]) -> pd.DataFrame:
+        """Convert MichelinGuidesLight entries to DataFrame (schema 3.4-light).
+
+        Reads the current Light schema shape (location, address, awards with
+        hotel/restaurant class, cuisine_origin/culinary_style arrays, pricing,
+        rooms, inspector_note, entry_is_fragment).
+        """
+        entries = self._normalize_entries(entries)
+        rows: list[dict[str, Any]] = []
+
+        for entry in entries:
+            if not isinstance(entry, dict):
+                continue
+
+            location = entry.get("location", {}) or {}
+            address = entry.get("address", {}) or {}
+            awards = entry.get("awards", {}) or {}
+            cuisine = entry.get("cuisine", {}) or {}
+            pricing = entry.get("pricing", {}) or {}
+            rooms = entry.get("rooms", {}) or {}
+
+            rows.append(
+                {
+                    "establishment_name": entry.get("establishment_name"),
+                    "city_or_town": location.get("city_or_town"),
+                    "neighbourhood_or_area": location.get("neighbourhood_or_area"),
+                    "street": address.get("street"),
+                    "house_number": address.get("house_number"),
+                    "postal_code": address.get("postal_code"),
+                    "stars": awards.get("stars"),
+                    "bib_gourmand": awards.get("bib_gourmand"),
+                    "michelin_plate": awards.get("michelin_plate"),
+                    "pleasant_marker": awards.get("pleasant_marker"),
+                    "hotel_class": awards.get("hotel_class"),
+                    "restaurant_class": awards.get("restaurant_class"),
+                    "cuisine_origin": self.join_list(cuisine.get("cuisine_origin")),
+                    "culinary_style": self.join_list(cuisine.get("culinary_style")),
+                    "specialties": self.join_list(cuisine.get("specialties")),
+                    "currency": pricing.get("currency"),
+                    "menu_price_min": pricing.get("menu_price_min"),
+                    "menu_price_max": pricing.get("menu_price_max"),
+                    "a_la_carte_price_min": pricing.get("a_la_carte_price_min"),
+                    "a_la_carte_price_max": pricing.get("a_la_carte_price_max"),
+                    "lunch_menu_price": pricing.get("lunch_menu_price"),
+                    "room_count": rooms.get("room_count"),
+                    "room_price_min": rooms.get("room_price_min"),
+                    "room_price_max": rooms.get("room_price_max"),
+                    "accepts_credit_cards": entry.get("accepts_credit_cards"),
+                    "inspector_note": entry.get("inspector_note"),
+                    "entry_is_fragment": entry.get("entry_is_fragment"),
+                }
+            )
+
+        return pd.DataFrame(rows)
 
     # ------------------------------------------------------------------
     # HistoricalRecipesEntriesProduction (schema v1.2)

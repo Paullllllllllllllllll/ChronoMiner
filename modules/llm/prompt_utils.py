@@ -87,8 +87,21 @@ def render_prompt_with_schema(
         idx = prompt_text.find(marker)
         start_brace = prompt_text.find("{", idx)
         if start_brace != -1:
-            end_brace = prompt_text.rfind("}")
-            if end_brace != -1 and end_brace > start_brace:
+            # Brace-balance forward from the start brace so only the JSON block
+            # is replaced. Using rfind("}") would swallow any prose after the
+            # schema that contains a later closing brace.
+            depth = 0
+            end_brace = -1
+            for i in range(start_brace, len(prompt_text)):
+                ch = prompt_text[i]
+                if ch == "{":
+                    depth += 1
+                elif ch == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end_brace = i
+                        break
+            if end_brace != -1:
                 return (
                     prompt_text[:start_brace]
                     + schema_str

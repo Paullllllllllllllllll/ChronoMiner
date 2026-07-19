@@ -56,6 +56,12 @@ def detect_provider(model_name: str) -> ProviderType:
     """
     m = _norm(model_name)
 
+    # Google-native prefixed form (e.g. "models/gemini-2.5-flash",
+    # "models/gemma-..."). Must precede the generic "/" OpenRouter rule below,
+    # which would otherwise misroute it to OpenRouter.
+    if m.startswith("models/gemini") or m.startswith("models/gemma"):
+        return "google"
+
     # OpenRouter models typically have openrouter/ prefix or contain /
     if m.startswith("openrouter/") or "/" in m:
         return "openrouter"

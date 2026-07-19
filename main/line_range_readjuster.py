@@ -30,6 +30,7 @@ from main.bootstrap import (
     load_schema_manager,
     validate_schema_paths,
 )
+from main.cli_args import add_mode_override_arguments
 from main.mode_detector import detect_execution_mode
 from modules.config.schema_manager import SchemaManager
 from modules.extract.config_builder import build_effective_model_config
@@ -147,6 +148,10 @@ def parse_arguments() -> argparse.Namespace:
         metavar="N",
         help="Adjust only the last N line ranges of each file",
     )
+    # Accept the shared mode-override flags for CLI-contract uniformity. Mode
+    # detection itself reads sys.argv (see main.mode_detector), so these parse
+    # as near-no-ops here but must be recognized to avoid a parser error.
+    add_mode_override_arguments(parser)
     return parser.parse_args()
 
 

@@ -551,6 +551,12 @@ class LangChainLLM:
             if service_tier:
                 params["service_tier"] = service_tier
 
+            # Route models without a Chat Completions endpoint (GPT-5.x) to the
+            # Responses API explicitly, driven by the capability flag rather
+            # than relying on the verbosity `text` model_kwarg side effect.
+            if not caps.supports_chat_completions:
+                params["use_responses_api"] = True
+
             # Add text verbosity for GPT-5 family models (CM-5)
             text_config = self.config.extra_params.get("text_config", {})
             if text_config and str(caps.family).startswith("gpt-5"):
