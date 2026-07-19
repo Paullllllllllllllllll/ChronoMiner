@@ -20,6 +20,7 @@ Usage:
 """
 
 import argparse
+import contextlib
 import json
 import sys
 import time
@@ -71,10 +72,16 @@ def slim_file(path: Path, dry_run: bool = False) -> tuple[int, int]:
             for line in src:
                 size_after += len(slim_line(line).encode("utf-8"))
         else:
-            with tmp_path.open("w", encoding="utf-8", newline="\n") as dst:
-                for line in src:
-                    dst.write(slim_line(line))
-            size_after = tmp_path.stat().st_size
+            try:
+                with tmp_path.open("w", encoding="utf-8", newline="\n") as dst:
+                    for line in src:
+                        dst.write(slim_line(line))
+                size_after = tmp_path.stat().st_size
+            except BaseException:
+                # Do not leak a half-written .tmp sibling on failure.
+                with contextlib.suppress(OSError):
+                    tmp_path.unlink()
+                raise
 
     if not dry_run:
         tmp_path.replace(path)

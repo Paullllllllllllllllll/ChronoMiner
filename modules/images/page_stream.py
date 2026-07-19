@@ -196,8 +196,13 @@ async def stream_page_payloads(
     else:
 
         def _load_and_process() -> PagePayload:
+            # Keep the original mode: converting to RGB here would drop the
+            # alpha channel BEFORE handle_transparency() can composite
+            # transparent regions onto white, blacking out transparent
+            # PNG/WebP pages. _apply_transforms() flattens transparency and
+            # ends with an RGB/L coercion itself.
             with Image.open(file_path) as raw:
-                img = raw.convert("RGB")
+                img = raw.copy()
             try:
                 return _payload_from_pil(img, 1, processor, image_detail, None)
             finally:

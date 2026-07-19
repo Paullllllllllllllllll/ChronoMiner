@@ -140,6 +140,7 @@ class GenerateLineRangesScript(DualModeScript):
             for f in raw_text_dir.rglob(file_input)
             if not f.name.endswith("_line_ranges.txt")
             and not f.name.endswith("_context.txt")
+            and not f.name.endswith("_output.txt")
         ]
 
         if not file_candidates:
@@ -198,6 +199,7 @@ class GenerateLineRangesScript(DualModeScript):
             for f in raw_text_dir.rglob("*.txt")
             if not f.name.endswith("_line_ranges.txt")
             and not f.name.endswith("_context.txt")
+            and not f.name.endswith("_output.txt")
         ]
 
         if not files:
@@ -382,7 +384,11 @@ class GenerateLineRangesScript(DualModeScript):
         files = get_files_from_path(
             input_path,
             pattern="*.txt",
-            exclude_patterns=["*_line_ranges.txt", "*_context.txt"],
+            exclude_patterns=[
+                "*_line_ranges.txt",
+                "*_context.txt",
+                "*_output.txt",
+            ],
         )
 
         if not files:

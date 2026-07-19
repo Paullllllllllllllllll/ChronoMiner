@@ -808,9 +808,14 @@ class LangChainLLM:
                     for item in content
                 )
                 if has_image or has_cache_control:
-                    # Preserve list structure for multimodal or cache-annotated blocks.
-                    # Convert input_text type to text type for Anthropic compatibility.
-                    if has_cache_control:
+                    # Preserve list structure for multimodal or cache-annotated
+                    # blocks, but always rewrite input_text -> text: LangChain's
+                    # Chat Completions path passes unknown block types through
+                    # verbatim, and OpenAI/OpenRouter reject "input_text" with
+                    # HTTP 400 (previously only the cache_control branch
+                    # rewrote, so text chunks with a context image failed on
+                    # every chat-completions-routed model).
+                    if has_cache_control or has_image:
                         content = [
                             {
                                 **{k: v for k, v in item.items() if k != "type"},

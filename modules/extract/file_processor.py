@@ -429,6 +429,7 @@ class FileProcessor:
             chunk_indices=chunk_indices,
             chunk_ranges=ranges,
             ui=ui,
+            chunking_method=chunking_method,
         )
 
     async def _process_visual_file(
@@ -679,6 +680,7 @@ class FileProcessor:
             # (streaming) path's absolute page numbering.
             chunk_indices=needed_indices if use_batch else None,
             ui=ui,
+            chunking_method="pages",
         )
 
     async def _execute_extraction(
@@ -707,6 +709,7 @@ class FileProcessor:
         chunk_indices: list[int] | None = None,
         chunk_ranges: list[tuple[int, int]] | None = None,
         ui: Any = None,
+        chunking_method: str = "unknown",
     ) -> str:
         """Shared extraction orchestration for both text and visual pipelines.
 
@@ -897,6 +900,14 @@ class FileProcessor:
                     f"Recovered {len(recovered)} {unit_label}(s) from an "
                     f"interrupted run's temp file; they will not be re-processed."
                 )
+                # The streaming visual path drives work off needed_indices, not
+                # the skip set: without this filter the first pass re-renders
+                # and re-bills every recovered page (the workers never consult
+                # completed_chunk_indices).
+                if needed_indices is not None:
+                    needed_indices = [
+                        i for i in needed_indices if i not in completed_chunk_indices
+                    ]
 
         # Create processing strategy and execute
         strategy = create_processing_strategy(use_batch, self.concurrency_config)
@@ -1061,6 +1072,7 @@ class FileProcessor:
                                 chunk_slice_info=_cs_info,
                                 merge_existing=merge_existing_flag,
                                 image_provenance=image_provenance,
+                                chunking_method=chunking_method,
                             )
                         )
                     elif processing_cancelled:
@@ -1203,6 +1215,7 @@ class FileProcessor:
         chunk_slice_info: dict | None = None,
         merge_existing: bool = False,
         image_provenance: dict[str, Any] | None = None,
+        chunking_method: str = "unknown",
     ) -> bool:
         """Generate final output files from temporary JSONL.
 
@@ -1245,7 +1258,6 @@ class FileProcessor:
             results.sort(key=lambda x: x.get("chunk_index") or 0)
 
             # Build output structure with metadata
-            chunking_method = "unknown"
             model_name = self.model_config.get("extraction_model", {}).get(
                 "name", "unknown"
             )
