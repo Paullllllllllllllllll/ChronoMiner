@@ -167,3 +167,38 @@ class TestPromptMultiselect:
         with patch("builtins.input", return_value="2"):
             result = prompt_multiselect("pick", options)
         assert "b" in result.value
+
+
+@pytest.mark.unit
+class TestAllowQuit:
+    """'q' quits by default but is inert when allow_quit=False (mid-run prompts)."""
+
+    def test_prompt_select_default_quits(self):
+        options = [("a", "A"), ("b", "B")]
+        with (
+            patch("builtins.input", return_value="q"),
+            pytest.raises(SystemExit),
+        ):
+            prompt_select("pick", options)
+
+    def test_prompt_select_allow_quit_false_treats_q_as_invalid(self):
+        options = [("a", "A"), ("b", "B")]
+        # 'q' must not exit; it is invalid input, so the prompt re-asks and
+        # the following '1' resolves the selection.
+        with patch("builtins.input", side_effect=["q", "1"]):
+            result = prompt_select("pick", options, allow_quit=False)
+        assert result.action is NavigationAction.CONTINUE
+        assert result.value == "a"
+
+    def test_prompt_text_default_quits(self):
+        with (
+            patch("builtins.input", return_value="q"),
+            pytest.raises(SystemExit),
+        ):
+            prompt_text("enter", allow_empty=True)
+
+    def test_prompt_text_allow_quit_false_returns_q_as_text(self):
+        with patch("builtins.input", return_value="q"):
+            result = prompt_text("enter", allow_empty=True, allow_quit=False)
+        assert result.action is NavigationAction.CONTINUE
+        assert result.value == "q"

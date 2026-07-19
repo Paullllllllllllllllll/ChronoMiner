@@ -249,6 +249,7 @@ class ChunkHandler:
         current_start: int = original_start_line
         total_lines: int = original_start_line + total_processed_lines - 1
 
+        prompting: bool = True
         i: int = 0
         while current_start <= total_lines:
             actual_start: int = current_start
@@ -259,11 +260,23 @@ class ChunkHandler:
 
             _tell(f"Chunk {i + 1}: Lines {actual_start} - {initial_end}")
             while True:
-                user_input: str = input(
-                    f"Enter the new end line for Chunk {i + 1} "
-                    f"(current end line: {initial_end}) "
-                    "or press Enter to keep it: "
-                ).strip()
+                if prompting:
+                    try:
+                        user_input: str = input(
+                            f"Enter the new end line for Chunk {i + 1} "
+                            f"(current end line: {initial_end}) "
+                            "or press Enter to keep it: "
+                        ).strip()
+                    except (EOFError, KeyboardInterrupt):
+                        prompting = False
+                        user_input = ""
+                        _tell(
+                            "No interactive input available; keeping remaining "
+                            "chunk ranges as-is.",
+                            error=True,
+                        )
+                else:
+                    user_input = ""
                 if user_input == "":
                     actual_end = initial_end
                     final_ranges.append((actual_start, actual_end))

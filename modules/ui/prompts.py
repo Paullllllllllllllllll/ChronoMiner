@@ -180,20 +180,21 @@ def print_navigation_help(allow_back: bool = False) -> None:
 
 
 def handle_navigation_input(
-    user_input: str, allow_back: bool = False
+    user_input: str, allow_back: bool = False, allow_quit: bool = True
 ) -> NavigationAction | None:
     """Check if user input is a navigation command.
 
     Args:
         user_input: The user's input
         allow_back: Whether back navigation is allowed
+        allow_quit: Whether quit navigation is allowed
 
     Returns:
         NavigationAction if input is a navigation command, None otherwise
     """
     input_lower = user_input.lower()
 
-    if input_lower in ["q", "quit", "exit"]:
+    if allow_quit and input_lower in ["q", "quit", "exit"]:
         print_info("Exiting as requested.")
         return NavigationAction.QUIT
 
@@ -209,6 +210,7 @@ def prompt_select(
     options: list[tuple[str, str]],
     allow_back: bool = False,
     show_help: bool = True,
+    allow_quit: bool = True,
 ) -> PromptResult:
     """Prompt user to select from a list of options.
 
@@ -217,6 +219,7 @@ def prompt_select(
         options: List of (value, description) tuples
         allow_back: Whether to allow back navigation
         show_help: Whether to show navigation help
+        allow_quit: Whether to allow quit navigation
 
     Returns:
         PromptResult with the selected value or navigation action
@@ -234,7 +237,7 @@ def prompt_select(
         choice = ui_input("\nEnter your choice: ")
 
         # Check for navigation
-        nav_action = handle_navigation_input(choice, allow_back)
+        nav_action = handle_navigation_input(choice, allow_back, allow_quit)
         if nav_action == NavigationAction.QUIT:
             sys.exit(0)
         if nav_action == NavigationAction.BACK:
@@ -250,7 +253,10 @@ def prompt_select(
 
 
 def prompt_yes_no(
-    question: str, default: bool | None = None, allow_back: bool = False
+    question: str,
+    default: bool | None = None,
+    allow_back: bool = False,
+    allow_quit: bool = True,
 ) -> PromptResult:
     """Prompt user for a yes/no answer.
 
@@ -258,6 +264,7 @@ def prompt_yes_no(
         question: The question to ask
         default: Default answer if user presses Enter (None for no default)
         allow_back: Whether to allow back navigation
+        allow_quit: Whether to allow quit navigation
 
     Returns:
         PromptResult with boolean value or navigation action
@@ -279,7 +286,7 @@ def prompt_yes_no(
         choice = ui_input("> ").lower()
 
         # Check for navigation
-        nav_action = handle_navigation_input(choice, allow_back)
+        nav_action = handle_navigation_input(choice, allow_back, allow_quit)
         if nav_action == NavigationAction.QUIT:
             sys.exit(0)
         if nav_action == NavigationAction.BACK:
@@ -305,6 +312,7 @@ def prompt_text(
     validator: Callable[[str], bool] | None = None,
     error_message: str = "Invalid input. Please try again.",
     default: str = "",
+    allow_quit: bool = True,
 ) -> PromptResult:
     """Prompt user for text input.
 
@@ -315,6 +323,7 @@ def prompt_text(
         validator: Optional validation function
         error_message: Message to show on validation failure
         default: Default value if user presses Enter
+        allow_quit: Whether to allow quit navigation
 
     Returns:
         PromptResult with text value or navigation action
@@ -336,7 +345,7 @@ def prompt_text(
             value = default
 
         # Check for navigation
-        nav_action = handle_navigation_input(value, allow_back)
+        nav_action = handle_navigation_input(value, allow_back, allow_quit)
         if nav_action == NavigationAction.QUIT:
             sys.exit(0)
         if nav_action == NavigationAction.BACK:
@@ -383,6 +392,7 @@ def prompt_multiselect(
     items: list[tuple[str, str]],
     allow_all: bool = True,
     allow_back: bool = False,
+    allow_quit: bool = True,
 ) -> PromptResult:
     """Prompt user to select multiple items.
 
@@ -393,6 +403,7 @@ def prompt_multiselect(
         items: List of (identifier, description) tuples
         allow_all: Whether to allow selecting all items
         allow_back: Whether to allow back navigation
+        allow_quit: Whether to allow quit navigation
 
     Returns:
         PromptResult with list of selected identifiers or navigation action
@@ -425,7 +436,7 @@ def prompt_multiselect(
             continue
 
         # Check for navigation
-        nav_action = handle_navigation_input(choice, allow_back)
+        nav_action = handle_navigation_input(choice, allow_back, allow_quit)
         if nav_action == NavigationAction.QUIT:
             sys.exit(0)
         if nav_action == NavigationAction.BACK:
@@ -506,17 +517,3 @@ def prompt_multiselect(
             print_success(f"Selected {len(selected)} item(s).")
 
         return PromptResult(NavigationAction.CONTINUE, selected)
-
-
-def confirm_action(message: str, default: bool = False) -> bool:
-    """Simple confirmation prompt (no back navigation).
-
-    Args:
-        message: Confirmation message
-        default: Default answer
-
-    Returns:
-        True if confirmed, False otherwise
-    """
-    result = prompt_yes_no(message, default=default, allow_back=False)
-    return result.value if result.action == NavigationAction.CONTINUE else False

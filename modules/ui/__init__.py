@@ -9,7 +9,6 @@ for consistent UX across projects.
 Structure:
 - core.py: UserInterface class (backward-compatible wrapper)
 - prompts.py: Core prompt utilities with navigation support
-- workflows.py: WorkflowUI class for multi-step workflows
 """
 
 from modules.ui.core import UserInterface
@@ -17,7 +16,6 @@ from modules.ui.prompts import (
     NavigationAction,
     PromptResult,
     PromptStyle,
-    confirm_action,
     print_error,
     print_header,
     print_info,
@@ -32,7 +30,6 @@ from modules.ui.prompts import (
     ui_input,
     ui_print,
 )
-from modules.ui.workflows import WorkflowUI
 
 __all__ = [
     # Core UI class (backward-compatible)
@@ -56,7 +53,4 @@ __all__ = [
     "prompt_yes_no",
     "prompt_text",
     "prompt_multiselect",
-    "confirm_action",
-    # Workflow UI
-    "WorkflowUI",
 ]

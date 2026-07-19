@@ -164,7 +164,9 @@ class UserInterface:
         :return: User input or None if back/quit selected
         """
         # Use the modular prompt_text function
-        result = prompt_text(prompt, allow_empty=True, allow_back=allow_back)
+        result = prompt_text(
+            prompt, allow_empty=True, allow_back=allow_back, allow_quit=allow_quit
+        )
 
         if result.action == NavigationAction.BACK:
             return None
@@ -210,7 +212,9 @@ class UserInterface:
         :param allow_quit: Whether to allow quitting
         :return: The selected option value or None if back selected
         """
-        result = prompt_select(prompt, options, allow_back=allow_back)
+        result = prompt_select(
+            prompt, options, allow_back=allow_back, allow_quit=allow_quit
+        )
 
         if result.action == NavigationAction.BACK:
             return None
@@ -1207,64 +1211,6 @@ class UserInterface:
         )
 
         return result or "auto"
-
-    def display_batch_summary(self, batches: list[Any]) -> None:
-        """
-        Display a summary of batch job statuses.
-
-        :param batches: List of batch objects from OpenAI API
-        """
-        # Count batches by status
-        status_counts: dict[str, int] = {}
-        in_progress_batches = []
-
-        for batch in batches:
-            if isinstance(batch, dict):
-                status = str(batch.get("status", "unknown")).lower()
-                batch_id = batch.get("id", "unknown")
-                created_time = batch.get("created_at") or batch.get(
-                    "created", "Unknown"
-                )
-            else:
-                status = str(getattr(batch, "status", "unknown")).lower()
-                batch_id = getattr(batch, "id", "unknown")
-                created_time = getattr(
-                    batch, "created_at", getattr(batch, "created", "Unknown")
-                )
-
-            status_counts[status] = status_counts.get(status, 0) + 1
-
-            # Keep track of non-terminal batches for detailed display
-            if status not in {"completed", "expired", "cancelled", "failed"}:
-                in_progress_batches.append((batch_id, status, created_time))
-
-        # Display summary
-        self.print_section_header("Batch Jobs Summary")
-        self.console_print(f"\n{self.BOLD}Total batches: {len(batches)}{self.RESET}\n")
-
-        # Display counts by status
-        # ASCII-safe status icons for Windows compatibility
-        status_icons = {
-            "completed": "[OK]",
-            "failed": "[X]",
-            "cancelled": "[X]",
-            "expired": "[T]",
-            "validating": "[.]",
-            "in_progress": "[>]",
-            "finalizing": "[O]",
-        }
-
-        for status, count in sorted(status_counts.items()):
-            icon = status_icons.get(status, "-")
-            self.console_print(f"  {icon} {status.capitalize()}: {count}")
-
-        # Display in-progress batches if any
-        if in_progress_batches:
-            self.print_subsection_header("Batches In Progress")
-            for batch_id, status, created_time in in_progress_batches:
-                self.console_print(
-                    f"  - {batch_id} | {status} | Created: {created_time}"
-                )
 
     def display_batch_processing_progress(
         self,

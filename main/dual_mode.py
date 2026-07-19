@@ -259,7 +259,13 @@ class AsyncDualModeScript(_DualModeBase, ABC):
 
         This method wraps the async execution in asyncio.run().
         """
-        asyncio.run(self._execute_async())
+        # On Python >= 3.12 asyncio.run re-raises a KeyboardInterrupt from
+        # itself, outside _execute_async's try, so catch it here too and route
+        # through the same interrupt handler for a clean exit.
+        try:
+            asyncio.run(self._execute_async())
+        except KeyboardInterrupt:
+            self._handle_interrupt()
 
     async def _execute_async(self) -> None:
         """

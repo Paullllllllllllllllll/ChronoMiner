@@ -616,7 +616,22 @@ async def _run_interactive_mode(
     # complete | partial | failed | skipped.
     file_statuses: list[tuple[str, str]] = []
 
-    if token_limit_enabled and not state["use_batch"]:
+    # Chunking modes that prompt mid-run ("auto-adjust" line-range editing,
+    # "per-file" method selection) must never run under asyncio.gather: a
+    # blocking input() would freeze the event loop and prompts from different
+    # files would interleave on one stdin. Force the sequential path when more
+    # than one file is selected. Single-file runs are unaffected.
+    prompting_chunking = state["global_chunking_method"] in ("auto-adjust", "per-file")
+    force_sequential = (
+        prompting_chunking and not state["use_batch"] and len(state["files"]) > 1
+    )
+    if force_sequential and not token_limit_enabled:
+        ui.print_info(
+            "Interactive chunking with multiple files: processing sequentially "
+            "so per-file prompts do not collide on stdin."
+        )
+
+    if (token_limit_enabled or force_sequential) and not state["use_batch"]:
         # Sequential processing with token limit checks
         for file_index, file_path in enumerate(state["files"], start=1):
             # Check token limit before starting each file
@@ -882,6 +897,19 @@ async def _run_cli_mode(
         global_chunking_method = "none"
     else:
         global_chunking_method = args.chunking if args.chunking else "auto"
+
+    # Non-TTY guard: "auto-adjust" prompts for chunk boundaries via input(),
+    # which raises EOFError with no terminal and fails every file. Fail fast
+    # with a clear message instead (mirrors the interactive TTY guard).
+    if global_chunking_method == "auto-adjust" and not sys.stdin.isatty():
+        print(
+            "[ERROR] --chunking auto-adjust needs a TTY for interactive "
+            "boundary editing. Use --chunking auto or line_ranges.txt for "
+            "non-interactive runs.",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
     use_batch = args.batch if hasattr(args, "batch") else False
     use_resume = getattr(args, "resume", False) and not getattr(args, "force", False)
 
@@ -907,17 +935,20 @@ async def _run_cli_mode(
             sys.exit(2)
         chunk_slice = ChunkSlice(page_range=(start, end))
 
-    # Collect files
+    # Collect files; exclude the tool's own sidecar/report files so a second
+    # run does not re-extract from {stem}_output.txt. The excludes also apply
+    # to the visual branch: a "mixed" folder collects .txt/.md alongside
+    # images, and without them the sidecars are ingested (and billed) too.
+    text_excludes = [
+        "*_line_ranges.txt",
+        "*_context.txt",
+        "*_output.txt",
+    ]
     if is_visual:
-        files = get_files_from_path(input_path, input_type=input_type)
+        files = get_files_from_path(
+            input_path, input_type=input_type, exclude_patterns=text_excludes
+        )
     else:
-        # Collect .txt and .md inputs; exclude the tool's own sidecar/report
-        # files so a second run does not re-extract from {stem}_output.txt.
-        text_excludes = [
-            "*_line_ranges.txt",
-            "*_context.txt",
-            "*_output.txt",
-        ]
         if input_path.is_file():
             files = get_files_from_path(input_path, exclude_patterns=text_excludes)
         else:
