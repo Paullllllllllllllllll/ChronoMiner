@@ -259,6 +259,7 @@ async def test_synchronous_processing_strategy_writes_temp_jsonl_and_tracks_toke
         assert system_message == "dev"
         return {
             "ok": True,
+            "output_text": "extracted",
             "usage": {"input_tokens": 2, "output_tokens": 3},
             "text": text_chunk,
         }
@@ -322,7 +323,11 @@ async def test_synchronous_strategy_writes_chunk_index_for_ordering(
         json_schema: dict[str, Any],
         **kwargs,
     ):
-        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}}
+        return {
+            "ok": True,
+            "output_text": "extracted",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
 
     monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
 
@@ -390,6 +395,7 @@ async def test_synchronous_strategy_concurrent_writes_are_not_interleaved(
         await ps.asyncio.sleep(0)
         return {
             "ok": True,
+            "output_text": "extracted",
             "usage": {"input_tokens": 0, "output_tokens": 0},
             "payload": text_chunk * 50,
         }
@@ -455,7 +461,11 @@ async def test_synchronous_strategy_error_dict_carries_chunk_index(
     ):
         if text_chunk == "c2":
             raise RuntimeError("permanent failure: bad request 400")
-        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}}
+        return {
+            "ok": True,
+            "output_text": "extracted",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
 
     monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
 
@@ -482,6 +492,77 @@ async def test_synchronous_strategy_error_dict_carries_chunk_index(
     # c2 is the second chunk -> 1-based index 2.
     assert errors[0]["chunk_index"] == 2
     # The failed chunk wrote no temp record.
+    lines = [
+        rec
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+        if "custom_id" in (rec := json.loads(line))
+    ]
+    assert sorted(rec["chunk_index"] for rec in lines) == [1, 3]
+
+
+@pytest.mark.asyncio
+async def test_synchronous_strategy_empty_output_recorded_as_failed(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """An empty model output (truncation/refusal) must be recorded as a
+    failed chunk, not persisted to the temp JSONL as a completed unit that
+    the resume skip-set would then never retry."""
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object())
+    )
+
+    async def _process_text_chunk(
+        *,
+        text_chunk: str,
+        extractor: object,
+        system_message: str,
+        json_schema: dict[str, Any],
+        **kwargs,
+    ):
+        if text_chunk == "c2":
+            return {
+                "ok": True,
+                "output_text": "   ",
+                "usage": {"input_tokens": 0, "output_tokens": 0},
+            }
+        return {
+            "ok": True,
+            "output_text": "extracted",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
+
+    monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
+
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "input.txt"
+
+    strat = ps.SynchronousProcessingStrategy(
+        concurrency_config={"concurrency": {"extraction": {"concurrency_limit": 3}}}
+    )
+
+    results = await strat.process_chunks(
+        chunks=["c1", "c2", "c3"],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config={"extraction_model": {"name": "gpt-4o"}},
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_args, **_kwargs: None,
+    )
+
+    errors = [r for r in results if isinstance(r, dict) and "error" in r]
+    assert len(errors) == 1
+    assert errors[0]["chunk_index"] == 2
+    assert "empty model output" in errors[0]["error"]
+    # The empty-output chunk wrote no temp record.
     lines = [
         rec
         for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
@@ -521,6 +602,7 @@ async def test_synchronous_processing_strategy_forwards_runtime_overrides(
     ):
         return {
             "ok": True,
+            "output_text": "extracted",
             "usage": {"input_tokens": 0, "output_tokens": 0},
             "text": text_chunk,
         }
@@ -589,7 +671,11 @@ async def test_synchronous_processing_strategy_anthropic_rate_limit_retries(
         calls["n"] += 1
         if calls["n"] == 1:
             raise RuntimeError("429 rate_limit")
-        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}}
+        return {
+            "ok": True,
+            "output_text": "extracted",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
 
     monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
 
@@ -661,7 +747,11 @@ async def test_sync_strategy_defers_chunks_when_budget_exhausted(
 
     async def _process_text_chunk(*, text_chunk: str, **_kwargs):
         tt.get_token_tracker().add_tokens(30)
-        return {"ok": True, "usage": {"input_tokens": 10, "output_tokens": 20}}
+        return {
+            "ok": True,
+            "output_text": "extracted",
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+        }
 
     monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
 
@@ -731,7 +821,11 @@ async def test_anthropic_respects_configured_concurrency_limit(
     )
 
     async def _process_text_chunk(**_kw: Any) -> dict[str, Any]:
-        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}}
+        return {
+            "ok": True,
+            "output_text": "extracted",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
 
     monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
 

@@ -232,7 +232,7 @@ class GoogleBatchBackend(BatchBackend):
                 mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
             ) as f:
                 for item in inline_requests:
-                    f.write(json.dumps(item) + "\n")
+                    f.write(json.dumps(item, ensure_ascii=False) + "\n")
                 temp_path = Path(f.name)
 
             try:
@@ -289,8 +289,10 @@ class GoogleBatchBackend(BatchBackend):
         # Map Google state to our enum
         state_name = batch_job.state.name if batch_job.state else ""
         status_map = {
+            "JOB_STATE_QUEUED": BatchStatus.PENDING,
             "JOB_STATE_PENDING": BatchStatus.PENDING,
             "JOB_STATE_RUNNING": BatchStatus.IN_PROGRESS,
+            "JOB_STATE_CANCELLING": BatchStatus.IN_PROGRESS,
             "JOB_STATE_SUCCEEDED": BatchStatus.COMPLETED,
             "JOB_STATE_FAILED": BatchStatus.FAILED,
             "JOB_STATE_CANCELLED": BatchStatus.CANCELLED,

@@ -17,9 +17,15 @@ if str(_PROJECT_ROOT) not in sys.path:
 
 from main.cli_args import create_repair_parser
 from main.dual_mode import DualModeScript
-from modules.batch import BatchHandle, BatchStatus, get_batch_backend
+from modules.batch import (
+    BatchHandle,
+    BatchStatus,
+    BatchStatusInfo,
+    get_batch_backend,
+)
 from modules.batch.diagnostics import extract_custom_id_mapping
 from modules.batch.ops import (
+    _group_temp_files_by_base,
     _recover_missing_batch_ids,
     derive_submission_output_dir,
     is_batch_temp_file,
@@ -50,40 +56,70 @@ def _discover_candidate_temp_files(
             ui.log(f"Repository directory does not exist: {repo_dir}", "warning")
             continue
 
-        for temp_file in repo_dir.rglob("*_temp.jsonl"):
-            if not is_batch_temp_file(temp_file):
-                continue
+        # Glob *_temp*.jsonl (not *_temp.jsonl) so multi-part submissions,
+        # which only ever create *_temp_part{n}.jsonl and never the base file,
+        # are visible. Group parts into a single repair unit.
+        temp_files = [
+            f for f in repo_dir.rglob("*_temp*.jsonl") if is_batch_temp_file(f)
+        ]
+        if not temp_files:
+            continue
+
+        for (_group_dir, base_stem), temp_file_group in _group_temp_files_by_base(
+            temp_files
+        ).items():
             try:
-                result = process_batch_output_file(temp_file)
-                responses = result.get("responses", [])
-                tracking = result.get("tracking", [])
-                identifier = temp_file.stem.removesuffix("_temp")
+                # Aggregate responses/tracking and merge custom_id/order maps
+                # across every part, exactly as check_batches finalization does.
+                all_responses: list[Any] = []
+                all_tracking: list[Any] = []
+                combined_custom_id_map: dict[str, Any] = {}
+                combined_order_map: dict[str, int] = {}
+                for temp_file in temp_file_group:
+                    result = process_batch_output_file(temp_file)
+                    all_responses.extend(result.get("responses", []))
+                    all_tracking.extend(result.get("tracking", []))
+                    cid_map, order_map = extract_custom_id_mapping(temp_file)
+                    if cid_map:
+                        combined_custom_id_map.update(cid_map)
+                    if order_map:
+                        offset = len(combined_order_map)
+                        for cid, idx in order_map.items():
+                            combined_order_map[cid] = idx + offset
+
+                identifier = base_stem.removesuffix("_temp")
                 # CM-6: the final output lives with the submission (the
                 # parent of temp_jsonl/), not next to the temp file itself.
                 final_json = (
-                    derive_submission_output_dir(temp_file)
+                    derive_submission_output_dir(temp_file_group[0])
                     / f"{identifier}_output.json"
                 )
                 # Legacy name written by pre-v1.20.0 batch finalization;
                 # still counts as "final exists" for display purposes.
-                legacy_final = temp_file.parent / f"{identifier}_final_output.json"
+                legacy_final = (
+                    temp_file_group[0].parent / f"{identifier}_final_output.json"
+                )
                 candidates.append(
                     {
                         "schema_name": schema_name,
                         "schema_config": schema_config,
-                        "temp_file": temp_file,
+                        "temp_file": temp_file_group[0],
+                        "temp_files": temp_file_group,
+                        "identifier": identifier,
                         "final_json": final_json,
-                        "responses_count": len(responses),
-                        "tracking_count": len(tracking),
+                        "responses_count": len(all_responses),
+                        "tracking_count": len(all_tracking),
                         "has_final": final_json.exists() or legacy_final.exists(),
-                        "tracking": tracking,
-                        "responses": responses,
+                        "tracking": all_tracking,
+                        "responses": all_responses,
+                        "custom_id_map": combined_custom_id_map or None,
+                        "order_map": combined_order_map or None,
                     }
                 )
-                ui.log(f"Found candidate: {temp_file}", "debug")
+                ui.log(f"Found candidate: {base_stem}", "debug")
             except Exception as exc:
-                logger.warning("Failed to inspect %s: %s", temp_file, exc)
-                ui.log(f"Failed to inspect {temp_file}: {exc}", "warning")
+                logger.warning("Failed to inspect %s: %s", base_stem, exc)
+                ui.log(f"Failed to inspect {base_stem}: {exc}", "warning")
 
     return candidates
 
@@ -93,20 +129,31 @@ def _repair_temp_file(
     processing_settings: dict[str, Any],
     ui: UserInterface,
 ) -> None:
-    temp_file: Path = candidate["temp_file"]
+    temp_files: list[Path] = candidate.get("temp_files") or [candidate["temp_file"]]
+    representative: Path = temp_files[0]
     schema_name: str = candidate["schema_name"]
     schema_config: dict[str, Any] = candidate["schema_config"]
     responses: list[Any] = list(candidate.get("responses", []))
     tracking: list[Any] = list(candidate.get("tracking", []))
+    identifier: str = candidate.get("identifier") or representative.stem.removesuffix(
+        "_temp"
+    )
 
-    ui.print_subsection_header(f"Repairing: {temp_file.name}")
-    logger.info(f"Repairing {temp_file.name} for schema '{schema_name}'")
+    group_label = (
+        representative.name
+        if len(temp_files) == 1
+        else f"{identifier} ({len(temp_files)} parts)"
+    )
+    ui.print_subsection_header(f"Repairing: {group_label}")
+    logger.info(f"Repairing {group_label} for schema '{schema_name}'")
 
     if not tracking:
         ui.print_warning("No tracking entries found; cannot repair this file.")
         return
 
-    custom_id_map, order_map = extract_custom_id_mapping(temp_file)
+    # custom_id/order maps are pre-aggregated across all parts in discovery.
+    custom_id_map = candidate.get("custom_id_map")
+    order_map = candidate.get("order_map")
     persist_recovered = processing_settings.get("persist_recovered_batch_ids", True)
 
     batch_ids = {
@@ -114,15 +161,24 @@ def _repair_temp_file(
     }
     recovered_ids: set[str] = set()
     if not batch_ids:
-        recovered_ids, recovered_provider = _recover_missing_batch_ids(
-            temp_file, temp_file.stem.removesuffix("_temp"), persist_recovered
-        )
-        for bid in recovered_ids:
-            track_record: dict[str, Any] = {"batch_id": bid}
-            if recovered_provider:
-                track_record["provider"] = recovered_provider
-            tracking.append(track_record)
-            batch_ids.add(bid)
+        # Every part shares one debug artifact; recover from the first part that
+        # yields ids and stop so tracking is not duplicated per part.
+        for temp_file in temp_files:
+            recovered_ids, recovered_provider, recovered_metadata = (
+                _recover_missing_batch_ids(temp_file, identifier, persist_recovered)
+            )
+            for bid in recovered_ids:
+                track_record: dict[str, Any] = {"batch_id": bid}
+                if recovered_provider:
+                    track_record["provider"] = recovered_provider
+                # Restore submitted metadata so backends correlate results
+                # (e.g. Google inline custom_id_map) instead of positional
+                # req-{i+1} relabeling onto the wrong chunks.
+                track_record["metadata"] = recovered_metadata.get(bid, {})
+                tracking.append(track_record)
+                batch_ids.add(bid)
+            if recovered_ids:
+                break
 
     if not batch_ids:
         ui.print_warning("Unable to identify any batch IDs for this temp file.")
@@ -131,6 +187,9 @@ def _repair_temp_file(
     completed_batches: list[dict[str, Any]] = []
     failed_batches: list[tuple[dict[str, Any], str]] = []
     missing_batches: list[str] = []
+    # Cache each batch's status so terminal batches with downloadable output
+    # can be retrieved below without a second status call.
+    status_by_id: dict[str, BatchStatusInfo] = {}
 
     # Route status checks through the provider-agnostic backend, like
     # check_batches, so repair is not OpenAI-only.
@@ -154,6 +213,15 @@ def _repair_temp_file(
             continue
 
         status = info.status
+        status_by_id[batch_id] = info
+        # Backends return UNKNOWN with an error_message when retrieval raises,
+        # so the except branch above is dead for an aged-out/deleted batch;
+        # treat UNKNOWN-with-error as missing instead of "waiting forever".
+        if status == BatchStatus.UNKNOWN and info.error_message:
+            ui.print_warning(f"Batch {batch_id} not found: {info.error_message}")
+            failed_batches.append((track, f"not found: {info.error_message}"))
+            missing_batches.append(batch_id)
+            continue
         if status == BatchStatus.COMPLETED:
             completed_batches.append(track)
         elif status in {
@@ -171,14 +239,24 @@ def _repair_temp_file(
             )
 
     ui.display_batch_processing_progress(
-        temp_file,
+        representative,
         list(batch_ids),
         len(completed_batches),
         len(missing_batches),
         failed_batches,
     )
 
-    if not completed_batches:
+    # Terminal failed/expired/cancelled batches may still expose paid,
+    # downloadable output; retrieve it too when results are available.
+    downloadable_failed = [
+        track
+        for track, _reason in failed_batches
+        if track.get("batch_id")
+        and (cached := status_by_id.get(str(track.get("batch_id")))) is not None
+        and cached.results_available
+    ]
+
+    if not completed_batches and not downloadable_failed:
         ui.print_info("No completed batches ready for repair.")
         return
 
@@ -186,19 +264,33 @@ def _repair_temp_file(
     for track in completed_batches:
         batch_responses = retrieve_responses_from_batch(
             track,
-            temp_file.parent,
+            representative.parent,
             status_cache,
         )
         responses.extend(batch_responses)
+
+    # Guard per batch so one unreadable terminal batch does not abort the rest.
+    for track in downloadable_failed:
+        try:
+            responses.extend(
+                retrieve_responses_from_batch(
+                    track, representative.parent, status_cache
+                )
+            )
+        except Exception as exc:
+            logger.warning(
+                "Could not download partial results for terminal batch %s: %s",
+                track.get("batch_id"),
+                exc,
+            )
 
     if not responses:
         ui.print_warning("No responses retrieved; nothing to repair.")
         return
 
-    identifier = temp_file.stem.removesuffix("_temp")
     # CM-6: write the repaired output to the submission-local directory (the
     # parent of temp_jsonl/), matching check_batches finalization.
-    output_dir = derive_submission_output_dir(temp_file)
+    output_dir = derive_submission_output_dir(representative)
     output_dir.mkdir(parents=True, exist_ok=True)
     final_json_path = output_dir / f"{identifier}_output.json"
 

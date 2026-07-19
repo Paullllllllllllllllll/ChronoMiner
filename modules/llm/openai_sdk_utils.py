@@ -71,18 +71,15 @@ def list_all_batches(client: Any, limit: int = 100) -> list[dict[str, Any]]:
         page_items = [sdk_to_dict(item) for item in data]
         batches.extend(page_items)
 
-        has_more = False
-        last_id = None
-        try:
+        # A dict page needs explicit .get access: getattr(page, "has_more", ...)
+        # on a dict returns the default without raising, so the SDK-object
+        # branch would silently stop dict-shaped pages after page 1.
+        if isinstance(page, dict):
+            has_more = bool(page.get("has_more", False))
+            last_id = page.get("last_id")
+        else:
             has_more = bool(getattr(page, "has_more", False))
             last_id = getattr(page, "last_id", None)
-        except Exception:
-            try:
-                has_more = bool(page.get("has_more", False))
-                last_id = page.get("last_id")
-            except Exception:
-                has_more = False
-                last_id = None
 
         logger.info(
             "Retrieved batches page %s (%s item(s)); has_more=%s",
@@ -90,7 +87,9 @@ def list_all_batches(client: Any, limit: int = 100) -> list[dict[str, Any]]:
             len(page_items),
             has_more,
         )
-        if not has_more or not last_id:
+        # Stop on no more pages, a missing cursor, or a non-advancing cursor
+        # (last_id == after would otherwise loop forever on the same page).
+        if not has_more or not last_id or last_id == after:
             break
         after = last_id
 

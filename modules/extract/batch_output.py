@@ -63,7 +63,10 @@ def _to_unified_record(
         text = json.dumps(entry["parsed_output"], ensure_ascii=False)
 
     response_data: dict[str, Any] = {}
-    if isinstance(raw, dict) and isinstance(raw.get("usage"), dict):
+    usage = entry.get("usage")
+    if isinstance(usage, dict):
+        response_data["usage"] = usage
+    elif isinstance(raw, dict) and isinstance(raw.get("usage"), dict):
         response_data["usage"] = raw["usage"]
 
     chunk_range = entry.get("chunk_range")

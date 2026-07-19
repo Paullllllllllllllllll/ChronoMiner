@@ -267,6 +267,7 @@ class TestOpenAIBackend:
 
         mock_batch = MagicMock()
         mock_batch.output_file_id = "output-file-1"
+        mock_batch.error_file_id = None
         mock_client.batches.retrieve.return_value = mock_batch
 
         result_line = json.dumps(
@@ -315,6 +316,7 @@ class TestOpenAIBackend:
 
         mock_batch = MagicMock()
         mock_batch.output_file_id = "output-file-1"
+        mock_batch.error_file_id = None
         mock_client.batches.retrieve.return_value = mock_batch
 
         mock_stream = MagicMock()
@@ -1099,6 +1101,7 @@ class TestEmptyContentBatchResults:
 
         mock_batch = MagicMock()
         mock_batch.output_file_id = "output-file-1"
+        mock_batch.error_file_id = None
         mock_client.batches.retrieve.return_value = mock_batch
 
         mock_stream = MagicMock()

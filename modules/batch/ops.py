@@ -104,6 +104,40 @@ def is_batch_temp_file(path: Path) -> bool:
     return False
 
 
+def _group_temp_files_by_base(
+    temp_files: list[Path],
+) -> dict[tuple[Path, str], list[Path]]:
+    """Group temp files by ``(parent directory, base stem)``.
+
+    The base stem is the file stem with any ``_part{n}`` suffix removed, so
+    ``file_temp_part1.jsonl`` and ``file_temp_part2.jsonl`` share one group.
+    Keying on the parent directory as well as the base stem prevents
+    identically named temp files living in different subdirectories (an rglob
+    over the whole schema tree can surface several) from being merged into one
+    group, which would collide their ``custom_id`` values and silently drop
+    one file's chunks via dedup-last-wins.
+    """
+    groups: dict[tuple[Path, str], list[Path]] = {}
+    for temp_file in temp_files:
+        stem = temp_file.stem
+        base_match = re.match(r"(.+?)(?:_part\d+)?$", stem)
+        base_stem = base_match.group(1) if base_match else stem
+        key = (temp_file.parent, base_stem)
+        groups.setdefault(key, []).append(temp_file)
+
+    # Sort files within each group by part number.
+    for key in groups:
+        groups[key].sort(
+            key=lambda p: (
+                int(re.search(r"_part(\d+)$", p.stem).group(1))  # type: ignore[union-attr]
+                if re.search(r"_part(\d+)$", p.stem)
+                else 0
+            )
+        )
+
+    return groups
+
+
 def _extract_chunk_index(custom_id: Any) -> int:
     """Extract numeric chunk index from a custom_id like '<stem>-chunk-<n>'
     or 'req-<n>'."""
@@ -195,18 +229,24 @@ def _recover_missing_batch_ids(
     temp_file: Path,
     identifier: str,
     persist: bool,
-) -> tuple[set[str], str | None]:
-    """Recover batch ids (and their provider) from the submission debug artifact.
+) -> tuple[set[str], str | None, dict[str, dict[str, Any]]]:
+    """Recover batch ids, provider, and per-batch metadata from the debug artifact.
 
-    Returns ``(batch_ids, provider)``; ``provider`` is ``None`` when the
-    artifact does not record one. Dropping the provider would make callers
-    default recovered Anthropic/Google batches to the OpenAI backend.
+    Returns ``(batch_ids, provider, metadata_map)``; ``provider`` is ``None``
+    when the artifact does not record one (dropping it would make callers
+    default recovered Anthropic/Google batches to the OpenAI backend), and
+    ``metadata_map`` maps each recovered batch id to its submitted handle
+    metadata (empty when the artifact predates the ``batch_metadata`` schema).
+    Restoring the metadata matters for Google inline submissions: without the
+    ``custom_id_map``, ``_iter_results`` falls back to positional ``req-{i+1}``
+    custom_ids and a resumed sliced submission is relabeled to the wrong chunks.
     """
     recovered: set[str] = set()
     provider: str | None = None
+    metadata_map: dict[str, dict[str, Any]] = {}
     debug_artifact = temp_file.parent / f"{identifier}_batch_submission_debug.json"
     if not debug_artifact.exists():
-        return recovered, provider
+        return recovered, provider, metadata_map
 
     try:
         artifact = json.loads(debug_artifact.read_text(encoding="utf-8"))
@@ -216,18 +256,23 @@ def _recover_missing_batch_ids(
         artifact_provider = artifact.get("provider")
         if isinstance(artifact_provider, str) and artifact_provider:
             provider = artifact_provider
+        raw_metadata = artifact.get("batch_metadata")
+        if isinstance(raw_metadata, dict):
+            for bid, meta in raw_metadata.items():
+                if isinstance(bid, str) and isinstance(meta, dict):
+                    metadata_map[bid] = meta
     except Exception as exc:
         logger.warning(
             "Failed to read batch debug artifact %s: %s", debug_artifact, exc
         )
-        return recovered, provider
+        return recovered, provider, metadata_map
 
     if recovered and persist:
         try:
             timestamp = datetime.datetime.now().isoformat()
             with temp_file.open("a", encoding="utf-8") as handle:
                 for batch_id in recovered:
-                    record = {
+                    record: dict[str, Any] = {
                         "batch_tracking": {
                             "batch_id": batch_id,
                             "timestamp": timestamp,
@@ -236,6 +281,11 @@ def _recover_missing_batch_ids(
                     }
                     if provider:
                         record["batch_tracking"]["provider"] = provider
+                    # Persist the metadata inside the tracking record too so a
+                    # second recovery round-trips it (needed for Google inline
+                    # custom_id_map correlation).
+                    if batch_id in metadata_map:
+                        record["batch_tracking"]["metadata"] = metadata_map[batch_id]
                     handle.write(json.dumps(record) + "\n")
             logger.info(
                 "Persisted %s recovered batch id(s) into %s",
@@ -249,7 +299,7 @@ def _recover_missing_batch_ids(
                 exc,
             )
 
-    return recovered, provider
+    return recovered, provider, metadata_map
 
 
 def is_batch_finished(batch_id: str, provider: str = "openai") -> bool:
@@ -351,13 +401,21 @@ def retrieve_responses_from_batch(
         # Download results using the provider-agnostic backend
         for result_item in backend.download_results(handle):
             if result_item.success:
-                response_entry = {
+                response_entry: dict[str, Any] = {
                     "custom_id": result_item.custom_id,
                     "response": result_item.content,
                     "raw_response": result_item.raw_response,
                 }
                 if result_item.parsed_output:
                     response_entry["parsed_output"] = result_item.parsed_output
+                # Backends populate token counts on the result item; carry them
+                # through so _to_unified_record can stamp response_data.usage
+                # (no provider nests usage under raw["usage"]).
+                if result_item.input_tokens or result_item.output_tokens:
+                    response_entry["usage"] = {
+                        "input_tokens": result_item.input_tokens,
+                        "output_tokens": result_item.output_tokens,
+                    }
                 responses.append(_normalize_response_entry(response_entry))
             else:
                 logger.warning(

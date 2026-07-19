@@ -119,7 +119,11 @@ async def test_sliced_text_run_writes_absolute_custom_ids(
     monkeypatch.setattr(fp_mod, "get_schema_handler", lambda _name: _StubHandler())
 
     async def _fake_chunk(*, text_chunk: str, **_kw: object) -> dict[str, object]:
-        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}}
+        return {
+            "ok": True,
+            "output_text": "extracted",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
 
     monkeypatch.setattr(ps, "process_text_chunk", _fake_chunk)
 
@@ -169,7 +173,7 @@ async def test_resume_refused_for_unversioned_temp(
 
     async def _fake_chunk(*, text_chunk: str, **_kw: object) -> dict[str, object]:
         called["n"] += 1
-        return {"ok": True, "usage": {}}
+        return {"ok": True, "output_text": "extracted", "usage": {}}
 
     monkeypatch.setattr(
         ps.ProviderConfig, "_detect_provider", staticmethod(lambda m: "openai")

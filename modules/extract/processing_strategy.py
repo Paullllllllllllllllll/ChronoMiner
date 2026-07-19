@@ -68,19 +68,27 @@ def _estimate_request_bytes(req: BatchRequest) -> int:
 
 
 def _partition_batch_requests(
-    requests: list[BatchRequest], max_count: int, max_bytes: int
+    requests: list[BatchRequest],
+    max_count: int,
+    max_bytes: int,
+    per_request_overhead: int = 0,
 ) -> list[list[BatchRequest]]:
     """Split *requests* into parts respecting per-batch count and byte limits.
 
     A part is closed when adding the next request would exceed either
     ``max_count`` or ``max_bytes``. A single request larger than ``max_bytes``
     still occupies its own part (it cannot be split further here).
+
+    ``per_request_overhead`` is added to every request's estimated size to
+    account for payload embedded in each JSONL line but absent from the
+    ``BatchRequest`` (chiefly the rendered system prompt, 10-50 KB with a
+    schema-injected prompt), so a split stays under the provider's hard limit.
     """
     parts: list[list[BatchRequest]] = []
     current: list[BatchRequest] = []
     current_bytes = 0
     for req in requests:
-        size = _estimate_request_bytes(req)
+        size = _estimate_request_bytes(req) + per_request_overhead
         if current and (len(current) >= max_count or current_bytes + size > max_bytes):
             parts.append(current)
             current = []
@@ -528,6 +536,35 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             # the results list.
                             result = strip_image_payloads(result)
 
+                            # A response with no usable text (truncation at
+                            # max_output_tokens, refusal, thinking-only stop)
+                            # must NOT be persisted as a completed unit: the
+                            # temp record would enter the resume skip-set and
+                            # the chunk would never be retried, surfacing only
+                            # as silently missing entries downstream. Route it
+                            # into the failed-chunk machinery instead.
+                            if not (result.get("output_text") or "").strip():
+                                logger.error(
+                                    "Empty model output for %s %s "
+                                    "(possible truncation or refusal); "
+                                    "recording as failed.",
+                                    unit_label,
+                                    idx,
+                                )
+                                console_print(
+                                    f"[ERROR] Empty model output for "
+                                    f"{unit_label} {idx} (possible truncation "
+                                    f"or refusal); it will be retried on "
+                                    f"resume."
+                                )
+                                return {
+                                    "error": (
+                                        "empty model output "
+                                        "(possible truncation/refusal)"
+                                    ),
+                                    "chunk_index": idx,
+                                }
+
                             # chunk_index drives ordering in
                             # _generate_output_files; without it the final
                             # records sort by `None or 0` (all equal) and
@@ -680,9 +717,13 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                         """
                         if exhausted.is_set():
                             return _budget_deferred(idx)
-                        if delay_between_tasks > 0:
-                            await asyncio.sleep(delay_between_tasks)
                         async with semaphore:
+                            # Pay the pacing delay inside the semaphore: with
+                            # the sleep before it, every task slept once
+                            # concurrently at startup and then hammered the
+                            # API with zero inter-request delay.
+                            if delay_between_tasks > 0:
+                                await asyncio.sleep(delay_between_tasks)
                             if exhausted.is_set():
                                 return _budget_deferred(idx)
                             img_data = (
@@ -995,7 +1036,13 @@ class BatchProcessingStrategy(ProcessingStrategy):
         # merges the ``_part{n}`` files back into one final output.
         max_count = int(getattr(backend, "max_batch_size", 50000))
         max_bytes = int(getattr(backend, "max_batch_bytes", 150 * 1024 * 1024))
-        parts = _partition_batch_requests(batch_requests, max_count, max_bytes)
+        # The rendered system prompt is embedded in every request line but not
+        # in the BatchRequest, so include its byte size per request or the
+        # real JSONL can exceed the provider cap.
+        per_request_overhead = len(dev_message.encode("utf-8"))
+        parts = _partition_batch_requests(
+            batch_requests, max_count, max_bytes, per_request_overhead
+        )
         multi_part = len(parts) > 1
         if multi_part:
             console_print(
@@ -1003,7 +1050,24 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 f"{len(parts)} part(s) to respect {provider} batch limits."
             )
 
+        # Remove stale ``_part{n}`` siblings (and, for a multi-part run, a stale
+        # base temp file) left by a prior submission of the same stem. Otherwise
+        # check_batches groups those orphans with the fresh parts and wedges the
+        # group forever; multi-part runs never rewrite the base file.
+        for stale_part in temp_jsonl_path.parent.glob(
+            f"{temp_jsonl_path.stem}_part*.jsonl"
+        ):
+            with contextlib.suppress(OSError):
+                stale_part.unlink()
+        if multi_part and temp_jsonl_path.exists():
+            with contextlib.suppress(OSError):
+                temp_jsonl_path.unlink()
+
         submitted_batch_ids: list[str] = []
+        batch_metadata: dict[str, Any] = {}
+        debug_path = (
+            temp_jsonl_path.parent / f"{file_path.stem}_batch_submission_debug.json"
+        )
         try:
             for part_no, part_requests in enumerate(parts, 1):
                 console_print(
@@ -1019,6 +1083,25 @@ class BatchProcessingStrategy(ProcessingStrategy):
                     schema_name=schema_name,
                 )
                 submitted_batch_ids.append(handle.batch_id)
+                batch_metadata[handle.batch_id] = handle.metadata
+
+                # Rewrite the batch-ID recovery artifact cumulatively BEFORE the
+                # part temp file is written: a crash between submit and the
+                # tracking write would otherwise orphan a paid-for batch with no
+                # record anywhere. The metadata mapping lets recovery restore
+                # each handle's metadata (e.g. Google's custom_id_map).
+                debug_path.write_text(
+                    json.dumps(
+                        {
+                            "batch_ids": submitted_batch_ids,
+                            "provider": provider,
+                            "batch_metadata": batch_metadata,
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
 
                 tracking_record = {
                     "batch_tracking": {
@@ -1061,21 +1144,6 @@ class BatchProcessingStrategy(ProcessingStrategy):
                     len(part_requests),
                     part_temp_path,
                 )
-
-            # Write the documented batch-ID recovery artifact next to the temp
-            # file(s) so check_batches/repair can recover ids if a tracking
-            # record is ever lost.
-            debug_path = (
-                temp_jsonl_path.parent / f"{file_path.stem}_batch_submission_debug.json"
-            )
-            debug_path.write_text(
-                json.dumps(
-                    {"batch_ids": submitted_batch_ids, "provider": provider},
-                    ensure_ascii=False,
-                    indent=2,
-                ),
-                encoding="utf-8",
-            )
 
         except (
             Exception

@@ -65,7 +65,11 @@ async def test_inline_fanout_propagates_structured_errors(
         if text_chunk == "boom":
             # Non-retryable (400) so the loop returns immediately.
             raise RuntimeError("permanent failure: bad request 400")
-        return {"ok": True, "usage": {"input_tokens": 0, "output_tokens": 0}}
+        return {
+            "ok": True,
+            "output_text": "extracted",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
 
     monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
 

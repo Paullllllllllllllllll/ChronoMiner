@@ -253,7 +253,7 @@ class OpenAIBatchBackend(BatchBackend):
                 "url": "/v1/responses",
                 "body": body,
             }
-            jsonl_lines.append(json.dumps(request_line))
+            jsonl_lines.append(json.dumps(request_line, ensure_ascii=False))
 
         # Write to temp file
         with tempfile.NamedTemporaryFile(
@@ -312,6 +312,7 @@ class OpenAIBatchBackend(BatchBackend):
             "validating": BatchStatus.PENDING,
             "in_progress": BatchStatus.IN_PROGRESS,
             "finalizing": BatchStatus.IN_PROGRESS,
+            "cancelling": BatchStatus.IN_PROGRESS,
             "completed": BatchStatus.COMPLETED,
             "failed": BatchStatus.FAILED,
             "cancelled": BatchStatus.CANCELLED,
@@ -330,14 +331,26 @@ class OpenAIBatchBackend(BatchBackend):
         # Get output file id
         output_file_id = getattr(batch, "output_file_id", None)
 
+        # OpenAI writes (and charges for) the completed work of expired,
+        # cancelled, and failed batches to output_file_id too, so results are
+        # available for any terminal state that produced an output file, not
+        # just COMPLETED. Callers keep such batches in failed_batches (output
+        # stays partial); this only makes the paid results reachable.
+        terminal_with_output = {
+            BatchStatus.COMPLETED,
+            BatchStatus.EXPIRED,
+            BatchStatus.CANCELLED,
+            BatchStatus.FAILED,
+        }
+
         return BatchStatusInfo(
             status=status,
             total_requests=total,
             completed_requests=completed,
             failed_requests=failed,
             pending_requests=total - completed - failed,
-            results_available=status == BatchStatus.COMPLETED
-            and output_file_id is not None,
+            results_available=output_file_id is not None
+            and status in terminal_with_output,
             output_file_id=output_file_id,
         )
 
@@ -365,13 +378,30 @@ class OpenAIBatchBackend(BatchBackend):
 
         yield from self._iter_results(text)
 
+        # The output file holds ONLY successes; failures live exclusively in the
+        # error file. Stream it too so failed requests yield failed items (and
+        # failed_chunks metadata) instead of vanishing and letting the group
+        # count as cleanly finalized.
+        error_file_id = getattr(batch, "error_file_id", None)
+        if error_file_id:
+            err_stream = client.files.content(error_file_id)
+            err_content = err_stream.read()
+            err_text = (
+                err_content.decode("utf-8")
+                if isinstance(err_content, bytes)
+                else str(err_content)
+            )
+            yield from self._iter_results(err_text)
+
     def cleanup(self, handle: BatchHandle) -> None:
-        """Delete the remote input and output files for a finished batch."""
+        """Delete the remote input, output, and error files for a batch."""
         client = self._get_client()
         output_file_id = None
+        error_file_id = None
         try:
             batch = client.batches.retrieve(handle.batch_id)
             output_file_id = getattr(batch, "output_file_id", None)
+            error_file_id = getattr(batch, "error_file_id", None)
         except Exception as exc:
             logger.warning(
                 "Could not resolve output file for batch %s during cleanup: %s",
@@ -382,6 +412,7 @@ class OpenAIBatchBackend(BatchBackend):
             client,
             handle.metadata.get("input_file_id"),
             output_file_id,
+            error_file_id,
         )
 
     @staticmethod
@@ -413,6 +444,24 @@ class OpenAIBatchBackend(BatchBackend):
 
             # Parse response
             resp = response_obj.get("response", {})
+
+            # Error-file lines (and some output lines) carry a top-level
+            # "error" with a null response; surface it as a failed item so the
+            # real message and code survive instead of a generic "no content".
+            top_error = response_obj.get("error")
+            if top_error and not (isinstance(resp, dict) and resp.get("body")):
+                result_item.success = False
+                if isinstance(top_error, dict):
+                    result_item.error = top_error.get("message", "Unknown error")
+                    result_item.error_code = top_error.get("code")
+                else:
+                    result_item.error = str(top_error)
+                result_item.raw_response = (
+                    resp if isinstance(resp, dict) else {"error": top_error}
+                )
+                yield result_item
+                continue
+
             if isinstance(resp, dict):
                 status_code = resp.get("status_code")
                 body = resp.get("body", {})

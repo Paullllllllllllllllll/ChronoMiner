@@ -170,13 +170,14 @@ class TestProcessBatchOutputFile:
 @pytest.mark.unit
 class TestRecoverMissingBatchIds:
     def test_returns_empty_when_no_debug_artifact(self, tmp_path):
-        result, provider = _recover_missing_batch_ids(
+        result, provider, metadata = _recover_missing_batch_ids(
             temp_file=tmp_path / "missing.jsonl",
             identifier="doc",
             persist=False,
         )
         assert result == set()
         assert provider is None
+        assert metadata == {}
 
     def test_reads_from_debug_artifact(self, tmp_path):
         temp_file = tmp_path / "doc_temp.jsonl"
@@ -185,11 +186,12 @@ class TestRecoverMissingBatchIds:
             json.dumps({"batch_ids": ["batch_a", "batch_b"]}),
             encoding="utf-8",
         )
-        result, provider = _recover_missing_batch_ids(
+        result, provider, metadata = _recover_missing_batch_ids(
             temp_file=temp_file, identifier="doc", persist=False
         )
         assert result == {"batch_a", "batch_b"}
         assert provider is None
+        assert metadata == {}
 
     def test_recovers_provider_from_debug_artifact(self, tmp_path):
         # Regression: the artifact records the provider; dropping it made
@@ -200,11 +202,12 @@ class TestRecoverMissingBatchIds:
             json.dumps({"batch_ids": ["batch_a"], "provider": "anthropic"}),
             encoding="utf-8",
         )
-        result, provider = _recover_missing_batch_ids(
+        result, provider, metadata = _recover_missing_batch_ids(
             temp_file=temp_file, identifier="doc", persist=False
         )
         assert result == {"batch_a"}
         assert provider == "anthropic"
+        assert metadata == {}
 
     def test_persist_appends_tracking_records(self, tmp_path):
         temp_file = tmp_path / "doc_temp.jsonl"

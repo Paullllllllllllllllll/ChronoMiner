@@ -16,8 +16,8 @@ Supports two execution modes:
 2. CLI Mode: Command-line arguments for automation
 """
 
+import contextlib
 import json
-import re
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
@@ -38,6 +38,7 @@ from modules.batch import (
     get_batch_backend,
 )
 from modules.batch.ops import (
+    _group_temp_files_by_base,
     _recover_missing_batch_ids,
     derive_submission_output_dir,
     is_batch_temp_file,
@@ -56,38 +57,6 @@ from modules.infra.logger import setup_logger
 from modules.ui.core import UserInterface
 
 logger = setup_logger(__name__)
-
-
-def _group_temp_files_by_base(temp_files: list[Path]) -> dict[str, list[Path]]:
-    """Group temp files by their base identifier (removing _part suffixes).
-
-    For example:
-    - file_temp.jsonl -> base: file_temp
-    - file_temp_part1.jsonl, file_temp_part2.jsonl -> base: file_temp
-    """
-    groups: dict[str, list[Path]] = {}
-
-    for temp_file in temp_files:
-        stem = temp_file.stem
-        # Remove _part{n} suffix if present
-        base_match = re.match(r"(.+?)(?:_part\d+)?$", stem)
-        base_identifier = base_match.group(1) if base_match else stem
-
-        if base_identifier not in groups:
-            groups[base_identifier] = []
-        groups[base_identifier].append(temp_file)
-
-    # Sort files within each group by part number
-    for base_id in groups:
-        groups[base_id].sort(
-            key=lambda p: (
-                int(re.search(r"_part(\d+)$", p.stem).group(1))  # type: ignore[union-attr]
-                if re.search(r"_part(\d+)$", p.stem)
-                else 0
-            )
-        )
-
-    return groups
 
 
 def _get_output_directory(
@@ -201,8 +170,10 @@ def process_all_batches(
     # Status cache for batch status info (provider-agnostic)
     status_cache: dict[str, BatchStatusInfo] = {}
 
-    # Process each group of temp files (handling merged outputs for split files)
-    for base_identifier, temp_file_group in file_groups.items():
+    # Process each group of temp files (handling merged outputs for split
+    # files). Groups are keyed by (parent directory, base stem) so identically
+    # named temp files in different subdirectories are never merged.
+    for (_group_dir, base_identifier), temp_file_group in file_groups.items():
         # Determine the output directory PER GROUP from the submission
         # location (CM-6): finalized outputs belong with the batch
         # submission, not in the schema's configured default directory.
@@ -285,22 +256,33 @@ def process_all_batches(
             }
             recovered_ids = set()
             if not batch_ids:
-                # Try to recover from any of the temp files in the group
+                # Try to recover from any of the temp files in the group. Break
+                # after the first file that recovers ids: every part shares one
+                # debug artifact, so continuing would re-append the same ids to
+                # tracking once per part and persist duplicate records.
                 for temp_file in temp_file_group:
                     # Strip only the trailing _temp suffix (str.replace would
                     # also mangle internal occurrences, e.g. oven_temperature);
                     # the debug artifact is named after the source stem.
                     temp_identifier = base_identifier.removesuffix("_temp")
-                    recovered, recovered_provider = _recover_missing_batch_ids(
-                        temp_file, temp_identifier, persist_recovered
+                    recovered, recovered_provider, recovered_metadata = (
+                        _recover_missing_batch_ids(
+                            temp_file, temp_identifier, persist_recovered
+                        )
                     )
                     recovered_ids.update(recovered)
                     for batch_id in recovered:
                         track_record: dict[str, Any] = {"batch_id": batch_id}
                         if recovered_provider:
                             track_record["provider"] = recovered_provider
+                        # Restore the submitted handle metadata so backends can
+                        # correlate results (e.g. Google's inline custom_id_map)
+                        # instead of positional req-{i+1} relabeling.
+                        track_record["metadata"] = recovered_metadata.get(batch_id, {})
                         tracking.append(track_record)
                         batch_ids.add(batch_id)
+                    if recovered:
+                        break
 
             if not batch_ids:
                 _safe_print(
@@ -362,6 +344,29 @@ def process_all_batches(
                     continue
 
                 status = status_info.status
+                # All three backends return UNKNOWN with an error_message when
+                # retrieval raises (they never re-raise), so the except branch
+                # above is effectively dead for an aged-out or deleted batch.
+                # Treat UNKNOWN-with-error as the missing case so it does not
+                # report "still processing" forever and wedge the group.
+                if status == BatchStatus.UNKNOWN and status_info.error_message:
+                    logger.error(
+                        f"Batch {batch_id} ({provider}) unavailable: "
+                        f"{status_info.error_message}"
+                    )
+                    _safe_print(
+                        ui,
+                        f"Batch {batch_id} not found "
+                        f"(may have expired or been deleted)",
+                        "error",
+                    )
+                    failed_batches.append(
+                        (track, f"not found: {status_info.error_message}")
+                    )
+                    missing_batches.append(batch_id)
+                    all_finished = False
+                    continue
+
                 if status == BatchStatus.COMPLETED:
                     completed_batches.append(track)
                     completed_handles.append((backend, handle))
@@ -412,9 +417,13 @@ def process_all_batches(
                 # terminal failed/expired/missing ones (failed_batches holds
                 # both) must not defer finalization, or a group with one
                 # completed and one expired batch would stay "pending"
-                # forever and never write its partial output.
+                # forever and never write its partial output. Only tracking
+                # records that actually carry a batch_id count here; id-less
+                # records are skipped in the status loop, so including them
+                # would defer the group forever.
+                tracked_count = sum(1 for t in tracking if t.get("batch_id"))
                 in_progress_count = (
-                    len(tracking) - len(completed_batches) - len(failed_batches)
+                    tracked_count - len(completed_batches) - len(failed_batches)
                 )
                 if in_progress_count > 0:
                     _safe_print(
@@ -446,6 +455,32 @@ def process_all_batches(
                     track, temp_file_group[0].parent, status_cache
                 )
                 responses.extend(batch_responses)
+
+            # Some terminal failed/expired/cancelled batches still have paid,
+            # downloadable output (OpenAI writes completed work of expired and
+            # cancelled batches). Retrieve it too when the cached status reports
+            # results are available; the group stays partial (these remain in
+            # failed_batches). Guard per batch so one unreadable batch does not
+            # abort retrieval from the others.
+            for failed_track, _reason in failed_batches:
+                failed_id = failed_track.get("batch_id")
+                if not failed_id:
+                    continue
+                cached = status_cache.get(str(failed_id))
+                if cached is None or not cached.results_available:
+                    continue
+                try:
+                    responses.extend(
+                        retrieve_responses_from_batch(
+                            failed_track, temp_file_group[0].parent, status_cache
+                        )
+                    )
+                except Exception as exc:
+                    logger.warning(
+                        "Could not download partial results for terminal batch %s: %s",
+                        failed_id,
+                        exc,
+                    )
 
             if not responses:
                 _safe_print(
@@ -567,6 +602,17 @@ def process_all_batches(
                     temp_file.unlink()
                     _safe_print(ui, f"Removed temporary file: {temp_file.name}", "info")
                     logger.info(f"Removed temporary file {temp_file}")
+                # Remove the batch-ID recovery artifact too: a later submission
+                # reusing the same stem would otherwise "recover" these stale,
+                # now-deleted batch ids from it.
+                debug_artifact = (
+                    temp_file_group[0].parent
+                    / f"{final_identifier}_batch_submission_debug.json"
+                )
+                if debug_artifact.exists():
+                    with contextlib.suppress(OSError):
+                        debug_artifact.unlink()
+                    logger.info("Removed batch debug artifact %s", debug_artifact)
 
         except Exception as exc:
             logger.exception(f"Error processing {base_identifier}")
