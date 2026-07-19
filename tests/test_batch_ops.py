@@ -13,31 +13,14 @@ import json
 import pytest
 
 from modules.batch.ops import (
-    ERROR_FILE_KEYS,
-    OUTPUT_FILE_KEYS,
     _extract_chunk_index,
     _normalize_response_entry,
     _order_responses,
     _recover_missing_batch_ids,
-    _resolve_file_id_by_keys,
     _response_to_text,
     load_config,
     process_batch_output_file,
 )
-
-
-@pytest.mark.unit
-class TestConstants:
-    def test_output_file_keys_are_strings(self):
-        assert all(isinstance(k, str) for k in OUTPUT_FILE_KEYS)
-        # Must contain both singular and list spellings so that provider
-        # batches using either convention are recognized.
-        assert "output_file_id" in OUTPUT_FILE_KEYS
-        assert "output_file_ids" in OUTPUT_FILE_KEYS
-
-    def test_error_file_keys_are_strings(self):
-        assert all(isinstance(k, str) for k in ERROR_FILE_KEYS)
-        assert "error_file_id" in ERROR_FILE_KEYS
 
 
 @pytest.mark.unit
@@ -126,16 +109,6 @@ class TestNormalizeResponseEntry:
         result = _normalize_response_entry(entry)
         assert result["response"] == "extracted"
         assert isinstance(result["raw_response"], dict)
-
-
-@pytest.mark.unit
-class TestResolveFileIdByKeys:
-    def test_returns_first_match(self):
-        batch = {"output_file_id": "file-abc", "response_file_id": "file-def"}
-        assert _resolve_file_id_by_keys(batch, OUTPUT_FILE_KEYS) == "file-abc"
-
-    def test_returns_none_for_missing(self):
-        assert _resolve_file_id_by_keys({}, OUTPUT_FILE_KEYS) is None
 
 
 @pytest.mark.unit
@@ -261,6 +234,4 @@ class TestRetrieveResponsesPropagatesDownloadFailure:
         monkeypatch.setattr(ops, "get_batch_backend", lambda provider: backend)
 
         with pytest.raises(ConnectionError):
-            ops.retrieve_responses_from_batch(
-                {"batch_id": "b1", "provider": "openai"}, tmp_path, {}
-            )
+            ops.retrieve_responses_from_batch({"batch_id": "b1", "provider": "openai"})

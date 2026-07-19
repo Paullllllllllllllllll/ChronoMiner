@@ -16,38 +16,12 @@ from typing import Any
 
 from modules.batch.backends import (
     BatchHandle,
-    BatchStatus,
-    BatchStatusInfo,
     get_batch_backend,
 )
 from modules.config.loader import get_config_loader
 from modules.infra.logger import setup_logger
-from modules.llm.openai_sdk_utils import coerce_file_id
 
 logger = setup_logger(__name__)
-
-
-OUTPUT_FILE_KEYS = [
-    "output_file_id",
-    "output_file",
-    "output_file_ids",
-    "response_file_id",
-    "response_file",
-    "response_file_ids",
-    "result_file_id",
-    "result_file",
-    "result_file_ids",
-    "results_file_id",
-    "results_file_ids",
-]
-
-ERROR_FILE_KEYS = [
-    "error_file_id",
-    "error_file",
-    "error_file_ids",
-    "errors_file_id",
-    "errors_file_ids",
-]
 
 
 def derive_submission_output_dir(temp_file: Path) -> Path:
@@ -216,15 +190,6 @@ def _normalize_response_entry(entry: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
-def _resolve_file_id_by_keys(batch: dict[str, Any], keys: list[str]) -> str | None:
-    for key in keys:
-        if key in batch:
-            file_id = coerce_file_id(batch.get(key))
-            if file_id:
-                return file_id
-    return None
-
-
 def _recover_missing_batch_ids(
     temp_file: Path,
     identifier: str,
@@ -302,30 +267,6 @@ def _recover_missing_batch_ids(
     return recovered, provider, metadata_map
 
 
-def is_batch_finished(batch_id: str, provider: str = "openai") -> bool:
-    """Check if a batch is finished using the appropriate provider backend."""
-    try:
-        backend = get_batch_backend(provider)
-        handle = BatchHandle(provider=provider, batch_id=batch_id)
-        status_info = backend.get_status(handle)
-        if status_info.status in {
-            BatchStatus.COMPLETED,
-            BatchStatus.EXPIRED,
-            BatchStatus.CANCELLED,
-            BatchStatus.FAILED,
-        }:
-            return True
-        else:
-            logger.info(
-                f"Batch {batch_id} status is '{status_info.status.value}', "
-                "not finished yet."
-            )
-            return False
-    except Exception as e:
-        logger.error(f"Error retrieving batch {batch_id}: {e}")
-        return False
-
-
 def load_config() -> tuple[list[tuple[str, Path, dict[str, Any]]], dict[str, Any]]:
     config_loader = get_config_loader()
     paths_config: dict[str, Any] = config_loader.get_paths_config()
@@ -375,8 +316,6 @@ def process_batch_output_file(file_path: Path) -> dict[str, list[Any]]:
 
 def retrieve_responses_from_batch(
     tracking_record: dict[str, Any],
-    temp_dir: Path,
-    status_cache: dict[str, BatchStatusInfo],
 ) -> list[dict[str, Any]]:
     """Retrieve responses from a batch using the appropriate provider backend."""
     responses: list[dict[str, Any]] = []

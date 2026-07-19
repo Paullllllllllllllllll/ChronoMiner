@@ -17,7 +17,6 @@ from modules.config.capabilities import (
 )
 from modules.llm.langchain_provider import (
     LangChainLLM,
-    LLMProvider,
     ProviderConfig,
     get_default_provider,
 )
@@ -36,7 +35,6 @@ from modules.llm.schema_utils import build_structured_text_format
 
 __all__ = [
     "LangChainLLM",
-    "LLMProvider",
     "ProviderConfig",
     "get_default_provider",
     "Capabilities",

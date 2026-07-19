@@ -376,7 +376,7 @@ def test_usage_propagated_from_backend_to_record():
 
     with patch("modules.batch.ops.get_batch_backend", return_value=backend):
         responses = retrieve_responses_from_batch(
-            {"batch_id": "b1", "provider": "openai"}, None, {}
+            {"batch_id": "b1", "provider": "openai"}
         )
 
     assert responses[0]["usage"] == {"input_tokens": 10, "output_tokens": 5}

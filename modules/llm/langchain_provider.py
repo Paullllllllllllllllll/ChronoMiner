@@ -640,9 +640,9 @@ class LangChainLLM:
             # Add thinking controls for Google when reasoning is configured.
             # langchain-google-genai exposes ``thinking_level`` (Gemini 3.x)
             # and ``thinking_budget`` (Gemini 2.5 / Gemma) as constructor
-            # fields; the legacy ``thinking_config`` dict is NOT a supported
-            # parameter and is silently shunted into model_kwargs, making the
-            # reasoning control ineffective (CM-1, live bug).
+            # fields; we emit those rather than the composite
+            # ``thinking_config`` dict (unsupported before 4.2.7, where it
+            # was silently shunted into model_kwargs — CM-1, live bug).
             reasoning_config = self.config.extra_params.get("reasoning_config", {})
             if (
                 reasoning_config
@@ -1299,69 +1299,6 @@ class LangChainLLM:
                 )
                 return future.result()
         return asyncio.run(self.ainvoke_with_structured_output(messages, json_schema))
-
-
-class LLMProvider:
-    """
-    Factory class for creating LLM instances.
-
-    Handles provider detection, configuration, and instance caching.
-    """
-
-    _instances: dict[str, LangChainLLM] = {}
-
-    @classmethod
-    def get_llm(
-        cls,
-        model_config: dict[str, Any] | None = None,
-        provider: ProviderType | None = None,
-        model: str | None = None,
-        **kwargs: Any,
-    ) -> LangChainLLM:
-        """
-        Get or create an LLM instance.
-
-        Args:
-            model_config: Model configuration dict (from config loader)
-            provider: Override provider type
-            model: Override model name
-            **kwargs: Additional config parameters
-
-        Returns:
-            LangChainLLM instance
-        """
-        # Build config from model_config or direct parameters
-        if model_config:
-            config = ProviderConfig.from_config(model_config, provider)
-        else:
-            if not model:
-                raise ValueError("Either model_config or model must be provided")
-
-            detected_provider = provider or ProviderConfig._detect_provider(model)
-            api_key = ProviderConfig._get_api_key(detected_provider)
-
-            config = ProviderConfig(
-                provider=detected_provider,
-                model=model,
-                api_key=api_key,
-                **kwargs,
-            )
-
-        cache_key = (
-            f"{config.provider}:{config.model}"
-            f":{config.temperature}:{config.max_tokens}"
-            f":{config.reasoning_effort}"
-        )
-
-        if cache_key not in cls._instances:
-            cls._instances[cache_key] = LangChainLLM(config)
-
-        return cls._instances[cache_key]
-
-    @classmethod
-    def clear_cache(cls) -> None:
-        """Clear all cached LLM instances."""
-        cls._instances.clear()
 
 
 def get_default_provider() -> ProviderType:

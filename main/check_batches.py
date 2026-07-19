@@ -451,9 +451,7 @@ def process_all_batches(
 
             # Retrieve responses from completed batches using provider-agnostic backends
             for track in completed_batches:
-                batch_responses: list[Any] = retrieve_responses_from_batch(
-                    track, temp_file_group[0].parent, status_cache
-                )
+                batch_responses: list[Any] = retrieve_responses_from_batch(track)
                 responses.extend(batch_responses)
 
             # Some terminal failed/expired/cancelled batches still have paid,
@@ -470,11 +468,7 @@ def process_all_batches(
                 if cached is None or not cached.results_available:
                     continue
                 try:
-                    responses.extend(
-                        retrieve_responses_from_batch(
-                            failed_track, temp_file_group[0].parent, status_cache
-                        )
-                    )
+                    responses.extend(retrieve_responses_from_batch(failed_track))
                 except Exception as exc:
                     logger.warning(
                         "Could not download partial results for terminal batch %s: %s",

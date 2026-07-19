@@ -260,23 +260,14 @@ def _repair_temp_file(
         ui.print_info("No completed batches ready for repair.")
         return
 
-    status_cache: dict[str, Any] = {}
     for track in completed_batches:
-        batch_responses = retrieve_responses_from_batch(
-            track,
-            representative.parent,
-            status_cache,
-        )
+        batch_responses = retrieve_responses_from_batch(track)
         responses.extend(batch_responses)
 
     # Guard per batch so one unreadable terminal batch does not abort the rest.
     for track in downloadable_failed:
         try:
-            responses.extend(
-                retrieve_responses_from_batch(
-                    track, representative.parent, status_cache
-                )
-            )
+            responses.extend(retrieve_responses_from_batch(track))
         except Exception as exc:
             logger.warning(
                 "Could not download partial results for terminal batch %s: %s",
