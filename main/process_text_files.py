@@ -317,9 +317,16 @@ async def _run_interactive_mode(
     current_step = "schema"
     state: dict[str, Any] = {}
     prompt_template = None
+    # Navigation direction. Steps that auto-forward without prompting
+    # (pass-through steps) must route to the PREVIOUS step when the user is
+    # navigating back, otherwise 'b' bounces forward again and earlier steps
+    # become unreachable. Real prompts clear the flag; a prompt returning None
+    # (back) sets it.
+    going_back = False
 
     while True:
         if current_step == "schema":
+            going_back = False
             result = ui.select_schema(schema_manager, allow_back=False)
             if result is None:
                 ui.print_info("Schema selection cancelled.")
@@ -370,18 +377,24 @@ async def _run_interactive_mode(
             # visual files ignore global_chunking_method).
             if state.get("is_visual") and state.get("input_type") != "mixed":
                 state["global_chunking_method"] = "none"
-                current_step = "batch"
+                # Pass-through step: route by direction so 'b' from batch does
+                # not bounce forward again.
+                current_step = "schema" if going_back else "batch"
             else:
+                going_back = False
                 global_chunking_method = ui.ask_global_chunking_mode(allow_back=True)
                 if global_chunking_method is None:
+                    going_back = True
                     current_step = "schema"
                     continue
                 state["global_chunking_method"] = global_chunking_method
                 current_step = "batch"
 
         elif current_step == "batch":
+            going_back = False
             use_batch = ui.ask_batch_processing(allow_back=True)
             if use_batch is None:
+                going_back = True
                 current_step = "chunking"
                 continue
             state["use_batch"] = use_batch
@@ -389,6 +402,7 @@ async def _run_interactive_mode(
 
         elif current_step == "resume":
             # CM-9: use select_option with allow_back=True so back returns to batch step
+            going_back = False
             resume_choice = ui.select_option(
                 "Resume mode?",
                 [
@@ -405,6 +419,7 @@ async def _run_interactive_mode(
                 allow_back=True,
             )
             if resume_choice is None:
+                going_back = True
                 current_step = "batch"
                 continue
             state["resume"] = resume_choice == "resume"
@@ -412,8 +427,10 @@ async def _run_interactive_mode(
 
         elif current_step == "context":
             # CM-8: explicit context-selection step
+            going_back = False
             context_result = ui.ask_context_selection(allow_back=True)
             if context_result is None:
+                going_back = True
                 current_step = "resume"
                 continue
             state["context_override"] = context_result
@@ -422,33 +439,45 @@ async def _run_interactive_mode(
         elif current_step == "context_image":
             context_mode = (state.get("context_override") or {}).get("mode")
             if state.get("is_visual") and context_mode != "none":
+                going_back = False
                 ctx_img_result = ui.ask_context_image(allow_back=True)
                 if ctx_img_result is None:
+                    going_back = True
                     current_step = "context"
                     continue
                 state["context_image"] = ctx_img_result
+                current_step = "image_detail"
             else:
                 state["context_image"] = False
-            current_step = "image_detail"
+                # Pass-through step: route by direction.
+                current_step = "context" if going_back else "image_detail"
 
         elif current_step == "image_detail":
             if state.get("is_visual"):
+                going_back = False
                 image_detail_result = ui.ask_image_detail(allow_back=True)
                 if image_detail_result is None:
+                    going_back = True
                     current_step = "context_image"
                     continue
                 state["image_detail"] = image_detail_result
-            current_step = "chunk_slice"
+                current_step = "chunk_slice"
+            else:
+                # Pass-through step (non-visual): route by direction.
+                current_step = "context_image" if going_back else "chunk_slice"
 
         elif current_step == "chunk_slice":
+            going_back = False
             chunk_slice = ui.ask_chunk_slice(allow_back=True)
             if chunk_slice is None:
+                going_back = True
                 current_step = "image_detail"
                 continue
             state["chunk_slice"] = chunk_slice
             current_step = "files"
 
         elif current_step == "files":
+            going_back = False
             # Determine input directory
             if state["selected_schema_name"] in schemas_paths:
                 raw_text_dir = Path(
@@ -465,6 +494,7 @@ async def _run_interactive_mode(
                 input_type=state.get("input_type"),
             )
             if files is None:
+                going_back = True
                 current_step = "chunk_slice"
                 continue
             state["files"] = files
@@ -544,10 +574,14 @@ async def _run_interactive_mode(
             # Break out of loop to start processing
             break
 
-    # Display initial token usage statistics if enabled
+    # Display initial token usage statistics if enabled. Capture the pre-run
+    # daily counter so the completion overview can report tokens consumed by
+    # THIS run (the delta), not just the running daily total.
+    tokens_before = 0
     if check_token_limit_enabled():
         token_tracker = get_token_tracker()
         stats = token_tracker.get_stats()
+        tokens_before = stats["tokens_used_today"]
         logger.info(
             f"Token usage: {stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
             f"({stats['usage_percentage']:.1f}%) - "
@@ -560,10 +594,7 @@ async def _run_interactive_mode(
         )
 
     # Track processing time
-
     start_time = time.time()
-    processed_count = 0
-    failed_count = 0
 
     # Process files
     ui.print_section_header("Starting Processing")
@@ -580,13 +611,17 @@ async def _run_interactive_mode(
     )
     token_limit_enabled = check_token_limit_enabled()
 
+    # Per-file (name, status) pairs preserve input order for the completion
+    # overview. Statuses mirror FileProcessor.process_file:
+    # complete | partial | failed | skipped.
+    file_statuses: list[tuple[str, str]] = []
+
     if token_limit_enabled and not state["use_batch"]:
         # Sequential processing with token limit checks
-        processed_count = 0
-        for processed_count, file_path in enumerate(state["files"], start=1):
+        for file_index, file_path in enumerate(state["files"], start=1):
             # Check token limit before starting each file
             if not await check_and_wait_for_token_limit(ui):
-                files_done = processed_count - 1
+                files_done = file_index - 1
                 total = len(state["files"])
                 logger.info(
                     f"Processing stopped by user. Processed {files_done}/{total} files."
@@ -594,11 +629,10 @@ async def _run_interactive_mode(
                 ui.print_warning(
                     f"\nProcessing stopped. Completed {files_done}/{total} files."
                 )
-                processed_count = files_done
                 break
 
             # Process this file
-            await file_processor.process_file(
+            _status = await file_processor.process_file(
                 file_path=file_path,
                 use_batch=state["use_batch"],
                 selected_schema=state["selected_schema"],
@@ -614,12 +648,13 @@ async def _run_interactive_mode(
                 image_detail=state.get("image_detail"),
                 context_image_enabled=state.get("context_image", False),
             )
+            file_statuses.append((file_path.name, _status or "complete"))
 
             # Log token usage after each file
             token_tracker = get_token_tracker()
             stats = token_tracker.get_stats()
             logger.info(
-                f"Token usage after file {processed_count}/{len(state['files'])}: "
+                f"Token usage after file {file_index}/{len(state['files'])}: "
                 f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
                 f"({stats['usage_percentage']:.1f}%)"
             )
@@ -630,9 +665,9 @@ async def _run_interactive_mode(
             _file_concurrency_limit(concurrency_config, state["files"])
         )
 
-        async def _process_file_capped(file_path: Path) -> None:
+        async def _process_file_capped(file_path: Path) -> str:
             async with file_semaphore:
-                await file_processor.process_file(
+                result = await file_processor.process_file(
                     file_path=file_path,
                     use_batch=state["use_batch"],
                     selected_schema=state["selected_schema"],
@@ -648,32 +683,59 @@ async def _run_interactive_mode(
                     image_detail=state.get("image_detail"),
                     context_image_enabled=state.get("context_image", False),
                 )
+                return result or "complete"
 
         tasks = [_process_file_capped(file_path) for file_path in state["files"]]
         # CM-11: return_exceptions=True ensures all finally blocks complete
-        # on cancellation
+        # on cancellation. A raised BaseException maps to a "failed" status so
+        # the completion overview counts it (the old code discarded statuses).
         _gather_results = await asyncio.gather(*tasks, return_exceptions=True)
-        for _exc in _gather_results:
-            if isinstance(_exc, Exception):
-                failed_count += 1
-                logger.error(
-                    "Error in concurrent file processing: %s", _exc, exc_info=_exc
-                )
+        for _fp, _res in zip(state["files"], _gather_results, strict=True):
+            if isinstance(_res, BaseException):
+                file_statuses.append((_fp.name, "failed"))
+                if isinstance(_res, Exception):
+                    logger.error(
+                        "Error in concurrent file processing: %s", _res, exc_info=_res
+                    )
+            else:
+                file_statuses.append((_fp.name, _res))
 
-    # Calculate duration and set counts for non-sequential processing
+    # Calculate duration and aggregate per-file statuses for the overview.
     duration_seconds = time.time() - start_time
-    if not (token_limit_enabled and not state["use_batch"]):
-        # For concurrent/batch mode, count successes as total minus failures
-        processed_count = len(state["files"]) - failed_count
+    complete = sum(1 for _, s in file_statuses if s == "complete")
+    partial = sum(1 for _, s in file_statuses if s == "partial")
+    failed = sum(1 for _, s in file_statuses if s == "failed")
+    skipped = sum(1 for _, s in file_statuses if s == "skipped")
+    failed_files = [n for n, s in file_statuses if s == "failed"]
+    partial_files = [n for n, s in file_statuses if s == "partial"]
+
+    # Tokens consumed by THIS run (delta of the daily counter) plus the
+    # running daily total, when daily token limiting is enabled.
+    tokens_this_run: int | None = None
+    daily_tokens_used: int | None = None
+    daily_token_limit: int | None = None
+    if token_limit_enabled:
+        stats = get_token_tracker().get_stats()
+        tokens_this_run = max(0, stats["tokens_used_today"] - tokens_before)
+        daily_tokens_used = stats["tokens_used_today"]
+        daily_token_limit = stats["daily_limit"]
 
     # Display completion summary
     ui.display_completion_summary(
-        processed_count=processed_count,
-        failed_count=failed_count,
+        processed_count=complete,
+        failed_count=failed,
         use_batch=state["use_batch"],
         duration_seconds=duration_seconds,
         paths_config=paths_config,
         selected_schema_name=state["selected_schema_name"],
+        complete_count=complete,
+        partial_count=partial,
+        skipped_count=skipped,
+        failed_files=failed_files,
+        partial_files=partial_files,
+        tokens_this_run=tokens_this_run,
+        daily_tokens_used=daily_tokens_used,
+        daily_token_limit=daily_token_limit,
     )
 
     # Final token usage statistics

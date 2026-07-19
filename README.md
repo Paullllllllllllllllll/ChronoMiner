@@ -1,4 +1,4 @@
-# ChronoMiner v2.2.0
+# ChronoMiner v2.3.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -798,6 +798,22 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.3.0** (19 July 2026) -- Correctness and robustness release from a
+    full-repo maintenance sweep. Resume/state handling is hardened: final
+    output JSONs are written atomically, sliced resumes no longer
+    misclassify files as complete, temp JSONLs surviving a hard crash are
+    recovered instead of truncated, batch outputs deduplicate custom_ids,
+    and a failed final write no longer deletes the temp record. Converter
+    registries are realigned with the shipped schema names (recipes V3,
+    Michelin Light) and the StructuredSummaries and bibliographic CSV/TXT
+    converters read the current schema keys. Interactive mode gains honest
+    per-file status aggregation, a detailed completion overview (status
+    breakdown, failed/partial file names, per-run token usage), working
+    back-navigation across pass-through steps, mixed-folder and .md file
+    discovery, and accurate progress lines; check_batches prints a real
+    finalized/pending/failed summary. Also fixes palette-PNG transparency
+    flattening, Responses-API routing via the capability registry, BOM
+    handling in line-range files, and Google-native model-name routing.
 - **v2.2.0** (17 July 2026) -- Performance release for local file I/O, image
     processing, and hot-path Python; API concurrency and payload semantics
     for in-cap pages are unchanged. PDF rasterization uses zero-copy pixel

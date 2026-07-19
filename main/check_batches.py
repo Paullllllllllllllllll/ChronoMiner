@@ -51,6 +51,7 @@ from modules.extract.batch_output import (
     merge_existing_batch_output,
 )
 from modules.extract.schema_handlers import get_schema_handler
+from modules.infra.jsonl import atomic_write_json
 from modules.infra.logger import setup_logger
 from modules.ui.core import UserInterface
 
@@ -365,7 +366,7 @@ def process_all_batches(
                     completed_batches.append(track)
                     completed_handles.append((backend, handle))
                     _safe_print(
-                        ui, f"Batch {batch_id} ({provider}): completed ✓", "success"
+                        ui, f"Batch {batch_id} ({provider}): completed [OK]", "success"
                     )
                     logger.info(f"Batch {batch_id} ({provider}) completed.")
                 elif status in {
@@ -480,10 +481,9 @@ def process_all_batches(
             # records completed on earlier runs.
             final_results = merge_existing_batch_output(final_results, final_json_path)
 
-            final_json_path.write_text(
-                json.dumps(final_results, indent=2, ensure_ascii=False),
-                encoding="utf-8",
-            )
+            # Atomic write: a crash mid-write must not destroy the merged
+            # output from earlier runs.
+            atomic_write_json(final_json_path, final_results)
             _safe_print(ui, f"Final output written to: {final_json_path}", "success")
             logger.info(f"Final output written to {final_json_path}")
             if all_finished:
@@ -517,7 +517,7 @@ def process_all_batches(
             num_batches = len(completed_batches)
             _safe_print(
                 ui,
-                f"✓ Successfully processed {num_responses} chunk(s)/page(s) "
+                f"[OK] Successfully processed {num_responses} chunk(s)/page(s) "
                 f"from {num_batches} batch(es) for '{final_identifier}'",
                 "success",
             )
@@ -610,6 +610,16 @@ class CheckBatchesScript(DualModeScript):
         self.ui.print_info("Scanning for batch files across all schemas...")
         self.logger.info("Starting batch results retrieval process.")
 
+        # Accumulate real outcomes so the end-of-run line reflects them instead
+        # of unconditionally claiming success even when batches are pending,
+        # failed, or none were found.
+        agg: dict[str, int] = {
+            "finalized": 0,
+            "pending": 0,
+            "failed": 0,
+            "errors": 0,
+        }
+
         for schema_name, repo_dir, schema_config in self.repo_info_list:
             if not repo_dir.exists():
                 self.ui.log(
@@ -627,10 +637,23 @@ class CheckBatchesScript(DualModeScript):
                 schema_name=schema_name,
                 schema_config=schema_config,
                 ui=self.ui,
+                agg=agg,
             )
 
         self.ui.print_section_header("Batch Processing Complete")
-        self.ui.print_success("All batch results have been processed")
+        self.ui.print_info(
+            f"Finalized: {agg['finalized']} | Pending: {agg['pending']} | "
+            f"Failed: {agg['failed']} | Errors: {agg['errors']}"
+        )
+        if agg["pending"] or agg["failed"] or agg["errors"]:
+            self.ui.print_warning(
+                "Some batches are not finalized. Re-run check_batches once "
+                "pending jobs complete; investigate any failed or errored groups."
+            )
+        elif agg["finalized"] > 0:
+            self.ui.print_success("All batch results have been finalized")
+        else:
+            self.ui.print_info("No batch results were found to process.")
 
     def run_cli(self, args: Namespace) -> None:
         """Run batch checking in CLI mode."""

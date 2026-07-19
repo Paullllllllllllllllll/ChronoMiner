@@ -482,6 +482,11 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                 # here (inside the running loop), never at module scope.
                 write_lock = asyncio.Lock()
 
+                # Monotonic done-counter over the units actually processed this
+                # run (pending_count excludes resume-skipped units). Single
+                # event loop, so a plain increment needs no lock.
+                units_done = 0
+
                 async def call_and_record(
                     idx: int,
                     chunk: str,
@@ -489,6 +494,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                     chunk_range: tuple[int, int] | None = None,
                 ) -> dict[str, Any]:
                     """Run one unit through the retry loop and persist it."""
+                    nonlocal units_done
                     for attempt in range(retry_attempts):
                         # Acquire rate-limit capacity off the event loop before
                         # each API call so bursts stay under the provider caps.
@@ -545,8 +551,15 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                                 await asyncio.to_thread(_append_jsonl_line, tempf, line)
 
                             rate_limiter.report_success()
+                            units_done += 1
+                            # Counter over units processed THIS run; keep the
+                            # absolute document index visible. A prior version
+                            # printed idx/total_chunks, which read e.g.
+                            # "chunk 9/2" under a --last-n-chunks slice. The
+                            # file stem disambiguates concurrent multi-file runs.
                             console_print(
-                                f"[INFO] Processed {unit_label} {idx}/{total_chunks}"
+                                f"[INFO] {file_path.stem}: processed {unit_label} "
+                                f"{idx} ({units_done}/{pending_count} this run)"
                             )
                             return result
                         except (
@@ -716,8 +729,16 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                     ]
                     results = await asyncio.gather(*tasks, return_exceptions=False)
 
+        # Count only genuine successes: error markers ({"error": ...}) and
+        # budget-deferred markers ({"budget_deferred": True}) are not completed
+        # units, so len(results) overcounted.
+        successful = sum(
+            1
+            for r in results
+            if isinstance(r, dict) and "error" not in r and "budget_deferred" not in r
+        )
         console_print(
-            f"[SUCCESS] Completed synchronous processing of {len(results)} chunks/pages"
+            f"[SUCCESS] Completed synchronous processing of {successful} chunks/pages"
         )
         return results
 

@@ -278,7 +278,8 @@ class UserInterface:
             ),
             (
                 "auto-adjust",
-                "Manual adjustment - Automatic chunking with real-time manual boundary",
+                "Manual adjustment - Automatic chunking with real-time manual"
+                " boundary adjustment",
             ),
             (
                 "line_ranges.txt",
@@ -319,7 +320,7 @@ class UserInterface:
         ]
 
         mode = self.select_option(
-            "Select how would like to process the data:",
+            "Select how you would like to process the data:",
             batch_options,
             allow_back=allow_back,
             allow_quit=True,
@@ -432,8 +433,11 @@ class UserInterface:
             allow_back=allow_back,
         )
 
-    # Suffixes for auxiliary files excluded from text-mode discovery
-    _AUXILIARY_SUFFIXES = ("_context.txt", "_line_ranges.txt")
+    # Suffixes for auxiliary files excluded from discovery. "_output.txt" is
+    # the tool's own TXT report: without it, a second interactive run over a
+    # folder with input_paths_is_output_path + txt_output re-extracts its own
+    # reports (the CLI already excludes these).
+    _AUXILIARY_SUFFIXES = ("_context.txt", "_line_ranges.txt", "_output.txt")
 
     def _discover_files(
         self,
@@ -443,21 +447,25 @@ class UserInterface:
     ) -> list[Path]:
         """Discover all processable files in a directory.
 
-        Text mode uses a targeted ``*.txt`` glob with auxiliary-suffix
+        Text mode uses ``*.txt``/``*.md`` globs with auxiliary-suffix
         exclusion.  Visual mode uses a broad ``*`` glob filtered by
-        extension set membership.
+        extension set membership; the auxiliary-suffix exclusion still applies
+        so a mixed folder's text sidecars/reports are not mistaken for input.
         """
         if is_visual:
             return sorted(
                 f
                 for f in directory.rglob("*")
-                if f.is_file() and f.suffix.lower() in valid_exts
+                if f.is_file()
+                and f.suffix.lower() in valid_exts
+                and not any(f.name.endswith(s) for s in self._AUXILIARY_SUFFIXES)
             )
-        return sorted(
-            f
-            for f in directory.rglob("*.txt")
-            if not any(f.name.endswith(s) for s in self._AUXILIARY_SUFFIXES)
-        )
+        seen: dict[Path, None] = {}
+        for pattern in ("*.txt", "*.md"):
+            for f in directory.rglob(pattern):
+                if not any(f.name.endswith(s) for s in self._AUXILIARY_SUFFIXES):
+                    seen[f] = None
+        return sorted(seen)
 
     def _display_output_location(
         self,
@@ -518,8 +526,11 @@ class UserInterface:
             valid_exts = SUPPORTED_PDF_EXTENSIONS
             file_label = "PDF files"
         elif input_type == "mixed":
-            valid_exts = SUPPORTED_VISUAL_EXTENSIONS
-            file_label = "visual files"
+            # A mixed folder processes text files alongside visual ones, so
+            # discovery must include .txt/.md (mirrors the CLI, which uses
+            # SUPPORTED_VISUAL_EXTENSIONS | {".txt", ".md"}).
+            valid_exts = SUPPORTED_VISUAL_EXTENSIONS | {".txt", ".md"}
+            file_label = "visual and text files"
         else:
             valid_exts = {".txt"}
             file_label = "text files"
@@ -589,9 +600,12 @@ class UserInterface:
                             and f.resolve().is_relative_to(resolved_base)
                         ]
                     else:
+                        # Only append ".txt" when the input carries no known
+                        # text extension; appending unconditionally made ".md"
+                        # files unreachable (e.g. "notes.md" -> "notes.md.txt").
                         normalized_input = (
                             file_input
-                            if file_input.lower().endswith(".txt")
+                            if file_input.lower().endswith((".txt", ".md"))
                             else f"{file_input}.txt"
                         )
                         wants_line_range = normalized_input.lower().endswith(
@@ -1029,6 +1043,15 @@ class UserInterface:
         duration_seconds: float = 0.0,
         paths_config: dict[str, Any] | None = None,
         selected_schema_name: str | None = None,
+        *,
+        complete_count: int | None = None,
+        partial_count: int = 0,
+        skipped_count: int = 0,
+        failed_files: list[str] | None = None,
+        partial_files: list[str] | None = None,
+        tokens_this_run: int | None = None,
+        daily_tokens_used: int | None = None,
+        daily_token_limit: int | None = None,
     ) -> None:
         """
         Display a detailed completion summary after processing.
@@ -1039,10 +1062,34 @@ class UserInterface:
         :param duration_seconds: Total processing duration in seconds
         :param paths_config: Paths configuration dictionary
         :param selected_schema_name: Name of the schema used
+        :param complete_count: Files completed in full; when provided the
+            summary shows a per-status breakdown (complete/partial/failed/
+            skipped). Defaults to None so older callers keep working.
+        :param partial_count: Files that completed only partially
+        :param skipped_count: Files skipped (already fully processed)
+        :param failed_files: Names of files that failed (input order)
+        :param partial_files: Names of files that completed partially
+        :param tokens_this_run: Tokens consumed by this run (daily-counter
+            delta); None when daily token limiting is disabled
+        :param daily_tokens_used: Running daily token total
+        :param daily_token_limit: Configured daily token limit
         """
         self.print_section_header("Processing Complete")
 
-        total_count = processed_count + failed_count
+        # Detailed mode: a per-status breakdown is available. Otherwise fall
+        # back to the older processed/failed-only view.
+        detailed = complete_count is not None
+        if detailed:
+            complete = complete_count or 0
+            partial = partial_count
+            failed = failed_count
+            skipped = skipped_count
+        else:
+            complete = processed_count
+            partial = 0
+            failed = failed_count
+            skipped = 0
+        total_count = complete + partial + failed + skipped
 
         # === Results Section ===
         self.console_print(f"  {self.BOLD}Results:{self.RESET}")
@@ -1051,19 +1098,37 @@ class UserInterface:
         if use_batch:
             self.print_success("Batch processing jobs have been submitted!")
             self.console_print(f"    - Jobs submitted: {total_count}")
+        elif failed == 0 and partial == 0 and (complete + skipped) > 0:
+            self.print_success(
+                f"All {complete + skipped} file(s) processed successfully!"
+            )
+        elif total_count > 0:
+            self.console_print(f"    - Complete: {complete}/{total_count} file(s)")
+            if partial > 0:
+                self.print_warning(f"    - Partial:  {partial} file(s)")
+            if skipped > 0:
+                self.console_print(f"    - Skipped:  {skipped} file(s)")
+            if failed > 0:
+                self.print_warning(f"    - Failed:   {failed} file(s)")
         else:
-            if failed_count == 0 and processed_count > 0:
-                self.print_success(
-                    f"All {processed_count} file(s) processed successfully!"
-                )
-            elif processed_count > 0:
-                self.console_print(
-                    f"    - Processed: {processed_count}/{total_count} file(s)"
-                )
-                if failed_count > 0:
-                    self.print_warning(f"    - Failed: {failed_count} file(s)")
-            else:
-                self.print_warning("    - No files were processed.")
+            self.print_warning("    - No files were processed.")
+
+        # Names of failed and partial files (input order preserved by caller).
+        if failed_files:
+            self.console_print("")
+            self.console_print(f"  {self.BOLD}Failed files:{self.RESET}")
+            for name in failed_files:
+                self.console_print(f"    - {name}")
+        if partial_files:
+            self.console_print("")
+            self.console_print(f"  {self.BOLD}Partial files:{self.RESET}")
+            for name in partial_files:
+                self.console_print(f"    - {name}")
+            self.console_print(
+                f"    {self.DIM}Re-run in resume mode "
+                f"(Resume mode -> skip / resume partial) to complete the "
+                f"remaining chunks.{self.RESET}"
+            )
 
         # Duration
         if duration_seconds > 0:
@@ -1077,6 +1142,18 @@ class UserInterface:
                 self.console_print(f"    - Duration: {duration_seconds:.1f} seconds")
 
         self.console_print(self.HORIZONTAL_LINE)
+
+        # === Token Usage (only when daily token limiting is enabled) ===
+        if tokens_this_run is not None:
+            self.console_print(f"\n  {self.BOLD}Token Usage:{self.RESET}")
+            self.console_print(self.HORIZONTAL_LINE)
+            self.console_print(f"    - Tokens consumed this run: {tokens_this_run:,}")
+            if daily_tokens_used is not None and daily_token_limit is not None:
+                self.console_print(
+                    f"    {self.DIM}- Daily total:"
+                    f" {daily_tokens_used:,}/{daily_token_limit:,}{self.RESET}"
+                )
+            self.console_print(self.HORIZONTAL_LINE)
 
         # === Output Location ===
         self.console_print(f"\n  {self.BOLD}Output:{self.RESET}")

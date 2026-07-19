@@ -244,7 +244,9 @@ class GenerateLineRangesScript(DualModeScript):
 
                 # Apply chunk slice if requested
                 if chunk_slice is not None and (
-                    chunk_slice.first_n is not None or chunk_slice.last_n is not None
+                    chunk_slice.first_n is not None
+                    or chunk_slice.last_n is not None
+                    or chunk_slice.page_range is not None
                 ):
                     original_count = len(line_ranges)
                     if chunk_slice.first_n is not None:
@@ -253,6 +255,13 @@ class GenerateLineRangesScript(DualModeScript):
                     elif chunk_slice.last_n is not None:
                         n = min(chunk_slice.last_n, len(line_ranges))
                         line_ranges = line_ranges[-n:]
+                    elif chunk_slice.page_range is not None:
+                        # page_range: 1-based inclusive selection over the
+                        # generated ranges, clamped to what exists.
+                        start, end = chunk_slice.page_range
+                        lo = max(start - 1, 0)
+                        hi = min(end, len(line_ranges))
+                        line_ranges = line_ranges[lo:hi] if lo < hi else []
                     self.print_or_log(
                         f"Chunk slice applied: writing "
                         f"{len(line_ranges)}/{original_count} ranges"
