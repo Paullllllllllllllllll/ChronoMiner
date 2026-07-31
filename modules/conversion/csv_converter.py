@@ -32,12 +32,43 @@ def _join_dicts(entry: dict, key: str, fmt: Callable, sep: str = "; ") -> str:
     """Join a list-of-dicts field by applying *fmt* to each element.
 
     A null or non-list value (schema-valid for optional list fields) yields
-    an empty string rather than raising.
+    an empty string rather than raising. Elements that format to nothing
+    (all-null objects) are dropped instead of emitting empty separators.
     """
     items = entry.get(key) or []
     if not isinstance(items, list):
         return ""
-    return sep.join(fmt(item) for item in items if isinstance(item, dict))
+    cells = (fmt(item) for item in items if isinstance(item, dict))
+    return sep.join(cell for cell in cells if cell)
+
+
+def _event_cell(event: dict) -> str:
+    """Render a v3.0 place event, omitting empty parentheses and colons."""
+    event_type = event.get("event_type") or ""
+    year = event.get("year")
+    year_str = "" if year is None or year == "" else str(year)
+    head = (
+        f"{event_type} ({year_str})"
+        if event_type and year_str
+        else (event_type or year_str)
+    )
+    description = event.get("description") or ""
+    if head and description:
+        return f"{head}: {description}"
+    return head or description
+
+
+def _contributor_cell(contributor: dict, name_keys: tuple[str, ...]) -> str:
+    """Render a contributor as ``name (role)``, omitting missing parts."""
+    name = ""
+    for key in name_keys:
+        name = contributor.get(key) or ""
+        if name:
+            break
+    role = contributor.get("role") or ""
+    if name and role:
+        return f"{name} ({role})"
+    return str(name or role)
 
 
 def _nested(entry: dict, key: str) -> dict:
@@ -103,7 +134,11 @@ class CSVConverter(BaseConverter):
             )
             df = pd.json_normalize(entries, sep="_")
         try:
-            df.to_csv(output_csv, index=False)
+            # Nullable integers otherwise become float64 and render as "1651.0";
+            # convert_dtypes() maps them to Int64 so the CSV shows "1651"/empty.
+            df = df.convert_dtypes()
+            # utf-8-sig so Excel recognises the encoding of non-ASCII cells.
+            df.to_csv(output_csv, index=False, encoding="utf-8-sig")
             logger.info(f"CSV file generated at {output_csv}")
         except Exception as e:
             logger.error(f"Error saving CSV file {output_csv}: {e}")
@@ -267,18 +302,7 @@ class CSVConverter(BaseConverter):
         ("city_modern", "geography.city_modern", None),
         ("country_original", "geography.country_original", None),
         ("country_modern", "geography.country_modern", None),
-        (
-            "events",
-            lambda e: _join_dicts(
-                e,
-                "events",
-                lambda ev: (
-                    f"{ev.get('event_type') or ''} ({ev.get('year') or ''}):"
-                    f" {ev.get('description') or ''}"
-                ),
-            ),
-            None,
-        ),
+        ("events", lambda e: _join_dicts(e, "events", _event_cell), None),
         (
             "associations",
             lambda e: BaseConverter._format_links(e.get("associations")),
@@ -309,9 +333,8 @@ class CSVConverter(BaseConverter):
             lambda e: _join_dicts(
                 e,
                 "contributors",
-                lambda c: (
-                    f"{c.get('name_original') or c.get('name_modern_english') or ''}"
-                    f" ({c.get('role') or ''})"
+                lambda c: _contributor_cell(
+                    c, ("name_original", "name_modern_english")
                 ),
             ),
             None,
@@ -426,9 +449,13 @@ class CSVConverter(BaseConverter):
 
                 contributors = edition.get("contributors") or []
                 contributor_strs = [
-                    f"{self.safe_str(c.get('name'))} ({self.safe_str(c.get('role'))})"
-                    for c in contributors
-                    if isinstance(c, dict)
+                    cell
+                    for cell in (
+                        _contributor_cell(c, ("name",))
+                        for c in contributors
+                        if isinstance(c, dict)
+                    )
+                    if cell
                 ]
 
                 price_info = edition.get("price_information") or {}

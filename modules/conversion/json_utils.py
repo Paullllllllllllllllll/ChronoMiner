@@ -157,7 +157,17 @@ def _extract_text_from_api_body(body: Any) -> str:
             message = (
                 choices[0].get("message", {}) if isinstance(choices[0], dict) else {}
             )
-            return message.get("content", "")
+            content = message.get("content", "")
+            if isinstance(content, str):
+                return content
+            # Some providers return a list of content blocks instead of a string.
+            if isinstance(content, list):
+                return "".join(
+                    str(block.get("text", "") or "")
+                    for block in content
+                    if isinstance(block, dict)
+                )
+            return ""
 
     # Responses API (nested output → message → content → text)
     output = body.get("output")

@@ -38,7 +38,7 @@ def test_csv_converter_convert_to_csv_writes_header_when_no_entries(
     converter.convert_to_csv(json_file, out)
 
     assert out.exists()
-    header = out.read_text(encoding="utf-8").splitlines()[0]
+    header = out.read_text(encoding="utf-8-sig").splitlines()[0]
     assert "page_number" in header
     assert "bullet_points" in header
 
@@ -57,7 +57,7 @@ def test_csv_converter_writes_empty_file_without_field_spec(
     converter.convert_to_csv(json_file, out)
 
     assert out.exists()
-    assert out.read_text(encoding="utf-8").strip() == ""
+    assert out.read_text(encoding="utf-8-sig").strip() == ""
 
 
 def test_document_converter_convert_ignores_unsupported_suffix(

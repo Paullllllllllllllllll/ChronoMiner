@@ -48,7 +48,7 @@ def test_recipes_v3_key_reaches_dedicated_converter(tmp_path: Path) -> None:
     out = tmp_path / "out.csv"
     CSVConverter("HistoricalRecipesEntriesProductionV3").convert_to_csv(json_file, out)
 
-    header = out.read_text(encoding="utf-8").splitlines()[0]
+    header = out.read_text(encoding="utf-8-sig").splitlines()[0]
     # A dedicated-converter-only column (absent from json_normalize output).
     assert "ingredient_luxury_signal_ratings" in header
 
@@ -70,7 +70,7 @@ def test_michelin_light_key_reaches_dedicated_converter(tmp_path: Path) -> None:
     out = tmp_path / "out.csv"
     CSVConverter("MichelinGuidesLight").convert_to_csv(json_file, out)
 
-    text = out.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8-sig")
     header = text.splitlines()[0]
     assert "cuisine_origin" in header
     assert "restaurant_class" in header
@@ -112,7 +112,7 @@ def test_structured_summaries_csv_and_docx_consistent(tmp_path: Path) -> None:
     json_file = _write_json(tmp_path / "in.json", [entry])
     csv_out = tmp_path / "out.csv"
     CSVConverter("StructuredSummaries").convert_to_csv(json_file, csv_out)
-    text = csv_out.read_text(encoding="utf-8")
+    text = csv_out.read_text(encoding="utf-8-sig")
     assert "page_number" in text.splitlines()[0]
     assert "7" in text
 
@@ -148,7 +148,7 @@ def test_bibliographic_csv_reads_publication_locations(tmp_path: Path) -> None:
     out = tmp_path / "out.csv"
     CSVConverter("BibliographicEntries").convert_to_csv(json_file, out)
 
-    text = out.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8-sig")
     header = text.splitlines()[0]
     assert "publication_places" in header
     # Retired columns must not be emitted.
@@ -205,7 +205,7 @@ def test_csv_converter_error_degrades_to_fallback(tmp_path: Path) -> None:
         converter.convert_to_csv(json_file, out)
 
     assert out.exists()
-    assert "a" in out.read_text(encoding="utf-8").splitlines()[0]
+    assert "a" in out.read_text(encoding="utf-8-sig").splitlines()[0]
 
 
 @pytest.mark.unit
@@ -219,7 +219,7 @@ def test_michelin_light_tolerates_none_elements_in_list_fields(tmp_path: Path) -
     out = tmp_path / "out.csv"
     CSVConverter("MichelinGuidesLight").convert_to_csv(json_file, out)
 
-    text = out.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8-sig")
     assert "French" in text
     assert "Duck" in text
 
@@ -234,7 +234,7 @@ def test_brazilian_converter_skips_non_dict_entries(tmp_path: Path) -> None:
     out = tmp_path / "out.csv"
     CSVConverter("BrazilianMilitaryRecords").convert_to_csv(json_file, out)
 
-    text = out.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8-sig")
     assert "Silva" in text
 
 

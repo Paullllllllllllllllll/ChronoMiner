@@ -309,7 +309,7 @@ def test_culinary_persons_csv_reads_v3_keys(tmp_path: Path) -> None:
     CSVConverter("CulinaryPersonsEntries").convert_to_csv(
         _entries_file(tmp_path / "in.json", [PERSON_V3]), out
     )
-    text = out.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8-sig")
     header = text.splitlines()[0]
 
     for column in (
@@ -343,7 +343,7 @@ def test_culinary_persons_csv_survives_all_null_optionals(tmp_path: Path) -> Non
     CSVConverter("CulinaryPersonsEntries").convert_to_csv(
         _entries_file(tmp_path / "in.json", [PERSON_V3_NULLS]), out
     )
-    text = out.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8-sig")
     assert "name_original" in text.splitlines()[0]
     assert "Anonymous Cook" in text
 
@@ -354,7 +354,7 @@ def test_culinary_places_csv_reads_v3_keys(tmp_path: Path) -> None:
     CSVConverter("CulinaryPlacesEntries").convert_to_csv(
         _entries_file(tmp_path / "in.json", [PLACE_V3, PLACE_V3_NULLS]), out
     )
-    text = out.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8-sig")
     header = text.splitlines()[0]
 
     for column in ("name_original", "events", "historical_importance", "associations"):
@@ -374,7 +374,7 @@ def test_culinary_works_csv_reads_v3_titles(tmp_path: Path) -> None:
     CSVConverter("CulinaryWorksEntries").convert_to_csv(
         _entries_file(tmp_path / "in.json", [WORK_V3, WORK_V3_NULLS]), out
     )
-    text = out.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8-sig")
     header = text.splitlines()[0]
 
     for column in (
@@ -479,7 +479,7 @@ def test_culinary_entities_csv_matches_v3_profiles(tmp_path: Path) -> None:
         ),
         out,
     )
-    text = out.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8-sig")
     columns = text.splitlines()[0].split(",")
 
     for column in (
@@ -598,7 +598,7 @@ def test_null_entries_csv_still_writes_a_file(tmp_path: Path) -> None:
     out = tmp_path / "out.csv"
     CSVConverter("CulinaryPersonsEntries").convert_to_csv(f, out)
     assert out.exists()
-    assert "name_original" in out.read_text(encoding="utf-8").splitlines()[0]
+    assert "name_original" in out.read_text(encoding="utf-8-sig").splitlines()[0]
 
 
 # ---------------------------------------------------------------------------
@@ -612,7 +612,7 @@ def test_recipes_v3_emits_signal_columns(tmp_path: Path) -> None:
     CSVConverter("HistoricalRecipesEntriesProductionV3").convert_to_csv(
         _entries_file(tmp_path / "in.json", [RECIPE_V3]), out
     )
-    text = out.read_text(encoding="utf-8")
+    text = out.read_text(encoding="utf-8-sig")
     header = text.splitlines()[0]
 
     for column in (
@@ -644,7 +644,7 @@ def test_recipes_v3_ratings_stay_index_parallel(tmp_path: Path) -> None:
     CSVConverter("HistoricalRecipesEntriesProductionV3").convert_to_csv(
         _entries_file(tmp_path / "in.json", [RECIPE_V3]), out
     )
-    with out.open(encoding="utf-8", newline="") as fh:
+    with out.open(encoding="utf-8-sig", newline="") as fh:
         row = next(iter(csv.DictReader(fh)))
 
     assert row["ingredient_origins_explicitly_stated"] == "Indes; "
@@ -691,7 +691,7 @@ def test_null_list_field_keeps_the_dedicated_column_set(tmp_path: Path) -> None:
     CSVConverter("CulinaryPlacesEntries").convert_to_csv(
         _entries_file(tmp_path / "in.json", [entry]), out
     )
-    header = out.read_text(encoding="utf-8").splitlines()[0]
+    header = out.read_text(encoding="utf-8-sig").splitlines()[0]
 
     # Dedicated-converter columns, not the json_normalize fallback's.
     assert "timeframe_notation" in header
@@ -893,6 +893,332 @@ def test_format_links_prefers_modern_entity_label() -> None:
     assert "Work: The Opera - Created" in result
     assert "Place: Roma - LocatedIn" in result
     assert BaseConverter._format_links(None) == ""
+
+
+# ---------------------------------------------------------------------------
+# FIX 11 — CSV rendering defects: nullable ints, BOM, ragged null cells
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_nullable_int_columns_do_not_render_as_floats(tmp_path: Path) -> None:
+    """A null in an integer column must not turn 1651 into '1651.0'."""
+    import csv
+
+    out = tmp_path / "out.csv"
+    CSVConverter("CulinaryWorksEntries").convert_to_csv(
+        _entries_file(tmp_path / "in.json", [WORK_V3, WORK_V3_NULLS]), out
+    )
+    text = out.read_text(encoding="utf-8-sig")
+    assert "1651.0" not in text
+    assert "7.0" not in text
+
+    with out.open(encoding="utf-8-sig", newline="") as fh:
+        rows = list(csv.DictReader(fh))
+    assert rows[0]["timeframe_start_year"] == "1651"
+    assert rows[0]["historical_importance"] == "7"
+    assert rows[1]["timeframe_start_year"] == ""
+    # Strings are untouched by the dtype conversion.
+    assert rows[0]["title_modern_english"] == "The French Cook"
+    assert rows[1]["title_modern_english"] == ""
+
+
+@pytest.mark.unit
+def test_csv_is_written_with_a_utf8_bom(tmp_path: Path) -> None:
+    """Excel needs the BOM to read the UTF-8 output correctly."""
+    out = tmp_path / "out.csv"
+    CSVConverter("CulinaryPersonsEntries").convert_to_csv(
+        _entries_file(tmp_path / "in.json", [PERSON_V3]), out
+    )
+    assert out.read_bytes().startswith(b"\xef\xbb\xbf")
+    # The BOM is the only difference: content still decodes cleanly.
+    assert "Bartolomeo Scappi" in out.read_text(encoding="utf-8-sig")
+
+
+@pytest.mark.unit
+def test_format_links_drops_missing_parts() -> None:
+    """Ragged association objects must not produce ': X - ' fragments."""
+    assert (
+        BaseConverter._format_links(
+            [{"entity_type": None, "entity_label_modern": "Escoffier"}]
+        )
+        == "Escoffier"
+    )
+    assert (
+        BaseConverter._format_links(
+            [{"entity_type": "Person", "entity_label_modern": "Escoffier"}]
+        )
+        == "Person: Escoffier"
+    )
+    assert (
+        BaseConverter._format_links(
+            [{"entity_label_original": "Escoffier", "relationship": "StudentOf"}]
+        )
+        == "Escoffier - StudentOf"
+    )
+    assert BaseConverter._format_links([{"relationship": "StudentOf"}]) == "StudentOf"
+    # An all-null association contributes no cell fragment at all.
+    assert (
+        BaseConverter._format_links(
+            [
+                {
+                    "entity_type": None,
+                    "entity_label_modern": None,
+                    "entity_label_original": None,
+                    "relationship": None,
+                }
+            ]
+        )
+        == ""
+    )
+
+
+@pytest.mark.unit
+def test_event_cells_omit_empty_parens_and_colons(tmp_path: Path) -> None:
+    import csv
+
+    entry = dict(PLACE_V3)
+    entry["events"] = [
+        {"event_type": "Establishment", "year": 1400, "description": "Guild founded."},
+        {"event_type": "Fire", "year": None, "description": None},
+        {"event_type": None, "year": None, "description": None},
+    ]
+    out = tmp_path / "out.csv"
+    CSVConverter("CulinaryPlacesEntries").convert_to_csv(
+        _entries_file(tmp_path / "in.json", [entry]), out
+    )
+    with out.open(encoding="utf-8-sig", newline="") as fh:
+        row = next(iter(csv.DictReader(fh)))
+
+    assert row["events"] == "Establishment (1400): Guild founded.; Fire"
+    assert "()" not in row["events"]
+
+
+@pytest.mark.unit
+def test_contributor_cells_omit_empty_parens(tmp_path: Path) -> None:
+    import csv
+
+    entry = dict(WORK_V3)
+    entry["contributors"] = [
+        {"name_original": "La Varenne", "name_modern_english": None, "role": "Author"},
+        {"name_original": None, "name_modern_english": None, "role": "Editor"},
+        {"name_original": "Pierre David", "name_modern_english": None, "role": None},
+        {"name_original": None, "name_modern_english": None, "role": None},
+    ]
+    out = tmp_path / "out.csv"
+    CSVConverter("CulinaryWorksEntries").convert_to_csv(
+        _entries_file(tmp_path / "in.json", [entry]), out
+    )
+    with out.open(encoding="utf-8-sig", newline="") as fh:
+        row = next(iter(csv.DictReader(fh)))
+
+    assert row["contributors"] == "La Varenne (Author); Editor; Pierre David"
+    assert " ()" not in row["contributors"]
+
+
+# ---------------------------------------------------------------------------
+# FIX 12 — schema-valid nulls must never surface as the literal "None"
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_addressbook_header_null_occupation(tmp_path: Path) -> None:
+    entry = {
+        "last_name": "Meier",
+        "first_name": "Hans",
+        "occupation": None,
+        "section": None,
+    }
+    out = tmp_path / "out.txt"
+    DocumentConverter("HistoricalAddressBookEntries").convert_to_txt(
+        _entries_file(tmp_path / "in.json", [entry]), out
+    )
+    text = out.read_text(encoding="utf-8")
+    assert "None" not in text
+    assert "Meier, Hans - Unknown" in text
+
+
+@pytest.mark.unit
+def test_brazilian_header_null_profession(tmp_path: Path) -> None:
+    entry = {"surname": "Silva", "first_name": "Joao", "profession": None}
+    out = tmp_path / "out.txt"
+    DocumentConverter("BrazilianMilitaryRecords").convert_to_txt(
+        _entries_file(tmp_path / "in.json", [entry]), out
+    )
+    assert "None" not in out.read_text(encoding="utf-8")
+
+
+@pytest.mark.unit
+def test_format_officials_drops_null_signature() -> None:
+    assert (
+        BaseConverter._format_officials(
+            {"officials": [{"position": "Captain", "signature": None}]}
+        )
+        == "Captain"
+    )
+    assert (
+        BaseConverter._format_officials(
+            {"officials": [{"position": None, "signature": "J. Silva"}]}
+        )
+        == "J. Silva"
+    )
+    assert (
+        BaseConverter._format_officials(
+            {"officials": [{"position": "Captain", "signature": "J. Silva"}]}
+        )
+        == "Captain: J. Silva"
+    )
+    assert (
+        BaseConverter._format_officials(
+            {"officials": [{"position": None, "signature": None}]}
+        )
+        == ""
+    )
+
+
+@pytest.mark.unit
+def test_bibliographic_txt_and_docx_agree_on_null_edition_fields(
+    tmp_path: Path,
+) -> None:
+    from docx import Document
+
+    entry = {
+        "full_title": None,
+        "short_title": None,
+        "main_author": None,
+        "edition_info": [
+            {
+                "year": None,
+                "edition_number": None,
+                "publication_locations": None,
+                "contributors": [
+                    {"name": None, "role": "Editor"},
+                    {"name": "Pierre David", "role": None},
+                    {"name": None, "role": None},
+                ],
+            }
+        ],
+    }
+    json_file = _entries_file(tmp_path / "in.json", [entry])
+
+    txt_out = tmp_path / "out.txt"
+    DocumentConverter("BibliographicEntries").convert_to_txt(json_file, txt_out)
+    txt = txt_out.read_text(encoding="utf-8")
+
+    docx_out = tmp_path / "out.docx"
+    DocumentConverter("BibliographicEntries").convert_to_docx(json_file, docx_out)
+    docx_text = "\n".join(p.text for p in Document(str(docx_out)).paragraphs)
+
+    for text in (txt, docx_text):
+        assert "None" not in text
+        assert "Unknown Title" in text
+        assert "Year: Unknown" in text
+        assert "Edition: Unknown" in text
+        assert "Editor, Pierre David" in text
+        assert " ()" not in text
+
+
+# ---------------------------------------------------------------------------
+# FIX 13 — hostile non-dict elements degrade locally, not file-wide
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_brazilian_documents_survive_non_dict_entries(tmp_path: Path) -> None:
+    from docx import Document
+
+    json_file = _entries_file(
+        tmp_path / "in.json", ["not a dict", {"surname": "Silva", "first_name": "Joao"}]
+    )
+
+    txt_out = tmp_path / "out.txt"
+    DocumentConverter("BrazilianMilitaryRecords").convert_to_txt(json_file, txt_out)
+    assert "Silva" in txt_out.read_text(encoding="utf-8")
+
+    docx_out = tmp_path / "out.docx"
+    DocumentConverter("BrazilianMilitaryRecords").convert_to_docx(json_file, docx_out)
+    docx_text = "\n".join(p.text for p in Document(str(docx_out)).paragraphs)
+    assert "Record Header" in docx_text
+
+
+@pytest.mark.unit
+def test_recipe_documents_survive_non_dict_list_elements(tmp_path: Path) -> None:
+    from docx import Document
+
+    entry = dict(RECIPE_V3)
+    entry["ingredients"] = ["hostile", *RECIPE_V3["ingredients"]]
+    entry["cooking_methods"] = ["hostile", *RECIPE_V3["cooking_methods"]]
+    json_file = _entries_file(tmp_path / "in.json", [entry])
+
+    txt_out = tmp_path / "out.txt"
+    DocumentConverter("HistoricalRecipesEntriesProductionV3").convert_to_txt(
+        json_file, txt_out
+    )
+    txt = txt_out.read_text(encoding="utf-8")
+    assert "Tarte au sucre" in txt
+    assert "sugar" in txt
+
+    docx_out = tmp_path / "out.docx"
+    DocumentConverter("HistoricalRecipesEntriesProductionV3").convert_to_docx(
+        json_file, docx_out
+    )
+    docx_text = "\n".join(p.text for p in Document(str(docx_out)).paragraphs)
+    assert "sugar" in docx_text
+
+
+# ---------------------------------------------------------------------------
+# FIX 14 — list-form Chat-Completions content must not abort the conversion
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_list_form_chat_completions_content_is_extracted(tmp_path: Path) -> None:
+    payload = {
+        "records": [
+            {
+                "custom_id": "chunk-1",
+                "response": {
+                    "choices": [
+                        {
+                            "message": {
+                                "content": [
+                                    {"type": "text", "text": '{"entries": '},
+                                    {"type": "text", "text": '[{"id": 5}]}'},
+                                    "hostile non-dict block",
+                                ]
+                            }
+                        }
+                    ]
+                },
+            }
+        ]
+    }
+    f = _write_json(tmp_path / "records.json", payload)
+    assert extract_entries_from_json(f) == [{"id": 5}]
+
+
+@pytest.mark.unit
+def test_non_string_chat_completions_content_yields_no_entries(tmp_path: Path) -> None:
+    payload = {
+        "records": [{"response": {"choices": [{"message": {"content": 42}}]}}],
+    }
+    f = _write_json(tmp_path / "records.json", payload)
+    assert extract_entries_from_json(f) == []
+
+
+# ---------------------------------------------------------------------------
+# FIX 15 — the dead legacy formatting helpers are gone
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_legacy_base_converter_helpers_removed() -> None:
+    for name in (
+        "format_associations",
+        "format_name_variants",
+        "_extract_first_measurement",
+    ):
+        assert not hasattr(BaseConverter, name)
 
 
 if __name__ == "__main__":

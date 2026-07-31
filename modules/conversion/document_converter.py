@@ -148,6 +148,27 @@ def _contributor_lines(contributors: Any) -> list[str]:
     return lines
 
 
+def _contributor_name_role_lines(contributors: Any) -> list[str]:
+    """Render a bibliographic ``contributors`` list (``name``/``role`` shape).
+
+    Missing parts are omitted rather than rendered as ``" (Editor)"`` or
+    ``"Pierre David ()"``; an all-null contributor is skipped.
+    """
+    if not isinstance(contributors, list):
+        return []
+    lines: list[str] = []
+    for contrib in contributors:
+        if not isinstance(contrib, dict):
+            continue
+        name = contrib.get("name")
+        role = contrib.get("role")
+        if name and role:
+            lines.append(f"{name} ({role})")
+        elif name or role:
+            lines.append(str(name or role))
+    return lines
+
+
 def _fields_to_docx(
     entries: list[Any],
     document: _DocxDocument,
@@ -438,12 +459,9 @@ class DocumentConverter(BaseConverter):
                 ]
                 location_str = ", ".join(str(p) for p in places) or "Unknown"
 
-                contributors = edition.get("contributors") or []
-                contributor_strs = [
-                    f"{self.safe_str(c.get('name'))} ({self.safe_str(c.get('role'))})"
-                    for c in contributors
-                    if isinstance(c, dict)
-                ]
+                contributor_strs = _contributor_name_role_lines(
+                    edition.get("contributors")
+                )
                 contributors_str = (
                     ", ".join(contributor_strs) if contributor_strs else "Unknown"
                 )
@@ -619,9 +637,9 @@ class DocumentConverter(BaseConverter):
 
     @staticmethod
     def _addressbook_header(entry: dict) -> str:
-        last = entry.get("last_name", "Unknown")
-        first = entry.get("first_name", "Unknown")
-        occupation = entry.get("occupation", "Unknown")
+        last = entry.get("last_name") or "Unknown"
+        first = entry.get("first_name") or "Unknown"
+        occupation = entry.get("occupation") or "Unknown"
         header = f"{last}, {first} - {occupation}"
         section = entry.get("section")
         if section:
@@ -674,15 +692,17 @@ class DocumentConverter(BaseConverter):
 
     @staticmethod
     def _brazilian_header(entry: dict) -> str:
-        surname = entry.get("surname", "")
-        first = entry.get("first_name", "")
-        profession = entry.get("profession", "")
+        surname = entry.get("surname") or ""
+        first = entry.get("first_name") or ""
+        profession = entry.get("profession") or ""
         return f"{surname}, {first} - {profession}"
 
     def _convert_brazilianoccupationrecords_to_docx(
         self, entries: list[Any], document: _DocxDocument
     ) -> None:
         for entry in entries:
+            if not isinstance(entry, dict):
+                continue
             document.add_heading(self._brazilian_header(entry), level=1)
             for label, key, default in self._BRAZILIAN_RECORDS_FIELDS:
                 document.add_paragraph(f"{label}: {resolve_field(entry, key, default)}")
@@ -743,12 +763,12 @@ class DocumentConverter(BaseConverter):
             if not isinstance(entry, dict):
                 continue
 
+            full_title = self.safe_str(entry.get("full_title") or "Unknown Title")
+            lines.append(f"Full Title: {full_title}")
+            short = self.safe_str(entry.get("short_title") or "")
+            lines.append(f"Short Title: {short}")
             lines.append(
-                f"Full Title: {self.safe_str(entry.get('full_title', 'Unknown Title'))}"
-            )
-            lines.append(f"Short Title: {self.safe_str(entry.get('short_title', ''))}")
-            lines.append(
-                f"Main Author: {self.safe_str(entry.get('main_author', 'Anonymous'))}"
+                f"Main Author: {self.safe_str(entry.get('main_author') or 'Anonymous')}"
             )
             inst = entry.get("institutional_main_author")
             if inst is not None:
@@ -788,21 +808,18 @@ class DocumentConverter(BaseConverter):
                 ]
                 location_str = ", ".join(str(p) for p in places) or "Unknown"
 
-                contributors = edition.get("contributors") or []
-                contributor_strs = [
-                    f"{self.safe_str(c.get('name'))} ({self.safe_str(c.get('role'))})"
-                    for c in contributors
-                    if isinstance(c, dict)
-                ]
+                contributor_strs = _contributor_name_role_lines(
+                    edition.get("contributors")
+                )
                 contributors_str = (
                     ", ".join(contributor_strs) if contributor_strs else "Unknown"
                 )
 
-                ed_year = self.safe_str(edition.get("year", "Unknown"))
-                ed_num = self.safe_str(edition.get("edition_number", "Unknown"))
-                ed_cat = self.safe_str(edition.get("edition_category", ""))
-                ed_lang = self.safe_str(edition.get("language", ""))
-                ed_trans = self.safe_str(edition.get("translated_from", ""))
+                ed_year = self.safe_str(edition.get("year") or "Unknown")
+                ed_num = self.safe_str(edition.get("edition_number") or "Unknown")
+                ed_cat = self.safe_str(edition.get("edition_category") or "")
+                ed_lang = self.safe_str(edition.get("language") or "")
+                ed_trans = self.safe_str(edition.get("translated_from") or "")
                 edition_text = (
                     f"Year: {ed_year}, "
                     f"Edition: {ed_num}, "
@@ -830,6 +847,8 @@ class DocumentConverter(BaseConverter):
     ) -> list[str]:
         lines: list[str] = []
         for entry in entries:
+            if not isinstance(entry, dict):
+                continue
             lines.append(self._brazilian_header(entry))
             for label, key, default in self._BRAZILIAN_RECORDS_FIELDS:
                 lines.append(f"{label}: {resolve_field(entry, key, default)}")
@@ -1446,6 +1465,8 @@ class DocumentConverter(BaseConverter):
             if ingredients:
                 document.add_heading("Ingredients", level=2)
                 for ing in ingredients:
+                    if not isinstance(ing, dict):
+                        continue
                     name = (
                         ing.get("name_modern_english") or ing.get("name_original") or ""
                     )
@@ -1472,6 +1493,8 @@ class DocumentConverter(BaseConverter):
             if methods:
                 document.add_heading("Cooking Methods", level=2)
                 for m in methods:
+                    if not isinstance(m, dict):
+                        continue
                     method_name = (
                         m.get("method_modern_english") or m.get("method_original") or ""
                     )
@@ -1551,6 +1574,8 @@ class DocumentConverter(BaseConverter):
             if ingredients:
                 lines.append("Ingredients:")
                 for ing in ingredients:
+                    if not isinstance(ing, dict):
+                        continue
                     name = (
                         ing.get("name_modern_english") or ing.get("name_original") or ""
                     )
@@ -1577,6 +1602,8 @@ class DocumentConverter(BaseConverter):
             if methods:
                 method_parts: list[str] = []
                 for m in methods:
+                    if not isinstance(m, dict):
+                        continue
                     method_name = (
                         m.get("method_modern_english") or m.get("method_original") or ""
                     )

@@ -126,48 +126,6 @@ class TestBaseConverterHelpers:
         assert impl.join_list(["x", "y"], separator="; ") == "x; y"
 
     @pytest.mark.unit
-    def test_format_name_variants(self):
-        impl = self._make()
-        variants = [
-            {"original": "Kochen", "modern_english": "Cooking"},
-            {"original": "Braten"},
-        ]
-        result = impl.format_name_variants(variants)
-        assert "Kochen (Cooking)" in result
-        assert "Braten" in result
-
-    @pytest.mark.unit
-    def test_format_name_variants_non_list(self):
-        assert self._make().format_name_variants(None) == ""
-
-    @pytest.mark.unit
-    def test_format_associations_string(self):
-        impl = self._make()
-        assocs = [
-            {
-                "target_type": "person",
-                "target_label_modern_english": "John",
-                "relationship": "author",
-            }
-        ]
-        result = impl.format_associations(assocs)
-        assert "person" in result and "John" in result and "author" in result
-
-    @pytest.mark.unit
-    def test_format_associations_list(self):
-        impl = self._make()
-        result = impl.format_associations(
-            [{"target_type": "place", "target_label_original": "Paris"}], as_list=True
-        )
-        assert isinstance(result, list) and len(result) == 1
-
-    @pytest.mark.unit
-    def test_format_associations_non_list(self):
-        impl = self._make()
-        assert impl.format_associations(None) == ""
-        assert impl.format_associations(None, as_list=True) == []
-
-    @pytest.mark.unit
     def test_get_entries_filters_none(self, tmp_path):
         json_file = tmp_path / "data.json"
         json_file.write_text(json.dumps({"entries": [{"a": 1}, None, {"b": 2}]}))

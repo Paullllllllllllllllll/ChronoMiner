@@ -101,56 +101,6 @@ class BaseConverter(ABC):
         return ""
 
     @staticmethod
-    def format_name_variants(variants: Any) -> str:
-        """
-        Format name variants for display.
-
-        :param variants: List of variant dictionaries with 'original' and
-            'modern_english' keys
-        :return: Formatted string with variants
-        """
-        if not isinstance(variants, list):
-            return ""
-        formatted = []
-        for variant in variants:
-            if isinstance(variant, dict):
-                original = variant.get("original") or ""
-                modern = variant.get("modern_english")
-                if modern and modern != original:
-                    formatted.append(f"{original} ({modern})")
-                else:
-                    formatted.append(original)
-        return "; ".join([f for f in formatted if f])
-
-    @staticmethod
-    def format_associations(assocs: Any, as_list: bool = False) -> Any:
-        """
-        Format associations for display.
-
-        :param assocs: List of association dictionaries
-        :param as_list: If True, return list of strings; if False, return joined string
-        :return: Formatted associations as string or list
-        """
-        if not isinstance(assocs, list):
-            return [] if as_list else ""
-        formatted: list[str] = []
-        for assoc in assocs:
-            if not isinstance(assoc, dict):
-                continue
-            target_type = assoc.get("target_type")
-            label = assoc.get("target_label_modern_english") or assoc.get(
-                "target_label_original"
-            )
-            relationship = assoc.get("relationship")
-            parts = [part for part in [target_type, label] if part]
-            base = " - ".join(parts) if parts else ""
-            if relationship:
-                base = f"{base} ({relationship})" if base else relationship
-            if base:
-                formatted.append(base)
-        return formatted if as_list else "; ".join(formatted)
-
-    @staticmethod
     def _normalize_entries(entries: list[Any]) -> list[Any]:
         """Filter out null elements."""
         return [e for e in entries if e is not None]
@@ -187,7 +137,9 @@ class BaseConverter(ABC):
 
         Each item is rendered as ``entity_type: label - relationship`` where
         *label* prefers ``entity_label_modern`` and falls back to
-        ``entity_label_original`` (schema v3.0 association shape).
+        ``entity_label_original`` (schema v3.0 association shape). Missing
+        parts are omitted rather than rendered as empty separators; an
+        all-null association contributes nothing.
         """
         if not isinstance(links, list):
             return ""
@@ -196,34 +148,36 @@ class BaseConverter(ABC):
             if not isinstance(link, dict):
                 continue
             label = link.get("entity_label_modern") or link.get("entity_label_original")
-            formatted.append(
-                f"{link.get('entity_type') or ''}: {label or ''}"
-                f" - {link.get('relationship') or ''}"
-            )
+            etype = link.get("entity_type")
+            rel = link.get("relationship")
+            head = f"{etype}: {label}" if etype and label else (etype or label or "")
+            text = f"{head} - {rel}" if head and rel else (head or rel or "")
+            if text:
+                formatted.append(str(text))
         return "; ".join(formatted)
 
     @staticmethod
     def _format_officials(entry: dict) -> str:
-        """Format officials list as 'position: signature' strings."""
+        """Format officials list as 'position: signature' strings.
+
+        A null position or signature is omitted together with its separator,
+        so an official with only one of the two renders as that value alone.
+        """
         officials = entry.get("officials", [])
         if not officials:
             return ""
-        return "; ".join(
-            f"{o.get('position', '')}: {o.get('signature', '')}" for o in officials
-        )
-
-    @staticmethod
-    def _extract_first_measurement(entry: dict[str, Any], key: str) -> str:
-        """Extract first value/unit pair from a measurement list field."""
-        items = entry.get(key, [])
-        if items and isinstance(items, list) and len(items) > 0:
-            item = items[0]
-            if isinstance(item, dict):
-                val = item.get("value_modern_english")
-                unit = item.get("unit_modern_english")
-                if val and unit:
-                    return f"{val} {unit}"
-        return ""
+        formatted: list[str] = []
+        for official in officials:
+            position = official.get("position") or ""
+            signature = official.get("signature") or ""
+            text = (
+                f"{position}: {signature}"
+                if position and signature
+                else (position or signature)
+            )
+            if text:
+                formatted.append(str(text))
+        return "; ".join(formatted)
 
     def get_converter(self, converters: dict[str, Callable]) -> Callable | None:
         """
