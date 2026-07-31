@@ -1186,6 +1186,21 @@ class BatchProcessingStrategy(ProcessingStrategy):
         batch_metadata: dict[str, Any] = {
             bid: meta for bid, meta in prior_tracking.items()
         }
+        # The extraction model name is recorded on the tracking copy of each
+        # handle's metadata under ``model`` -- exactly where
+        # ``batch_output._infer_model_name`` looks for it -- so batch-finalized
+        # outputs stamp the real model instead of "unknown". The handle's own
+        # metadata (built by the backend) is never mutated.
+        model_name = str(tm.get("name") or "")
+
+        def _tracking_metadata(
+            handle_metadata: dict[str, Any] | None,
+        ) -> dict[str, Any]:
+            meta: dict[str, Any] = dict(handle_metadata or {})
+            if model_name:
+                meta.setdefault("model", model_name)
+            return meta
+
         debug_path = (
             temp_jsonl_path.parent / f"{file_path.stem}_batch_submission_debug.json"
         )
@@ -1204,7 +1219,8 @@ class BatchProcessingStrategy(ProcessingStrategy):
                     schema_name=schema_name,
                 )
                 submitted_batch_ids.append(handle.batch_id)
-                batch_metadata[handle.batch_id] = handle.metadata
+                tracking_metadata = _tracking_metadata(handle.metadata)
+                batch_metadata[handle.batch_id] = tracking_metadata
 
                 # Rewrite the batch-ID recovery artifact cumulatively BEFORE the
                 # part temp file is written: a crash between submit and the
@@ -1213,12 +1229,16 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 # each handle's metadata (e.g. Google's custom_id_map). Written
                 # atomically: an in-place truncate could corrupt the artifact in
                 # exactly the crash scenario it exists for.
+                # ``schema_name`` is mirrored here (and the model rides along in
+                # ``batch_metadata``) so tracking records restored from this
+                # artifact carry both; older artifacts simply lack the keys.
                 atomic_write_json(
                     debug_path,
                     {
                         "batch_ids": submitted_batch_ids,
                         "provider": provider,
                         "batch_metadata": batch_metadata,
+                        "schema_name": schema_name,
                     },
                 )
 
@@ -1228,7 +1248,8 @@ class BatchProcessingStrategy(ProcessingStrategy):
                         "provider": handle.provider,
                         "timestamp": int(time.time()),
                         "request_count": len(part_requests),
-                        "metadata": handle.metadata,
+                        "schema_name": schema_name,
+                        "metadata": tracking_metadata,
                     }
                 }
 

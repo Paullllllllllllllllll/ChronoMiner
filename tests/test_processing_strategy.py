@@ -129,6 +129,72 @@ async def test_batch_processing_strategy_writes_request_and_tracking_records(
 
 
 @pytest.mark.asyncio
+async def test_batch_submission_persists_schema_name_and_model(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Tracking records and the recovery artifact must carry the schema name
+    and the extraction model, so finalization neither guesses the schema nor
+    stamps model_name='unknown'."""
+    monkeypatch.setattr(ps, "supports_batch", lambda provider: True)
+
+    handle_metadata: dict[str, Any] = {"custom_id_map": {"a": 1}}
+
+    class _Backend:
+        def submit_batch(
+            self,
+            requests,
+            model_config,
+            *,
+            system_prompt: str,
+            schema: dict[str, Any] | None = None,
+            schema_name: str | None = None,
+        ):
+            return ps.BatchHandle(
+                provider="openai", batch_id="batch_777", metadata=handle_metadata
+            )
+
+    monkeypatch.setattr(ps, "get_batch_backend", lambda provider: _Backend())
+
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "input.txt"
+    model_config = {"extraction_model": {"provider": "openai", "name": "gpt-5-mini"}}
+
+    await ps.BatchProcessingStrategy().process_chunks(
+        chunks=["c1"],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config=model_config,
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_args, **_kwargs: None,
+    )
+
+    lines = [
+        json.loads(line)
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    tracking = [ln["batch_tracking"] for ln in lines if "batch_tracking" in ln]
+    assert len(tracking) == 1
+    assert tracking[0]["schema_name"] == "TestSchema"
+    assert tracking[0]["metadata"]["model"] == "gpt-5-mini"
+    # The backend's own handle metadata is preserved and never mutated.
+    assert tracking[0]["metadata"]["custom_id_map"] == {"a": 1}
+    assert handle_metadata == {"custom_id_map": {"a": 1}}
+
+    artifact = json.loads(
+        (tmp_path / f"{file_path.stem}_batch_submission_debug.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert artifact["schema_name"] == "TestSchema"
+    assert artifact["batch_ids"] == ["batch_777"]
+    assert artifact["batch_metadata"]["batch_777"]["model"] == "gpt-5-mini"
+    assert artifact["provider"] == "openai"
+
+
+@pytest.mark.asyncio
 async def test_batch_processing_strategy_builds_visual_batch_requests(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ) -> None:

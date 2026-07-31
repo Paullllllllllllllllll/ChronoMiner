@@ -181,6 +181,76 @@ def _looks_like_not_found(message: str) -> bool:
     return any(marker in lowered for marker in _NOT_FOUND_MARKERS)
 
 
+def _recover_persisted_schema_name(temp_file: Path, identifier: str) -> str | None:
+    """Read the schema name recorded in a group's batch-submission artifact.
+
+    Submissions mirror ``schema_name`` into
+    ``{stem}_batch_submission_debug.json`` so a group whose tracking lines were
+    lost (and are restored from that artifact) still knows which schema it was
+    submitted under. Returns ``None`` for legacy artifacts without the key.
+    """
+    debug_artifact = temp_file.parent / f"{identifier}_batch_submission_debug.json"
+    if not debug_artifact.exists():
+        return None
+    try:
+        artifact = json.loads(debug_artifact.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        logger.warning("Failed to read schema name from %s: %s", debug_artifact, exc)
+        return None
+    if not isinstance(artifact, dict):
+        return None
+    persisted = artifact.get("schema_name")
+    return persisted if isinstance(persisted, str) and persisted else None
+
+
+def _detect_group_schema(
+    tracking: list[Any],
+    schema_name: str,
+    schema_config: dict[str, Any],
+    schema_map: dict[str, dict[str, Any]] | None,
+    ui: UserInterface | None,
+    base_identifier: str,
+) -> tuple[str, dict[str, Any]]:
+    """Resolve the schema a temp-file group was actually submitted under.
+
+    ``check_batches --input`` assumes the FIRST configured schema for every
+    group it finds, which silently converts with the wrong handler. Submissions
+    now persist ``schema_name`` on each tracking record, so a group can be
+    corrected. Conservative rule: switch only when the tracking records agree
+    on exactly one schema name that is itself configured. Absent (legacy) or
+    conflicting names keep the caller's assumption.
+    """
+    persisted = {
+        str(track.get("schema_name"))
+        for track in tracking
+        if isinstance(track, dict) and track.get("schema_name")
+    }
+    if len(persisted) != 1:
+        return schema_name, schema_config
+    detected = persisted.pop()
+    if detected == schema_name:
+        return schema_name, schema_config
+    detected_config = (schema_map or {}).get(detected)
+    if detected_config is not None:
+        message = (
+            f"{base_identifier}: batch was submitted under schema "
+            f"'{detected}', not the assumed '{schema_name}'; finalizing with "
+            f"'{detected}'."
+        )
+        _safe_print(ui, message, "info")
+        logger.info(message)
+        return detected, detected_config
+    if schema_map is not None:
+        message = (
+            f"{base_identifier}: tracking records name schema '{detected}', "
+            f"which is not configured; keeping the assumed schema "
+            f"'{schema_name}'."
+        )
+        _safe_print(ui, message, "warning")
+        logger.warning(message)
+    return schema_name, schema_config
+
+
 def _get_status_with_retry(backend: Any, handle: BatchHandle) -> BatchStatusInfo:
     """Poll batch status, retrying once on an unusable (UNKNOWN+error) result.
 
@@ -214,6 +284,7 @@ def process_all_batches(
     schema_config: dict[str, Any],
     ui: UserInterface | None,
     agg: dict[str, int] | None = None,
+    schema_map: dict[str, dict[str, Any]] | None = None,
 ) -> None:
     """Process all batch results using provider-agnostic backends.
 
@@ -221,6 +292,11 @@ def process_all_batches(
     ``errors`` (directories with batch temp files that could not be scanned)
     counts across schemas for the CLI ``--json`` summary and exit-code
     decision.
+
+    ``schema_map`` (optional) maps every configured schema name to its schema
+    config. It lets a group whose tracking records name a different (but
+    configured) schema be finalized and converted under that schema instead of
+    the caller's assumption; without it, the assumption always stands.
     """
     temp_files: list[Path] = [
         f for f in root_folder.rglob("*_temp*.jsonl") if is_batch_temp_file(f)
@@ -361,6 +437,12 @@ def process_all_batches(
                         )
                     )
                     recovered_ids.update(recovered)
+                    # Carry the submitted schema name through recovery so schema
+                    # detection (and the model stamp, which rides in the restored
+                    # metadata) work for recovered batches too.
+                    recovered_schema = _recover_persisted_schema_name(
+                        temp_file, temp_identifier
+                    )
                     for batch_id in recovered:
                         track_record: dict[str, Any] = {"batch_id": batch_id}
                         if recovered_provider:
@@ -369,6 +451,8 @@ def process_all_batches(
                         # correlate results (e.g. Google's inline custom_id_map)
                         # instead of positional req-{i+1} relabeling.
                         track_record["metadata"] = recovered_metadata.get(batch_id, {})
+                        if recovered_schema:
+                            track_record["schema_name"] = recovered_schema
                         tracking.append(track_record)
                         batch_ids.add(batch_id)
                     if recovered:
@@ -384,6 +468,17 @@ def process_all_batches(
                 logger.warning("No batch IDs recovered for %s", base_identifier)
                 _bump(agg, "failed")
                 continue
+
+            # Correct the assumed schema from what the submission persisted
+            # (no-op for legacy tracking records without a schema name).
+            group_schema_name, group_schema_config = _detect_group_schema(
+                tracking,
+                schema_name,
+                schema_config,
+                schema_map,
+                ui,
+                base_identifier,
+            )
 
             # Check batch status and retrieve completed results
             # using provider-agnostic backends
@@ -598,7 +693,7 @@ def process_all_batches(
             final_results: dict[str, Any] = build_unified_batch_output(
                 responses,
                 tracking,
-                schema_name=schema_name,
+                schema_name=group_schema_name,
                 order_map=order_map,
                 custom_id_map=custom_id_map,
                 fully_completed=all_finished,
@@ -655,8 +750,8 @@ def process_all_batches(
             )
 
             # Generate additional output formats
-            handler = get_schema_handler(schema_name)
-            if schema_config.get("csv_output", False):
+            handler = get_schema_handler(group_schema_name)
+            if group_schema_config.get("csv_output", False):
                 try:
                     handler.convert_to_csv(
                         final_json_path, final_json_path.with_suffix(".csv")
@@ -667,7 +762,7 @@ def process_all_batches(
                 except Exception as e:
                     logger.error(f"Error converting {final_json_path} to CSV: {e}")
                     _safe_print(ui, f"Error converting to CSV: {e}", "error")
-            if schema_config.get("docx_output", False):
+            if group_schema_config.get("docx_output", False):
                 try:
                     handler.convert_to_docx(
                         final_json_path, final_json_path.with_suffix(".docx")
@@ -678,7 +773,7 @@ def process_all_batches(
                 except Exception as e:
                     logger.error(f"Error converting {final_json_path} to DOCX: {e}")
                     _safe_print(ui, f"Error converting to DOCX: {e}", "error")
-            if schema_config.get("txt_output", False):
+            if group_schema_config.get("txt_output", False):
                 try:
                     handler.convert_to_txt(
                         final_json_path, final_json_path.with_suffix(".txt")
@@ -734,6 +829,7 @@ class CheckBatchesScript(DualModeScript):
         # provider backends handle their own keys
         self.repo_info_list: list[tuple[str, Path, dict[str, Any]]] = []
         self.processing_settings: dict[str, Any] = {}
+        self.schema_map: dict[str, dict[str, Any]] = {}
 
     def create_argument_parser(self) -> ArgumentParser:
         """Create argument parser for CLI mode."""
@@ -742,6 +838,10 @@ class CheckBatchesScript(DualModeScript):
     def _load_batch_config(self) -> None:
         """Load configuration for batch processing."""
         self.repo_info_list, self.processing_settings = load_config()
+        # Snapshot every configured schema BEFORE any --schema/--input
+        # narrowing, so a group whose tracking records name another configured
+        # schema can still be finalized under it.
+        self.schema_map = {name: cfg for name, _, cfg in self.repo_info_list}
 
     def run_interactive(self) -> None:
         """Run batch checking in interactive mode."""
@@ -781,6 +881,7 @@ class CheckBatchesScript(DualModeScript):
                 schema_config=schema_config,
                 ui=self.ui,
                 agg=agg,
+                schema_map=self.schema_map,
             )
 
         self.ui.print_section_header("Batch Processing Complete")
@@ -826,17 +927,18 @@ class CheckBatchesScript(DualModeScript):
             # Use single directory with first schema config as template
             if self.repo_info_list:
                 schema_name, _, schema_config = self.repo_info_list[0]
-                # No schema detection happens here: whatever lives under
-                # --input is finalized under the FIRST configured schema's
-                # name and output settings. Say so loudly when the choice is
-                # ambiguous, or a group can be stamped with the wrong schema
-                # (and converted with the wrong handler) without a trace.
+                # Whatever lives under --input is finalized under the FIRST
+                # configured schema's name and output settings, unless a group's
+                # own tracking records name another configured schema (see
+                # _detect_group_schema). Legacy submissions persist no schema
+                # name, so say so loudly when the choice is ambiguous.
                 if len(self.repo_info_list) > 1:
                     warning = (
                         f"[WARNING] --input given with "
                         f"{len(self.repo_info_list)} configured schemas; "
                         f"assuming schema '{schema_name}' for everything under "
-                        f"{input_path}. Pass --schema to choose explicitly."
+                        f"{input_path} unless a batch recorded its own schema. "
+                        f"Pass --schema to choose explicitly."
                     )
                     print(warning)
                     self.logger.warning(warning)
@@ -879,6 +981,7 @@ class CheckBatchesScript(DualModeScript):
                 schema_config=schema_config,
                 ui=None,
                 agg=agg,
+                schema_map=self.schema_map,
             )
 
         self.logger.info("Batch processing complete")

@@ -440,3 +440,216 @@ class TestMultiPartOrdering:
             (tmp_path / f"{stem}_output.json").read_text(encoding="utf-8")
         )
         assert [r["chunk_index"] for r in data["records"]] == [1, 2, 3]
+
+
+def _write_temp_file_tracking(path, stem, tracking_records):
+    """Write a batch temp file with fully specified batch_tracking records."""
+    lines = [
+        json.dumps(
+            {
+                "batch_request": {
+                    "custom_id": f"{stem}-chunk-1",
+                    "order_index": 1,
+                    "metadata": {"chunk_index": 1, "total_chunks": 1},
+                }
+            }
+        )
+    ]
+    for track in tracking_records:
+        lines.append(json.dumps({"batch_tracking": track}))
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _finalize(tmp_path, stem, *, schema_name, schema_config, schema_map, handler=None):
+    """Run process_all_batches over one COMPLETED group and return the output."""
+    backend = _mock_backend({"b1": BatchStatus.COMPLETED, "b2": BatchStatus.COMPLETED})
+    responses = [{"custom_id": f"{stem}-chunk-1", "response": '{"entries": []}'}]
+    handler = handler if handler is not None else MagicMock()
+    with (
+        patch("main.check_batches.get_batch_backend", return_value=backend),
+        patch(
+            "main.check_batches.retrieve_responses_from_batch",
+            return_value=responses,
+        ),
+        patch(
+            "main.check_batches.get_schema_handler", return_value=handler
+        ) as get_handler,
+    ):
+        process_all_batches(
+            root_folder=tmp_path,
+            processing_settings={"retain_temporary_jsonl": True},
+            schema_name=schema_name,
+            schema_config=schema_config,
+            ui=None,
+            agg={},
+            schema_map=schema_map,
+        )
+    data = json.loads((tmp_path / f"{stem}_output.json").read_text(encoding="utf-8"))
+    return data, get_handler, handler
+
+
+@pytest.mark.unit
+class TestPersistedModelName:
+    """Submissions persist the extraction model, so finalized outputs must
+    stop stamping model_name='unknown'."""
+
+    def test_persisted_model_is_stamped(self, tmp_path):
+        stem = "doc"
+        _write_temp_file_tracking(
+            tmp_path / f"{stem}_temp.jsonl",
+            stem,
+            [
+                {
+                    "batch_id": "b1",
+                    "provider": "openai",
+                    "schema_name": "TestSchema",
+                    "metadata": {"model": "gpt-5-mini"},
+                }
+            ],
+        )
+        data, _, _ = _finalize(
+            tmp_path,
+            stem,
+            schema_name="TestSchema",
+            schema_config={},
+            schema_map={"TestSchema": {}},
+        )
+        assert data["_chronominer_metadata"]["model_name"] == "gpt-5-mini"
+
+    def test_infer_model_name_reads_tracking_metadata(self):
+        from modules.extract.batch_output import _infer_model_name
+
+        assert (
+            _infer_model_name([{"metadata": {"model": "claude-sonnet-4-5"}}])
+            == "claude-sonnet-4-5"
+        )
+        assert _infer_model_name([{"metadata": {}}]) == "unknown"
+
+
+@pytest.mark.unit
+class TestPersistedSchemaDetection:
+    """A group is finalized under the schema its submission recorded, not the
+    schema check_batches happened to assume (e.g. under --input)."""
+
+    def test_detected_schema_switches_stamping_and_conversion(self, tmp_path):
+        stem = "doc"
+        _write_temp_file_tracking(
+            tmp_path / f"{stem}_temp.jsonl",
+            stem,
+            [
+                {
+                    "batch_id": "b1",
+                    "provider": "openai",
+                    "schema_name": "RealSchema",
+                    "metadata": {},
+                }
+            ],
+        )
+        data, get_handler, handler = _finalize(
+            tmp_path,
+            stem,
+            schema_name="AssumedSchema",
+            schema_config={"csv_output": False},
+            schema_map={
+                "AssumedSchema": {"csv_output": False},
+                "RealSchema": {"csv_output": True},
+            },
+        )
+        assert data["_chronominer_metadata"]["schema_name"] == "RealSchema"
+        get_handler.assert_called_once_with("RealSchema")
+        # The detected schema's own config drives conversion.
+        assert handler.convert_to_csv.call_count == 1
+
+    def test_unconfigured_schema_name_falls_back_to_assumption(self, tmp_path):
+        stem = "doc"
+        _write_temp_file_tracking(
+            tmp_path / f"{stem}_temp.jsonl",
+            stem,
+            [
+                {
+                    "batch_id": "b1",
+                    "provider": "openai",
+                    "schema_name": "GhostSchema",
+                    "metadata": {},
+                }
+            ],
+        )
+        data, get_handler, handler = _finalize(
+            tmp_path,
+            stem,
+            schema_name="AssumedSchema",
+            schema_config={"csv_output": False},
+            schema_map={"AssumedSchema": {"csv_output": False}},
+        )
+        assert data["_chronominer_metadata"]["schema_name"] == "AssumedSchema"
+        get_handler.assert_called_once_with("AssumedSchema")
+        assert handler.convert_to_csv.call_count == 0
+
+    def test_legacy_tracking_without_schema_name_keeps_assumption(self, tmp_path):
+        stem = "doc"
+        _write_temp_file_tracking(
+            tmp_path / f"{stem}_temp.jsonl",
+            stem,
+            [{"batch_id": "b1", "provider": "openai"}],
+        )
+        data, get_handler, _ = _finalize(
+            tmp_path,
+            stem,
+            schema_name="AssumedSchema",
+            schema_config={},
+            schema_map={
+                "AssumedSchema": {},
+                "RealSchema": {},
+            },
+        )
+        assert data["_chronominer_metadata"]["schema_name"] == "AssumedSchema"
+        get_handler.assert_called_once_with("AssumedSchema")
+
+    def test_conflicting_schema_names_keep_assumption(self, tmp_path):
+        stem = "doc"
+        _write_temp_file_tracking(
+            tmp_path / f"{stem}_temp.jsonl",
+            stem,
+            [
+                {"batch_id": "b1", "provider": "openai", "schema_name": "SchemaA"},
+                {"batch_id": "b2", "provider": "openai", "schema_name": "SchemaB"},
+            ],
+        )
+        data, get_handler, _ = _finalize(
+            tmp_path,
+            stem,
+            schema_name="AssumedSchema",
+            schema_config={},
+            schema_map={"AssumedSchema": {}, "SchemaA": {}, "SchemaB": {}},
+        )
+        assert data["_chronominer_metadata"]["schema_name"] == "AssumedSchema"
+        get_handler.assert_called_once_with("AssumedSchema")
+
+    def test_recovered_batch_carries_schema_name_from_debug_artifact(self, tmp_path):
+        """Tracking restored from the submission artifact keeps schema + model."""
+        stem = "doc"
+        # Tracking record without a batch id: forces the recovery path through
+        # {stem}_batch_submission_debug.json.
+        temp_file = tmp_path / f"{stem}_temp.jsonl"
+        _write_temp_file_tracking(temp_file, stem, [{"provider": "openai"}])
+        (tmp_path / f"{stem}_batch_submission_debug.json").write_text(
+            json.dumps(
+                {
+                    "batch_ids": ["b1"],
+                    "provider": "openai",
+                    "batch_metadata": {"b1": {"model": "gpt-5-mini"}},
+                    "schema_name": "RealSchema",
+                }
+            ),
+            encoding="utf-8",
+        )
+        data, get_handler, _ = _finalize(
+            tmp_path,
+            stem,
+            schema_name="AssumedSchema",
+            schema_config={},
+            schema_map={"AssumedSchema": {}, "RealSchema": {}},
+        )
+        assert data["_chronominer_metadata"]["schema_name"] == "RealSchema"
+        assert data["_chronominer_metadata"]["model_name"] == "gpt-5-mini"
+        get_handler.assert_called_once_with("RealSchema")

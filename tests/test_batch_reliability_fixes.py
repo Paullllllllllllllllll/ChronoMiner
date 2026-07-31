@@ -84,7 +84,12 @@ def test_debug_artifact_written_before_crash_on_second_part(tmp_path):
     data = json.loads(artifact.read_text(encoding="utf-8"))
     assert data["batch_ids"] == ["batch-1"]
     assert data["provider"] == "openai"
-    assert data["batch_metadata"] == {"batch-1": {"input_file_id": "f1"}}
+    # The recorded metadata copy also carries the extraction model name, which
+    # batch finalization stamps instead of "unknown".
+    assert data["batch_metadata"] == {
+        "batch-1": {"input_file_id": "f1", "model": "gpt-4o"}
+    }
+    assert data["schema_name"] == "TestSchema"
 
 
 # --- Item 3: stale part cleanup on resubmission ---------------------------
