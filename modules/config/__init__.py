@@ -10,8 +10,6 @@ from modules.config.capabilities import (
     Capabilities,
     detect_capabilities,
     detect_provider,
-    disabled_params_for_capabilities,
-    disabled_params_for_model,
 )
 from modules.config.context import (
     resolve_context_for_extraction,
@@ -38,8 +36,6 @@ __all__ = [
     "Capabilities",
     "detect_capabilities",
     "detect_provider",
-    "disabled_params_for_capabilities",
-    "disabled_params_for_model",
     "resolve_context_for_extraction",
     "resolve_context_for_readjustment",
 ]

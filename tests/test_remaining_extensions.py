@@ -18,22 +18,6 @@ from modules.extract.schema_handlers import (
 
 
 class TestBaseSchemaHandler:
-    def test_prepare_payload(self):
-        handler = BaseSchemaHandler("TestSchema")
-        payload = handler.prepare_payload(
-            text_chunk="Hello world",
-            dev_message="Extract data",
-            model_config={"extraction_model": {"name": "gpt-4o"}},
-            schema={"name": "TestSchema", "schema": {"type": "object"}},
-        )
-        assert isinstance(payload, dict)
-
-    def test_process_response_valid(self):
-        handler = BaseSchemaHandler("TestSchema")
-        response = json.dumps({"entries": [{"id": 1}]})
-        result = handler.process_response(response)
-        assert isinstance(result, dict)
-
     def test_convert_to_csv(self, tmp_path):
         handler = BaseSchemaHandler("TestSchema")
         json_file = tmp_path / "data.json"

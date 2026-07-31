@@ -202,7 +202,7 @@ def _build_reasoning_payload(
             reasoning_payload["max_tokens"] = budget
 
     # For DeepSeek models, map effort to enabled flag
-    if "deepseek/" in m or "deepseek" in m:
+    if "deepseek" in m:
         eff = str(reasoning_payload.get("effort", "medium")).lower().strip()
         reasoning_payload.pop("effort", None)
         if "enabled" not in reasoning_payload:
@@ -393,12 +393,14 @@ class LangChainLLM:
 
     Capability Guarding:
     ====================
-    LangChain does NOT automatically filter unsupported parameters for different
-    models (e.g., temperature for o1/o3 reasoning models). We use LangChain's
-    `disabled_params` feature combined with our model_capabilities detection
-    to automatically filter out unsupported parameters.
-
-    This replaces manual parameter filtering with LangChain's built-in mechanism.
+    LangChain does NOT automatically filter unsupported parameters for
+    different models (e.g., temperature for reasoning models). The real
+    guard is parameter OMISSION at model construction: ``_create_chat_model``
+    only includes sampler controls in ``common_params`` when the capability
+    registry says the model supports them. ``disabled_params`` is passed to
+    ChatOpenAI as well, but langchain-openai only consults it inside
+    ``with_structured_output``'s function-calling branch, so it is a
+    secondary belt, not the mechanism.
     """
 
     def __init__(self, config: ProviderConfig) -> None:
@@ -546,10 +548,20 @@ class LangChainLLM:
                     "reasoning_effort", "medium"
                 )
 
-            # Add service_tier if configured (CM-1)
+            # Add service_tier if configured (CM-1). Gated on reasoning
+            # models: OpenAI offers flex processing only on the
+            # reasoning/GPT-5 tiers, and sending service_tier to a
+            # non-reasoning model (gpt-4o, gpt-4.1, gpt-5.x-chat) fails
+            # provider-side.
             service_tier = self.config.extra_params.get("service_tier")
-            if service_tier:
+            if service_tier and caps.is_reasoning_model:
                 params["service_tier"] = service_tier
+            elif service_tier:
+                logger.info(
+                    f"Ignoring service_tier={service_tier!r} for "
+                    f"{self.config.model}: flex/priority tiers apply to "
+                    "reasoning models only."
+                )
 
             # Route models without a Chat Completions endpoint (GPT-5.x) to the
             # Responses API explicitly, driven by the capability flag rather
@@ -609,12 +621,13 @@ class LangChainLLM:
                     }
                     anthropic_params["temperature"] = 1.0
                     anthropic_params.pop("top_p", None)
-                    # Both betas are required: interleaved-thinking for
+                    # Both betas are set explicitly: interleaved-thinking for
                     # extended thinking, and structured-outputs for native
                     # JSON-schema constrained decoding (used by
                     # with_structured_output(method="json_schema")).
-                    # LangChain only auto-adds the structured-outputs beta
-                    # when the betas list is empty, so we include it here.
+                    # langchain-anthropic no longer auto-adds the
+                    # structured-outputs beta (structured outputs are GA), so
+                    # keeping it here is explicit and harmless.
                     anthropic_params["betas"] = [
                         "interleaved-thinking-2025-05-14",
                         "structured-outputs-2025-11-13",
@@ -715,7 +728,8 @@ class LangChainLLM:
                 reasoning_payload = _build_reasoning_payload(
                     model_name=model_name,
                     reasoning_config=reasoning_config,
-                    max_tokens=self.config.max_tokens,
+                    # Clamped budget, consistent with every other branch.
+                    max_tokens=max_tokens,
                 )
                 if reasoning_payload:
                     extra_body["reasoning"] = reasoning_payload
@@ -815,22 +829,25 @@ class LangChainLLM:
                     # HTTP 400 (previously only the cache_control branch
                     # rewrote, so text chunks with a context image failed on
                     # every chat-completions-routed model).
-                    if has_cache_control or has_image:
-                        content = [
-                            {
-                                **{k: v for k, v in item.items() if k != "type"},
-                                "type": "text",
-                            }
-                            if isinstance(item, dict)
-                            and item.get("type") == "input_text"
-                            else item
-                            for item in content
-                        ]
+                    content = [
+                        {
+                            **{k: v for k, v in item.items() if k != "type"},
+                            "type": "text",
+                        }
+                        if isinstance(item, dict) and item.get("type") == "input_text"
+                        else item
+                        for item in content
+                    ]
                 else:
-                    # Text-only without cache_control: extract text content
+                    # Text-only without cache_control: extract text content.
+                    # Accept both "input_text" and plain "text" blocks so a
+                    # text-only list never silently drops content.
                     text_parts = []
                     for item in content:
-                        if isinstance(item, dict) and item.get("type") == "input_text":
+                        if isinstance(item, dict) and item.get("type") in (
+                            "text",
+                            "input_text",
+                        ):
                             text_parts.append(item.get("text", ""))
                         elif isinstance(item, str):
                             text_parts.append(item)
@@ -920,17 +937,47 @@ class LangChainLLM:
                     getattr(usage, "cache_read_input_tokens", 0) or 0
                 )
 
-        if cache_creation_tokens > 0 or cache_read_tokens > 0:
-            if cache_read_tokens > 0:
+        # langchain-anthropic reports cache counts under
+        # ``usage_metadata["input_token_details"]`` (``cache_read`` /
+        # ``cache_creation``), ALREADY folded into ``input_tokens``. Extract
+        # them separately for logging and per-response reporting only; the
+        # daily-budget commit (``_committed_total_tokens``) must keep adding
+        # only the raw, non-folded fields or it would double-count.
+        folded_cache_creation = 0
+        folded_cache_read = 0
+        for usage in usage_candidates:
+            if isinstance(usage, dict):
+                details = usage.get("input_token_details")
+            else:
+                details = getattr(usage, "input_token_details", None)
+            if isinstance(details, dict):
+                folded_cache_read = folded_cache_read or int(
+                    details.get("cache_read", 0) or 0
+                )
+                folded_cache_creation = folded_cache_creation or int(
+                    details.get("cache_creation", 0) or 0
+                )
+            elif details is not None:
+                folded_cache_read = folded_cache_read or int(
+                    getattr(details, "cache_read", 0) or 0
+                )
+                folded_cache_creation = folded_cache_creation or int(
+                    getattr(details, "cache_creation", 0) or 0
+                )
+
+        log_cache_read = cache_read_tokens or folded_cache_read
+        log_cache_creation = cache_creation_tokens or folded_cache_creation
+        if log_cache_creation > 0 or log_cache_read > 0:
+            if log_cache_read > 0:
                 logger.info(
                     "[CACHE] Hit: %s tokens read from cache, %s written",
-                    f"{cache_read_tokens:,}",
-                    f"{cache_creation_tokens:,}",
+                    f"{log_cache_read:,}",
+                    f"{log_cache_creation:,}",
                 )
             else:
                 logger.info(
                     "[CACHE] Miss: %s tokens written to cache",
-                    f"{cache_creation_tokens:,}",
+                    f"{log_cache_creation:,}",
                 )
 
         return {
@@ -939,6 +986,9 @@ class LangChainLLM:
             "total_tokens": total_tokens,
             "cache_creation_tokens": cache_creation_tokens,
             "cache_read_tokens": cache_read_tokens,
+            # Folded variants (already inside input_tokens): reporting only.
+            "cache_creation_tokens_folded": folded_cache_creation,
+            "cache_read_tokens_folded": folded_cache_read,
         }
 
     @staticmethod
@@ -1042,14 +1092,17 @@ class LangChainLLM:
                     else str(raw_response)
                 )
                 if isinstance(content, list):
-                    content = next(
-                        (
-                            item.get("text", "")
-                            for item in content
-                            if isinstance(item, dict) and item.get("type") == "text"
-                        ),
-                        "",
-                    ) or str(content)
+                    # Join ALL text blocks: Gemini 3+ returns every response
+                    # part as its own {"type": "text"} block, and Anthropic
+                    # interleaved-thinking responses can carry several text
+                    # blocks. Keeping only the first block silently truncated
+                    # multi-block answers on exactly this recovery path (it
+                    # runs when structured parsing failed or was skipped).
+                    content = "".join(
+                        item.get("text", "")
+                        for item in content
+                        if isinstance(item, dict) and item.get("type") == "text"
+                    )
                 output_text = content
 
             usage_counts = self._extract_usage(raw_response)
@@ -1065,12 +1118,18 @@ class LangChainLLM:
                     "output_tokens": output_tokens,
                     "total_tokens": total_tokens,
                 }
-                if cache_creation_tokens > 0 or cache_read_tokens > 0:
+                report_cache_creation = cache_creation_tokens or usage_counts.get(
+                    "cache_creation_tokens_folded", 0
+                )
+                report_cache_read = cache_read_tokens or usage_counts.get(
+                    "cache_read_tokens_folded", 0
+                )
+                if report_cache_creation > 0 or report_cache_read > 0:
                     response_data["usage"]["cache_creation_input_tokens"] = (
-                        cache_creation_tokens
+                        report_cache_creation
                     )
                     response_data["usage"]["cache_read_input_tokens"] = (
-                        cache_read_tokens
+                        report_cache_read
                     )
 
                 # Report to token tracker. The committed number counts cache

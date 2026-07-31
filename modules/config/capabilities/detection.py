@@ -97,6 +97,13 @@ def detect_capabilities(
 ) -> Capabilities:
     m = _norm(model_name)
 
+    # Google-native prefixed form ("models/gemini-...", "models/gemma-..."):
+    # strip the prefix so the static registry (keyed on bare gemini/gemma
+    # prefixes) matches, instead of falling through to the generic "/"
+    # OpenRouter rule below. Mirrors the guard in detect_provider.
+    if m.startswith("models/gemini") or m.startswith("models/gemma"):
+        m = m.removeprefix("models/")
+
     # --- Custom endpoints: use conservative defaults -------------------------
     if provider == "custom":
         return _build_caps(model_name, "custom", _CUSTOM_BASE, {})

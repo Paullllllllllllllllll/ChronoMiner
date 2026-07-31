@@ -2,39 +2,18 @@
 
 import logging
 from pathlib import Path
-from typing import Any
 
 from modules.conversion.csv_converter import CSVConverter
 from modules.conversion.document_converter import DocumentConverter
-from modules.llm.payload_builder import PayloadBuilder
-from modules.llm.response_parser import ResponseParser
 
 logger = logging.getLogger(__name__)
 
 
 class BaseSchemaHandler:
-    """Base handler for schema-based extraction with modular components."""
+    """Base handler routing per-schema output conversion (CSV/DOCX/TXT)."""
 
     def __init__(self, schema_name: str) -> None:
         self.schema_name = schema_name
-        self.payload_builder = PayloadBuilder(schema_name)
-        self.response_parser = ResponseParser(schema_name)
-
-    def prepare_payload(
-        self,
-        text_chunk: str,
-        dev_message: str,
-        model_config: dict[str, Any],
-        schema: dict[str, Any],
-    ) -> dict[str, Any]:
-        """Prepare API request payload using PayloadBuilder."""
-        return self.payload_builder.build_payload(
-            text_chunk, dev_message, model_config, schema
-        )
-
-    def process_response(self, response_str: str) -> dict[str, Any]:
-        """Parse response string using ResponseParser."""
-        return self.response_parser.parse_response(response_str)
 
     def convert_to_csv(self, json_file: Path, output_csv: Path) -> None:
         """Convert JSON to CSV format."""
@@ -77,7 +56,7 @@ for schema in [
     "CulinaryPlacesEntries",
     "CulinaryWorksEntries",
     "CulinaryEntitiesEntries",
-    "HistoricalRecipesEntriesProduction",
+    "HistoricalRecipesEntriesProductionV3",
     "MichelinGuidesLight",
     "CookbookMetadataEntries",
     "HistoricalPriceEntries",

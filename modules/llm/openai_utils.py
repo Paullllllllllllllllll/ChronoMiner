@@ -10,7 +10,9 @@ as the backend. It supports multiple providers:
 - Google (Gemini)
 - OpenRouter (multi-provider access)
 
-LangChain handles retries, error classification, and structured outputs internally.
+LangChain handles structured outputs; retries and error classification are
+owned by the outer loop in ``SynchronousProcessingStrategy`` (LangChain's
+internal retries are disabled via ``max_retries=0``).
 """
 
 from collections.abc import AsyncGenerator
@@ -138,6 +140,15 @@ class LLMExtractor:
         # Build provider config. max_retries=0 disables LangChain's internal
         # retries so the outer loop in SynchronousProcessingStrategy is the
         # single retry authority (429-aware exponential backoff + jitter).
+        # The request timeout comes from concurrency.extraction.timeouts.total
+        # (previously read only by the unused ProviderConfig.from_config, so
+        # the configured value never reached live calls).
+        try:
+            timeout_total = float(
+                (extraction_cfg.get("timeouts", {}) or {}).get("total") or 600.0
+            )
+        except (TypeError, ValueError):
+            timeout_total = 600.0
         config = ProviderConfig(
             provider=self.provider,
             model=self.model,
@@ -148,6 +159,7 @@ class LLMExtractor:
             max_tokens=self.max_output_tokens,
             top_p=self.top_p if self.caps.supports_sampler_controls else 1.0,
             max_retries=0,
+            timeout=timeout_total,
             extra_params=extra_params,
         )
 
@@ -340,8 +352,8 @@ async def process_text_chunk(
     )
     structured_schema = _normalize_structured_schema(json_schema, extractor.caps)
 
-    # LangChain handles retries internally via max_retries; token tracking is
-    # handled via usage_metadata on the response.
+    # Retries live in the caller (SynchronousProcessingStrategy); token
+    # tracking is handled via usage_metadata on the response.
     result = await extractor.llm.ainvoke_with_structured_output(
         messages=messages,
         json_schema=structured_schema,

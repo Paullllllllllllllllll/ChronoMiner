@@ -47,7 +47,26 @@ class TestCM1ServiceTierSyncMode:
 
     @pytest.mark.unit
     def test_service_tier_passed_to_chat_openai(self):
-        """ChatOpenAI is instantiated with service_tier when configured."""
+        """ChatOpenAI gets service_tier for reasoning models (flex tier)."""
+        from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
+
+        config = ProviderConfig(
+            provider="openai",
+            model="gpt-5-mini",
+            api_key="test-key",
+            extra_params={"service_tier": "flex"},
+        )
+        llm = LangChainLLM(config)
+
+        with patch("langchain_openai.ChatOpenAI") as MockChatOpenAI:
+            MockChatOpenAI.return_value = MagicMock()
+            llm._create_chat_model()
+            call_kwargs = MockChatOpenAI.call_args[1]
+            assert call_kwargs.get("service_tier") == "flex"
+
+    @pytest.mark.unit
+    def test_service_tier_dropped_for_non_reasoning_model(self):
+        """service_tier is not sent to non-reasoning models (no flex tier)."""
         from modules.llm.langchain_provider import LangChainLLM, ProviderConfig
 
         config = ProviderConfig(
@@ -62,7 +81,7 @@ class TestCM1ServiceTierSyncMode:
             MockChatOpenAI.return_value = MagicMock()
             llm._create_chat_model()
             call_kwargs = MockChatOpenAI.call_args[1]
-            assert call_kwargs.get("service_tier") == "flex"
+            assert "service_tier" not in call_kwargs
 
     @pytest.mark.unit
     def test_no_service_tier_when_not_configured(self):

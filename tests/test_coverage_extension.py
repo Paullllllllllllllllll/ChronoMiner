@@ -10,26 +10,26 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 # ===========================================================================
-# payload_builder.py
+# schema_utils.py
 # ===========================================================================
 
 
 class TestBuildStructuredTextFormat:
     @pytest.mark.unit
     def test_none_returns_none(self):
-        from modules.llm.payload_builder import _build_structured_text_format
+        from modules.llm.schema_utils import _build_structured_text_format
 
         assert _build_structured_text_format(None) is None  # type: ignore[arg-type]
 
     @pytest.mark.unit
     def test_empty_dict_returns_none(self):
-        from modules.llm.payload_builder import _build_structured_text_format
+        from modules.llm.schema_utils import _build_structured_text_format
 
         assert _build_structured_text_format({}) is None
 
     @pytest.mark.unit
     def test_wrapper_schema_object(self):
-        from modules.llm.payload_builder import _build_structured_text_format
+        from modules.llm.schema_utils import _build_structured_text_format
 
         result = _build_structured_text_format(
             {
@@ -45,7 +45,7 @@ class TestBuildStructuredTextFormat:
 
     @pytest.mark.unit
     def test_bare_json_schema_uses_default_name(self):
-        from modules.llm.payload_builder import _build_structured_text_format
+        from modules.llm.schema_utils import _build_structured_text_format
 
         bare = {"type": "object", "properties": {"a": {"type": "string"}}}
         result = _build_structured_text_format(bare, default_name="FallbackName")
@@ -55,164 +55,15 @@ class TestBuildStructuredTextFormat:
 
     @pytest.mark.unit
     def test_wrapper_with_empty_schema_returns_none(self):
-        from modules.llm.payload_builder import _build_structured_text_format
+        from modules.llm.schema_utils import _build_structured_text_format
 
         assert _build_structured_text_format({"name": "X", "schema": {}}) is None
 
     @pytest.mark.unit
     def test_non_dict_returns_none(self):
-        from modules.llm.payload_builder import _build_structured_text_format
+        from modules.llm.schema_utils import _build_structured_text_format
 
         assert _build_structured_text_format("string") is None  # type: ignore[arg-type]
-
-
-class TestPayloadBuilder:
-    @pytest.mark.unit
-    def test_basic_structure(self):
-        from modules.llm.payload_builder import PayloadBuilder
-
-        result = PayloadBuilder("S").build_payload(
-            "text",
-            "prompt",
-            {"extraction_model": {"name": "gpt-4o", "max_output_tokens": 2048}},
-            {},
-        )
-        assert result["method"] == "POST"
-        assert result["body"]["model"] == "gpt-4o"
-
-    @pytest.mark.unit
-    def test_includes_schema_format(self):
-        from modules.llm.payload_builder import PayloadBuilder
-
-        schema = {"type": "object", "properties": {"title": {"type": "string"}}}
-        result = PayloadBuilder("Bib").build_payload(
-            "text",
-            "prompt",
-            {"extraction_model": {"name": "gpt-4o", "max_output_tokens": 512}},
-            schema,
-        )
-        assert result["body"]["text"]["format"]["name"] == "Bib"
-
-    @pytest.mark.unit
-    def test_sampler_controls_for_standard_model(self):
-        from modules.llm.payload_builder import PayloadBuilder
-
-        result = PayloadBuilder("S").build_payload(
-            "text",
-            "prompt",
-            {
-                "extraction_model": {
-                    "name": "gpt-4o",
-                    "max_output_tokens": 512,
-                    "temperature": 0.3,
-                    "top_p": 0.8,
-                    "frequency_penalty": 0.5,
-                    "presence_penalty": 0.2,
-                }
-            },
-            {},
-        )
-        body = result["body"]
-        assert body.get("temperature") == 0.3
-        assert body.get("frequency_penalty") == 0.5
-
-    @pytest.mark.unit
-    def test_no_sampler_for_reasoning_model(self):
-        from modules.llm.payload_builder import PayloadBuilder
-
-        result = PayloadBuilder("S").build_payload(
-            "text",
-            "prompt",
-            {
-                "extraction_model": {
-                    "name": "o3-mini",
-                    "max_output_tokens": 16384,
-                    "temperature": 0.0,
-                }
-            },
-            {},
-        )
-        assert "temperature" not in result["body"]
-
-    @pytest.mark.unit
-    def test_build_json_schema_payload(self):
-        from modules.llm.payload_builder import PayloadBuilder
-
-        result = PayloadBuilder("MySchema")._build_json_schema_payload(
-            "dev", {"extraction_model": {"name": "gpt-4o"}}, {"type": "object"}
-        )
-        assert result["name"] == "MySchema"
-        assert result["strict"] is True
-
-
-# ===========================================================================
-# response_parser.py
-# ===========================================================================
-
-
-class TestResponseParser:
-    @pytest.mark.unit
-    def test_parse_valid_json(self):
-        from modules.llm.response_parser import ResponseParser
-
-        result = ResponseParser("S").parse_response('{"entries": [{"a": 1}]}')
-        assert result == {"entries": [{"a": 1}]}
-
-    @pytest.mark.unit
-    def test_parse_invalid_json_returns_error(self):
-        from modules.llm.response_parser import ResponseParser
-
-        result = ResponseParser("S").parse_response("{bad}")
-        assert "error" in result and "JSON decode error" in result["error"]
-
-    @pytest.mark.unit
-    def test_parse_none_returns_error(self):
-        from modules.llm.response_parser import ResponseParser
-
-        result = ResponseParser("S").parse_response(None)  # type: ignore[arg-type]
-        assert "error" in result
-
-    @pytest.mark.unit
-    def test_validate_true_for_valid(self):
-        from modules.llm.response_parser import ResponseParser
-
-        assert ResponseParser("S").validate_response({"entries": []}) is True
-
-    @pytest.mark.unit
-    def test_validate_false_for_error_key(self):
-        from modules.llm.response_parser import ResponseParser
-
-        assert ResponseParser("S").validate_response({"error": "x"}) is False
-
-    @pytest.mark.unit
-    def test_validate_false_for_non_dict(self):
-        from modules.llm.response_parser import ResponseParser
-
-        assert ResponseParser("S").validate_response("str") is False  # type: ignore[arg-type]
-
-    @pytest.mark.unit
-    def test_extract_entries_standard(self):
-        from modules.llm.response_parser import ResponseParser
-
-        assert ResponseParser("S").extract_entries({"entries": [1, 2]}) == [1, 2]
-
-    @pytest.mark.unit
-    def test_extract_entries_no_key(self):
-        from modules.llm.response_parser import ResponseParser
-
-        assert ResponseParser("S").extract_entries({"data": []}) == []
-
-    @pytest.mark.unit
-    def test_extract_entries_on_error_response(self):
-        from modules.llm.response_parser import ResponseParser
-
-        assert ResponseParser("S").extract_entries({"error": "fail"}) == []
-
-    @pytest.mark.unit
-    def test_extract_entries_non_list_entries(self):
-        from modules.llm.response_parser import ResponseParser
-
-        assert ResponseParser("S").extract_entries({"entries": "not a list"}) == []
 
 
 # ===========================================================================
