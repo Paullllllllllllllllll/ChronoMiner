@@ -1,7 +1,5 @@
 """Tests for modules/processing/image_utils.py."""
 
-import base64
-
 import pytest
 from PIL import Image
 
@@ -9,7 +7,6 @@ from modules.images import (
     ImageProcessor,
     create_data_url,
     detect_model_type,
-    encode_image_to_base64,
     get_image_config_section_name,
 )
 
@@ -63,35 +60,6 @@ class TestGetImageConfigSectionName:
 
     def test_unknown_defaults_to_api(self):
         assert get_image_config_section_name("other") == "api_image_processing"
-
-
-class TestEncodeImageToBase64:
-    def test_encode_png(self, tmp_path):
-        img = Image.new("RGB", (10, 10), color="red")
-        img_path = tmp_path / "test.png"
-        img.save(img_path, format="PNG")
-
-        b64_data, mime_type = encode_image_to_base64(img_path)
-        assert mime_type == "image/png"
-        assert len(b64_data) > 0
-        # Verify it's valid base64
-        decoded = base64.b64decode(b64_data)
-        assert len(decoded) > 0
-
-    def test_encode_jpeg(self, tmp_path):
-        img = Image.new("RGB", (10, 10), color="blue")
-        img_path = tmp_path / "test.jpg"
-        img.save(img_path, format="JPEG")
-
-        b64_data, mime_type = encode_image_to_base64(img_path)
-        assert mime_type == "image/jpeg"
-
-    def test_unsupported_format_raises(self, tmp_path):
-        dummy_path = tmp_path / "test.xyz"
-        dummy_path.write_bytes(b"dummy")
-
-        with pytest.raises(ValueError, match="Unsupported image format"):
-            encode_image_to_base64(dummy_path)
 
 
 class TestCreateDataUrl:

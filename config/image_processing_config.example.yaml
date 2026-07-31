@@ -38,8 +38,15 @@ api_image_processing:
   grayscale_conversion: false
   handle_transparency: true
   jpeg_quality: 95
+  # resize_profile is only a gate here: "none" skips resizing entirely; any
+  # other value enables it and the actual size cap comes from the effective
+  # detail level, which is read from llm_detail in this section (OpenAI and
+  # custom endpoints), from media_resolution in the Google section, and from
+  # resize_profile itself in the Anthropic section.
   resize_profile: original
   # Recommended: original (full-resolution input) for best results.
+  # Accepted: low (low_max_side_px cap), high/auto (high_target_box fit and
+  # white pad), original (original_max_side_px / original_max_pixels cap).
   llm_detail: original
   low_max_side_px: 512
   high_target_box: [768, 1536]
@@ -53,6 +60,9 @@ anthropic_image_processing:
   grayscale_conversion: true
   handle_transparency: true
   jpeg_quality: 95
+  # Anthropic reads its detail level straight from resize_profile: "none"
+  # skips resizing, "low" caps the longest side at low_max_side_px, and every
+  # other value (auto, high, ...) caps it at high_max_side_px.
   resize_profile: auto
   # High-res tier models only (Claude Opus 4.7+/Sonnet 5): ~3x image-token
   # cost vs 1568. Older Claude models are server-side downscaled to 1568
@@ -83,6 +93,10 @@ custom_image_processing:
   grayscale_conversion: true
   handle_transparency: true
   jpeg_quality: 85
+  # Custom endpoints take their detail from llm_detail (unset below, so
+  # "high"), which fits and pads into high_target_box. resize_profile only
+  # decides here whether resizing runs at all ("none" turns it off), and
+  # low_max_side_px applies only if llm_detail is set to "low".
   resize_profile: low
   low_max_side_px: 768
   high_target_box: [512, 1024]

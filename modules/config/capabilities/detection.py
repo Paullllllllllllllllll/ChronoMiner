@@ -141,7 +141,6 @@ def detect_capabilities(
             "o1",
             _OPENAI_REASONING_BASE,
             dict(
-                api_preference="either",
                 supports_reasoning_effort=False,
                 supports_structured_outputs=False,
             ),
@@ -178,7 +177,6 @@ def detect_capabilities(
                     supports_sampler_controls=False,
                     supports_structured_outputs=True,
                     supports_function_calling=True,
-                    max_context_tokens=131072,
                 ),
             )
 
@@ -193,7 +191,6 @@ def detect_capabilities(
                     supports_reasoning_effort=True,
                     supports_image_detail=True,
                     supports_sampler_controls=False,
-                    max_context_tokens=256000,
                 ),
             )
 
@@ -211,7 +208,6 @@ def detect_capabilities(
                     supports_image_input="mini" not in m,
                     supports_image_detail=True,
                     supports_sampler_controls=False,
-                    max_context_tokens=200000,
                 ),
             )
 
@@ -225,7 +221,6 @@ def detect_capabilities(
                     is_reasoning_model=True,
                     supports_reasoning_effort=True,
                     supports_prompt_caching=True,
-                    max_context_tokens=200000,
                 ),
             )
 
@@ -240,7 +235,6 @@ def detect_capabilities(
                     supports_reasoning_effort=True,
                     supports_image_input=True,
                     supports_structured_outputs=True,
-                    max_context_tokens=256000,
                 ),
             )
 
@@ -256,7 +250,6 @@ def detect_capabilities(
                 dict(
                     is_reasoning_model=is_thinking,
                     supports_reasoning_effort=True,
-                    max_context_tokens=1000000,
                 ),
             )
 
@@ -297,7 +290,6 @@ def detect_capabilities(
                     supports_reasoning_effort=True,
                     supports_image_input=True,
                     supports_structured_outputs=True,
-                    max_context_tokens=131072,
                 ),
             )
 
@@ -321,15 +313,11 @@ def detect_capabilities(
         model=model_name,
         family="unknown",
         provider=detect_provider(model_name),
-        supports_responses_api=True,
         supports_chat_completions=True,
-        api_preference="langchain",
         is_reasoning_model=False,
         supports_reasoning_effort=False,
-        supports_developer_messages=True,
         supports_image_input=False,
         supports_image_detail=False,
-        default_ocr_detail="high",
         supports_structured_outputs=True,
         supports_function_calling=True,
         supports_sampler_controls=True,

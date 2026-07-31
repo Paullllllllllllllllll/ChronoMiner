@@ -10,8 +10,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
-ImageDetail = Literal["auto", "high", "low"]
-ApiPref = Literal["responses", "chat_completions", "either", "langchain"]
 ProviderType = Literal[
     "openai", "anthropic", "google", "openrouter", "custom", "unknown"
 ]
@@ -40,13 +38,10 @@ class Capabilities:
     family: str
     provider: ProviderType = "openai"
 
-    supports_responses_api: bool = True
     supports_chat_completions: bool = True
-    api_preference: ApiPref = "langchain"
 
     is_reasoning_model: bool = False
     supports_reasoning_effort: bool = False
-    supports_developer_messages: bool = True
 
     supports_image_input: bool = False
     supports_image_detail: bool = False
@@ -59,7 +54,6 @@ class Capabilities:
     # ``supports_chat_completions`` is False. Everywhere else "original" is
     # downgraded to "high" by ``build_image_content_block``.
     supports_original_detail: bool = False
-    default_ocr_detail: ImageDetail = "high"
 
     supports_structured_outputs: bool = True
     supports_function_calling: bool = True
@@ -75,9 +69,6 @@ class Capabilities:
 
     # Prompt caching support (explicit cache_control breakpoints)
     supports_prompt_caching: bool = False
-
-    # Extended context window support (for Claude, Gemini)
-    max_context_tokens: int = 128000
 
     # Hard per-model output-token ceiling enforced by the provider API.
     # ``None`` means unknown: no clamping is applied at request-build time.
@@ -96,28 +87,21 @@ def _norm(name: str) -> str:
 
 _OPENAI_REASONING_BASE: dict = dict(
     provider="openai",
-    supports_responses_api=True,
     supports_chat_completions=True,
-    api_preference="responses",
     is_reasoning_model=True,
     supports_reasoning_effort=True,
-    supports_developer_messages=True,
     supports_image_input=True,
     supports_image_detail=True,
     supports_structured_outputs=True,
     supports_function_calling=True,
     supports_sampler_controls=False,
-    max_context_tokens=200000,
 )
 
 _OPENAI_STANDARD_BASE: dict = dict(
     provider="openai",
-    supports_responses_api=True,
     supports_chat_completions=True,
-    api_preference="responses",
     is_reasoning_model=False,
     supports_reasoning_effort=False,
-    supports_developer_messages=True,
     supports_image_input=True,
     supports_image_detail=True,
     supports_structured_outputs=True,
@@ -127,67 +111,51 @@ _OPENAI_STANDARD_BASE: dict = dict(
 
 _ANTHROPIC_BASE: dict = dict(
     provider="anthropic",
-    supports_responses_api=False,
     supports_chat_completions=True,
-    api_preference="langchain",
     is_reasoning_model=False,
     supports_reasoning_effort=False,
-    supports_developer_messages=True,
     supports_image_input=True,
     supports_image_detail=False,
     supports_structured_outputs=True,
     supports_function_calling=True,
     supports_sampler_controls=True,
     supports_prompt_caching=True,
-    max_context_tokens=200000,
 )
 
 _GOOGLE_BASE: dict = dict(
     provider="google",
-    supports_responses_api=False,
     supports_chat_completions=True,
-    api_preference="langchain",
     is_reasoning_model=False,
     supports_reasoning_effort=False,
-    supports_developer_messages=True,
     supports_image_input=True,
     supports_image_detail=False,
     supports_structured_outputs=True,
     supports_function_calling=True,
     supports_sampler_controls=True,
-    max_context_tokens=1000000,
 )
 
 _OPENROUTER_BASE: dict = dict(
     provider="openrouter",
-    supports_responses_api=False,
     supports_chat_completions=True,
-    api_preference="langchain",
     is_reasoning_model=False,
     supports_reasoning_effort=False,
-    supports_developer_messages=True,
     supports_image_input=True,
     supports_image_detail=False,
     supports_structured_outputs=True,
     supports_function_calling=True,
     supports_sampler_controls=True,
-    max_context_tokens=128000,
 )
 
 _CUSTOM_BASE: dict = dict(
     provider="custom",
-    supports_responses_api=False,
     supports_chat_completions=True,
-    api_preference="langchain",
     is_reasoning_model=False,
     supports_reasoning_effort=False,
-    supports_developer_messages=True,
     supports_image_input=True,
     supports_image_detail=False,
     supports_structured_outputs=True,
     supports_function_calling=False,
     supports_sampler_controls=True,
-    max_context_tokens=128000,
 )
 
 
@@ -211,7 +179,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         dict(
             supports_chat_completions=False,
             supports_original_detail=True,
-            max_context_tokens=1050000,
             max_output_tokens=128000,
         ),
     ),
@@ -220,7 +187,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-5.6-terra",
         _OPENAI_REASONING_BASE,
         dict(
-            max_context_tokens=1050000,
             max_output_tokens=128000,
         ),
     ),
@@ -229,7 +195,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-5.6-luna",
         _OPENAI_REASONING_BASE,
         dict(
-            max_context_tokens=1050000,
             max_output_tokens=128000,
         ),
     ),
@@ -240,7 +205,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         dict(
             supports_chat_completions=False,
             supports_original_detail=True,
-            max_context_tokens=1050000,
             max_output_tokens=128000,
         ),
     ),
@@ -256,7 +220,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         dict(
             supports_chat_completions=False,
             supports_original_detail=True,
-            max_context_tokens=1050000,
             max_output_tokens=128000,
         ),
     ),
@@ -265,7 +228,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-5.5",
         _OPENAI_REASONING_BASE,
         dict(
-            max_context_tokens=1050000,
             max_output_tokens=128000,
         ),
     ),
@@ -277,26 +239,11 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         dict(
             supports_chat_completions=False,
             supports_original_detail=True,
-            max_context_tokens=1050000,
             supports_structured_outputs=False,
         ),
     ),
-    (
-        ("gpt-5.4-mini",),
-        "gpt-5.4-mini",
-        _OPENAI_REASONING_BASE,
-        dict(
-            max_context_tokens=400000,
-        ),
-    ),
-    (
-        ("gpt-5.4-nano",),
-        "gpt-5.4-nano",
-        _OPENAI_REASONING_BASE,
-        dict(
-            max_context_tokens=400000,
-        ),
-    ),
+    (("gpt-5.4-mini",), "gpt-5.4-mini", _OPENAI_REASONING_BASE, {}),
+    (("gpt-5.4-nano",), "gpt-5.4-nano", _OPENAI_REASONING_BASE, {}),
     (
         ("gpt-5.4",),
         "gpt-5.4",
@@ -304,25 +251,16 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         dict(
             supports_chat_completions=False,
             supports_original_detail=True,
-            max_context_tokens=1050000,
         ),
     ),
     # --- OpenAI GPT-5.3 family ---
-    (
-        ("gpt-5.3-chat",),
-        "gpt-5.3-chat",
-        _OPENAI_STANDARD_BASE,
-        dict(
-            max_context_tokens=128000,
-        ),
-    ),
+    (("gpt-5.3-chat",), "gpt-5.3-chat", _OPENAI_STANDARD_BASE, {}),
     (
         ("gpt-5.3-codex",),
         "gpt-5.3-codex",
         _OPENAI_REASONING_BASE,
         dict(
             supports_chat_completions=False,
-            max_context_tokens=400000,
         ),
     ),
     (
@@ -331,7 +269,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _OPENAI_REASONING_BASE,
         dict(
             supports_chat_completions=False,
-            max_context_tokens=400000,
         ),
     ),
     # --- OpenAI GPT-5.2 family ---
@@ -341,7 +278,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _OPENAI_REASONING_BASE,
         dict(
             supports_chat_completions=False,
-            max_context_tokens=400000,
         ),
     ),
     # --- OpenAI GPT-5.1 family ---
@@ -351,7 +287,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _OPENAI_REASONING_BASE,
         dict(
             supports_chat_completions=False,
-            max_context_tokens=400000,
         ),
     ),
     # --- OpenAI GPT-5 family ---
@@ -361,7 +296,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _OPENAI_REASONING_BASE,
         dict(
             supports_chat_completions=False,
-            max_context_tokens=400000,
         ),
     ),
     # --- OpenAI o-series reasoning models ---
@@ -383,10 +317,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "o1-mini",
         _OPENAI_REASONING_BASE,
         dict(
-            supports_responses_api=False,
-            api_preference="chat_completions",
             supports_reasoning_effort=False,
-            supports_developer_messages=False,
             supports_image_input=False,
             supports_image_detail=False,
             supports_structured_outputs=False,
@@ -396,31 +327,9 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
     # o1 (not o1-mini) — uses a custom match function below
     # --- OpenAI GPT-4o / GPT-4.1 ---
     (("gpt-4o",), "gpt-4o", _OPENAI_STANDARD_BASE, {}),
-    (
-        ("gpt-4.1-mini",),
-        "gpt-4.1-mini",
-        _OPENAI_STANDARD_BASE,
-        dict(
-            max_context_tokens=1050000,
-        ),
-    ),
-    (
-        ("gpt-4.1-nano",),
-        "gpt-4.1-nano",
-        _OPENAI_STANDARD_BASE,
-        dict(
-            max_context_tokens=1050000,
-        ),
-    ),
-    (
-        ("gpt-4.1",),
-        "gpt-4.1",
-        _OPENAI_STANDARD_BASE,
-        dict(
-            api_preference="langchain",
-            max_context_tokens=1050000,
-        ),
-    ),
+    (("gpt-4.1-mini",), "gpt-4.1-mini", _OPENAI_STANDARD_BASE, {}),
+    (("gpt-4.1-nano",), "gpt-4.1-nano", _OPENAI_STANDARD_BASE, {}),
+    (("gpt-4.1",), "gpt-4.1", _OPENAI_STANDARD_BASE, {}),
     # --- Anthropic Claude models (most-specific first) ---
     # Adaptive-thinking models (Fable 5, Sonnet 5, Opus 4.7/4.8) reject
     # temperature/top_p/top_k and thinking budget_tokens (HTTP 400); adaptive
@@ -430,7 +339,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-fable-5",
         _ANTHROPIC_BASE,
         dict(
-            max_context_tokens=1000000,
             max_output_tokens=128000,
             supports_sampler_controls=False,
         ),
@@ -440,7 +348,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-opus-4.8",
         _ANTHROPIC_BASE,
         dict(
-            max_context_tokens=1000000,
             max_output_tokens=128000,
             supports_sampler_controls=False,
         ),
@@ -450,7 +357,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-opus-4.7",
         _ANTHROPIC_BASE,
         dict(
-            max_context_tokens=1000000,
             supports_sampler_controls=False,
         ),
     ),
@@ -494,7 +400,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-sonnet-5",
         _ANTHROPIC_BASE,
         dict(
-            max_context_tokens=1000000,
             max_output_tokens=128000,
             supports_sampler_controls=False,
         ),
@@ -572,7 +477,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         dict(
             is_reasoning_model=True,
             supports_reasoning_effort=True,
-            max_context_tokens=262144,
         ),
     ),
     (
@@ -582,7 +486,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         dict(
             is_reasoning_model=True,
             supports_reasoning_effort=True,
-            max_context_tokens=262144,
         ),
     ),
     (
@@ -592,7 +495,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         dict(
             is_reasoning_model=True,
             supports_reasoning_effort=True,
-            max_context_tokens=262144,
         ),
     ),
     # --- Google Gemini models (most-specific first) ---
@@ -605,7 +507,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _GOOGLE_BASE,
         dict(
             is_reasoning_model=True,
-            max_context_tokens=1048576,
         ),
     ),
     (
@@ -614,16 +515,13 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _GOOGLE_BASE,
         dict(
             is_reasoning_model=True,
-            max_context_tokens=1048576,
         ),
     ),
     (
         ("gemini-3.1-flash-lite-preview", "gemini-3.1-flash-lite"),
         "gemini-3.1-flash-lite",
         _GOOGLE_BASE,
-        dict(
-            max_context_tokens=1048576,
-        ),
+        {},
     ),
     (
         ("gemini-3-pro", "gemini-3.0-pro"),
@@ -631,7 +529,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _GOOGLE_BASE,
         dict(
             is_reasoning_model=True,
-            max_context_tokens=1048576,
         ),
     ),
     (
@@ -640,7 +537,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _GOOGLE_BASE,
         dict(
             is_reasoning_model=True,
-            max_context_tokens=1048576,
         ),
     ),
     (
@@ -649,16 +545,13 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _GOOGLE_BASE,
         dict(
             is_reasoning_model=True,
-            max_context_tokens=1048576,
         ),
     ),
     (
         ("gemini-2.5-flash-lite", "gemini-2-5-flash-lite"),
         "gemini-2.5-flash-lite",
         _GOOGLE_BASE,
-        dict(
-            max_context_tokens=1048576,
-        ),
+        {},
     ),
     (
         ("gemini-2.5-flash", "gemini-2-5-flash"),
@@ -666,7 +559,6 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _GOOGLE_BASE,
         dict(
             is_reasoning_model=True,
-            max_context_tokens=1048576,
         ),
     ),
     (
@@ -675,14 +567,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _GOOGLE_BASE,
         {},
     ),
-    (
-        ("gemini-1.5-pro", "gemini-1-5-pro"),
-        "gemini-1.5-pro",
-        _GOOGLE_BASE,
-        dict(
-            max_context_tokens=2000000,
-        ),
-    ),
+    (("gemini-1.5-pro", "gemini-1-5-pro"), "gemini-1.5-pro", _GOOGLE_BASE, {}),
     (("gemini-1.5-flash", "gemini-1-5-flash"), "gemini-1.5-flash", _GOOGLE_BASE, {}),
     (("gemini",), "gemini", _GOOGLE_BASE, {}),
 ]

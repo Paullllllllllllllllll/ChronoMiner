@@ -2,8 +2,8 @@
 
 Exercises the public surface (:class:`ImageProcessor`, :class:`PDFProcessor`,
 :func:`build_image_content_block`, :func:`create_data_url`,
-:func:`detect_model_type`, :func:`encode_image_to_base64`,
-:func:`get_image_config_section_name`) without reaching into private
+:func:`detect_model_type`, :func:`get_image_config_section_name`)
+without reaching into private
 helpers. Uses a tiny synthetic 1x1 PNG so the tests don't depend on any
 fixture file. The Pillow dependency is already a hard requirement of the
 package so it is safe to exercise real I/O.
@@ -11,7 +11,6 @@ package so it is safe to exercise real I/O.
 
 from __future__ import annotations
 
-import base64
 from pathlib import Path
 
 import pytest
@@ -23,7 +22,6 @@ from modules.images import (
     build_image_content_block,
     create_data_url,
     detect_model_type,
-    encode_image_to_base64,
     get_image_config_section_name,
 )
 
@@ -68,20 +66,6 @@ class TestImageConfigSectionName:
 
 @pytest.mark.unit
 class TestEncoding:
-    def test_encode_image_to_base64_returns_mime_and_data(self, tmp_path):
-        png = _write_png(tmp_path / "sample.png")
-        data, mime = encode_image_to_base64(png)
-        assert mime == "image/png"
-        # The result must be valid base64 that decodes to non-empty bytes.
-        decoded = base64.b64decode(data)
-        assert len(decoded) > 0
-
-    def test_encode_unsupported_extension_raises(self, tmp_path):
-        path = tmp_path / "sample.xyz"
-        path.write_bytes(b"data")
-        with pytest.raises(ValueError, match="Unsupported"):
-            encode_image_to_base64(path)
-
     def test_create_data_url_has_expected_shape(self):
         url = create_data_url("BASE64DATA", "image/png")
         assert url == "data:image/png;base64,BASE64DATA"

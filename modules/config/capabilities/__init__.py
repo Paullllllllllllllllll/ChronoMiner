@@ -11,16 +11,12 @@ from modules.config.capabilities.detection import (
     detect_provider,
 )
 from modules.config.capabilities.registry import (
-    ApiPref,
     Capabilities,
-    ImageDetail,
     ProviderType,
 )
 
 __all__ = [
     "Capabilities",
-    "ApiPref",
-    "ImageDetail",
     "ProviderType",
     "detect_capabilities",
     "detect_provider",

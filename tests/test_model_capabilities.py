@@ -108,7 +108,6 @@ class TestDetectCapabilities:
         assert caps.is_reasoning_model is True
         assert caps.supports_reasoning_effort is True
         assert caps.supports_sampler_controls is False
-        assert caps.max_context_tokens == 400000
 
     @pytest.mark.unit
     def test_gpt54_capabilities(self):
@@ -121,7 +120,6 @@ class TestDetectCapabilities:
         assert caps.supports_reasoning_effort is True
         assert caps.supports_sampler_controls is False
         assert caps.supports_structured_outputs is True
-        assert caps.max_context_tokens == 1050000
 
     @pytest.mark.unit
     def test_gpt54_pro_capabilities(self):
@@ -132,7 +130,6 @@ class TestDetectCapabilities:
         assert caps.provider == "openai"
         assert caps.is_reasoning_model is True
         assert caps.supports_structured_outputs is False
-        assert caps.max_context_tokens == 1050000
 
     @pytest.mark.unit
     def test_gpt53_chat_capabilities(self):
@@ -144,11 +141,10 @@ class TestDetectCapabilities:
         assert caps.is_reasoning_model is False
         assert caps.supports_sampler_controls is True
         assert caps.supports_structured_outputs is True
-        assert caps.max_context_tokens == 128000
 
     @pytest.mark.unit
     def test_gpt53_codex_capabilities(self):
-        """Test GPT-5.3-codex is a reasoning model with 400K context."""
+        """Test GPT-5.3-codex is a reasoning model."""
         caps = detect_capabilities("gpt-5.3-codex")
 
         assert caps.family == "gpt-5.3-codex"
@@ -156,7 +152,6 @@ class TestDetectCapabilities:
         assert caps.is_reasoning_model is True
         assert caps.supports_reasoning_effort is True
         assert caps.supports_sampler_controls is False
-        assert caps.max_context_tokens == 400000
 
     @pytest.mark.unit
     def test_gpt51_capabilities(self):
@@ -246,14 +241,14 @@ class TestDetectCapabilities:
 
     @pytest.mark.unit
     def test_claude_opus_47_capabilities(self):
-        """Test Claude Opus 4.7 capabilities — 1M context."""
+        """Test Claude Opus 4.7 capabilities."""
         caps = detect_capabilities("claude-opus-4-7")
 
         assert caps.family == "claude-opus-4.7"
         assert caps.provider == "anthropic"
         assert caps.supports_image_input is True
         assert caps.supports_prompt_caching is True
-        assert caps.max_context_tokens == 1000000
+        assert caps.supports_sampler_controls is False
 
     @pytest.mark.unit
     def test_claude_opus_47_dot_notation(self):
@@ -261,11 +256,11 @@ class TestDetectCapabilities:
         caps = detect_capabilities("claude-opus-4.7")
 
         assert caps.family == "claude-opus-4.7"
-        assert caps.max_context_tokens == 1000000
+        assert caps.provider == "anthropic"
 
     @pytest.mark.unit
     def test_gpt41_mini_capabilities(self):
-        """Test GPT-4.1-mini capabilities — 1.05M context, non-reasoning."""
+        """Test GPT-4.1-mini capabilities — non-reasoning."""
         caps = detect_capabilities("gpt-4.1-mini")
 
         assert caps.family == "gpt-4.1-mini"
@@ -273,24 +268,15 @@ class TestDetectCapabilities:
         assert caps.is_reasoning_model is False
         assert caps.supports_sampler_controls is True
         assert caps.supports_image_input is True
-        assert caps.max_context_tokens == 1050000
 
     @pytest.mark.unit
     def test_gpt41_nano_capabilities(self):
-        """Test GPT-4.1-nano capabilities — 1.05M context, non-reasoning."""
+        """Test GPT-4.1-nano capabilities — non-reasoning."""
         caps = detect_capabilities("gpt-4.1-nano")
 
         assert caps.family == "gpt-4.1-nano"
         assert caps.provider == "openai"
         assert caps.is_reasoning_model is False
-        assert caps.max_context_tokens == 1050000
-
-    @pytest.mark.unit
-    def test_gpt41_context_window(self):
-        """Test GPT-4.1 has correct 1.05M context window."""
-        caps = detect_capabilities("gpt-4.1")
-
-        assert caps.max_context_tokens == 1050000
 
     @pytest.mark.unit
     def test_gemini_31_pro_capabilities(self):
@@ -300,7 +286,6 @@ class TestDetectCapabilities:
         assert caps.family == "gemini-3.1-pro"
         assert caps.provider == "google"
         assert caps.is_reasoning_model is True
-        assert caps.max_context_tokens == 1048576
 
     @pytest.mark.unit
     def test_gemini_31_flash_lite_capabilities(self):
@@ -309,7 +294,7 @@ class TestDetectCapabilities:
 
         assert caps.family == "gemini-3.1-flash-lite"
         assert caps.provider == "google"
-        assert caps.max_context_tokens == 1048576
+        assert caps.is_reasoning_model is False
 
     @pytest.mark.unit
     def test_claude_35_sonnet_capabilities(self):
@@ -321,7 +306,6 @@ class TestDetectCapabilities:
         assert caps.is_reasoning_model is False
         assert caps.supports_sampler_controls is True
         assert caps.supports_image_input is True
-        assert caps.max_context_tokens == 200000
 
     @pytest.mark.unit
     def test_claude_opus_4_capabilities(self):
@@ -484,19 +468,15 @@ class TestCapabilitiesDataclass:
         caps = Capabilities(model="test-model", family="test")
 
         assert caps.provider == "openai"
-        assert caps.supports_responses_api is True
         assert caps.supports_chat_completions is True
-        assert caps.api_preference == "langchain"
         assert caps.is_reasoning_model is False
         assert caps.supports_reasoning_effort is False
-        assert caps.supports_developer_messages is True
         assert caps.supports_image_input is False
         assert caps.supports_image_detail is False
-        assert caps.default_ocr_detail == "high"
         assert caps.supports_structured_outputs is True
         assert caps.supports_function_calling is True
         assert caps.supports_sampler_controls is True
-        assert caps.max_context_tokens == 128000
+        assert caps.max_output_tokens is None
 
     @pytest.mark.unit
     def test_capabilities_immutable(self):
@@ -515,14 +495,14 @@ class TestCapabilitiesDataclass:
             provider="anthropic",
             is_reasoning_model=True,
             supports_sampler_controls=False,
-            max_context_tokens=200000,
+            max_output_tokens=64000,
         )
 
         assert caps.model == "custom-model"
         assert caps.provider == "anthropic"
         assert caps.is_reasoning_model is True
         assert caps.supports_sampler_controls is False
-        assert caps.max_context_tokens == 200000
+        assert caps.max_output_tokens == 64000
 
 
 if __name__ == "__main__":

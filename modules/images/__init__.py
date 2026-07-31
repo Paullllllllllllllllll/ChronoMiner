@@ -6,11 +6,7 @@ page rendering. All inputs destined for vision-capable LLMs pass through
 this package.
 """
 
-from modules.images.encoding import (
-    create_data_url,
-    encode_bytes_to_base64,
-    encode_image_to_base64,
-)
+from modules.images.encoding import create_data_url, encode_bytes_to_base64
 from modules.images.llm_preprocess import (
     ImageProcessor,
     detect_model_type,
@@ -37,7 +33,6 @@ __all__ = [
     "create_data_url",
     "detect_model_type",
     "encode_bytes_to_base64",
-    "encode_image_to_base64",
     "get_image_config_section_name",
     "resolve_image_section",
     "resolve_target_dpi",
