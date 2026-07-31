@@ -67,7 +67,10 @@ def read_jsonl_records(path: Path) -> Iterator[dict[str, Any]]:
     if not safe_path.exists():
         return
 
-    with safe_path.open("r", encoding="utf-8") as fh:
+    # utf-8-sig strips a leading BOM (a file re-saved by Notepad gets one);
+    # otherwise the first record would fail to parse and be skipped as
+    # malformed. Plain UTF-8 files are unaffected.
+    with safe_path.open("r", encoding="utf-8-sig") as fh:
         for line_num, raw_line in enumerate(fh, 1):
             stripped = raw_line.strip()
             if not stripped:
@@ -174,7 +177,9 @@ def read_jsonl_header(path: Path) -> dict[str, Any] | None:
     if not safe_path.exists():
         return None
     try:
-        with safe_path.open("r", encoding="utf-8") as fh:
+        # utf-8-sig: a BOM on the first line would make the header parse fail
+        # and the run be treated as having no resume artifact (full re-bill).
+        with safe_path.open("r", encoding="utf-8-sig") as fh:
             first_line = fh.readline().strip()
         if not first_line:
             return None
@@ -266,7 +271,9 @@ def update_jsonl_header(path: Path, fields: dict[str, Any]) -> bool:
         logger.warning("Cannot update header: JSONL file not found: %s", path)
         return False
 
-    lines = safe_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    # utf-8-sig on the read side only; the rewrite below emits plain UTF-8, so
+    # a BOM-prefixed artifact is silently normalized rather than corrupted.
+    lines = safe_path.read_text(encoding="utf-8-sig").splitlines(keepends=True)
     if not lines:
         logger.warning("Cannot update header: JSONL file is empty: %s", path)
         return False

@@ -102,6 +102,18 @@ class TestReadJsonlRecords:
         result = list(read_jsonl_records(tmp_path / "missing.jsonl"))
         assert result == []
 
+    def test_reads_file_with_utf8_bom(self, tmp_path: Path) -> None:
+        # A file re-saved by Notepad carries a BOM; read as plain utf-8 the
+        # first record would fail to parse and be dropped as malformed.
+        path = tmp_path / "bom.jsonl"
+        records = [{"id": 1}, {"id": 2}]
+        path.write_text(
+            "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8-sig"
+        )
+        assert path.read_bytes().startswith(b"\xef\xbb\xbf")
+
+        assert list(read_jsonl_records(path)) == records
+
 
 # ---------------------------------------------------------------------------
 # extract_completed_ids

@@ -1,3 +1,5 @@
+import logging
+
 import pytest
 
 from modules.infra.chunking import (
@@ -40,6 +42,18 @@ def test_text_processor_estimate_tokens_empty_string():
 
 
 @pytest.mark.unit
+def test_text_processor_estimate_tokens_literal_special_token():
+    # Transcriptions produced by an LLM can contain "<|endoftext|>" verbatim;
+    # tiktoken's default encode() would raise ValueError and fail the file.
+    text = "Recipe one. <|endoftext|> Recipe two."
+    token_count = TextProcessor.estimate_tokens(text)
+
+    assert isinstance(token_count, int)
+    # Tokenized as plain text, so the marker adds tokens rather than raising.
+    assert token_count > TextProcessor.estimate_tokens("Recipe one.  Recipe two.")
+
+
+@pytest.mark.unit
 def test_token_based_chunking_single_chunk():
     processor = TextProcessor()
     chunking = TokenBasedChunking(
@@ -69,6 +83,19 @@ def test_token_based_chunking_multiple_chunks():
 
     assert len(ranges) > 0
     assert all(isinstance(r, tuple) and len(r) == 2 for r in ranges)
+
+
+@pytest.mark.unit
+def test_token_based_chunking_literal_special_token():
+    processor = TextProcessor()
+    chunking = TokenBasedChunking(
+        tokens_per_chunk=1000, model_name="gpt-4o", text_processor=processor
+    )
+
+    lines = ["Line 1\n", "<|endoftext|>\n", "Line 3\n"]
+    ranges = chunking.get_line_ranges(lines)
+
+    assert ranges == [(1, 3)]
 
 
 @pytest.mark.unit
@@ -177,6 +204,37 @@ def test_load_line_ranges_invalid_format_skipped(tmp_path):
     assert len(ranges) == 2
     assert ranges[0] == (1, 10)
     assert ranges[1] == (20, 30)
+
+
+@pytest.mark.unit
+def test_load_line_ranges_skips_out_of_bounds_ranges(tmp_path, caplog):
+    # Hand-edited ranges files can carry a zero/negative start or an inverted
+    # range; downstream slicing would silently yield an empty or wrapped chunk.
+    ranges_file = tmp_path / "hand_edited_ranges.txt"
+    ranges_file.write_text(
+        "(0, 3)\n(-1, 2)\n(5, 2)\n(1, 10)\n(11, 20)\n", encoding="utf-8"
+    )
+
+    with caplog.at_level(logging.WARNING, logger="modules.infra.chunking"):
+        ranges = load_line_ranges(ranges_file)
+
+    assert ranges == [(1, 10), (11, 20)]
+
+    warnings = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+    assert len(warnings) == 3
+    assert all("hand_edited_ranges.txt" in msg for msg in warnings)
+    assert any("(0, 3)" in msg for msg in warnings)
+    assert any("(-1, 2)" in msg for msg in warnings)
+    assert any("(5, 2)" in msg for msg in warnings)
+
+
+@pytest.mark.unit
+def test_load_line_ranges_keeps_single_line_range(tmp_path):
+    # A one-line chunk (start == end) is legitimate and must survive the guard.
+    ranges_file = tmp_path / "single_line_ranges.txt"
+    ranges_file.write_text("(1, 1)\n(2, 2)\n", encoding="utf-8")
+
+    assert load_line_ranges(ranges_file) == [(1, 1), (2, 2)]
 
 
 @pytest.mark.unit

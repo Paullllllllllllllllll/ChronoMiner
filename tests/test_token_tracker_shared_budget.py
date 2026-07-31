@@ -97,6 +97,34 @@ class TestEnabledPersistence:
         assert t.get_tokens_used_today() == 1234
         assert t.get_own_tokens_used_today() == 1234
 
+    def test_private_state_written_as_warm_standby(self, tmp_path: Path) -> None:
+        """Shared mode must keep the private state file current too.
+
+        The ledger is the source of truth, but it can degrade or reset (a
+        corrupt token_ledger.json starts a fresh day). Without a private
+        write the whole day's own usage would vanish on restart and the
+        daily budget would be handed out a second time.
+        """
+        ledger_dir = tmp_path / "ledger"
+        state_file = tmp_path / "state.json"
+        t = _make(ledger_dir=ledger_dir, state_file=state_file)
+
+        t.add_tokens(400, provider="openai", key_env="OPENAI_API_KEY", model="gpt-4o")
+        t.add_tokens(600, provider="openai", key_env="OPENAI_API_KEY", model="gpt-4o")
+        t.flush()
+
+        assert state_file.exists()
+        data = json.loads(state_file.read_text(encoding="utf-8"))
+        assert data["tokens_used"] == 1000
+        assert data["date"] == _today()
+        assert sum(data["buckets"].values()) == 1000
+
+        # Ledger wiped (reset/corruption): a restart recovers the day's own
+        # usage from the private file instead of starting from zero.
+        (ledger_dir / LEDGER_FILENAME).unlink()
+        revived = _make(ledger_dir=ledger_dir, state_file=state_file)
+        assert revived.get_own_tokens_used_today() == 1000
+
     def test_stats_expose_breakdown(self, tmp_path: Path) -> None:
         ledger_dir = tmp_path / "ledger"
         SharedTokenLedger("chronotranscriber", ledger_dir=ledger_dir).sync(700)

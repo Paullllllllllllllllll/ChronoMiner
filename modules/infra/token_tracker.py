@@ -801,8 +801,9 @@ class DailyTokenTracker:
         """atexit hook: flush the pending state write and shared-ledger delta.
 
         Delegates to :meth:`flush`, which pushes any accumulated unsynced ledger
-        delta (shared mode never sets ``_pending_write``, so a bare state save
-        would drop it) and then persists a pending debounced write. flush() runs
+        delta (a bare state save would drop it, since in shared mode the ledger
+        is the source of truth) and then persists a pending debounced write to
+        the private state file, which both modes keep current. flush() runs
         the final ledger sync inline off the event loop, which holds at
         interpreter shutdown (atexit runs on the main thread with no loop).
         """
@@ -958,8 +959,9 @@ class DailyTokenTracker:
             self._last_blocked_stamped = False
             if self._shared_enabled:
                 # The ledger rolls over internally; reset the local mirror and
-                # force a re-seed on the next sync. The private file is left
-                # untouched while the shared budget is the active persistence.
+                # force a re-seed on the next sync. No immediate private write:
+                # the next add_tokens debounces one, and a stale-dated private
+                # file is discarded by _load_state's date check anyway.
                 self._unsynced_deltas = {}
                 self._combined_total = 0
                 self._bucket_totals = {}
@@ -1006,9 +1008,13 @@ class DailyTokenTracker:
                     self._unsynced_deltas.get(bucket, 0) + tokens
                 )
                 do_ledger_sync = self._due_for_ledger_sync_locked(force=False)
-            else:
-                # Debounced: in-memory count is exact; disk write is throttled.
-                self._debounced_save()
+            # Persist the private state file in both modes. In shared mode it
+            # is a warm standby, not the source of truth: if the ledger later
+            # degrades or resets (corrupt token_ledger.json starts a fresh
+            # day), a restart would otherwise read a stale private file and
+            # hand out the full daily budget a second time.
+            # Debounced: in-memory count is exact; disk write is throttled.
+            self._debounced_save()
 
             logger.debug(
                 f"Added {tokens:,} tokens. "

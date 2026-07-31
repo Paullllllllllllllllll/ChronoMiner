@@ -112,13 +112,14 @@ class TextProcessor:
             return 0
         encoding = _get_cl100k_encoding()
         # Fast path: when the text contains no literal special-token string,
-        # encode_ordinary yields identical counts and skips the per-call
-        # disallow check. Otherwise fall back to encode so its ValueError is
-        # raised exactly as before.
+        # encode_ordinary skips the per-call disallow check. Otherwise encode
+        # with an empty ``disallowed_special`` so literal special-token strings
+        # (LLM transcriptions can contain "<|endoftext|>" verbatim) tokenize as
+        # plain text instead of raising ValueError and failing the whole file.
         pattern = _special_token_pattern(encoding.name)
         if pattern is None or pattern.search(text) is None:
             return len(encoding.encode_ordinary(text))
-        return len(encoding.encode(text))
+        return len(encoding.encode(text, disallowed_special=()))
 
 
 class ChunkingStrategy(ABC):
@@ -153,16 +154,17 @@ class TokenBasedChunking(ChunkingStrategy):
         encoding = _get_encoding_for_model(self.model_name)
         # One pre-scan over the whole text decides the tokenizer for the loop:
         # if no literal special-token string occurs anywhere, encode_ordinary
-        # gives identical counts and skips the per-line disallow check (faster).
-        # If one is present, use encode so its ValueError is raised at the same
-        # line with the same message as before. Special tokens contain no
-        # newline, so scanning the joined text is equivalent to scanning each
-        # line individually.
+        # skips the per-line disallow check (faster). If one is present, encode
+        # with an empty ``disallowed_special`` so the literal string tokenizes
+        # as plain text; the default would raise ValueError and abort chunking
+        # for the entire file. Special tokens contain no newline, so scanning
+        # the joined text is equivalent to scanning each line individually.
         pattern = _special_token_pattern(encoding.name)
+        encode: Callable[[str], list[int]]
         if pattern is None or pattern.search("\n".join(lines)) is None:
             encode = encoding.encode_ordinary
         else:
-            encode = encoding.encode
+            encode = functools.partial(encoding.encode, disallowed_special=())
 
         for idx, line in enumerate(lines, 1):
             # Count the newline too: chunks are joined with "\n" downstream
@@ -343,9 +345,22 @@ def load_line_ranges(line_ranges_file: Path) -> list[tuple[int, int]]:
                 try:
                     start = int(parts[0].strip())
                     end = int(parts[1].strip())
-                    ranges.append((start, end))
                 except ValueError:
                     logger.error(f"Invalid integer values in line range: {line}")
+                    continue
+
+                # Lines are 1-based and ranges are inclusive, so start < 1 or
+                # end < start can only come from a hand-edited file. Downstream
+                # slicing would turn such a range into an empty or wrapped
+                # chunk, dropping text without any error, so drop it here.
+                if start < 1 or end < start:
+                    logger.warning(
+                        f"Skipping out-of-order or non-positive line range "
+                        f"({start}, {end}) in {line_ranges_file}: {line}"
+                    )
+                    continue
+
+                ranges.append((start, end))
     except Exception as e:
         logger.error(f"Error reading line ranges from {line_ranges_file}: {e}")
 

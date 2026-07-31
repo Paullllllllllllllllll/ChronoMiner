@@ -9,6 +9,7 @@ from modules.infra.jsonl import (
     compute_stats_from_jsonl,
     extract_completed_ids,
     read_jsonl_header,
+    update_jsonl_header,
     validate_jsonl_header,
 )
 
@@ -176,6 +177,42 @@ class TestReadJsonlHeader:
         jsonl = tmp_path / "temp.jsonl"
         jsonl.write_text("", encoding="utf-8")
         assert read_jsonl_header(jsonl) is None
+
+    def test_reads_header_through_utf8_bom(self, tmp_path: Path) -> None:
+        # A BOM (file re-saved in Notepad) must not hide the header: an
+        # unreadable header makes resume look absent and re-bills the run.
+        header_rec = build_jsonl_header(
+            ranges_fingerprint="fp",
+            total_ranges=5,
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
+        )
+        range_rec = _make_range_record("doc", 1, original=(1, 100), adjusted=(1, 100))
+        jsonl = tmp_path / "bom_temp.jsonl"
+        jsonl.write_bytes(
+            b"\xef\xbb\xbf"
+            + "".join(
+                json.dumps(rec, ensure_ascii=False) + "\n"
+                for rec in (header_rec, range_rec)
+            ).encode("utf-8")
+        )
+
+        header = read_jsonl_header(jsonl)
+        assert header is not None
+        assert header["ranges_fingerprint"] == "fp"
+
+        # Records past the header stay readable, and a header update rewrites
+        # the file as plain UTF-8 without losing either record.
+        assert extract_completed_ids(jsonl) == {1}
+        assert update_jsonl_header(jsonl, {"completed_at": "2026-01-01T00:00:00"})
+        assert not jsonl.read_bytes().startswith(b"\xef\xbb\xbf")
+
+        updated = read_jsonl_header(jsonl)
+        assert updated is not None
+        assert updated["completed_at"] == "2026-01-01T00:00:00"
+        assert updated["ranges_fingerprint"] == "fp"
+        assert extract_completed_ids(jsonl) == {1}
 
 
 # ---------------------------------------------------------------------------
