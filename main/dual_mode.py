@@ -10,7 +10,6 @@ import asyncio
 import sys
 from abc import ABC, abstractmethod
 from argparse import ArgumentParser, Namespace
-from collections.abc import Callable
 from typing import Any
 
 from main.bootstrap import load_core_resources
@@ -296,76 +295,3 @@ class AsyncDualModeScript(_DualModeBase, ABC):
             self._handle_interrupt()
         except Exception as e:
             self._handle_error(e)
-
-
-def create_simple_dual_mode_executor(
-    script_name: str,
-    parser_factory: Callable[[], ArgumentParser],
-    interactive_runner: Callable[[UserInterface, dict[str, Any]], None],
-    cli_runner: Callable[[Namespace, dict[str, Any]], None],
-) -> Callable[[], None]:
-    """
-    Factory function for creating simple dual-mode executors without subclassing.
-
-    This is useful for simpler scripts that don't need the full DualModeScript class.
-
-    Args:
-        script_name: Name of the script
-        parser_factory: Function that creates and returns ArgumentParser
-        interactive_runner: Function to run in interactive mode
-        cli_runner: Function to run in CLI mode
-
-    Returns:
-        A callable main function that can be executed
-
-    Example:
-        def create_parser():
-            parser = ArgumentParser()
-            parser.add_argument('--input', required=True)
-            return parser
-
-        def run_interactive(ui, config):
-            ui.print_info("Running interactively...")
-
-        def run_cli(args, config):
-            print(f"Processing {args.input}")
-
-        main = create_simple_dual_mode_executor(
-            'my_script',
-            create_parser,
-            run_interactive,
-            run_cli
-        )
-
-        if __name__ == '__main__':
-            main()
-    """
-
-    class SimpleDualModeScript(DualModeScript):
-        def create_argument_parser(self) -> ArgumentParser:
-            return parser_factory()
-
-        def run_interactive(self) -> None:
-            config = {
-                "paths": self.paths_config,
-                "model": self.model_config,
-                "chunking": self.chunking_and_context_config,
-                "schemas": self.schemas_paths,
-            }
-            if self.ui is not None:
-                interactive_runner(self.ui, config)
-
-        def run_cli(self, args: Namespace) -> None:
-            config = {
-                "paths": self.paths_config,
-                "model": self.model_config,
-                "chunking": self.chunking_and_context_config,
-                "schemas": self.schemas_paths,
-            }
-            cli_runner(args, config)
-
-    def main() -> None:
-        script = SimpleDualModeScript(script_name)
-        script.execute()
-
-    return main

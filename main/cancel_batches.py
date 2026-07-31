@@ -273,7 +273,7 @@ class CancelBatchesScript(DualModeScript):
         if not args.force:
             print("[ERROR] Use --force flag to confirm batch cancellation")
             self.logger.info("Cancellation aborted: --force flag not provided")
-            return
+            sys.exit(2)
 
         print(
             f"[INFO] Processing cancellations for "
@@ -292,6 +292,11 @@ class CancelBatchesScript(DualModeScript):
             f"Batch cancellation complete: {cancelled_count} cancelled, "
             f"{failed_count} failed."
         )
+
+        # CLI agent contract: non-zero exit when any cancellation failed, so
+        # automation does not mistake a partial cancellation for success.
+        if failed_count > 0:
+            sys.exit(1)
 
     def _cancel_batches(
         self,

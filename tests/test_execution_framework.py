@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import logging
-from typing import Any
 
 import pytest
 
@@ -138,41 +137,6 @@ def test_dualmodescript_keyboardinterrupt_exits_130(
 
     # CLI agent contract: user interrupt -> 130.
     assert exc.value.code == 130
-
-
-def test_create_simple_dual_mode_executor_passes_config_to_runners(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    seen: dict[str, Any] = {}
-
-    def parser_factory() -> argparse.ArgumentParser:
-        parser = argparse.ArgumentParser(add_help=False)
-        parser.parse_args = lambda: argparse.Namespace(x=1)
-        return parser
-
-    def interactive_runner(ui: _DummyUI, config: dict[str, Any]) -> None:
-        seen["mode"] = "interactive"
-        seen["ui"] = ui
-        seen["config"] = config
-
-    def cli_runner(args: argparse.Namespace, config: dict[str, Any]) -> None:
-        seen["mode"] = "cli"
-        seen["args"] = args
-        seen["config"] = config
-
-    main = ef.create_simple_dual_mode_executor(
-        script_name="simple",
-        parser_factory=parser_factory,
-        interactive_runner=interactive_runner,
-        cli_runner=cli_runner,
-    )
-
-    _patch_common(monkeypatch, interactive=False)
-    main()
-
-    assert seen["mode"] == "cli"
-    assert seen["args"].x == 1
-    assert set(seen["config"].keys()) == {"paths", "model", "chunking", "schemas"}
 
 
 @pytest.mark.asyncio

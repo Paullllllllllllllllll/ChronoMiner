@@ -124,6 +124,40 @@ class TestChunkSliceArgs:
         assert args.first_n_chunks is None
 
 
+class TestGenerateRangesParserPositiveInt:
+    """Regression: --tokens/--first-n-chunks/--last-n-chunks on the
+    generate_line_ranges parser used plain ``int``, so 0 silently fell back
+    and negatives degraded or died with a generic error rather than a clear
+    ArgumentTypeError. They must use the same ``_positive_int`` validator as
+    the process parser's --max-output-tokens/--chunk-size/etc.
+    """
+
+    def test_tokens_accepts_positive(self):
+        parser = create_generate_ranges_parser()
+        args = parser.parse_args(["--input", "data/", "--tokens", "5000"])
+        assert args.tokens == 5000
+
+    def test_tokens_zero_rejected(self):
+        parser = create_generate_ranges_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--input", "data/", "--tokens", "0"])
+
+    def test_tokens_negative_rejected(self):
+        parser = create_generate_ranges_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--input", "data/", "--tokens", "-1"])
+
+    def test_first_n_chunks_zero_rejected(self):
+        parser = create_generate_ranges_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--input", "data/", "--first-n-chunks", "0"])
+
+    def test_last_n_chunks_negative_rejected(self):
+        parser = create_generate_ranges_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(["--input", "data/", "--last-n-chunks", "-3"])
+
+
 class TestProcessParserModelOverrides:
     """Tests for model-related CLI override options in process parser."""
 

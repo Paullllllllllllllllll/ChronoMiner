@@ -711,7 +711,7 @@ class CheckBatchesScript(DualModeScript):
             if not self.repo_info_list:
                 self.logger.error(f"Schema '{args.schema}' not found in configuration")
                 print(f"[ERROR] Schema '{args.schema}' not found")
-                return
+                sys.exit(2)
 
         # Override with input path if specified
         if args.input:
@@ -719,7 +719,7 @@ class CheckBatchesScript(DualModeScript):
             if not input_path.exists():
                 self.logger.error(f"Input path does not exist: {input_path}")
                 print(f"[ERROR] Input path not found: {input_path}")
-                return
+                sys.exit(2)
             # Use single directory with first schema config as template
             if self.repo_info_list:
                 schema_name, _, schema_config = self.repo_info_list[0]
@@ -727,7 +727,7 @@ class CheckBatchesScript(DualModeScript):
             else:
                 self.logger.error("No schema configuration available")
                 print("[ERROR] No schema configuration found")
-                return
+                sys.exit(2)
 
         if not self.repo_info_list:
             self.logger.info("No repositories to process")

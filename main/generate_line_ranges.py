@@ -380,16 +380,23 @@ class GenerateLineRangesScript(DualModeScript):
             print(f"[ERROR] Input path not found: {input_path}")
             sys.exit(1)
 
-        # Get files
-        files = get_files_from_path(
-            input_path,
-            pattern="*.txt",
-            exclude_patterns=[
-                "*_line_ranges.txt",
-                "*_context.txt",
-                "*_output.txt",
-            ],
-        )
+        # Get files. Collect both .txt and .md (excluding the tool's own
+        # sidecar/report files), matching the other entry points.
+        exclude_patterns = [
+            "*_line_ranges.txt",
+            "*_context.txt",
+            "*_output.txt",
+        ]
+        if input_path.is_file():
+            files = get_files_from_path(input_path, exclude_patterns=exclude_patterns)
+        else:
+            seen: dict[Path, None] = {}
+            for pattern in ("*.txt", "*.md"):
+                for found in get_files_from_path(
+                    input_path, pattern=pattern, exclude_patterns=exclude_patterns
+                ):
+                    seen[found] = None
+            files = sorted(seen)
 
         if not files:
             self.logger.error(f"No text files found at: {input_path}")
@@ -426,6 +433,7 @@ class GenerateLineRangesScript(DualModeScript):
         )
         if fail_count > 0:
             print(f"[WARNING] {fail_count} file(s) failed")
+            sys.exit(1)
 
 
 def main() -> None:

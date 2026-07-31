@@ -9,7 +9,7 @@ Supports two execution modes:
 import sys
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
@@ -128,7 +128,15 @@ def _repair_temp_file(
     candidate: dict[str, Any],
     processing_settings: dict[str, Any],
     ui: UserInterface,
-) -> None:
+) -> Literal["repaired", "skipped"]:
+    """Attempt to repair one candidate; return whether it was repaired.
+
+    Returns ``"skipped"`` for every early bail (no tracking entries, no
+    identifiable batch IDs, no completed batches ready, no responses
+    retrieved) so callers can report an honest "Repaired X, skipped Y"
+    tally instead of counting a no-op as a success. Exceptions propagate
+    to the caller, which counts them as failures.
+    """
     temp_files: list[Path] = candidate.get("temp_files") or [candidate["temp_file"]]
     representative: Path = temp_files[0]
     schema_name: str = candidate["schema_name"]
@@ -149,7 +157,7 @@ def _repair_temp_file(
 
     if not tracking:
         ui.print_warning("No tracking entries found; cannot repair this file.")
-        return
+        return "skipped"
 
     # custom_id/order maps are pre-aggregated across all parts in discovery.
     custom_id_map = candidate.get("custom_id_map")
@@ -182,7 +190,7 @@ def _repair_temp_file(
 
     if not batch_ids:
         ui.print_warning("Unable to identify any batch IDs for this temp file.")
-        return
+        return "skipped"
 
     completed_batches: list[dict[str, Any]] = []
     failed_batches: list[tuple[dict[str, Any], str]] = []
@@ -258,7 +266,7 @@ def _repair_temp_file(
 
     if not completed_batches and not downloadable_failed:
         ui.print_info("No completed batches ready for repair.")
-        return
+        return "skipped"
 
     for track in completed_batches:
         batch_responses = retrieve_responses_from_batch(track)
@@ -277,7 +285,7 @@ def _repair_temp_file(
 
     if not responses:
         ui.print_warning("No responses retrieved; nothing to repair.")
-        return
+        return "skipped"
 
     # CM-6: write the repaired output to the submission-local directory (the
     # parent of temp_jsonl/), matching check_batches finalization.
@@ -336,6 +344,8 @@ def _repair_temp_file(
         except Exception as e:
             logger.error(f"Error converting {final_json_path} to TXT: {e}")
             ui.log(f"Error converting to TXT: {e}", "error")
+
+    return "repaired"
 
 
 class RepairExtractionsScript(DualModeScript):
@@ -415,17 +425,21 @@ class RepairExtractionsScript(DualModeScript):
 
         self.ui.print_section_header("Repairing Files")
 
-        success_count = 0
+        repaired_count = 0
+        skipped_count = 0
 
         for index in indices:
             if 0 <= index < len(candidates):
                 try:
-                    _repair_temp_file(
+                    status = _repair_temp_file(
                         candidates[index],
                         self.processing_settings,
                         self.ui,
                     )
-                    success_count += 1
+                    if status == "repaired":
+                        repaired_count += 1
+                    else:
+                        skipped_count += 1
                 except Exception as e:
                     self.ui.print_error(f"Failed to repair file {index + 1}: {e}")
                     self.logger.exception(f"Error repairing file at index {index}")
@@ -435,7 +449,11 @@ class RepairExtractionsScript(DualModeScript):
                 )
 
         self.ui.print_section_header("Repair Complete")
-        self.ui.print_success(f"Successfully repaired {success_count} file(s)")
+        self.ui.print_success(f"Repaired {repaired_count} file(s)")
+        if skipped_count:
+            self.ui.print_warning(
+                f"Skipped (nothing to repair): {skipped_count} file(s)"
+            )
 
     def run_cli(self, args: Namespace) -> None:
         """Run extraction repair in CLI mode."""
@@ -495,7 +513,7 @@ class RepairExtractionsScript(DualModeScript):
             if not candidates:
                 self.logger.error(f"No temp files found for schema '{args.schema}'")
                 print(f"[ERROR] No temp files found for schema '{args.schema}'")
-                return
+                sys.exit(2)
 
         # Filter by specific files if specified
         if args.files:
@@ -509,7 +527,7 @@ class RepairExtractionsScript(DualModeScript):
             if not candidates:
                 self.logger.error("None of the specified files were found")
                 print("[ERROR] Specified files not found")
-                return
+                sys.exit(2)
 
         self.logger.info(f"Found {len(candidates)} file(s) to repair")
         if args.verbose:
@@ -537,19 +555,23 @@ class RepairExtractionsScript(DualModeScript):
 
         self.logger.info(f"Repairing {len(candidates)} file(s)")
 
-        success_count = 0
+        repaired_count = 0
+        skipped_count = 0
         fail_count = 0
 
         for candidate in candidates:
             try:
                 if args.verbose:
                     print(f"[INFO] Repairing {candidate['temp_file'].name}...")
-                _repair_temp_file(
+                status = _repair_temp_file(
                     candidate,
                     self.processing_settings,
                     mock_ui,  # type: ignore[arg-type]
                 )
-                success_count += 1
+                if status == "repaired":
+                    repaired_count += 1
+                else:
+                    skipped_count += 1
             except Exception as e:
                 self.logger.exception(f"Error repairing {candidate['temp_file'].name}")
                 print(f"[ERROR] Failed to repair {candidate['temp_file'].name}: {e}")
@@ -557,22 +579,24 @@ class RepairExtractionsScript(DualModeScript):
 
         # Final summary
         self.logger.info(
-            f"Repair complete: {success_count} succeeded, {fail_count} failed"
+            f"Repair complete: {repaired_count} repaired, "
+            f"{skipped_count} skipped, {fail_count} failed"
         )
-        print(f"[SUCCESS] Repaired {success_count}/{len(candidates)} file(s)")
+        print(f"[SUCCESS] Repaired {repaired_count}, skipped {skipped_count}")
         if fail_count > 0:
             print(f"[WARNING] Failed to repair {fail_count} file(s)")
             sys.exit(1)
 
 
 def main() -> None:
-    """Main entry point."""
-    try:
-        script = RepairExtractionsScript()
-        script.execute()
-    except KeyboardInterrupt:
-        print("\n[INFO] Repair session cancelled by user.")
-        sys.exit(0)
+    """Main entry point.
+
+    ``DualModeScript.execute()`` already catches ``KeyboardInterrupt``
+    internally and exits 130 per the CLI agent contract, so no additional
+    handling is needed here.
+    """
+    script = RepairExtractionsScript()
+    script.execute()
 
 
 if __name__ == "__main__":

@@ -398,7 +398,7 @@ Examples:
         "--input", type=str, required=True, help="Input file or directory path"
     )
     parser.add_argument(
-        "--tokens", type=int, help="Tokens per chunk (default: from config)"
+        "--tokens", type=_positive_int, help="Tokens per chunk (default: from config)"
     )
     parser.add_argument(
         "--verbose", action="store_true", help="Show detailed processing information"
@@ -407,13 +407,13 @@ Examples:
     chunk_slice_group = parser.add_mutually_exclusive_group()
     chunk_slice_group.add_argument(
         "--first-n-chunks",
-        type=int,
+        type=_positive_int,
         metavar="N",
         help="Write only the first N generated line ranges",
     )
     chunk_slice_group.add_argument(
         "--last-n-chunks",
-        type=int,
+        type=_positive_int,
         metavar="N",
         help="Write only the last N generated line ranges",
     )

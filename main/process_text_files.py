@@ -141,6 +141,12 @@ async def _adjust_line_ranges_workflow(
                     ui.print_error(
                         f"Failed to generate line ranges for {text_file.name}: {e}"
                     )
+                else:
+                    print(
+                        f"[ERROR] Failed to generate line ranges for "
+                        f"{text_file.name}: {e}",
+                        file=sys.stderr,
+                    )
                 continue
 
         # Cost-trap guard: skip files already adjusted with identical settings
@@ -183,6 +189,11 @@ async def _adjust_line_ranges_workflow(
             logger.exception(f"Failed to adjust line ranges for {text_file}")
             if ui:
                 ui.print_error(f"Failed to adjust {text_file.name}: {e}")
+            else:
+                print(
+                    f"[ERROR] Failed to adjust {text_file.name}: {e}",
+                    file=sys.stderr,
+                )
 
 
 def _count_existing_outputs(

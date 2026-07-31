@@ -14,6 +14,9 @@ Each line is rewritten with ``strip_image_payloads`` applied to its
 passed through untouched. The rewrite is atomic per file (write to a
 sibling ``.tmp``, then replace).
 
+Targets sync temp files (``*_temp.jsonl``) only; batch temp parts
+(``*_temp_part{n}.jsonl``) are not matched and are left untouched.
+
 Usage:
     uv run python main/slim_temp_jsonl.py <directory> [--dry-run]
     uv run python main/slim_temp_jsonl.py <file.jsonl>
@@ -117,6 +120,8 @@ def main() -> None:
 
     total_before = 0
     total_after = 0
+    processed_count = 0
+    had_error = False
     for path in files:
         age_seconds = time.time() - path.stat().st_mtime
         if age_seconds < ACTIVE_WINDOW_SECONDS:
@@ -129,7 +134,9 @@ def main() -> None:
             before, after = slim_file(path, dry_run=args.dry_run)
         except OSError as e:
             print(f"[ERROR] {path.name}: {e}")
+            had_error = True
             continue
+        processed_count += 1
         total_before += before
         total_after += after
         saved = before - after
@@ -145,8 +152,11 @@ def main() -> None:
     print(
         f"\n{'Would recover' if args.dry_run else 'Recovered'} "
         f"{(total_before - total_after) / 1e9:,.2f} GB across "
-        f"{len(files)} file(s)."
+        f"{processed_count} file(s)."
     )
+
+    if had_error:
+        sys.exit(1)
 
 
 if __name__ == "__main__":

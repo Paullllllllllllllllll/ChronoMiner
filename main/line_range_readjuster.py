@@ -30,7 +30,7 @@ from main.bootstrap import (
     load_schema_manager,
     validate_schema_paths,
 )
-from main.cli_args import add_mode_override_arguments
+from main.cli_args import _positive_int, add_mode_override_arguments
 from main.mode_detector import detect_execution_mode
 from modules.config.schema_manager import SchemaManager
 from modules.extract.config_builder import build_effective_model_config
@@ -70,10 +70,13 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--path",
+        "--input",
+        dest="path",
         type=Path,
         help=(
             "Optional path to a text file or directory. When omitted, an "
-            "interactive workflow is used to select files."
+            "interactive workflow is used to select files. (--input is "
+            "accepted as an alias for --path.)"
         ),
     )
     parser.add_argument(
@@ -138,13 +141,13 @@ def parse_arguments() -> argparse.Namespace:
     chunk_slice_group = parser.add_mutually_exclusive_group()
     chunk_slice_group.add_argument(
         "--first-n-chunks",
-        type=int,
+        type=_positive_int,
         metavar="N",
         help="Adjust only the first N line ranges of each file",
     )
     chunk_slice_group.add_argument(
         "--last-n-chunks",
-        type=int,
+        type=_positive_int,
         metavar="N",
         help="Adjust only the last N line ranges of each file",
     )
@@ -212,7 +215,22 @@ async def _adjust_files(
     first_n_chunks: int | None = None,
     last_n_chunks: int | None = None,
     concurrency_config: dict[str, Any] | None = None,
-) -> tuple[list[tuple[Path, Path]], list[Path], list[tuple[Path, Exception]]]:
+) -> tuple[
+    list[tuple[Path, Path]],
+    list[Path],
+    list[Path],
+    list[tuple[Path, Exception]],
+    list[Path],
+]:
+    """Adjust line ranges for ``text_files``.
+
+    Returns a 5-tuple: ``(successes, skipped_no_ranges,
+    skipped_already_adjusted, failures, stopped)``. ``skipped_no_ranges``
+    holds files with no associated line-range file; ``skipped_already_adjusted``
+    holds files a resume run recognized as already complete; ``stopped``
+    holds files not processed because the user declined to wait at the
+    token limit (processing halts for all remaining files once that happens).
+    """
     line_range_model_config = _model_config_with_verbosity(model_config, "low")
 
     readjuster = LineRangeReadjuster(
@@ -224,8 +242,11 @@ async def _adjust_files(
     )
 
     successes: list[tuple[Path, Path]] = []
-    skipped: list[Path] = []
+    skipped_no_ranges: list[Path] = []
+    skipped_already_adjusted: list[Path] = []
     failures: list[tuple[Path, Exception]] = []
+    stopped: list[Path] = []
+    stop_requested = False
     token_limit_enabled = check_token_limit_enabled()
 
     # Extract concurrency settings
@@ -257,7 +278,7 @@ async def _adjust_files(
                 f"Skipping {text_file.name}: no associated line range file found.",
                 "warning",
             )
-            skipped.append(text_file)
+            skipped_no_ranges.append(text_file)
             continue
 
         ranges_fingerprint = compute_ranges_fingerprint(line_ranges_file)
@@ -280,13 +301,13 @@ async def _adjust_files(
                 f"Resume: skipping {text_file.name} "
                 f"(completed JSONL matches current settings)"
             )
-            skipped.append(text_file)
+            skipped_already_adjusted.append(text_file)
             continue
 
         files_to_process.append((text_file, line_ranges_file))
 
     if not files_to_process:
-        return successes, skipped, failures
+        return successes, skipped_no_ranges, skipped_already_adjusted, failures, stopped
 
     logger.info(
         "Processing %d file(s) with max_concurrent_files=%d",
@@ -298,13 +319,22 @@ async def _adjust_files(
     semaphore = asyncio.Semaphore(max_concurrent)
 
     async def _process_one_file(text_file: Path, line_ranges_file: Path) -> None:
+        nonlocal stop_requested
         async with semaphore:
+            if stop_requested:
+                # A prior file's decline already stopped the run; do not
+                # re-prompt for every remaining file.
+                stopped.append(text_file)
+                return
+
             if delay_between > 0:
                 await asyncio.sleep(delay_between)
 
             if token_limit_enabled and not await check_and_wait_for_token_limit(ui):
                 logger.info(f"Processing stopped by user for {text_file.name}.")
                 notifier("Processing stopped by user.", "warning")
+                stopped.append(text_file)
+                stop_requested = True
                 return
 
             notifier(f"Adjusting line ranges for {text_file.name}...", "info")
@@ -350,7 +380,7 @@ async def _adjust_files(
     ]
     await asyncio.gather(*tasks)
 
-    return successes, skipped, failures
+    return successes, skipped_no_ranges, skipped_already_adjusted, failures, stopped
 
 
 async def main_async() -> None:
@@ -550,7 +580,13 @@ async def _run_interactive_mode(
             ui.print_info(msg)
 
     # Perform adjustments
-    successes, skipped, failures = await _adjust_files(
+    (
+        successes,
+        skipped_no_ranges,
+        skipped_already_adjusted,
+        failures,
+        stopped,
+    ) = await _adjust_files(
         text_files=state["selected_files"],
         model_config=model_config,
         context_window=state["context_window"],
@@ -567,15 +603,31 @@ async def _run_interactive_mode(
     # Display summary
     ui.print_section_header("Adjustment Summary")
     ui.print_success(f"Successfully adjusted: {len(successes)} file(s)")
-    if skipped:
-        ui.print_warning(f"Skipped (no line ranges): {len(skipped)} file(s)")
+    if skipped_no_ranges:
+        ui.print_warning(
+            f"Skipped (no line range file): {len(skipped_no_ranges)} file(s)"
+        )
+    if skipped_already_adjusted:
+        ui.print_info(
+            f"Skipped (already adjusted): {len(skipped_already_adjusted)} file(s)"
+        )
+    if stopped:
+        ui.print_warning(f"Stopped (token limit declined): {len(stopped)} file(s)")
     if failures:
         ui.print_error(f"Failed: {len(failures)} file(s)")
 
-    if skipped:
+    if skipped_no_ranges:
         ui.print_subsection_header("Files with no line range file")
-        for skipped_file in skipped:
+        for skipped_file in skipped_no_ranges:
             ui.console_print(f"  • {skipped_file.name}")
+    if skipped_already_adjusted:
+        ui.print_subsection_header("Files already adjusted (resume)")
+        for skipped_file in skipped_already_adjusted:
+            ui.console_print(f"  • {skipped_file.name}")
+    if stopped:
+        ui.print_subsection_header("Files stopped (token limit declined)")
+        for stopped_file in stopped:
+            ui.console_print(f"  • {stopped_file.name}")
     if failures:
         ui.print_subsection_header("Files with errors")
         for failed_file, error in failures:
@@ -700,7 +752,13 @@ async def _run_cli_mode(
     use_resume = getattr(args, "resume", False) and not getattr(args, "force", False)
 
     # Perform adjustments
-    successes, skipped, failures = await _adjust_files(
+    (
+        successes,
+        skipped_no_ranges,
+        skipped_already_adjusted,
+        failures,
+        stopped,
+    ) = await _adjust_files(
         text_files=selected_files,
         model_config=model_config,
         context_window=context_window,
@@ -721,13 +779,24 @@ async def _run_cli_mode(
     print("  SUMMARY")
     print("=" * 80)
     print(f"Successful adjustments: {len(successes)}")
-    print(f"Skipped (missing line ranges): {len(skipped)}")
+    print(f"Skipped (no line range file): {len(skipped_no_ranges)}")
+    print(f"Skipped (already adjusted): {len(skipped_already_adjusted)}")
+    if stopped:
+        print(f"Stopped (token limit declined): {len(stopped)}")
     print(f"Failures: {len(failures)}")
 
-    if skipped:
+    if skipped_no_ranges:
         print("\nFiles with no associated line range file:")
-        for skipped_file in skipped:
+        for skipped_file in skipped_no_ranges:
             print(f"  - {skipped_file}")
+    if skipped_already_adjusted:
+        print("\nFiles already adjusted (resume):")
+        for skipped_file in skipped_already_adjusted:
+            print(f"  - {skipped_file}")
+    if stopped:
+        print("\nFiles stopped (token limit declined):")
+        for stopped_file in stopped:
+            print(f"  - {stopped_file}")
     if failures:
         print("\nFiles that encountered errors:")
         for failed_file, error in failures:
@@ -748,6 +817,11 @@ async def _run_cli_mode(
             f"({stats['usage_percentage']:.1f}%)"
         )
 
+    # CLI agent contract: non-zero exit when any file failed or was stopped
+    # mid-run, so callers cannot mistake a partial run for a clean success.
+    if failures or stopped:
+        sys.exit(1)
+
 
 def main() -> None:
     """Main entry point."""
@@ -755,8 +829,8 @@ def main() -> None:
         asyncio.run(main_async())
     except KeyboardInterrupt:
         logger.info("Line range readjustment cancelled by user.")
-        print("\n✓ Operation cancelled by user.")
-        sys.exit(0)
+        print("\n[STOPPED] Operation cancelled by user.")
+        sys.exit(130)
     except Exception as exc:
         logger.exception("Unexpected error in line_range_readjuster")
         print(f"\n[ERROR] Unexpected error: {exc}")
