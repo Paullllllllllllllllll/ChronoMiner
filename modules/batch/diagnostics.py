@@ -35,8 +35,16 @@ def extract_custom_id_mapping(
                             request.get("image_info") or request.get("metadata") or {}
                         )
                         custom_id_map[cid] = info
+                        # The batch submitter writes ``order_index`` as a
+                        # SIBLING of ``metadata`` (only the legacy image_info
+                        # shape nests it), so fall back to the request level;
+                        # reading the nested key alone left order_map empty
+                        # for every current-format temp file. The values are
+                        # absolute document indices, not per-part positions.
                         if "order_index" in info:
                             order_map[cid] = info["order_index"]
+                        elif "order_index" in request:
+                            order_map[cid] = request["order_index"]
 
                 elif "image_metadata" in record:
                     meta = record.get("image_metadata") or {}

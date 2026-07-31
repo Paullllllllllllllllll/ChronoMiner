@@ -261,9 +261,14 @@ class GoogleBatchBackend(BatchBackend):
                 len(inline_requests),
             )
 
-            # Create JSONL file
+            # Create JSONL file. newline="\n" keeps the uploaded JSONL LF-only
+            # on Windows, where text mode would otherwise emit CRLF.
             with tempfile.NamedTemporaryFile(
-                mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
+                mode="w",
+                suffix=".jsonl",
+                delete=False,
+                encoding="utf-8",
+                newline="\n",
             ) as f:
                 for item in inline_requests:
                     f.write(json.dumps(item, ensure_ascii=False) + "\n")

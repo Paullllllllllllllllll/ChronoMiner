@@ -23,6 +23,9 @@ general:
   # -------------------------------------------------------------------------
   # Retain .jsonl tracking files after processing (useful for debugging).
   # Note: Batch processing always retains JSONL for result retrieval.
+  # When true, batch temp files also survive finalization; check_batches
+  # skips any group whose {stem}_output.json already records a complete
+  # (non-partial) finalization, so a retained file is never re-downloaded.
   retain_temporary_jsonl: true
 
   # -------------------------------------------------------------------------

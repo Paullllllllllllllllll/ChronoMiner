@@ -127,6 +127,44 @@ def test_merge_recomputes_partial_when_still_incomplete(tmp_path: Path) -> None:
     assert meta.get("partial") is True
 
 
+def test_merge_restores_document_order(tmp_path: Path) -> None:
+    """Records must be stored in document order after a resume merge.
+
+    Conversion iterates the stored record order, so appending this run's
+    records behind the prior run's (the insertion order of the custom_id map)
+    produced misordered CSV/DOCX rows after any ``--batch`` resume top-up.
+    This asserts the ORDER, not a sorted view of it.
+    """
+    out = tmp_path / "doc_output.json"
+    # Prior run completed the tail; this run retrieved the head.
+    _write_existing(
+        out,
+        [_record("doc", 3, "three"), _record("doc", 4, "four")],
+        total_chunks=4,
+    )
+    built = _built(
+        [_record("doc", 1, "one"), _record("doc", 2, "two")],
+        total_chunks=4,
+        fully_completed=True,
+    )
+
+    merged = merge_existing_batch_output(built, out)
+
+    assert [r["chunk_index"] for r in merged["records"]] == [1, 2, 3, 4]
+
+
+def test_merge_keeps_indexless_records_last(tmp_path: Path) -> None:
+    out = tmp_path / "doc_output.json"
+    _write_existing(out, [_record("doc", 2, "two")], total_chunks=2)
+    built = _built([_record("doc", 1, "one")], total_chunks=2, fully_completed=True)
+    built["records"].append({"response": {"output_text": "no id"}})
+
+    merged = merge_existing_batch_output(built, out)
+
+    indices = [r.get("chunk_index") for r in merged["records"]]
+    assert indices == [1, 2, None]
+
+
 def test_merge_tolerates_corrupt_existing(tmp_path: Path) -> None:
     out = tmp_path / "doc_output.json"
     out.write_text("{not valid json", encoding="utf-8")

@@ -19,6 +19,7 @@ Supports two execution modes:
 import contextlib
 import json
 import sys
+import time
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 from typing import Any
@@ -141,6 +142,71 @@ def _bump(agg: dict[str, int] | None, key: str) -> None:
         agg[key] = agg.get(key, 0) + 1
 
 
+def _is_group_already_finalized(final_json_path: Path) -> bool:
+    """Whether a temp group's final output is already fully finalized.
+
+    With ``retain_temporary_jsonl: true`` the temp JSONL files survive a
+    successful finalization while the provider-side input/output/error files
+    are deleted by ``backend.cleanup``. A later run would re-scan the retained
+    group, see COMPLETED with an output file id stamped, fail the download
+    (the remote file is gone), and count the group as failed forever. A group
+    whose ``{stem}_output.json`` records a complete, non-partial batch
+    finalization is therefore skipped.
+    """
+    if not final_json_path.exists():
+        return False
+    try:
+        data = json.loads(final_json_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    meta = data.get("_chronominer_metadata")
+    if not isinstance(meta, dict) or meta.get("partial"):
+        return False
+    tracking = meta.get("batch_tracking")
+    return isinstance(tracking, dict) and tracking.get("fully_completed") is True
+
+
+# A status poll that fails for transient reasons (network blip, provider 5xx)
+# must not be mistaken for a deleted batch, so it is retried once after a
+# short pause before the group's fate is decided.
+_STATUS_RETRY_DELAY_SECONDS = 2.0
+_NOT_FOUND_MARKERS = ("not found", "not_found", "404", "no such", "does not exist")
+
+
+def _looks_like_not_found(message: str) -> bool:
+    """Whether a provider error message explicitly reports a missing batch."""
+    lowered = message.lower()
+    return any(marker in lowered for marker in _NOT_FOUND_MARKERS)
+
+
+def _get_status_with_retry(backend: Any, handle: BatchHandle) -> BatchStatusInfo:
+    """Poll batch status, retrying once on an unusable (UNKNOWN+error) result.
+
+    The backends never re-raise: retrieval failures surface as ``UNKNOWN``
+    with an ``error_message``. A single retry after a short sleep separates a
+    transient failure from a genuinely missing batch; a raising backend is
+    normalized into the same shape.
+    """
+    info = BatchStatusInfo(status=BatchStatus.UNKNOWN, error_message="unknown error")
+    for attempt in (1, 2):
+        try:
+            info = backend.get_status(handle)
+        except Exception as exc:
+            info = BatchStatusInfo(status=BatchStatus.UNKNOWN, error_message=str(exc))
+        if not (info.status == BatchStatus.UNKNOWN and info.error_message):
+            return info
+        if attempt == 1:
+            logger.warning(
+                "Status poll for batch %s failed (%s); retrying once.",
+                handle.batch_id,
+                info.error_message,
+            )
+            time.sleep(_STATUS_RETRY_DELAY_SECONDS)
+    return info
+
+
 def process_all_batches(
     root_folder: Path,
     processing_settings: dict[str, Any],
@@ -190,6 +256,29 @@ def process_all_batches(
             _bump(agg, "errors")
             continue
 
+        # Strip only the trailing _temp suffix (str.replace would also mangle
+        # internal occurrences, e.g. oven_temperature).
+        final_identifier = base_identifier.removesuffix("_temp")
+        final_json_path = output_dir / f"{final_identifier}_output.json"
+
+        # Retained temp files (retain_temporary_jsonl: true) outlive their
+        # finalization; re-processing them would 404 on the already-deleted
+        # remote provider files and mark the group failed on every later run.
+        if _is_group_already_finalized(final_json_path):
+            _safe_print(
+                ui,
+                f"{final_identifier}: already finalized "
+                f"({final_json_path.name}); skipping retained temp file(s).",
+                "info",
+            )
+            logger.info(
+                "Skipping %s: %s already records a complete finalization.",
+                base_identifier,
+                final_json_path,
+            )
+            _bump(agg, "finalized")
+            continue
+
         try:
             if len(temp_file_group) > 1:
                 _safe_subsection(
@@ -222,10 +311,11 @@ def process_all_batches(
                 if custom_id_map:
                     combined_custom_id_map.update(custom_id_map)
                 if order_map:
-                    # Offset order_map indices to account for multiple parts
-                    offset = len(combined_order_map)
-                    for cid, idx in order_map.items():
-                        combined_order_map[cid] = idx + offset
+                    # order_index values are ABSOLUTE document indices (the
+                    # submitter stamps the chunk/page index, not a per-part
+                    # position), so parts merge by plain update; re-basing them
+                    # by a per-part offset would double-shift every later part.
+                    combined_order_map.update(order_map)
 
             responses = all_responses
             tracking = all_tracking
@@ -326,44 +416,60 @@ def process_all_batches(
                         batch_id=batch_id,
                         metadata=track.get("metadata", {}),
                     )
-                    status_info = backend.get_status(handle)
-                    status_cache[batch_id] = status_info
                 except Exception as exc:
                     logger.error(
-                        f"Error retrieving batch {batch_id} ({provider}): {exc}"
+                        f"No usable batch backend for {batch_id} ({provider}): {exc}"
                     )
                     _safe_print(
                         ui,
-                        f"Batch {batch_id} not found "
-                        f"(may have expired or been deleted)",
+                        f"Batch {batch_id}: no backend for provider "
+                        f"'{provider}' ({exc})",
                         "error",
                     )
-                    failed_batches.append((track, f"not found: {exc}"))
+                    failed_batches.append((track, f"backend unavailable: {exc}"))
                     missing_batches.append(batch_id)
                     all_finished = False
                     continue
 
+                status_info = _get_status_with_retry(backend, handle)
+                status_cache[batch_id] = status_info
+
                 status = status_info.status
                 # All three backends return UNKNOWN with an error_message when
-                # retrieval raises (they never re-raise), so the except branch
-                # above is effectively dead for an aged-out or deleted batch.
-                # Treat UNKNOWN-with-error as the missing case so it does not
-                # report "still processing" forever and wedge the group.
+                # retrieval fails (they never re-raise). Only an explicit
+                # not-found means the batch is gone; anything else (network
+                # blip, provider 5xx) is transient and must not fold the group
+                # into a premature partial finalization.
                 if status == BatchStatus.UNKNOWN and status_info.error_message:
-                    logger.error(
-                        f"Batch {batch_id} ({provider}) unavailable: "
-                        f"{status_info.error_message}"
+                    if _looks_like_not_found(status_info.error_message):
+                        logger.error(
+                            f"Batch {batch_id} ({provider}) unavailable: "
+                            f"{status_info.error_message}"
+                        )
+                        _safe_print(
+                            ui,
+                            f"Batch {batch_id} not found "
+                            f"(may have expired or been deleted)",
+                            "error",
+                        )
+                        failed_batches.append(
+                            (track, f"not found: {status_info.error_message}")
+                        )
+                        missing_batches.append(batch_id)
+                        all_finished = False
+                        continue
+                    logger.warning(
+                        f"Batch {batch_id} ({provider}) status unavailable after "
+                        f"a retry: {status_info.error_message}. Treating it as "
+                        f"pending for this run."
                     )
                     _safe_print(
                         ui,
-                        f"Batch {batch_id} not found "
-                        f"(may have expired or been deleted)",
-                        "error",
+                        f"Batch {batch_id}: status could not be retrieved "
+                        f"({status_info.error_message}); treating as pending. "
+                        f"Run this script again.",
+                        "warning",
                     )
-                    failed_batches.append(
-                        (track, f"not found: {status_info.error_message}")
-                    )
-                    missing_batches.append(batch_id)
                     all_finished = False
                     continue
 
@@ -487,11 +593,8 @@ def process_all_batches(
                 continue
 
             # Write final output to output directory (not temp file parent)
-            # in the unified sync shape; strip only the trailing _temp suffix
-            # (str.replace would also mangle internal occurrences).
-            final_identifier = base_identifier.removesuffix("_temp")
-            final_json_path: Path = output_dir / f"{final_identifier}_output.json"
-
+            # in the unified sync shape (``final_json_path`` was resolved
+            # above, before the already-finalized check).
             final_results: dict[str, Any] = build_unified_batch_output(
                 responses,
                 tracking,
@@ -723,6 +826,20 @@ class CheckBatchesScript(DualModeScript):
             # Use single directory with first schema config as template
             if self.repo_info_list:
                 schema_name, _, schema_config = self.repo_info_list[0]
+                # No schema detection happens here: whatever lives under
+                # --input is finalized under the FIRST configured schema's
+                # name and output settings. Say so loudly when the choice is
+                # ambiguous, or a group can be stamped with the wrong schema
+                # (and converted with the wrong handler) without a trace.
+                if len(self.repo_info_list) > 1:
+                    warning = (
+                        f"[WARNING] --input given with "
+                        f"{len(self.repo_info_list)} configured schemas; "
+                        f"assuming schema '{schema_name}' for everything under "
+                        f"{input_path}. Pass --schema to choose explicitly."
+                    )
+                    print(warning)
+                    self.logger.warning(warning)
                 self.repo_info_list = [(schema_name, input_path, schema_config)]
             else:
                 self.logger.error("No schema configuration available")

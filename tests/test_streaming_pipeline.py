@@ -484,7 +484,9 @@ async def test_sync_strategy_streaming_mode(
     assert sorted(rec["chunk_index"] for rec in lines) == [1, 3]
     for rec in lines:
         assert rec["image_provenance"]["image_sha256"]
-        assert rec["custom_id"].endswith(f"-chunk-{rec['chunk_index']}")
+        # Visual units are labelled "-page-N" in both the sync and the batch
+        # path (the sync path used to stamp "-chunk-N" for the same unit).
+        assert rec["custom_id"].endswith(f"-page-{rec['chunk_index']}")
     # The fat request image must not be persisted
     assert "Z" * 100 not in temp_jsonl.read_text(encoding="utf-8")
     # But the API itself received the real payloads

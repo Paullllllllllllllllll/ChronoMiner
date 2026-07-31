@@ -271,7 +271,17 @@ def merge_existing_batch_output(
             existing_output_path.name,
         )
 
-    merged_records = list(merged.values()) + extras
+    # Restore document order after the merge. ``merged`` is keyed by custom_id
+    # and preserves insertion order, so prior-run records would otherwise come
+    # first and this run's records be appended behind them; conversion iterates
+    # the stored record order, so a resumed batch produced misordered CSV/DOCX
+    # rows. Mirrors the synchronous merge, which re-sorts by chunk index.
+    # Records without a resolvable index keep their relative order at the end.
+    def _order_key(record: dict[str, Any]) -> tuple[int, int]:
+        idx = _record_index(record)
+        return (1, 0) if idx is None else (0, idx)
+
+    merged_records = sorted(list(merged.values()) + extras, key=_order_key)
     built["records"] = merged_records
 
     meta = built.get(METADATA_KEY)

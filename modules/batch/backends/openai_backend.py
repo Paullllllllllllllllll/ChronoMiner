@@ -31,7 +31,15 @@ logger = logging.getLogger(__name__)
 MAX_BATCH_REQUESTS = 50000
 MAX_BATCH_BYTES = 150 * 1024 * 1024  # 150 MB safety margin (limit is 200MB)
 
+# ``flex`` is deliberately absent: it is a synchronous-only service tier
+# (cheaper, slower, with its own capacity pool) that the Batch API rejects.
+# Batch is itself a separate 50%-discount mechanism, so a flex request has no
+# meaning here and is remapped to ``auto`` in _apply_service_tier.
 _ALLOWED_SERVICE_TIERS = {"auto", "default", "priority"}
+
+# The remap is decided per request body, but the operator only needs to hear
+# it once per submission; reset at the top of submit_batch.
+_flex_remap_logged = False
 
 
 def _apply_service_tier(body: dict[str, Any], tm: dict[str, Any]) -> None:
@@ -40,12 +48,15 @@ def _apply_service_tier(body: dict[str, Any], tm: dict[str, Any]) -> None:
     The Batch API rejects ``flex``; it is mapped to ``auto``. Any other value
     outside the allowed set is ignored.
     """
+    global _flex_remap_logged
     effective_service_tier = tm.get("service_tier")
     if not effective_service_tier:
         return
     tier_str = str(effective_service_tier)
     if tier_str == "flex":
-        logger.info("Batch API does not support service_tier='flex'. Using 'auto'.")
+        if not _flex_remap_logged:
+            logger.info("Batch API does not support service_tier='flex'. Using 'auto'.")
+            _flex_remap_logged = True
         body["service_tier"] = "auto"
     elif tier_str in _ALLOWED_SERVICE_TIERS:
         body["service_tier"] = tier_str
@@ -234,7 +245,11 @@ class OpenAIBatchBackend(BatchBackend):
         schema_name: str | None = None,
     ) -> BatchHandle:
         """Submit a batch to OpenAI's Batch API."""
+        global _flex_remap_logged
         client = self._get_client()
+
+        # One flex-remap notice per submission, not per request body.
+        _flex_remap_logged = False
 
         # Build JSONL content
         jsonl_lines = []
@@ -273,9 +288,10 @@ class OpenAIBatchBackend(BatchBackend):
             }
             jsonl_lines.append(json.dumps(request_line, ensure_ascii=False))
 
-        # Write to temp file
+        # Write to temp file. newline="\n" keeps the uploaded JSONL LF-only on
+        # Windows, where text mode would otherwise emit CRLF.
         with tempfile.NamedTemporaryFile(
-            mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
+            mode="w", suffix=".jsonl", delete=False, encoding="utf-8", newline="\n"
         ) as f:
             for line in jsonl_lines:
                 f.write(line + "\n")

@@ -228,7 +228,9 @@ def _recover_missing_batch_ids(
 
     if recovered and persist:
         try:
-            timestamp = datetime.datetime.now().isoformat()
+            # UTC, matching build_unified_batch_output's stamping style; a
+            # naive local timestamp is ambiguous across machines and DST.
+            timestamp = datetime.datetime.now(datetime.UTC).isoformat()
             with temp_file.open("a", encoding="utf-8") as handle:
                 for batch_id in recovered:
                     record: dict[str, Any] = {

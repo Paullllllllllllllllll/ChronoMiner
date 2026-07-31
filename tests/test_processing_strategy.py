@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 from typing import Any
 
@@ -1014,3 +1015,207 @@ def test_commit_tokens_from_exception_no_usage_is_noop(tmp_path: Path) -> None:
     # A bare exception with no usable usage must neither raise nor commit.
     ps.commit_tokens_from_exception(RuntimeError("plain error, no body"))
     assert tracker.get_tokens_used_today() == 0
+
+
+# --- B3: custom_id sanitization ------------------------------------------
+
+
+@pytest.mark.unit
+def test_build_custom_id_passes_through_clean_stem() -> None:
+    assert ps.build_custom_id("doc", "-chunk-1") == "doc-chunk-1"
+    assert ps.build_custom_id("doc_2-a", "-page-7") == "doc_2-a-page-7"
+
+
+@pytest.mark.unit
+def test_build_custom_id_sanitizes_illegal_characters() -> None:
+    """Spaces, umlauts, periods, and parentheses are routine in historical
+    filenames and make Anthropic reject the whole submission."""
+    cid = ps.build_custom_id("Kochbuch (Wien) 1789. Küche", "-chunk-3")
+    assert re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", cid)
+    assert cid.endswith("-chunk-3")
+
+
+@pytest.mark.unit
+def test_build_custom_id_truncates_long_stem_and_keeps_suffix() -> None:
+    stem = "a" * 200
+    cid = ps.build_custom_id(stem, "-chunk-1234")
+    assert len(cid) <= 64
+    assert re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", cid)
+    assert cid.endswith("-chunk-1234")
+
+
+@pytest.mark.unit
+def test_build_custom_id_is_deterministic() -> None:
+    stem = "Ein sehr langer Titel mit Umlauten: Küche & Keller " * 3
+    first = ps.build_custom_id(stem, "-chunk-2")
+    second = ps.build_custom_id(stem, "-chunk-2")
+    assert first == second
+
+
+@pytest.mark.unit
+def test_build_custom_id_disambiguates_colliding_stems() -> None:
+    """Two stems that reduce to the same base must not share a custom_id."""
+    a = ps.build_custom_id("recipe book", "-chunk-1")
+    b = ps.build_custom_id("recipe.book", "-chunk-1")
+    assert a != b
+    assert a.endswith("-chunk-1") and b.endswith("-chunk-1")
+
+
+@pytest.mark.asyncio
+async def test_sync_visual_custom_ids_use_page_label_like_batch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Regression: the synchronous visual path stamped ``-chunk-N`` while the
+    batch visual path stamps ``-page-N`` for the same unit, so records for one
+    page disagreed across execution modes (and did not merge)."""
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object())
+    )
+
+    async def _process_image_chunk(**_kwargs):
+        return {
+            "ok": True,
+            "output_text": "extracted",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
+
+    monkeypatch.setattr(ps, "process_image_chunk", _process_image_chunk)
+
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "doc.pdf"
+
+    await ps.SynchronousProcessingStrategy(
+        concurrency_config={"concurrency": {"extraction": {"concurrency_limit": 1}}}
+    ).process_chunks(
+        chunks=["", ""],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config={"extraction_model": {"name": "gpt-4o"}},
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_args, **_kwargs: None,
+        image_chunks=[
+            {"base64": "AAA=", "mime_type": "image/jpeg", "detail": "low"},
+            {"base64": "BBB=", "mime_type": "image/jpeg", "detail": "low"},
+        ],
+    )
+
+    records = [
+        rec
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+        if "custom_id" in (rec := json.loads(line))
+    ]
+    records.sort(key=lambda r: r["chunk_index"])
+    assert [r["custom_id"] for r in records] == [
+        f"{file_path.stem}-page-1",
+        f"{file_path.stem}-page-2",
+    ]
+
+
+@pytest.mark.asyncio
+async def test_sync_text_custom_ids_are_sanitized_like_batch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Sync ids go through the same ``build_custom_id`` sanitizer as batch ids,
+    so a stem with illegal characters yields one id, not two."""
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_detect_provider", staticmethod(lambda model: "openai")
+    )
+    monkeypatch.setattr(
+        ps.ProviderConfig, "_get_api_key", staticmethod(lambda provider: "key")
+    )
+    monkeypatch.setattr(
+        ps, "open_extractor", lambda **_kwargs: _AsyncExtractorCM(object())
+    )
+
+    async def _process_text_chunk(**_kwargs):
+        return {
+            "ok": True,
+            "output_text": "extracted",
+            "usage": {"input_tokens": 0, "output_tokens": 0},
+        }
+
+    monkeypatch.setattr(ps, "process_text_chunk", _process_text_chunk)
+
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "Küchen Meisterey (1598).txt"
+
+    await ps.SynchronousProcessingStrategy().process_chunks(
+        chunks=["c1"],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config={"extraction_model": {"name": "gpt-4o"}},
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_args, **_kwargs: None,
+    )
+
+    records = [
+        rec
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+        if "custom_id" in (rec := json.loads(line))
+    ]
+    assert len(records) == 1
+    assert records[0]["custom_id"] == ps.build_custom_id(file_path.stem, "-chunk-1")
+    assert re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", records[0]["custom_id"])
+
+
+@pytest.mark.asyncio
+async def test_batch_custom_ids_are_sanitized_end_to_end(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """The sanitized id must reach both the submitted request and the temp
+    metadata record, or resume and finalization correlate on different ids."""
+    monkeypatch.setattr(ps, "supports_batch", lambda provider: True)
+
+    captured: list = []
+
+    class _Backend:
+        def submit_batch(
+            self,
+            requests,
+            model_config,
+            *,
+            system_prompt: str,
+            schema: dict[str, Any] | None = None,
+            schema_name: str | None = None,
+        ):
+            captured.extend(requests)
+            return ps.BatchHandle(provider="openai", batch_id="b1", metadata={})
+
+    monkeypatch.setattr(ps, "get_batch_backend", lambda provider: _Backend())
+
+    temp_jsonl = tmp_path / "temp.jsonl"
+    file_path = tmp_path / "Küchen Meisterey (1598).txt"
+
+    await ps.BatchProcessingStrategy().process_chunks(
+        chunks=["c1"],
+        handler=_DummyHandler(),
+        dev_message="dev",
+        model_config={"extraction_model": {"provider": "openai", "name": "gpt-4o"}},
+        schema={"type": "object"},
+        file_path=file_path,
+        temp_jsonl_path=temp_jsonl,
+        console_print=lambda *_args, **_kwargs: None,
+    )
+
+    submitted_id = captured[0].custom_id
+    assert re.fullmatch(r"[a-zA-Z0-9_-]{1,64}", submitted_id)
+    assert submitted_id.endswith("-chunk-1")
+
+    lines = [
+        json.loads(line)
+        for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+    assert lines[0]["batch_request"]["custom_id"] == submitted_id

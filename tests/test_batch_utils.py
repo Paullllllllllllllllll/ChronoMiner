@@ -155,3 +155,33 @@ def test_extract_custom_id_mapping_without_order_index(tmp_path):
     assert len(custom_id_map) == 1
     assert "req_1" in custom_id_map
     assert len(order_map) == 0
+
+
+@pytest.mark.unit
+def test_extract_custom_id_mapping_current_batch_request_format(tmp_path):
+    """The batch submitter writes order_index as a SIBLING of metadata.
+
+    Reading it only from inside metadata/image_info left order_map empty for
+    every temp file the current code writes, silently disabling explicit
+    ordering during finalization and repair.
+    """
+    temp_file = tmp_path / "doc_temp.jsonl"
+
+    lines = [
+        json.dumps(
+            {
+                "batch_request": {
+                    "custom_id": f"doc-chunk-{i}",
+                    "order_index": i,
+                    "metadata": {"chunk_index": i, "total_chunks": 2},
+                }
+            }
+        )
+        for i in (1, 2)
+    ]
+    temp_file.write_text("\n".join(lines), encoding="utf-8")
+
+    custom_id_map, order_map = extract_custom_id_mapping(temp_file)
+
+    assert custom_id_map["doc-chunk-1"]["chunk_index"] == 1
+    assert order_map == {"doc-chunk-1": 1, "doc-chunk-2": 2}

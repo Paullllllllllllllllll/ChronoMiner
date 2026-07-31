@@ -16,6 +16,7 @@ OpenRouter does not support batch processing.
 
 import asyncio
 import contextlib
+import hashlib
 import json
 import logging
 import random
@@ -56,6 +57,39 @@ logger = logging.getLogger(__name__)
 # partitioning a batch by byte size. Deliberately generous so a split stays
 # safely under the provider's hard limit.
 _BATCH_REQUEST_OVERHEAD_BYTES = 2048
+
+
+# Anthropic's Message Batches API validates custom_id against
+# ^[a-zA-Z0-9_-]{1,64}$ and rejects the whole submission otherwise; OpenAI and
+# Google are laxer but no stricter. Historical filenames routinely carry
+# spaces, umlauts, periods, and parentheses, so ids are sanitized at build
+# time for every provider.
+_CUSTOM_ID_MAX_LENGTH = 64
+_CUSTOM_ID_ILLEGAL = re.compile(r"[^A-Za-z0-9_-]")
+_CUSTOM_ID_HASH_LENGTH = 8
+
+
+def build_custom_id(stem: str, suffix: str) -> str:
+    """Build a provider-safe batch ``custom_id`` from a file stem and suffix.
+
+    ``suffix`` is the ordering suffix (``-chunk-3``, ``-page-7``) and is always
+    preserved verbatim: resume, ordering, and repair parse it. The stem is
+    reduced to ``[A-Za-z0-9_-]``; because that substitution is lossy (``a b``
+    and ``a.b`` collapse to the same base), a short deterministic hash of the
+    ORIGINAL stem is appended whenever the stem had to be changed, and again
+    when the id has to be truncated to fit the 64-character limit.
+    """
+    sanitized = _CUSTOM_ID_ILLEGAL.sub("_", stem)
+    digest = hashlib.sha256(stem.encode("utf-8")).hexdigest()[:_CUSTOM_ID_HASH_LENGTH]
+    base = sanitized if sanitized == stem else f"{sanitized}_{digest}"
+    candidate = f"{base}{suffix}"
+    if len(candidate) <= _CUSTOM_ID_MAX_LENGTH:
+        return candidate
+    keep = max(
+        _CUSTOM_ID_MAX_LENGTH - len(suffix) - _CUSTOM_ID_HASH_LENGTH - 1,
+        0,
+    )
+    return f"{sanitized[:keep]}_{digest}{suffix}"
 
 
 def _estimate_request_bytes(req: BatchRequest) -> int:
@@ -628,8 +662,14 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             # _generate_output_files; without it the final
                             # records sort by `None or 0` (all equal) and
                             # land in completion order.
+                            # Same unit label and sanitizer as the batch path:
+                            # a visual run stamps "-page-N" there, so stamping
+                            # "-chunk-N" here made sync and batch records for
+                            # the same page disagree (and collide on merge).
                             response_obj: dict[str, Any] = {
-                                "custom_id": f"{file_path.stem}-chunk-{idx}",
+                                "custom_id": build_custom_id(
+                                    file_path.stem, f"-{unit_label}-{idx}"
+                                ),
                                 "chunk_index": idx,
                                 "response": {"body": result},
                             }
@@ -1015,7 +1055,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
             )
             for pos, img in enumerate(image_chunks):
                 idx = chunk_indices[pos] if chunk_indices is not None else pos + 1
-                custom_id = f"{file_path.stem}-page-{idx}"
+                custom_id = build_custom_id(file_path.stem, f"-page-{idx}")
                 batch_requests.append(
                     BatchRequest(
                         custom_id=custom_id,
@@ -1037,7 +1077,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
             )
             for pos, chunk in enumerate(chunks):
                 idx = chunk_indices[pos] if chunk_indices is not None else pos + 1
-                custom_id = f"{file_path.stem}-chunk-{idx}"
+                custom_id = build_custom_id(file_path.stem, f"-chunk-{idx}")
                 meta: dict[str, Any] = {
                     "file_path": str(file_path),
                     "chunk_index": idx,
@@ -1200,7 +1240,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
                     )
                 )
                 # Write request metadata lines first, tracking record last.
-                with part_temp_path.open("w", encoding="utf-8") as tempf:
+                with part_temp_path.open("w", encoding="utf-8", newline="\n") as tempf:
                     for req in part_requests:
                         request_meta = {
                             "batch_request": {
