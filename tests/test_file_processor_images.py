@@ -1,6 +1,15 @@
 """Tests for visual input routing in file_processor.py."""
 
-from modules.extract.file_processor import FileProcessor
+import logging
+
+import pytest
+
+import modules.extract.file_processor as fp_module
+from modules.config.capabilities import detect_capabilities
+from modules.extract.file_processor import (
+    FileProcessor,
+    warn_if_original_detail_downgraded,
+)
 
 
 class TestIsVisualInput:
@@ -60,3 +69,57 @@ class TestIsVisualInput:
     def test_nonexistent_path(self, tmp_path):
         fake = tmp_path / "nonexistent"
         assert FileProcessor._is_visual_input(fake) is False
+
+
+@pytest.fixture()
+def _clear_original_detail_warned():
+    """Reset the per-process warn-once ledger around each test."""
+    fp_module._ORIGINAL_DETAIL_WARNED.clear()
+    yield
+    fp_module._ORIGINAL_DETAIL_WARNED.clear()
+
+
+@pytest.mark.usefixtures("_clear_original_detail_warned")
+class TestOriginalDetailDowngradeWarning:
+    """``llm_detail: original`` is honored only on the Responses route."""
+
+    def test_warns_for_chat_completions_model(self, caplog):
+        caps = detect_capabilities("gpt-5.6-luna", provider="openai")
+        with caplog.at_level(logging.WARNING, logger=fp_module.logger.name):
+            emitted = warn_if_original_detail_downgraded(
+                "gpt-5.6-luna", "original", caps
+            )
+
+        assert emitted is True
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("gpt-5.6-luna" in m and "'high'" in m for m in messages)
+        assert any("gpt-5.6-sol" in m for m in messages)
+
+    def test_warns_only_once_per_process(self, caplog):
+        caps = detect_capabilities("gpt-5.6-luna", provider="openai")
+        with caplog.at_level(logging.WARNING, logger=fp_module.logger.name):
+            first = warn_if_original_detail_downgraded("gpt-5.6-luna", "original", caps)
+            second = warn_if_original_detail_downgraded(
+                "gpt-5.6-luna", "original", caps
+            )
+
+        assert (first, second) == (True, False)
+        assert len([r for r in caplog.records if "original" in r.getMessage()]) == 1
+
+    def test_no_warning_for_responses_only_model(self, caplog):
+        caps = detect_capabilities("gpt-5.6-sol", provider="openai")
+        with caplog.at_level(logging.WARNING, logger=fp_module.logger.name):
+            emitted = warn_if_original_detail_downgraded(
+                "gpt-5.6-sol", "original", caps
+            )
+
+        assert emitted is False
+        assert caplog.records == []
+
+    def test_no_warning_for_non_original_detail(self, caplog):
+        caps = detect_capabilities("gpt-5.6-luna", provider="openai")
+        with caplog.at_level(logging.WARNING, logger=fp_module.logger.name):
+            emitted = warn_if_original_detail_downgraded("gpt-5.6-luna", "high", caps)
+
+        assert emitted is False
+        assert caplog.records == []

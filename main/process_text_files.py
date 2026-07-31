@@ -42,7 +42,7 @@ from main.cli_args import (
 )
 from main.dual_mode import AsyncDualModeScript
 from modules.config.manager import ConfigManager, ConfigValidationError
-from modules.extract.file_processor import FileProcessor
+from modules.extract.file_processor import FileProcessor, mirrored_output_subdir
 from modules.infra.chunking import ChunkSlice
 from modules.infra.jsonl import (
     compute_ranges_fingerprint,
@@ -1091,10 +1091,17 @@ async def _run_cli_mode(
         effective_schema_paths["output"] = str(resolve_path(args.output))
 
     def _output_path_for(fp: Path) -> Path:
+        """Planned output path for *fp*, matching FileProcessor's real layout.
+
+        Read-only: mirror mode is derived, never created, so ``--dry-run``
+        stays free of side effects.
+        """
         if effective_paths_config.get("general", {}).get("input_paths_is_output_path"):
             return fp.parent / f"{fp.stem}_output.json"
-        out_dir = effective_schema_paths.get("output", "")
-        return Path(out_dir) / f"{fp.stem}_output.json"
+        out_dir = Path(effective_schema_paths.get("output", ""))
+        if file_processor.output_mode == "mirror" and file_processor.input_root:
+            out_dir = out_dir / mirrored_output_subdir(fp, file_processor.input_root)
+        return out_dir / f"{fp.stem}_output.json"
 
     # --dry-run: discovery + resume classification + planned actions, no API
     # calls and no side effects. Exit 0.

@@ -8,6 +8,7 @@ Uses modular components with simplified orchestration and separated concerns.
 import asyncio
 import json
 import logging
+import sys
 from collections.abc import AsyncIterator, Callable
 from pathlib import Path
 from typing import Any
@@ -101,6 +102,67 @@ def is_visual_input(file_path: Path) -> bool:
     return (
         file_path.is_file() and file_path.suffix.lower() in SUPPORTED_VISUAL_EXTENSIONS
     )
+
+
+# Models whose requests are routed to the OpenAI Responses API (capabilities
+# with ``supports_chat_completions=False``), the only route that accepts
+# ``detail: "original"``. Quoted verbatim in the downgrade warning below.
+_ORIGINAL_DETAIL_MODELS = "gpt-5.6-sol, gpt-5.6, gpt-5.5-pro, gpt-5.4-pro, gpt-5.4"
+
+# Models already warned about in this process, so the notice is emitted once.
+_ORIGINAL_DETAIL_WARNED: set[str] = set()
+
+
+def warn_if_original_detail_downgraded(
+    model_name: str, detail: str | None, caps: Any
+) -> bool:
+    """Warn once per model when image ``detail: "original"`` will become "high".
+
+    ``original`` is accepted only on the OpenAI Responses route, which is taken
+    exactly when a model's capabilities set ``supports_chat_completions`` to
+    False. Everywhere else ``build_image_content_block`` silently downgrades it
+    to ``high``; this makes that downgrade visible instead of surprising.
+
+    :return: True if a warning was emitted by this call.
+    """
+    if (detail or "").strip().lower() != "original":
+        return False
+    honors_original = bool(
+        getattr(caps, "supports_original_detail", False)
+    ) and not bool(getattr(caps, "supports_chat_completions", True))
+    if honors_original or model_name in _ORIGINAL_DETAIL_WARNED:
+        return False
+
+    _ORIGINAL_DETAIL_WARNED.add(model_name)
+    message = (
+        f"Image detail 'original' is not available for model '{model_name}': "
+        "the request is not routed to the OpenAI Responses API, so the images "
+        "will be sent with detail 'high' instead. Only Responses-only models "
+        f"honor 'original' (e.g. {_ORIGINAL_DETAIL_MODELS}). Set "
+        "'llm_detail: high' in config/image_processing_config.yaml to silence "
+        "this notice."
+    )
+    logger.warning(message)
+    print(f"[WARNING] {message}", file=sys.stderr)
+    return True
+
+
+def mirrored_output_subdir(file_path: Path, input_root: Path | None) -> Path:
+    """Return the mirror-mode output subdirectory for *file_path*.
+
+    Pure path arithmetic (no filesystem access), shared by the real output
+    setup in :meth:`FileProcessor._setup_output_paths` and by the ``--dry-run``
+    planner in ``main/process_text_files.py`` so both report the same layout.
+    Files outside *input_root* (or with no root at all) mirror to the output
+    root itself.
+    """
+    if input_root is None:
+        return Path()
+    try:
+        rel = file_path.relative_to(input_root)
+    except ValueError:
+        rel = Path(file_path.name)
+    return rel.parent
 
 
 def _read_temp_records(temp_jsonl_path: Path) -> list[dict[str, Any]]:
@@ -513,6 +575,10 @@ class FileProcessor:
                 image_detail = img_cfg.get("resize_profile", "auto") or "auto"
             else:
                 image_detail = img_cfg.get("llm_detail", "high") or "high"
+
+        # A configured/requested "original" is silently downgraded to "high"
+        # unless the run is routed to the OpenAI Responses API; say so once.
+        warn_if_original_detail_downgraded(model_name, image_detail, caps)
 
         # 3. Page count without rendering
         ext = file_path.suffix.lower()
@@ -1251,11 +1317,8 @@ class FileProcessor:
                     "output with project files."
                 )
             if self.output_mode == "mirror" and self.input_root is not None:
-                try:
-                    rel = file_path.relative_to(self.input_root)
-                except ValueError:
-                    rel = Path(file_path.name)
-                mirror_dir = ensure_path_safe(working_folder / rel.parent)
+                rel_dir = mirrored_output_subdir(file_path, self.input_root)
+                mirror_dir = ensure_path_safe(working_folder / rel_dir)
                 mirror_dir.mkdir(parents=True, exist_ok=True)
                 temp_folder = ensure_path_safe(mirror_dir / "temp_jsonl")
                 temp_folder.mkdir(parents=True, exist_ok=True)

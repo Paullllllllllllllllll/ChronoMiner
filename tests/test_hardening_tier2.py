@@ -1,8 +1,8 @@
 """Regression tests for the Tier 2 hardening fixes.
 
-Covers: the CLI agent contract flags, the stricter transient-error classifier,
-batch temp-file content sniffing, cross-shape completed-index detection, and
-batch resume parity.
+Covers: the CLI agent contract flags, ``--dry-run`` planning under mirror
+output mode, the stricter transient-error classifier, batch temp-file content
+sniffing, cross-shape completed-index detection, and batch resume parity.
 """
 
 from __future__ import annotations
@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 import sys
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -200,6 +201,125 @@ def test_process_parser_has_cli_contract_flags() -> None:
     assert args.json_summary is True
     assert args.dry_run is True
     assert args.non_interactive is True
+
+
+async def _dry_run_plan(
+    *,
+    input_root: Path,
+    out_root: Path,
+    config_loader: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    extra_args: list[str],
+) -> list[dict[str, str]]:
+    """Run ``--dry-run`` through the CLI path and return the planned entries."""
+    import main.process_text_files as ptf
+    from main.cli_args import create_process_parser
+
+    class _SchemaManager:
+        @staticmethod
+        def get_available_schemas() -> dict[str, dict[str, Any]]:
+            return {"TestSchema": {"type": "object"}}
+
+    monkeypatch.setattr(ptf, "load_schema_manager", lambda: _SchemaManager())
+    monkeypatch.setattr(ptf, "validate_schema_paths", lambda *a, **k: True)
+
+    args = create_process_parser().parse_args(
+        [
+            "--schema",
+            "TestSchema",
+            "--input",
+            str(input_root),
+            "--json",
+            "--dry-run",
+            "--quiet",
+            "--non-interactive",
+            *extra_args,
+        ]
+    )
+
+    await ptf._run_cli_mode(
+        args,
+        config_loader,
+        {"general": {"allow_relative_paths": True}},
+        {"extraction_model": {"name": "gpt-4o"}},
+        {"chunking": {"default_tokens_per_chunk": 10}, "context": {}},
+        {"TestSchema": {"output": str(out_root)}},
+    )
+
+    payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    planned: list[dict[str, str]] = payload["planned"]
+    return planned
+
+
+@pytest.mark.asyncio
+async def test_dry_run_mirror_mode_plans_mirrored_paths(
+    tmp_path: Path,
+    config_loader: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Mirror mode must plan (and classify against) the mirrored output path."""
+    input_root = tmp_path / "input"
+    (input_root / "vol1" / "sub").mkdir(parents=True)
+    (input_root / "vol1" / "sub" / "done.txt").write_text("text", encoding="utf-8")
+    (input_root / "vol2").mkdir(parents=True)
+    (input_root / "vol2" / "todo.txt").write_text("text", encoding="utf-8")
+
+    out_root = tmp_path / "out"
+    mirrored_done = out_root / "vol1" / "sub" / "done_output.json"
+    mirrored_done.parent.mkdir(parents=True)
+    mirrored_done.write_text("{}", encoding="utf-8")
+
+    planned = await _dry_run_plan(
+        input_root=input_root,
+        out_root=out_root,
+        config_loader=config_loader,
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        extra_args=["--output-mode", "mirror", "--resume"],
+    )
+
+    by_stem = {Path(item["file"]).stem: item for item in planned}
+    assert set(by_stem) == {"done", "todo"}
+    # The nested file's planned path mirrors the input hierarchy...
+    assert Path(by_stem["done"]["output"]) == mirrored_done
+    # ...and the existing mirrored output is recognized for resume.
+    assert by_stem["done"]["action"] == "resume/skip"
+    assert Path(by_stem["todo"]["output"]) == out_root / "vol2" / "todo_output.json"
+    assert by_stem["todo"]["action"] == "process"
+
+
+@pytest.mark.asyncio
+async def test_dry_run_creates_no_directories(
+    tmp_path: Path,
+    config_loader: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A dry run stays side-effect-free: no mirror or temp folders appear."""
+    input_root = tmp_path / "input"
+    (input_root / "vol1" / "sub").mkdir(parents=True)
+    (input_root / "vol1" / "sub" / "doc.txt").write_text("text", encoding="utf-8")
+    out_root = tmp_path / "out"
+    out_root.mkdir()
+
+    before = sorted(out_root.rglob("*")) + sorted(input_root.rglob("*"))
+
+    planned = await _dry_run_plan(
+        input_root=input_root,
+        out_root=out_root,
+        config_loader=config_loader,
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+        extra_args=["--output-mode", "mirror"],
+    )
+
+    assert Path(planned[0]["output"]) == out_root / "vol1" / "sub" / "doc_output.json"
+    after = sorted(out_root.rglob("*")) + sorted(input_root.rglob("*"))
+    assert after == before
+    assert not (out_root / "vol1").exists()
+    assert not (out_root / "temp_jsonl").exists()
 
 
 def test_check_batches_parser_has_json_flag() -> None:
