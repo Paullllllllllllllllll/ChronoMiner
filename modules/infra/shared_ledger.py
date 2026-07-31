@@ -68,7 +68,7 @@ from typing import IO, Any, NamedTuple
 logger = logging.getLogger(__name__)
 
 LEDGER_SCHEMA_VERSION = 2
-LEDGER_MODULE_VERSION = "2.1.1"
+LEDGER_MODULE_VERSION = "2.1.2"
 
 # One-minute safety buffer past OpenAI's 00:00 UTC free-tier reset, so the
 # ledger never frees its budget before the upstream quota has actually reset.
@@ -126,6 +126,7 @@ _SMALL_POOL_MODELS: tuple[str, ...] = (
     "gpt-4.1-nano",
     "gpt-4o-mini",
     "o4-mini",
+    "o3-mini",
     "o1-mini",
     "codex-mini-latest",
 )
