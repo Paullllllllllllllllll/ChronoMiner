@@ -85,20 +85,20 @@ def create_safe_log_filename(base_name: str, log_type: str) -> str:
 
 
 def ensure_path_safe(path: Path) -> Path:
-    r"""
-    Ensure a path won't exceed Windows MAX_PATH limits.
+    """
+    Normalize a path via ``resolve()`` on Windows.
 
-    For Windows 10 1607+, Python's pathlib automatically uses extended-length
-    paths (\\?\) when needed, but this provides an explicit check.
+    This does not add an extended-length (``\\\\?\\``) prefix; pathlib does
+    not apply one automatically either. Long-path safety instead comes from
+    the name-truncation helpers above (:func:`create_safe_directory_name`,
+    :func:`create_safe_log_filename`), which keep generated names short
+    enough to stay under MAX_PATH.
 
     Args:
         path: The path to check
 
     Returns:
-        The path (potentially with extended-length prefix on Windows)
-
-    Note:
-        Python 3.6+ pathlib handles extended paths automatically in most cases.
+        The resolved path (unresolved on ``OSError``, unchanged off Windows)
     """
     if platform.system() == "Windows":
         try:

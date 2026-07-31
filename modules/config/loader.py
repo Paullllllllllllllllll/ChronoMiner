@@ -326,15 +326,17 @@ def get_config_loader(force_reload: bool = False) -> ConfigLoader:
     """
     global _config_cache
 
-    if _config_cache is None or force_reload:
+    cached = _config_cache
+    if cached is None or force_reload:
         with _config_cache_lock:
-            if _config_cache is None or force_reload:
-                loader = ConfigLoader()
-                loader.load_configs()
-                _config_cache = loader
+            cached = _config_cache
+            if cached is None or force_reload:
+                cached = ConfigLoader()
+                cached.load_configs()
+                _config_cache = cached
                 logger.debug("Configuration loaded and cached")
 
-    return _config_cache
+    return cached
 
 
 def clear_config_cache() -> None:

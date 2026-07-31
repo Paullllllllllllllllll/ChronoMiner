@@ -11,10 +11,12 @@ All prompt_* helpers return :class:`PromptResult`; tests unwrap it.
 
 from __future__ import annotations
 
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
+import modules.ui.prompts as prompts_mod
 from modules.ui import (
     NavigationAction,
     PromptResult,
@@ -34,13 +36,49 @@ from modules.ui import (
 
 @pytest.mark.unit
 class TestPromptStyle:
-    def test_colorize_wraps_text(self):
+    def test_colorize_wraps_text(self, monkeypatch):
+        # Force color support on so this test exercises colorize() itself,
+        # independent of the tty/colorama/NO_COLOR checks covered below.
+        monkeypatch.setattr(PromptStyle, "supports_color", staticmethod(lambda: True))
         text = PromptStyle.colorize("hello", PromptStyle.INFO)
         assert "hello" in text
         assert text.endswith(PromptStyle.RESET)
 
     def test_supports_color_returns_bool(self):
         assert isinstance(PromptStyle.supports_color(), bool)
+
+
+@pytest.mark.unit
+class TestSupportsColorHonest:
+    """supports_color() must reflect real terminal capability, not just
+    assume it because colorama is imported (regression)."""
+
+    def test_false_when_colorama_unavailable(self, monkeypatch):
+        monkeypatch.setattr(prompts_mod, "_COLORAMA_AVAILABLE", False)
+        assert PromptStyle.supports_color() is False
+
+    def test_false_when_not_a_tty(self, monkeypatch):
+        monkeypatch.setattr(prompts_mod, "_COLORAMA_AVAILABLE", True)
+        monkeypatch.setattr(
+            prompts_mod.sys, "stdout", SimpleNamespace(isatty=lambda: False)
+        )
+        assert PromptStyle.supports_color() is False
+
+    def test_false_when_no_color_env_set(self, monkeypatch):
+        monkeypatch.setattr(prompts_mod, "_COLORAMA_AVAILABLE", True)
+        monkeypatch.setattr(
+            prompts_mod.sys, "stdout", SimpleNamespace(isatty=lambda: True)
+        )
+        monkeypatch.setenv("NO_COLOR", "1")
+        assert PromptStyle.supports_color() is False
+
+    def test_true_when_tty_and_colorama_and_no_no_color(self, monkeypatch):
+        monkeypatch.setattr(prompts_mod, "_COLORAMA_AVAILABLE", True)
+        monkeypatch.setattr(
+            prompts_mod.sys, "stdout", SimpleNamespace(isatty=lambda: True)
+        )
+        monkeypatch.delenv("NO_COLOR", raising=False)
+        assert PromptStyle.supports_color() is True
 
 
 @pytest.mark.unit

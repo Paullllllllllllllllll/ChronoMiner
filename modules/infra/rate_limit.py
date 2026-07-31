@@ -100,13 +100,13 @@ class RateLimiter:
 
         :return: Total time waited, in seconds.
         """
-        wait_start = time.time()
+        wait_start = time.monotonic()
 
         while True:
             wait_time = 0.0
 
             with self.lock:
-                now = time.time()
+                now = time.monotonic()
 
                 for i, (max_requests, seconds) in enumerate(self.limits):
                     cutoff = now - seconds
@@ -142,7 +142,7 @@ class RateLimiter:
                         timestamps.append(now)
                     self.total_requests += 1
                     self.request_count_since_last_update += 1
-                    total_wait = time.time() - wait_start
+                    total_wait = time.monotonic() - wait_start
                     self.total_wait_time += total_wait
                     return total_wait
 
@@ -230,11 +230,22 @@ def get_rate_limits() -> list[tuple[int, int]]:
 
         limits: list[tuple[int, int]] = []
         for item in raw_limits:
-            if isinstance(item, list | tuple) and len(item) == 2:
-                try:
-                    limits.append((int(item[0]), int(item[1])))
-                except (ValueError, TypeError):
-                    continue
+            if not (isinstance(item, list | tuple) and len(item) == 2):
+                logger.warning("Skipping malformed rate_limits entry: %r", item)
+                continue
+            try:
+                max_requests, window_seconds = int(item[0]), int(item[1])
+            except (ValueError, TypeError):
+                logger.warning("Skipping non-integer rate_limits entry: %r", item)
+                continue
+            if max_requests < 1 or window_seconds <= 0:
+                logger.warning(
+                    "Skipping non-positive rate_limits entry (max_requests must "
+                    "be >= 1 and window_seconds > 0): %r",
+                    item,
+                )
+                continue
+            limits.append((max_requests, window_seconds))
 
         return limits if limits else default_limits
     except Exception as exc:

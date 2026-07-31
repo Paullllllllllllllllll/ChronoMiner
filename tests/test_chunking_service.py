@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from modules.infra.chunking import ChunkingService
+from modules.infra.chunking import ChunkHandler, ChunkingService, TextProcessor
 
 
 class DummyTextProcessor:
@@ -141,6 +141,59 @@ class TestChunkingServiceStartLineOffset:
 
         assert ranges[0][0] == 10
         assert "\n".join(chunks).split("\n") == lines
+
+
+class TestAdjustLineRangesDefaultClamp:
+    """Regression: pressing Enter after extending a chunk past the next
+    chunk's original end must not accept an inverted (end < start) range.
+
+    Scenario (verified defect): ranges [(1,10),(11,12),(13,18)] with inputs
+    "15", Enter, Enter used to yield [(1,15),(16,12),(13,18)] -- the second
+    chunk's end (12) preceded its start (16), breaking the monotone-coverage
+    invariant that current_start == previous actual_end + 1.
+    """
+
+    @pytest.mark.unit
+    def test_extending_past_next_chunk_clamps_offered_default(self, monkeypatch):
+        inputs = iter(["15", "", ""])
+        monkeypatch.setattr("builtins.input", lambda *a, **k: next(inputs))
+
+        handler = ChunkHandler(
+            model_name="x",
+            default_tokens_per_chunk=100,
+            text_processor=TextProcessor(),
+        )
+        initial_ranges = [(1, 10), (11, 12), (13, 18)]
+        final_ranges = handler.adjust_line_ranges(
+            initial_ranges,
+            original_start_line=1,
+            total_processed_lines=18,
+        )
+
+        assert final_ranges == [(1, 15), (16, 16), (17, 18)]
+        # Monotone coverage: each range starts exactly where the previous one
+        # ended, and no range is inverted (end >= start).
+        for start, end in final_ranges:
+            assert end >= start
+        for (_, prev_end), (next_start, _) in zip(
+            final_ranges, final_ranges[1:], strict=False
+        ):
+            assert next_start == prev_end + 1
+
+    @pytest.mark.unit
+    def test_adjust_line_ranges_return_type_has_no_none(self, monkeypatch):
+        """The return type is list[tuple[int, int]]; it never contains None."""
+        monkeypatch.setattr("builtins.input", lambda *a, **k: "")
+
+        handler = ChunkHandler(
+            model_name="x",
+            default_tokens_per_chunk=100,
+            text_processor=TextProcessor(),
+        )
+        final_ranges = handler.adjust_line_ranges(
+            [(1, 5)], original_start_line=1, total_processed_lines=5
+        )
+        assert all(r is not None for r in final_ranges)
 
 
 class TestChunkingServiceFallback:

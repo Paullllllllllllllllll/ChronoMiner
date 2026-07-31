@@ -1,7 +1,6 @@
 """Text chunking for ChronoMiner.
 
-Merges the former ``modules.infra.chunking`` and
-``modules.infra.chunking`` into one cohesive module. Public surface:
+Public surface:
 
 * :class:`TextProcessor` — encoding detection, normalization, token estimation
 * :class:`ChunkingStrategy` (ABC), :class:`TokenBasedChunking`,
@@ -228,7 +227,7 @@ class ChunkHandler:
         original_start_line: int,
         total_processed_lines: int,
         console_print: Callable[[str], None] | None = None,
-    ) -> list[tuple[int, int] | None]:
+    ) -> list[tuple[int, int]]:
         """Interactively adjust the default line ranges.
 
         User-facing lines are routed through ``console_print`` (the console log
@@ -245,7 +244,7 @@ class ChunkHandler:
             else:
                 logger.info(message)
 
-        final_ranges: list[tuple[int, int] | None] = []
+        final_ranges: list[tuple[int, int]] = []
         current_start: int = original_start_line
         total_lines: int = original_start_line + total_processed_lines - 1
 
@@ -257,6 +256,11 @@ class ChunkHandler:
                 initial_end: int = original_start_line + initial_ranges[i][1] - 1
             else:
                 initial_end = total_lines
+            # Clamp the offered default so it never precedes actual_start: a
+            # prior chunk extended past this chunk's original end would
+            # otherwise offer an inverted default (end < start) that Enter
+            # accepts verbatim, breaking the monotone-coverage invariant.
+            initial_end = max(initial_end, actual_start)
 
             _tell(f"Chunk {i + 1}: Lines {actual_start} - {initial_end}")
             while True:
@@ -588,14 +592,11 @@ class ChunkingService:
         # space for splitting and return the document-space ranges — mirroring
         # _chunk_automatic, which splits with local ranges and offsets only the
         # returned ranges.
-        adjusted_ranges = [r for r in final_ranges if r is not None]
         offset = original_start_line - 1
-        local_ranges = [
-            (start - offset, end - offset) for (start, end) in adjusted_ranges
-        ]
+        local_ranges = [(start - offset, end - offset) for (start, end) in final_ranges]
         chunks = self.chunk_handler.split_text_into_chunks(lines, local_ranges)
         logger.info(f"Created {len(chunks)} adjusted chunks")
-        return chunks, adjusted_ranges
+        return chunks, final_ranges
 
     @classmethod
     def from_config(cls, config: dict[str, Any]) -> ChunkingService:

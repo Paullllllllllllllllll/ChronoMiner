@@ -246,9 +246,12 @@ class DailyTokenTracker:
         self._current_date: str = ""  # Format: YYYY-MM-DD
         self._tokens_used_today: int = 0
         # This tool's OWN per-bucket usage today (the private per-key counts).
-        # Sum equals _tokens_used_today (legacy adoption puts the whole legacy
-        # count in the unattributed bucket). Used for standalone/degraded
-        # per-key enforcement and persisted in the state file.
+        # Sum normally equals _tokens_used_today (legacy adoption puts the
+        # whole legacy count in the unattributed bucket), but the two can
+        # diverge after shared-ledger seed adoption raises _tokens_used_today
+        # without crediting any bucket (see sync_ledger_now). Used for
+        # standalone/degraded per-key enforcement and persisted in the state
+        # file.
         self._bucket_used_today: dict[BucketKey, int] = {}
 
         # Chunk-level reservation state (in-memory only; transient per run).
@@ -315,7 +318,10 @@ class DailyTokenTracker:
         not skipped by the in-flight guard.
         """
         if self._shared_enabled:
-            for _ in range(50):
+            # Bounded wait must cover a worst-case ledger sync (5 s lock
+            # timeout plus retries), or the final delta can be dropped at
+            # exit: 300 iterations x 0.02 s = 6 s.
+            for _ in range(300):
                 with self._lock:
                     busy = self._ledger_sync_in_flight
                 if not busy:

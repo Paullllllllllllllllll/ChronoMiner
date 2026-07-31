@@ -441,7 +441,12 @@ class UserInterface:
     # the tool's own TXT report: without it, a second interactive run over a
     # folder with input_paths_is_output_path + txt_output re-extracts its own
     # reports (the CLI already excludes these).
-    _AUXILIARY_SUFFIXES = ("_context.txt", "_line_ranges.txt", "_output.txt")
+    _AUXILIARY_SUFFIXES = (
+        "_context.txt",
+        "_line_ranges.txt",
+        "_line_range.txt",
+        "_output.txt",
+    )
 
     def _discover_files(
         self,
@@ -596,13 +601,21 @@ class UserInterface:
                     if is_visual:
                         normalized_input = file_input
                         # Search by exact name across valid extensions
-                        file_candidates = [
-                            f
-                            for f in raw_text_dir.rglob(normalized_input)
-                            if f.is_file()
-                            and f.suffix.lower() in valid_exts
-                            and f.resolve().is_relative_to(resolved_base)
-                        ]
+                        try:
+                            file_candidates = [
+                                f
+                                for f in raw_text_dir.rglob(normalized_input)
+                                if f.is_file()
+                                and f.suffix.lower() in valid_exts
+                                and f.resolve().is_relative_to(resolved_base)
+                            ]
+                        except (NotImplementedError, ValueError):
+                            file_candidates = []
+                        if Path(file_input).is_absolute():
+                            self.print_info(
+                                "Enter a name relative to the input directory,"
+                                " not an absolute path."
+                            )
                     else:
                         # Only append ".txt" when the input carries no known
                         # text extension; appending unconditionally made ".md"
@@ -620,14 +633,23 @@ class UserInterface:
                             excluded_suffixes.extend(
                                 ["_line_ranges.txt", "_line_range.txt"]
                             )
-                        file_candidates = [
-                            f
-                            for f in raw_text_dir.rglob(normalized_input)
-                            if f.resolve().is_relative_to(resolved_base)
-                            and not any(
-                                f.name.endswith(suffix) for suffix in excluded_suffixes
+                        try:
+                            file_candidates = [
+                                f
+                                for f in raw_text_dir.rglob(normalized_input)
+                                if f.resolve().is_relative_to(resolved_base)
+                                and not any(
+                                    f.name.endswith(suffix)
+                                    for suffix in excluded_suffixes
+                                )
+                            ]
+                        except (NotImplementedError, ValueError):
+                            file_candidates = []
+                        if Path(file_input).is_absolute():
+                            self.print_info(
+                                "Enter a name relative to the input directory,"
+                                " not an absolute path."
                             )
-                        ]
 
                     if not file_candidates:
                         self.print_error(
@@ -851,6 +873,7 @@ class UserInterface:
         if chunk_slice is not None:
             first_n = getattr(chunk_slice, "first_n", None)
             last_n = getattr(chunk_slice, "last_n", None)
+            page_range = getattr(chunk_slice, "page_range", None)
             if first_n is not None:
                 self.console_print(
                     f"    - Chunk/page range: First {first_n} chunks/pages only"
@@ -859,6 +882,9 @@ class UserInterface:
                 self.console_print(
                     f"    - Chunk/page range: Last {last_n} chunks/pages only"
                 )
+            elif page_range is not None:
+                start, end = page_range
+                self.console_print(f"    - Chunk/page range: Pages {start}-{end}")
 
         # Context display (CM-8)
         if context_mode is None or context_mode == "auto":
@@ -1010,13 +1036,13 @@ class UserInterface:
                 "Enter path to context file:",
                 allow_back=True,
             )
-            if path_input is None:
+            if not path_input:
                 return self.ask_context_selection(allow_back=allow_back)
 
             from pathlib import Path as _Path
 
             context_path = _Path(path_input)
-            if context_path.exists():
+            if context_path.is_file():
                 return {"mode": "manual", "path": context_path}
             else:
                 self.print_error(f"File not found: {path_input}")

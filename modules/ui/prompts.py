@@ -8,6 +8,7 @@ Synchronized with ChronoTranscriber's UI system for consistent UX across project
 
 from __future__ import annotations
 
+import os
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -19,8 +20,9 @@ try:
     import colorama
 
     colorama.just_fix_windows_console()
+    _COLORAMA_AVAILABLE = True
 except ImportError:
-    pass  # colorama not available, colors may not work on Windows
+    _COLORAMA_AVAILABLE = False  # colorama not available, colors may not work
 
 from modules.infra.logger import setup_logger
 
@@ -64,9 +66,17 @@ class PromptStyle:
 
     @staticmethod
     def supports_color() -> bool:
-        """Check if terminal supports color."""
-        # With colorama, we can safely assume color support
-        return True
+        """Check if the terminal supports color.
+
+        False when colorama failed to import, stdout is not a tty (e.g.
+        piped/redirected output), or the ``NO_COLOR`` environment variable
+        is set (https://no-color.org/).
+        """
+        if not _COLORAMA_AVAILABLE:
+            return False
+        if not sys.stdout.isatty():
+            return False
+        return not os.environ.get("NO_COLOR")
 
     @classmethod
     def colorize(cls, text: str, color: str) -> str:

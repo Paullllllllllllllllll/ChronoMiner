@@ -152,6 +152,69 @@ def test_get_rate_limits_defaults_on_error(monkeypatch):
 
 
 @pytest.mark.unit
+def test_get_rate_limits_rejects_non_positive_entries(monkeypatch):
+    """A config typo (max_requests=0) must never reach RateLimiter: it would
+    create ``deque(maxlen=0)`` and every admission would then raise IndexError
+    in wait_for_capacity. Non-positive/invalid entries are skipped; valid ones
+    are kept.
+    """
+
+    class _Loader:
+        def get_concurrency_config(self):
+            return {
+                "concurrency": {
+                    "rate_limits": [
+                        [0, 60],  # max_requests non-positive: skip
+                        [10, 0],  # window_seconds non-positive: skip
+                        [-5, 60],  # negative max_requests: skip
+                        ["bad", 60],  # non-integer: skip
+                        [50, 60],  # valid: kept
+                    ]
+                }
+            }
+
+    monkeypatch.setattr(
+        "modules.config.loader.get_config_loader", lambda *a, **k: _Loader()
+    )
+    assert get_rate_limits() == [(50, 60)]
+
+
+@pytest.mark.unit
+def test_get_rate_limits_all_invalid_falls_back_to_defaults(monkeypatch):
+    class _Loader:
+        def get_concurrency_config(self):
+            return {"concurrency": {"rate_limits": [[0, 60], [10, -1]]}}
+
+    monkeypatch.setattr(
+        "modules.config.loader.get_config_loader", lambda *a, **k: _Loader()
+    )
+    assert get_rate_limits() == DEFAULT_RATE_LIMITS
+
+
+@pytest.mark.unit
+def test_wait_for_capacity_unaffected_by_backwards_wall_clock(monkeypatch):
+    """Window arithmetic must use time.monotonic(), not time.time(): a
+    backwards NTP step on the wall clock must not stall admission for up to a
+    full window.
+    """
+    limiter = RateLimiter([(1000, 1)])
+
+    real_time_time = time.time
+    # Simulate a wall clock that has jumped backwards by an hour; if
+    # wait_for_capacity still used time.time() internally this would corrupt
+    # the recorded timestamps / cutoff arithmetic.
+    monkeypatch.setattr(time, "time", lambda: real_time_time() - 3600)
+
+    start = time.monotonic()
+    waited = limiter.wait_for_capacity()
+    elapsed = time.monotonic() - start
+
+    assert waited >= 0.0
+    assert elapsed < 1.0
+    assert limiter.total_requests == 1
+
+
+@pytest.mark.unit
 def test_shared_limiter_is_per_provider(monkeypatch):
     monkeypatch.setattr(rate_limit, "get_rate_limits", lambda: [(1000, 1)])
     reset_shared_rate_limiters()

@@ -137,6 +137,20 @@ def test_discover_includes_md_and_excludes_output_txt(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
+def test_discover_excludes_singular_line_range_suffix(tmp_path: Path) -> None:
+    """FIX: "_line_range.txt" (singular) is a recognized sidecar elsewhere
+    (main/bootstrap.py, core.py's line-range filename handling) but was
+    missing from _AUXILIARY_SUFFIXES, so folder discovery offered it as
+    processable input."""
+    (tmp_path / "a.txt").write_text("x", encoding="utf-8")
+    (tmp_path / "a_line_range.txt").write_text("x", encoding="utf-8")
+
+    ui = UserInterface(use_colors=False)
+    found = {p.name for p in ui._discover_files(tmp_path, {".txt"}, is_visual=False)}
+    assert found == {"a.txt"}
+
+
+@pytest.mark.unit
 def test_discover_mixed_includes_text_and_visual(tmp_path: Path) -> None:
     from modules.config.constants import SUPPORTED_VISUAL_EXTENSIONS
 
@@ -385,3 +399,84 @@ def test_interactive_back_from_chunk_slice_reaches_context(
     first = ui.calls.index("ask_chunk_slice")
     second = ui.calls.index("ask_chunk_slice", first + 1)
     assert "ask_context_selection" in ui.calls[first + 1 : second]
+
+
+# ---------------------------------------------------------------------------
+# FIX: manual context path entry must not accept a bare Enter as the CWD
+# (Path("").exists() is True) and must require a real file, not just any
+# existing path (e.g. a directory).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_context_selection_bare_enter_does_not_accept_cwd(monkeypatch) -> None:
+    ui = UserInterface(use_colors=False)
+
+    mode_answers = iter(["manual", None])  # second call: user backs out
+    get_input_answers = iter([""])  # bare Enter on the path prompt
+    monkeypatch.setattr(ui, "select_option", lambda *a, **k: next(mode_answers))
+    monkeypatch.setattr(ui, "get_input", lambda *a, **k: next(get_input_answers))
+    monkeypatch.setattr(ui, "print_error", lambda *a, **k: None)
+    monkeypatch.setattr(ui, "print_info", lambda *a, **k: None)
+
+    result = ui.ask_context_selection(allow_back=True)
+
+    # Bare Enter must never resolve to a manual context path (would silently
+    # be the CWD); it re-enters mode selection, which here backs out.
+    assert result is None
+
+
+@pytest.mark.unit
+def test_context_selection_rejects_directory_requires_file(
+    monkeypatch, tmp_path: Path
+) -> None:
+    ui = UserInterface(use_colors=False)
+
+    context_file = tmp_path / "context.txt"
+    context_file.write_text("hi", encoding="utf-8")
+
+    mode_answers = iter(["manual"])
+    # First answer is an existing directory (must be rejected), second is a
+    # real file (must be accepted).
+    path_answers = iter([str(tmp_path), str(context_file)])
+    errors: list[str] = []
+    monkeypatch.setattr(ui, "select_option", lambda *a, **k: next(mode_answers))
+    monkeypatch.setattr(ui, "get_input", lambda *a, **k: next(path_answers))
+    monkeypatch.setattr(ui, "print_error", lambda msg: errors.append(msg))
+    monkeypatch.setattr(ui, "print_info", lambda *a, **k: None)
+
+    result = ui.ask_context_selection(allow_back=True)
+
+    assert result == {"mode": "manual", "path": context_file}
+    assert any("not found" in e.lower() for e in errors)
+
+
+# ---------------------------------------------------------------------------
+# FIX: an absolute path pasted into the single-file prompt must not crash the
+# wizard via NotImplementedError from Path.rglob() (Python 3.13 raises for
+# non-relative glob patterns).
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_select_input_source_absolute_filename_does_not_crash(
+    monkeypatch, tmp_path: Path
+) -> None:
+    ui = UserInterface(use_colors=False)
+    (tmp_path / "doc.txt").write_text("x", encoding="utf-8")
+
+    mode_answers = iter(["single", None])  # second call: back out of wizard
+    abs_path = str(tmp_path / "doc.txt")
+    filename_answers = iter([abs_path, None])  # absolute path, then back
+    infos: list[str] = []
+    monkeypatch.setattr(ui, "select_option", lambda *a, **k: next(mode_answers))
+    monkeypatch.setattr(ui, "get_input", lambda *a, **k: next(filename_answers))
+    monkeypatch.setattr(ui, "print_info", lambda msg: infos.append(msg))
+    monkeypatch.setattr(ui, "print_error", lambda *a, **k: None)
+    monkeypatch.setattr(ui, "print_success", lambda *a, **k: None)
+    monkeypatch.setattr(ui, "print_warning", lambda *a, **k: None)
+
+    result = ui.select_input_source(tmp_path, allow_back=True, input_type="text")
+
+    assert result is None  # no crash; wizard completed the back-navigation
+    assert any("relative to the input directory" in m for m in infos)
