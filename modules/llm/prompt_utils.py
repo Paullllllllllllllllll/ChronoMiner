@@ -67,6 +67,16 @@ def render_prompt_with_schema(
     schema_placeholder = "{{TRANSCRIPTION_SCHEMA}}"
     if not inject_schema or not schema_obj:
         if schema_placeholder in prompt_text:
+            # Drop the whole schema section, header included — otherwise the
+            # shipped templates ("The JSON schema:\n{{TRANSCRIPTION_SCHEMA}}")
+            # keep an orphaned header announcing a schema that never follows.
+            # Same treatment the {{CONTEXT}} branch above applies.
+            prompt_text = re.sub(
+                r"The JSON schema:\s*\n\s*\{\{TRANSCRIPTION_SCHEMA\}\}\s*\n?",
+                "",
+                prompt_text,
+            )
+            # Fallback: just remove the placeholder
             return prompt_text.replace(schema_placeholder, "")
         return prompt_text
 

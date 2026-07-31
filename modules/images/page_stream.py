@@ -269,7 +269,13 @@ def build_image_provenance(
         or getattr(fitz, "version", ("unknown",))[0],
         "pillow_version": PIL.__version__,
         "image_config": {
-            "target_dpi": image_config.get("target_dpi"),
+            # Resolved exactly as ``stream_page_payloads`` resolves it (provider
+            # section first), so provenance cannot claim a DPI that rendering
+            # never used.
+            "target_dpi": resolve_target_dpi(image_config, provider, model_name),
+            "render_strategy": str(
+                image_config.get("render_strategy", "direct") or "direct"
+            ).lower(),
             "max_pixels_per_page": image_config.get("max_pixels_per_page"),
             "resize_profile": section.get("resize_profile"),
             "jpeg_quality": section.get("jpeg_quality"),

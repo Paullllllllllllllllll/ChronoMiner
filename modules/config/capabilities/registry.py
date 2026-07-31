@@ -50,6 +50,15 @@ class Capabilities:
 
     supports_image_input: bool = False
     supports_image_detail: bool = False
+    # ``detail: "original"`` is only accepted on the OpenAI *Responses* route
+    # (``ResponseInputImageParam`` allows low/high/auto/original; the Chat
+    # Completions ``ImageURL`` param allows only auto/low/high). True therefore
+    # requires BOTH that the model family understands "original" AND that the
+    # request is actually routed to the Responses API, which
+    # ``LangChainLLM._create_chat_model`` does exactly when
+    # ``supports_chat_completions`` is False. Everywhere else "original" is
+    # downgraded to "high" by ``build_image_content_block``.
+    supports_original_detail: bool = False
     default_ocr_detail: ImageDetail = "high"
 
     supports_structured_outputs: bool = True
@@ -201,6 +210,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _OPENAI_REASONING_BASE,
         dict(
             supports_chat_completions=False,
+            supports_original_detail=True,
             max_context_tokens=1050000,
             max_output_tokens=128000,
         ),
@@ -229,6 +239,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _OPENAI_REASONING_BASE,
         dict(
             supports_chat_completions=False,
+            supports_original_detail=True,
             max_context_tokens=1050000,
             max_output_tokens=128000,
         ),
@@ -244,6 +255,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _OPENAI_REASONING_BASE,
         dict(
             supports_chat_completions=False,
+            supports_original_detail=True,
             max_context_tokens=1050000,
             max_output_tokens=128000,
         ),
@@ -264,6 +276,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _OPENAI_REASONING_BASE,
         dict(
             supports_chat_completions=False,
+            supports_original_detail=True,
             max_context_tokens=1050000,
             supports_structured_outputs=False,
         ),
@@ -290,6 +303,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         _OPENAI_REASONING_BASE,
         dict(
             supports_chat_completions=False,
+            supports_original_detail=True,
             max_context_tokens=1050000,
         ),
     ),

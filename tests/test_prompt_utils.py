@@ -33,6 +33,45 @@ class TestRenderPromptWithSchema:
         assert rendered == "Schema="
 
     @pytest.mark.unit
+    def test_removes_schema_section_header_when_disabled(self):
+        """No orphaned 'The JSON schema:' header without a schema after it."""
+        prompt = (
+            "OUTPUT REQUIREMENTS\n- Return only valid JSON\n\n"
+            "The JSON schema:\n{{TRANSCRIPTION_SCHEMA}}\n\nContext:\n{{CONTEXT}}"
+        )
+        rendered = render_prompt_with_schema(
+            prompt, {"type": "object"}, inject_schema=False, context="ctx"
+        )
+
+        assert "{{TRANSCRIPTION_SCHEMA}}" not in rendered
+        assert "The JSON schema:" not in rendered
+        assert "Context:" in rendered
+        assert "ctx" in rendered
+
+    @pytest.mark.unit
+    def test_removes_schema_section_header_in_shipped_templates(self):
+        """The bundled templates must render cleanly with schema injection off."""
+        from modules.llm.prompt_utils import prompt_path
+
+        for name in ("text_extraction_prompt.txt", "image_extraction_prompt.txt"):
+            template = load_prompt_template(prompt_path(name))
+            rendered = render_prompt_with_schema(
+                template, {"type": "object"}, inject_schema=False, context=None
+            )
+            assert "{{TRANSCRIPTION_SCHEMA}}" not in rendered
+            assert "The JSON schema:" not in rendered
+            assert "OUTPUT REQUIREMENTS" in rendered
+
+    @pytest.mark.unit
+    def test_schema_section_kept_when_injecting(self):
+        prompt = "The JSON schema:\n{{TRANSCRIPTION_SCHEMA}}\n"
+        rendered = render_prompt_with_schema(
+            prompt, {"type": "object"}, inject_schema=True
+        )
+        assert "The JSON schema:" in rendered
+        assert '"type":"object"' in rendered
+
+    @pytest.mark.unit
     def test_injects_context(self):
         """Test context injection."""
         prompt = "Prompt text\nContext:\n{{CONTEXT}}\nMore text"

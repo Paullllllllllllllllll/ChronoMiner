@@ -394,6 +394,87 @@ class TestCustomProviderCapabilities:
             assert caps_old == caps_new
 
 
+class TestOriginalImageDetail:
+    """``detail: "original"`` is a Responses-API-only value.
+
+    The OpenAI SDK allows it on ``ResponseInputImageParam`` but not on the
+    Chat Completions ``ImageURL`` param, so the flag may only be True where
+    the request is actually routed to the Responses API — which
+    ``LangChainLLM._create_chat_model`` does exactly when
+    ``supports_chat_completions`` is False.
+    """
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "model",
+        ["gpt-5.6", "gpt-5.6-sol", "gpt-5.5-pro", "gpt-5.4", "gpt-5.4-pro"],
+    )
+    def test_responses_routed_models_allow_original(self, model):
+        caps = detect_capabilities(model)
+        assert caps.supports_original_detail is True
+        assert caps.supports_chat_completions is False
+
+    @pytest.mark.unit
+    @pytest.mark.parametrize(
+        "model",
+        [
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
+            "gpt-5.5",
+            "gpt-5.4-mini",
+            "gpt-4o",
+            "gpt-4.1",
+            "o3",
+            "o4-mini",
+            "openai/gpt-5.4",
+        ],
+    )
+    def test_chat_routed_models_reject_original(self, model):
+        assert detect_capabilities(model).supports_original_detail is False
+
+    @pytest.mark.unit
+    def test_flag_never_true_without_responses_routing(self):
+        """Registry-wide invariant, checked on every static profile."""
+        from modules.config.capabilities.registry import _MODEL_REGISTRY
+
+        for prefixes, _family, base, overrides in _MODEL_REGISTRY:
+            merged = {**base, **overrides}
+            if merged.get("supports_original_detail"):
+                assert merged.get("supports_chat_completions") is False, prefixes
+                assert merged.get("supports_image_detail") is True, prefixes
+
+    @pytest.mark.unit
+    def test_default_is_false(self):
+        assert Capabilities(model="x", family="x").supports_original_detail is False
+
+
+class TestLlamaVisionDetection:
+    @pytest.mark.unit
+    def test_llama_4_is_multimodal(self):
+        """Llama 4 is natively multimodal despite no 'vision' tag."""
+        caps = detect_capabilities("meta-llama/llama-4-maverick")
+        assert caps.family == "openrouter-llama"
+        assert caps.supports_image_input is True
+
+    @pytest.mark.unit
+    def test_llama_3_2_and_vision_tags_still_detected(self):
+        assert (
+            detect_capabilities(
+                "meta-llama/llama-3.2-90b-vision-instruct"
+            ).supports_image_input
+            is True
+        )
+
+    @pytest.mark.unit
+    def test_text_only_llama_stays_text_only(self):
+        assert (
+            detect_capabilities(
+                "meta-llama/llama-3.1-70b-instruct"
+            ).supports_image_input
+            is False
+        )
+
+
 class TestCapabilitiesDataclass:
     """Test the Capabilities dataclass."""
 

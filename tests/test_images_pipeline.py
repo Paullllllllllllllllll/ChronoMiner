@@ -118,6 +118,47 @@ class TestContentBlock:
 
 
 @pytest.mark.unit
+class TestImageProvenance:
+    """The provenance record must describe the render that actually ran."""
+
+    @staticmethod
+    def _tiny_pdf(tmp_path: Path) -> Path:
+        import fitz
+
+        pdf_path = tmp_path / "doc.pdf"
+        doc = fitz.open()
+        doc.new_page(width=100, height=100)
+        doc.save(pdf_path)
+        doc.close()
+        return pdf_path
+
+    def test_target_dpi_follows_provider_section(self, tmp_path):
+        from modules.images.page_stream import build_image_provenance
+
+        pdf_path = self._tiny_pdf(tmp_path)
+        config = {
+            "target_dpi": 300,
+            "render_strategy": "supersample",
+            "custom_image_processing": {"target_dpi": 150, "resize_profile": "low"},
+        }
+        prov = build_image_provenance(pdf_path, config, "custom", "local-model", "low")
+        # Rendering resolves 150 via the provider section; provenance must not
+        # keep claiming the top-level 300.
+        assert prov["image_config"]["target_dpi"] == 150
+        assert prov["image_config"]["render_strategy"] == "supersample"
+
+    def test_render_strategy_defaults_to_direct(self, tmp_path):
+        from modules.images.page_stream import build_image_provenance
+
+        pdf_path = self._tiny_pdf(tmp_path)
+        prov = build_image_provenance(
+            pdf_path, {"target_dpi": 200}, "openai", "gpt-4o", "high"
+        )
+        assert prov["image_config"]["target_dpi"] == 200
+        assert prov["image_config"]["render_strategy"] == "direct"
+
+
+@pytest.mark.unit
 class TestImageProcessorInterface:
     def test_rejects_unsupported_extension(self, tmp_path):
         bad = tmp_path / "x.xyz"

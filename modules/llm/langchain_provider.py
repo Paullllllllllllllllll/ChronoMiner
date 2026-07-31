@@ -100,12 +100,25 @@ def _load_concurrency_config() -> dict[str, Any]:
         return {}
 
 
+_MIN_REASONING_BUDGET = 1024
+
+# max_output_tokens values already warned about, so the "output budget too
+# small for thinking" notice is logged once rather than per chunk.
+_warned_thinking_budget_floors: set[int] = set()
+
+
 def _compute_reasoning_budget(max_tokens: int, effort: str) -> int:
     """
     Compute reasoning token budget based on effort level.
 
     Used by all providers (Anthropic, Google, OpenRouter) that support
     reasoning/thinking modes. Maps effort levels to a token budget.
+
+    The budget must stay strictly below ``max_tokens`` (Anthropic rejects a
+    ``budget_tokens`` greater than or equal to ``max_tokens`` with HTTP 400),
+    so the value is capped at ``max_tokens - 1``. When that cap falls below
+    the 1,024-token floor needed for meaningful thinking, thinking is disabled
+    for the call by returning 0.
 
     Args:
         max_tokens: The max_output_tokens from config
@@ -131,10 +144,28 @@ def _compute_reasoning_budget(max_tokens: int, effort: str) -> int:
     if ratio <= 0:
         return 0
 
-    # Compute budget with reasonable bounds
-    budget = int(max_tokens * ratio)
-    # Minimum 1024 tokens for meaningful reasoning, max 32768
-    return max(1024, min(budget, 32768))
+    # Compute budget with reasonable bounds: minimum 1,024 tokens for
+    # meaningful reasoning, maximum 32,768, and always at least one token
+    # below the output budget it is carved out of.
+    budget = max(_MIN_REASONING_BUDGET, min(int(max_tokens * ratio), 32768))
+    budget = min(budget, int(max_tokens) - 1)
+    if budget < _MIN_REASONING_BUDGET:
+        if int(max_tokens) not in _warned_thinking_budget_floors:
+            _warned_thinking_budget_floors.add(int(max_tokens))
+            logger.warning(
+                "max_output_tokens=%s leaves no room for a thinking budget "
+                "(needs > %s); disabling extended thinking for these calls.",
+                f"{int(max_tokens):,}",
+                f"{_MIN_REASONING_BUDGET:,}",
+            )
+        return 0
+    return budget
+
+
+def _is_claude_model(model_name: str) -> bool:
+    """True for Anthropic Claude models, including OpenRouter slugs."""
+    m = (model_name or "").lower().strip()
+    return "claude" in m or "anthropic/" in m
 
 
 def _build_reasoning_payload(
@@ -737,6 +768,19 @@ class LangChainLLM:
                         f"Using OpenRouter reasoning={reasoning_payload} "
                         f"for model {model_name}"
                     )
+                    # Anthropic rejects any temperature other than 1.0 (and
+                    # rejects top_p outright) while thinking is enabled, and
+                    # OpenRouter forwards these sampler controls verbatim to
+                    # Anthropic. Mirror the native anthropic branch's guard.
+                    if _is_claude_model(model_name) and reasoning_payload.get(
+                        "enabled", True
+                    ):
+                        params["temperature"] = 1.0
+                        params.pop("top_p", None)
+                        logger.info(
+                            "OpenRouter Claude thinking enabled: forcing "
+                            "temperature=1.0 and dropping top_p."
+                        )
 
             # Force vision-capable provider for models that need it
             if "gemma" in model_name.lower():

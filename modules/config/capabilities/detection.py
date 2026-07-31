@@ -1,8 +1,10 @@
 """Capability lookup: provider detection and capability resolution.
 
 This is the runtime entry point for capability queries. Pure data lives
-in :mod:`modules.config.capabilities.registry`; LangChain ``disabled_params``
-computation lives in :mod:`modules.config.capabilities.params`.
+in :mod:`modules.config.capabilities.registry`; the parameter policy that
+consumes these flags (LangChain ``disabled_params``, sampler-control
+omission, Responses-API routing) lives in
+:class:`modules.llm.langchain_provider.LangChainLLM`.
 """
 
 from __future__ import annotations
@@ -265,7 +267,11 @@ def detect_capabilities(
                 "openrouter-llama",
                 _OPENROUTER_BASE,
                 dict(
-                    supports_image_input="vision" in m or "llama-3.2" in m,
+                    # Llama 4 is natively multimodal (no "vision" tag in the
+                    # slug); Llama 3.2 ships explicit vision variants.
+                    supports_image_input=(
+                        "vision" in m or "llama-3.2" in m or "llama-4" in m
+                    ),
                 ),
             )
 

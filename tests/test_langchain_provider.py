@@ -303,8 +303,8 @@ class TestComputeReasoningBudget:
 
     @pytest.mark.unit
     def test_minimum_bound(self):
-        """Test minimum token bound of 1024."""
-        result = _compute_reasoning_budget(100, "low")
+        """Small ratios are raised to the 1024-token floor when there is room."""
+        result = _compute_reasoning_budget(10000, "low")
         assert result == 1024
 
     @pytest.mark.unit
@@ -312,6 +312,25 @@ class TestComputeReasoningBudget:
         """Test maximum token bound of 32768."""
         result = _compute_reasoning_budget(1000000, "high")
         assert result == 32768
+
+    @pytest.mark.unit
+    def test_budget_never_reaches_max_tokens(self):
+        """Anthropic rejects budget_tokens >= max_tokens."""
+        for max_tokens in (1025, 1100, 2048, 4096):
+            budget = _compute_reasoning_budget(max_tokens, "high")
+            assert budget == 0 or budget < max_tokens
+
+    @pytest.mark.unit
+    def test_disabled_when_output_budget_too_small(self):
+        """Below the floor there is no valid budget: thinking is disabled."""
+        assert _compute_reasoning_budget(1024, "high") == 0
+        assert _compute_reasoning_budget(100, "low") == 0
+        assert _compute_reasoning_budget(1, "high") == 0
+
+    @pytest.mark.unit
+    def test_smallest_workable_output_budget(self):
+        """1025 tokens is the first budget that still fits the 1024 floor."""
+        assert _compute_reasoning_budget(1025, "high") == 1024
 
 
 class TestBuildReasoningPayload:
@@ -385,6 +404,70 @@ class TestBuildReasoningPayload:
         )
         assert result is not None
         assert result["enabled"] is False
+
+
+class TestOpenRouterClaudeThinkingSamplerGuard:
+    """Anthropic rejects temperature != 1.0 (and top_p at all) with thinking on.
+
+    OpenRouter forwards sampler controls verbatim, so the native anthropic
+    branch's guard must apply on the OpenRouter path too.
+    """
+
+    @staticmethod
+    def _model(reasoning: dict | None):
+        extra: dict = {}
+        if reasoning:
+            extra["reasoning_config"] = reasoning
+            extra["reasoning_effort"] = reasoning.get("effort", "medium")
+        config = ProviderConfig(
+            provider="openrouter",
+            model="anthropic/claude-sonnet-4.5",
+            api_key="test-key",
+            base_url="https://openrouter.ai/api/v1",
+            temperature=0.0,
+            top_p=0.9,
+            max_tokens=8192,
+            extra_params=extra,
+        )
+        return LangChainLLM(config)._create_chat_model()
+
+    @pytest.mark.unit
+    def test_thinking_forces_temperature_one_and_drops_top_p(self):
+        chat = self._model({"effort": "high"})
+        assert chat.extra_body["reasoning"]["enabled"] is True
+        assert chat.temperature == 1.0
+        assert chat.top_p is None
+
+    @pytest.mark.unit
+    def test_sampler_controls_untouched_without_thinking(self):
+        chat = self._model(None)
+        assert chat.temperature == 0.0
+        assert chat.top_p == 0.9
+
+    @pytest.mark.unit
+    def test_effort_none_leaves_sampler_controls(self):
+        chat = self._model({"effort": "none"})
+        assert chat.temperature == 0.0
+        assert chat.top_p == 0.9
+
+    @pytest.mark.unit
+    def test_non_claude_openrouter_model_unaffected(self):
+        config = ProviderConfig(
+            provider="openrouter",
+            model="google/gemini-3-pro",
+            api_key="test-key",
+            base_url="https://openrouter.ai/api/v1",
+            temperature=0.0,
+            top_p=0.9,
+            max_tokens=8192,
+            extra_params={
+                "reasoning_config": {"effort": "high"},
+                "reasoning_effort": "high",
+            },
+        )
+        chat = LangChainLLM(config)._create_chat_model()
+        assert chat.temperature == 0.0
+        assert chat.top_p == 0.9
 
 
 class TestCustomProviderRouting:

@@ -3,6 +3,38 @@ from unittest.mock import MagicMock, Mock
 import pytest
 
 from modules.llm.openai_sdk_utils import coerce_file_id, list_all_batches, sdk_to_dict
+from modules.llm.openai_utils import _normalize_structured_schema
+
+
+class _Caps:
+    supports_structured_outputs = True
+
+
+@pytest.mark.unit
+def test_normalize_structured_schema_default_name_is_extraction():
+    """ChronoMiner extracts; the fallback name must not say 'Transcription'."""
+    result = _normalize_structured_schema({"type": "object"}, _Caps())
+    assert result == {
+        "name": "ExtractionSchema",
+        "schema": {"type": "object"},
+        "strict": True,
+    }
+
+
+@pytest.mark.unit
+def test_normalize_structured_schema_wrapped_default_name():
+    result = _normalize_structured_schema({"schema": {"type": "object"}}, _Caps())
+    assert result is not None
+    assert result["name"] == "ExtractionSchema"
+
+
+@pytest.mark.unit
+def test_normalize_structured_schema_keeps_explicit_name():
+    result = _normalize_structured_schema(
+        {"name": "BibliographicEntries", "schema": {"type": "object"}}, _Caps()
+    )
+    assert result is not None
+    assert result["name"] == "BibliographicEntries"
 
 
 @pytest.mark.unit

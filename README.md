@@ -1,4 +1,4 @@
-# ChronoMiner v2.6.0
+# ChronoMiner v2.7.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -805,6 +805,28 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.7.0** (31 July 2026) -- Bug-hunt release from the fifth full-repo
+    maintenance sweep. CSV exports now open cleanly in Excel (UTF-8 BOM),
+    keep integer columns integral in the presence of nulls, and render
+    association, event, contributor, and officials cells without dangling
+    separators; schema-valid nulls no longer surface as literal "None" in
+    DOCX/TXT output, and list-form chat-completion content no longer
+    aborts conversion. check_batches skips already-finalized groups
+    instead of failing forever on retained temp files, retries transient
+    status-poll errors before declaring a batch missing, merges resumed
+    batch output in document order, and custom ids are sanitized so
+    Anthropic batch submission survives real-world filenames. Image
+    detail "original" is downgraded to "high" on Chat-Completions routes,
+    Gemini media resolution actually reaches the API, thinking budgets
+    are capped below max_tokens, OpenRouter Claude honors the temperature
+    that extended thinking requires, Llama 4 is recognized as
+    multimodal, and three shipped schemas now satisfy strict structured
+    outputs (enforced by a new schema-invariant test). Input-type
+    detection scans recursively like the file collector, line-range
+    tools inherit the tolerant encoding fallback, slim_temp_jsonl skips
+    readjuster temp files, page-range arguments are validated, UI
+    prompts harden against invalid input and advertise only reachable
+    navigation, and the vendored token ledger is re-synced to 2.1.2.
 - **v2.6.0** (31 July 2026) -- Bug-hunt release from the fourth full-repo
     maintenance sweep. Output converters are realigned with the shipped
     v3.0 culinary schemas and the v4.4 bibliographic DOCX layout, with

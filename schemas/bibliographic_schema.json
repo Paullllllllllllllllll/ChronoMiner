@@ -130,7 +130,8 @@
                             "Patron",
                             "Sponsor",
                             "Unknown",
-                            "Other"
+                            "Other",
+                            null
                           ],
                           "description": "Role of the contributor for this edition. Use null if unknown."
                         }
@@ -155,7 +156,8 @@
                       "Critical Edition",
                       "Abridged Edition",
                       "Unknown",
-                      "Other"
+                      "Other",
+                      null
                     ],
                     "description": "The category of the edition. Use a listed value, or null if the source omits it. Example: 'Original'."
                   },
@@ -187,7 +189,8 @@
                       "Chinese",
                       "Japanese",
                       "Unknown",
-                      "Other"
+                      "Other",
+                      null
                     ],
                     "description": "Language of this edition. Use a listed value, can be deduced from context. Example: 'Italian'."
                   },
@@ -219,7 +222,8 @@
                       "Chinese",
                       "Japanese",
                       "Unknown",
-                      "Other"
+                      "Other",
+                      null
                     ],
                     "description": "The source language from which this edition was translated. Use a listed value, can be deduced from context. Use null if not translated. Example: 'French'."
                   },
@@ -234,7 +238,8 @@
                       "Pocket-Sized",
                       "Miniature",
                       "Unknown",
-                      "Other"
+                      "Other",
+                      null
                     ],
                     "description": "Physical format of this edition. Use a listed value, or null if not provided."
                   },

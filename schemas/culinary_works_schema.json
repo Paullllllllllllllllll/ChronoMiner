@@ -44,7 +44,7 @@
                       "description": "Concise reference form (≤ 100 characters). Use null if no clear short form exists."
                     }
                   },
-                  "required": ["original", "modern_english"],
+                  "required": ["original", "modern_english", "short"],
                   "additionalProperties": false
                 },
                 "short_notes": {

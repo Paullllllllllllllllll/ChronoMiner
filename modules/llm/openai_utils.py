@@ -268,6 +268,9 @@ def _build_messages(
                 provider=extractor.provider,
                 detail=context_image_data.get("detail"),
                 supports_image_detail=extractor.caps.supports_image_detail,
+                supports_original_detail=getattr(
+                    extractor.caps, "supports_original_detail", False
+                ),
             )
             user_content.append({"type": "text", "text": "Context image:"})
             user_content.append(ctx_block)
@@ -298,12 +301,12 @@ def _normalize_structured_schema(
         return None
     if "schema" in json_schema and isinstance(json_schema.get("schema"), dict):
         return {
-            "name": json_schema.get("name", "TranscriptionSchema"),
+            "name": json_schema.get("name", "ExtractionSchema"),
             "schema": json_schema.get("schema", {}),
             "strict": bool(json_schema.get("strict", True)),
         }
     return {
-        "name": "TranscriptionSchema",
+        "name": "ExtractionSchema",
         "schema": json_schema,
         "strict": True,
     }
@@ -402,6 +405,9 @@ async def process_image_chunk(
         provider=extractor.provider,
         detail=image_detail,
         supports_image_detail=extractor.caps.supports_image_detail,
+        supports_original_detail=getattr(
+            extractor.caps, "supports_original_detail", False
+        ),
     )
     user_blocks: list[dict[str, Any]] = [
         {"type": "text", "text": user_instruction},

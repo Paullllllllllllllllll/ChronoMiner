@@ -138,7 +138,7 @@
             "description": "Optional note capturing finer-grained geographical or historical context."
           }
         },
-        "required": ["primary_location"],
+        "required": ["primary_location", "additional_context"],
         "additionalProperties": false
       },
       "topical_focus": {
