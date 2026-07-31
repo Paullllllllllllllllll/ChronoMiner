@@ -209,15 +209,15 @@ def test_csv_converter_error_degrades_to_fallback(tmp_path: Path) -> None:
 
 
 @pytest.mark.unit
-def test_michelin_legacy_styles_with_none_elements(tmp_path: Path) -> None:
-    """Legacy Michelin CSV converter tolerates None elements in list fields."""
+def test_michelin_light_tolerates_none_elements_in_list_fields(tmp_path: Path) -> None:
+    """The live Light CSV converter tolerates None elements in list fields."""
     entry = {
-        "establishment_name": "Old Guide",
-        "cuisine": {"styles": ["French", None], "specialties": [None, "Duck"]},
+        "establishment_name": "Chez Null",
+        "cuisine": {"cuisine_origin": ["French", None], "specialties": [None, "Duck"]},
     }
     json_file = _write_json(tmp_path / "in.json", [entry])
     out = tmp_path / "out.csv"
-    CSVConverter("MichelinGuides").convert_to_csv(json_file, out)
+    CSVConverter("MichelinGuidesLight").convert_to_csv(json_file, out)
 
     text = out.read_text(encoding="utf-8")
     assert "French" in text

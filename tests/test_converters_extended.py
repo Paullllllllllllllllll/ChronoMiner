@@ -24,9 +24,10 @@ def test_document_converter_convert_to_txt_writes_message_when_no_entries(
     assert "No valid entries found" in out.read_text(encoding="utf-8")
 
 
-def test_csv_converter_convert_to_csv_returns_when_no_entries(
+def test_csv_converter_convert_to_csv_writes_header_when_no_entries(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    """An empty entry list still yields a file, matching the DOCX/TXT paths."""
     converter = CSVConverter(schema_name="StructuredSummaries")
     monkeypatch.setattr(converter, "get_entries", lambda _path: [])
 
@@ -36,7 +37,27 @@ def test_csv_converter_convert_to_csv_returns_when_no_entries(
     out = tmp_path / "out.csv"
     converter.convert_to_csv(json_file, out)
 
-    assert not out.exists()
+    assert out.exists()
+    header = out.read_text(encoding="utf-8").splitlines()[0]
+    assert "page_number" in header
+    assert "bullet_points" in header
+
+
+def test_csv_converter_writes_empty_file_without_field_spec(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Schemas without a declarative field spec still get a (empty) file."""
+    converter = CSVConverter(schema_name="BibliographicEntries")
+    monkeypatch.setattr(converter, "get_entries", lambda _path: [])
+
+    json_file = tmp_path / "input.json"
+    json_file.write_text("{}", encoding="utf-8")
+
+    out = tmp_path / "out.csv"
+    converter.convert_to_csv(json_file, out)
+
+    assert out.exists()
+    assert out.read_text(encoding="utf-8").strip() == ""
 
 
 def test_document_converter_convert_ignores_unsupported_suffix(

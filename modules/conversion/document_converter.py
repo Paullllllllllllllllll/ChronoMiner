@@ -23,6 +23,131 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 
+def _as_dict(value: Any) -> dict:
+    """Return *value* when it is a dict, else an empty dict.
+
+    Nested objects are schema-valid as ``null``, so callers must not assume a
+    mapping is present.
+    """
+    return value if isinstance(value, dict) else {}
+
+
+def _star_count(value: Any) -> int:
+    """Coerce a star count to a non-negative int, tolerating strings/nulls."""
+    try:
+        stars = int(value)
+    except (TypeError, ValueError):
+        return 0
+    return max(stars, 0)
+
+
+def _format_geography(geography: Any) -> str:
+    """Format a v3.0 geography object as 'city, country' (modern preferred)."""
+    geo = _as_dict(geography)
+    city = geo.get("city_modern") or geo.get("city_original")
+    country = geo.get("country_modern") or geo.get("country_original")
+    return ", ".join(str(part) for part in [city, country] if part)
+
+
+def _format_lifespan(lifespan: Any) -> str:
+    """Format a v3.0 lifespan object as 'birth - death'."""
+    span = _as_dict(lifespan)
+    birth = span.get("birth_year")
+    death = span.get("death_year")
+    if birth is None and death is None:
+        return ""
+    start = birth if birth is not None else "?"
+    end = death if death is not None else "?"
+    return f"{start} - {end}"
+
+
+def _association_lines(associations: Any) -> list[str]:
+    """Render a v3.0 associations list as display strings."""
+    if not isinstance(associations, list):
+        return []
+    lines: list[str] = []
+    for assoc in associations:
+        if not isinstance(assoc, dict):
+            continue
+        label = assoc.get("entity_label_modern") or assoc.get("entity_label_original")
+        parts = [str(p) for p in [assoc.get("entity_type"), label] if p]
+        text = " - ".join(parts)
+        relationship = assoc.get("relationship") or assoc.get("role")
+        if relationship:
+            text = f"{text} ({relationship})" if text else str(relationship)
+        if text:
+            lines.append(text)
+    return lines
+
+
+def _event_lines(events: Any) -> list[str]:
+    """Render a v3.0 places ``events`` list as display strings."""
+    if not isinstance(events, list):
+        return []
+    lines: list[str] = []
+    for event in events:
+        if not isinstance(event, dict):
+            continue
+        head = " ".join(
+            str(p)
+            for p in [event.get("event_type"), event.get("year")]
+            if p is not None and p != ""
+        )
+        description = event.get("description")
+        text = (
+            f"{head}: {description}"
+            if head and description
+            else (head or str(description or ""))
+        )
+        if text:
+            lines.append(text)
+    return lines
+
+
+def _utensil_lines(utensils: Any) -> list[str]:
+    """Render a recipe ``utensils_equipment`` list with its v3.0 ratings."""
+    if not isinstance(utensils, list):
+        return []
+    lines: list[str] = []
+    for utensil in utensils:
+        if not isinstance(utensil, dict):
+            continue
+        name = (
+            utensil.get("utensil_modern_english")
+            or utensil.get("utensil_original")
+            or ""
+        )
+        ratings = ", ".join(
+            f"{label}: {val}"
+            for label, val in [
+                ("Specialization", utensil.get("utensil_specialization_rating_1_7")),
+                ("Modernity", utensil.get("utensil_modernity_rating_1_7")),
+            ]
+            if val is not None
+        )
+        text = f"{name} [{ratings}]" if ratings else str(name)
+        if text.strip():
+            lines.append(text)
+    return lines
+
+
+def _contributor_lines(contributors: Any) -> list[str]:
+    """Render a v3.0 works ``contributors`` list as display strings."""
+    if not isinstance(contributors, list):
+        return []
+    lines: list[str] = []
+    for contrib in contributors:
+        if not isinstance(contrib, dict):
+            continue
+        name = contrib.get("name_original") or contrib.get("name_modern_english")
+        role = contrib.get("role")
+        if name and role:
+            lines.append(f"{name} ({role})")
+        elif name or role:
+            lines.append(str(name or role))
+    return lines
+
+
 def _fields_to_docx(
     entries: list[Any],
     document: _DocxDocument,
@@ -105,16 +230,23 @@ class DocumentConverter(BaseConverter):
             "historicalrecipesentriesproductionv3": (
                 self._convert_historical_recipes_production_to_docx
             ),
-            "michelinguides": self._convert_michelin_guides_to_docx,
             "michelinguideslight": self._convert_michelin_guides_light_to_docx,
             "cookbookmetadataentries": self._convert_cookbook_metadata_to_docx,
         }
         converter = self.get_converter(converters)
-        if converter:
-            converter(entries, document)
-        else:
+        try:
+            if converter:
+                converter(entries, document)
+            else:
+                for entry in entries:
+                    document.add_paragraph(self.safe_str(entry))
+        except Exception as e:
+            logger.warning(
+                f"DOCX converter for schema '{self.schema_name}' failed ({e}); "
+                "falling back to plain paragraphs."
+            )
             for entry in entries:
-                document.add_paragraph(str(entry))
+                document.add_paragraph(self.safe_str(entry))
         try:
             document.save(str(output_file))
             logger.info(f"DOCX file generated at {output_file}")
@@ -150,18 +282,24 @@ class DocumentConverter(BaseConverter):
             "historicalrecipesentriesproductionv3": (
                 self._convert_historical_recipes_production_to_txt
             ),
-            "michelinguides": self._convert_michelin_guides_to_txt,
             "michelinguideslight": self._convert_michelin_guides_light_to_txt,
             "cookbookmetadataentries": self._convert_cookbook_metadata_to_txt,
         }
 
+        converter = self.get_converter(converters)
         try:
-            converter = self.get_converter(converters)
             if converter:
                 lines = converter(entries)
             else:
                 lines = [self.safe_str(entry) for entry in entries]
+        except Exception as e:
+            logger.warning(
+                f"TXT converter for schema '{self.schema_name}' failed ({e}); "
+                "falling back to plain lines."
+            )
+            lines = [self.safe_str(entry) for entry in entries]
 
+        try:
             lines = [line for line in lines if line is not None]
 
             with output_file.open("w", encoding="utf-8") as f:
@@ -234,166 +372,108 @@ class DocumentConverter(BaseConverter):
     def _convert_bibliographic_entries_to_docx(
         self, entries: list[Any], document: _DocxDocument
     ) -> None:
+        """Converts bibliographic entries to a DOCX document (schema v4.4).
+
+        Mirrors the TXT twin: entry-level ``full_title``, ``short_title``,
+        ``main_author``, ``institutional_main_author``, ``short_note``,
+        ``library_abbreviation``, ``volumes_overview``, ``volume_numbers``;
+        edition-level ``year``, ``edition_number``, ``publication_locations``,
+        ``contributors``, ``edition_category``, ``language``,
+        ``translated_from``.
+        """
         list_bullet = document.styles["List Bullet"]
         for entry in entries:
-            # Extract primary entry data
-            full_title = entry.get("full_title", "Unknown")
-            short_title = entry.get("short_title", "")
-            culinary_focus = entry.get("culinary_focus", [])
-            edition_info = entry.get("edition_info", [])
-            total_editions = entry.get("total_editions", "")
+            if not isinstance(entry, dict):
+                continue
 
-            first_edition = None
-            if isinstance(edition_info, list) and edition_info:
-                first_edition = (
-                    edition_info[0] if isinstance(edition_info[0], dict) else None
-                )
-
-            book_format = entry.get("format")
-            if not book_format and isinstance(first_edition, dict):
-                book_format = first_edition.get("format")
-
-            pages = entry.get("pages")
-            if pages in (None, "") and isinstance(first_edition, dict):
-                pages = first_edition.get("pages")
-
-            # Add entry header and basic information
-            document.add_heading(full_title, level=1)
-            document.add_paragraph(f"Short Title: {short_title}")
-
-            # Add culinary focus areas
-            if culinary_focus and isinstance(culinary_focus, list):
-                document.add_paragraph(
-                    f"Culinary Focus: {self.join_list(culinary_focus)}"
-                )
-            else:
-                document.add_paragraph("Culinary Focus: Unknown")
-
-            # Add format and page information
-            document.add_paragraph(
-                f"Format: {book_format if book_format else 'Unknown'}"
+            document.add_heading(
+                self.safe_str(entry.get("full_title") or "Unknown Title"), level=1
             )
             document.add_paragraph(
-                f"Pages: {pages if pages is not None else 'Unknown'}"
+                f"Short Title: {self.safe_str(entry.get('short_title') or '')}"
             )
-            total_editions_str = (
-                total_editions if total_editions is not None else "Unknown"
+            document.add_paragraph(
+                f"Main Author: {self.safe_str(entry.get('main_author') or 'Anonymous')}"
             )
-            document.add_paragraph(f"Total Editions: {total_editions_str}")
 
-            # Add edition information
+            inst = entry.get("institutional_main_author")
+            if inst is not None:
+                document.add_paragraph(f"Institutional Author: {self.safe_str(inst)}")
+
+            short_note = entry.get("short_note")
+            if short_note:
+                document.add_paragraph(f"Note: {self.safe_str(short_note)}")
+
+            library = entry.get("library_abbreviation")
+            if library:
+                document.add_paragraph(f"Library: {self.safe_str(library)}")
+
+            volumes_overview = entry.get("volumes_overview")
+            if volumes_overview:
+                document.add_paragraph(f"Volumes: {self.safe_str(volumes_overview)}")
+
+            volume_numbers = self.join_list(entry.get("volume_numbers"))
+            if volume_numbers:
+                document.add_paragraph(f"Volume Numbers: {volume_numbers}")
+
             document.add_heading("Edition Information", level=2)
-            if edition_info and isinstance(edition_info, list):
-                for edition in edition_info:
-                    if not isinstance(edition, dict):
-                        continue
-
-                    # Extract edition data
-                    edition_number = edition.get("edition_number", "Unknown")
-                    year = edition.get("year", "Unknown")
-
-                    # Extract location data
-                    city = "Unknown"
-                    country = "Unknown"
-                    publication_locations = edition.get("publication_locations")
-                    if (
-                        isinstance(publication_locations, list)
-                        and publication_locations
-                    ):
-                        first_loc = (
-                            publication_locations[0]
-                            if isinstance(publication_locations[0], dict)
-                            else {}
-                        )
-                        if isinstance(first_loc, dict):
-                            city = (
-                                first_loc.get("modern_place")
-                                or first_loc.get("original_place")
-                                or "Unknown"
-                            )
-                            country = (
-                                first_loc.get("modern_region")
-                                or first_loc.get("original_region")
-                                or "Unknown"
-                            )
-                    else:
-                        # Backward compatibility
-                        location = edition.get("location", {})
-                        if isinstance(location, dict):
-                            country = location.get("country") or "Unknown"
-                            city = location.get("city") or "Unknown"
-
-                    # Get contributors
-                    contributors = edition.get("contributors", [])
-                    contributors_str = "Unknown"
-                    if isinstance(contributors, list) and contributors:
-                        formatted_contributors = []
-                        for c in contributors:
-                            if isinstance(c, dict):
-                                name = c.get("name")
-                                role = c.get("role")
-                                if name and role:
-                                    formatted_contributors.append(f"{name} ({role})")
-                                elif name:
-                                    formatted_contributors.append(str(name))
-                            elif c is not None:
-                                formatted_contributors.append(str(c))
-                        formatted_contributors = [
-                            x for x in formatted_contributors if x
-                        ]
-                        if formatted_contributors:
-                            contributors_str = ", ".join(formatted_contributors)
-
-                    # Get other edition details
-                    language = edition.get("language", "")
-                    short_note = edition.get("short_note", "")
-                    edition_category = edition.get("edition_category", "")
-
-                    # Format edition text
-                    ed_num = edition_number if edition_number is not None else "Unknown"
-                    ed_year = year if year is not None else "Unknown"
-                    ed_lang = language if language else "Unknown"
-                    ed_cat = edition_category if edition_category else "Unknown"
-                    edition_text = (
-                        f"Edition: {ed_num}, "
-                        f"Year: {ed_year}, "
-                        f"Location: {city}, {country}, "
-                        f"Language: {ed_lang}, "
-                        f"Contributors: {contributors_str}, "
-                        f"Category: {ed_cat}"
-                    )
-
-                    if short_note:
-                        edition_text += f"\nNote: {short_note}"
-
-                    document.add_paragraph(edition_text, style=list_bullet)
-            else:
+            editions = entry.get("edition_info") or []
+            if not isinstance(editions, list) or not editions:
                 document.add_paragraph(
                     "No edition information available.", style=list_bullet
                 )
+                document.add_page_break()
+                continue
+
+            for edition in editions:
+                if not isinstance(edition, dict):
+                    continue
+
+                pub_locations = edition.get("publication_locations") or []
+                places = [
+                    loc.get("modern_place") or loc.get("original_place")
+                    for loc in pub_locations
+                    if isinstance(loc, dict)
+                    and (loc.get("modern_place") or loc.get("original_place"))
+                ]
+                location_str = ", ".join(str(p) for p in places) or "Unknown"
+
+                contributors = edition.get("contributors") or []
+                contributor_strs = [
+                    f"{self.safe_str(c.get('name'))} ({self.safe_str(c.get('role'))})"
+                    for c in contributors
+                    if isinstance(c, dict)
+                ]
+                contributors_str = (
+                    ", ".join(contributor_strs) if contributor_strs else "Unknown"
+                )
+
+                ed_cat = self.safe_str(edition.get("edition_category") or "")
+                edition_text = (
+                    f"Year: {self.safe_str(edition.get('year') or 'Unknown')}, "
+                    f"Edition:"
+                    f" {self.safe_str(edition.get('edition_number') or 'Unknown')}, "
+                    f"Location: {location_str}, "
+                    f"Contributors: {contributors_str}, "
+                    f"Category: {ed_cat}, "
+                    f"Language: {self.safe_str(edition.get('language') or '')}, "
+                    f"Translated From:"
+                    f" {self.safe_str(edition.get('translated_from') or '')}"
+                )
+                document.add_paragraph(edition_text, style=list_bullet)
 
             document.add_page_break()
 
     def _convert_culinary_entities_to_docx(
         self, entries: list[Any], document: _DocxDocument
     ) -> None:
-        profile_keys = {
-            "Person": "person_entry",
-            "Place": "place_entry",
-            "Work": "work_entry",
-        }
-        list_bullet = document.styles["List Bullet"]
-
+        """Converts unified culinary entities entries to DOCX (schema v3.0)."""
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
 
-            entry_type = entry.get("entry_type", "Unknown")
-            profile = entry.get(profile_keys.get(entry_type, ""), {})
-            if not isinstance(profile, dict):
-                profile = {}
-
-            names = profile.get("names", {}) or {}
+            entry_type, profile = self._entity_profile(entry)
+            names = _as_dict(profile.get("names"))
             title = (
                 names.get("original")
                 or names.get("modern_english")
@@ -401,38 +481,28 @@ class DocumentConverter(BaseConverter):
             )
             document.add_heading(f"{title} ({entry_type})", level=1)
 
-            timeframe = profile.get("timeframe", {}) or {}
-            topical_focus = self.join_list(profile.get("topical_focus"))
-            languages = self.join_list(profile.get("language_contexts"))
-            associations = self.format_associations(
-                profile.get("associations"), as_list=True
-            )
+            timeframe = _as_dict(profile.get("timeframe"))
+            geography = _as_dict(profile.get("geography"))
 
             def add_paragraph(label: str, value: Any) -> None:
                 if value not in (None, ""):
                     document.add_paragraph(f"{label}: {value}")
 
             add_paragraph("Modern Name", names.get("modern_english"))
-            add_paragraph("Summary", profile.get("entity_summary"))
+            add_paragraph("Importance", profile.get("importance"))
+            add_paragraph("Summary", profile.get("summary"))
             add_paragraph("Timeframe", timeframe.get("notation"))
             add_paragraph("Timeframe Start", timeframe.get("start_year"))
             add_paragraph("Timeframe End", timeframe.get("end_year"))
-            add_paragraph("Topical Focus", topical_focus)
-            add_paragraph("Languages", languages)
-            add_paragraph("Notes", profile.get("notes"))
+            add_paragraph("Primary Location", geography.get("primary_location"))
+            add_paragraph("Geographic Context", geography.get("additional_context"))
+            add_paragraph("Topical Focus", self.join_list(profile.get("topical_focus")))
+            add_paragraph("Languages", self.join_list(profile.get("language_contexts")))
 
             if entry_type == "Person":
-                add_paragraph("Gender", profile.get("gender"))
                 add_paragraph("Roles", self.join_list(profile.get("roles")))
-                add_paragraph(
-                    "Name Variants",
-                    self.format_name_variants(profile.get("name_variants")),
-                )
-                add_paragraph("Biographical Notes", profile.get("biographical_notes"))
 
             elif entry_type == "Place":
-                add_paragraph("Place Type", profile.get("place_type"))
-                add_paragraph("Country (Modern)", profile.get("country_modern"))
                 add_paragraph(
                     "Culinary Roles",
                     self.join_list(profile.get("roles_in_culinary_ecosystem")),
@@ -449,42 +519,33 @@ class DocumentConverter(BaseConverter):
 
             elif entry_type == "Work":
                 add_paragraph("Short Title", profile.get("short_title"))
-                add_paragraph("Description", profile.get("description"))
                 add_paragraph("Genre", profile.get("genre"))
-                add_paragraph(
-                    "Edition Years", self.join_list(profile.get("edition_years"))
-                )
-                material = profile.get("material_features", {}) or {}
-                add_paragraph("Format", material.get("format"))
-                add_paragraph("Has Illustrations", material.get("has_illustrations"))
-                add_paragraph("Page Count", material.get("page_count"))
-                add_paragraph("Material Notes", material.get("notes"))
-
-            if associations:
-                document.add_paragraph("Associations:")
-                for assoc in associations:
-                    document.add_paragraph(assoc, style=list_bullet)
 
             document.add_page_break()
 
-    def _convert_culinary_entities_to_txt(self, entries: list[Any]) -> list[str]:
-        profile_keys = {
-            "Person": "person_entry",
-            "Place": "place_entry",
-            "Work": "work_entry",
-        }
+    _ENTITY_PROFILE_KEYS = {
+        "Person": "person_entry",
+        "Place": "place_entry",
+        "Work": "work_entry",
+    }
 
+    @classmethod
+    def _entity_profile(cls, entry: dict) -> tuple[str, dict]:
+        """Return ``(entry_type, profile_dict)`` for a culinary entities entry."""
+        entry_type = str(entry.get("entry_type") or "Unknown")
+        profile_key = cls._ENTITY_PROFILE_KEYS.get(entry_type)
+        profile = entry.get(profile_key) if profile_key else None
+        return entry_type, _as_dict(profile)
+
+    def _convert_culinary_entities_to_txt(self, entries: list[Any]) -> list[str]:
+        """Converts unified culinary entities entries to TXT (schema v3.0)."""
         lines: list[str] = []
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
 
-            entry_type = entry.get("entry_type", "Unknown")
-            profile = entry.get(profile_keys.get(entry_type, ""), {})
-            if not isinstance(profile, dict):
-                profile = {}
-
-            names = profile.get("names", {}) or {}
+            entry_type, profile = self._entity_profile(entry)
+            names = _as_dict(profile.get("names"))
             header = (
                 names.get("original")
                 or names.get("modern_english")
@@ -493,45 +554,34 @@ class DocumentConverter(BaseConverter):
             lines.append(f"Entry Type: {entry_type}")
             lines.append(f"Name: {header}")
 
-            timeframe = profile.get("timeframe", {}) or {}
-            lines.append(f"  Summary: {self.safe_str(profile.get('entity_summary'))}")
+            timeframe = _as_dict(profile.get("timeframe"))
+            geography = _as_dict(profile.get("geography"))
+            lines.append(f"  Importance: {self.safe_str(profile.get('importance'))}")
+            lines.append(f"  Summary: {self.safe_str(profile.get('summary'))}")
             lines.append(f"  Timeframe: {self.safe_str(timeframe.get('notation'))}")
             lines.append(
                 f"  Timeframe Start: {self.safe_str(timeframe.get('start_year'))}"
             )
             lines.append(f"  Timeframe End: {self.safe_str(timeframe.get('end_year'))}")
             lines.append(
+                f"  Primary Location:"
+                f" {self.safe_str(geography.get('primary_location'))}"
+            )
+            lines.append(
+                f"  Geographic Context:"
+                f" {self.safe_str(geography.get('additional_context'))}"
+            )
+            lines.append(
                 f"  Topical Focus: {self.join_list(profile.get('topical_focus'))}"
             )
             lines.append(
                 f"  Languages: {self.join_list(profile.get('language_contexts'))}"
             )
-            lines.append(
-                f"  Associations:"
-                f" {self.format_associations(profile.get('associations'))}"
-            )
-            lines.append(f"  Notes: {self.safe_str(profile.get('notes'))}")
 
             if entry_type == "Person":
-                lines.append(f"  Gender: {self.safe_str(profile.get('gender'))}")
                 lines.append(f"  Roles: {self.join_list(profile.get('roles'))}")
-                lines.append(
-                    f"  Name Variants:"
-                    f" {self.format_name_variants(profile.get('name_variants'))}"
-                )
-                lines.append(
-                    f"  Biographical Notes:"
-                    f" {self.safe_str(profile.get('biographical_notes'))}"
-                )
 
             elif entry_type == "Place":
-                lines.append(
-                    f"  Place Type: {self.safe_str(profile.get('place_type'))}"
-                )
-                lines.append(
-                    f"  Country (Modern):"
-                    f" {self.safe_str(profile.get('country_modern'))}"
-                )
                 culinary_roles = self.join_list(
                     profile.get("roles_in_culinary_ecosystem")
                 )
@@ -552,25 +602,7 @@ class DocumentConverter(BaseConverter):
                 lines.append(
                     f"  Short Title: {self.safe_str(profile.get('short_title'))}"
                 )
-                lines.append(
-                    f"  Description: {self.safe_str(profile.get('description'))}"
-                )
                 lines.append(f"  Genre: {self.safe_str(profile.get('genre'))}")
-                lines.append(
-                    f"  Edition Years: {self.join_list(profile.get('edition_years'))}"
-                )
-                material = profile.get("material_features", {}) or {}
-                lines.append(f"  Format: {self.safe_str(material.get('format'))}")
-                lines.append(
-                    f"  Has Illustrations:"
-                    f" {self.safe_str(material.get('has_illustrations'))}"
-                )
-                lines.append(
-                    f"  Page Count: {self.safe_str(material.get('page_count'))}"
-                )
-                lines.append(
-                    f"  Material Notes: {self.safe_str(material.get('notes'))}"
-                )
 
             lines.append("")
 
@@ -580,7 +612,7 @@ class DocumentConverter(BaseConverter):
 
     _ADDRESSBOOK_FIELDS: list[tuple] = [
         ("Address", "address.street", "Unknown"),
-        ("Street Number", "address.street_number", "*0*"),
+        ("Street Number", "address.street_number", ""),
         ("Honorific", "honorific", ""),
         ("Additional Notes", "additional_notes", ""),
     ]
@@ -809,14 +841,17 @@ class DocumentConverter(BaseConverter):
     def _convert_culinary_persons_to_docx(
         self, entries: list[Any], document: _DocxDocument
     ) -> None:
-        """Converts culinary persons entries to DOCX format."""
+        """Converts culinary persons entries to DOCX format (schema v3.0)."""
         entries = self._normalize_entries(entries)
         list_bullet = document.styles["List Bullet"]
         for entry in entries:
-            name = entry.get("canonical_name_original", "Unknown")
-            document.add_heading(name, level=1)
+            if not isinstance(entry, dict):
+                continue
+            names = _as_dict(entry.get("names"))
+            name = names.get("original") or names.get("modern_english") or "Unknown"
+            document.add_heading(str(name), level=1)
 
-            modern_name = entry.get("canonical_name_modern_english")
+            modern_name = names.get("modern_english")
             if modern_name and modern_name != name:
                 document.add_paragraph(f"Modern Name: {modern_name}")
 
@@ -824,102 +859,113 @@ class DocumentConverter(BaseConverter):
             if gender:
                 document.add_paragraph(f"Gender: {gender}")
 
-            roles = entry.get("roles", [])
+            roles = self.join_list(entry.get("roles"))
             if roles:
-                document.add_paragraph(f"Roles: {', '.join(roles)}")
+                document.add_paragraph(f"Roles: {roles}")
+
+            importance = entry.get("historical_importance")
+            if importance is not None:
+                document.add_paragraph(f"Historical Importance: {importance}/7")
 
             period_str = self._format_period(entry)
             if period_str:
-                document.add_paragraph(f"Period: {period_str}")
+                document.add_paragraph(f"Timeframe: {period_str}")
 
-            associated_works = entry.get("associated_works", [])
-            if associated_works:
-                document.add_heading("Associated Works", level=2)
-                for work in associated_works:
-                    title = work.get("title_original", "")
-                    role = work.get("role", "")
-                    document.add_paragraph(f"{title} ({role})", style=list_bullet)
+            lifespan_str = _format_lifespan(entry.get("lifespan"))
+            if lifespan_str:
+                document.add_paragraph(f"Lifespan: {lifespan_str}")
 
-            associated_places = entry.get("associated_places", [])
-            if associated_places:
-                document.add_heading("Associated Places", level=2)
-                for place in associated_places:
-                    place_name = place.get("place_original", "")
-                    assoc_type = place.get("association_type", "")
-                    document.add_paragraph(
-                        f"{place_name} - {assoc_type}", style=list_bullet
-                    )
+            geography_str = _format_geography(entry.get("geography"))
+            if geography_str:
+                document.add_paragraph(f"Geography: {geography_str}")
 
-            notes = entry.get("notes")
-            if notes:
+            associations = _association_lines(entry.get("associations"))
+            if associations:
+                document.add_heading("Associations", level=2)
+                for assoc in associations:
+                    document.add_paragraph(assoc, style=list_bullet)
+
+            short_notes = entry.get("short_notes")
+            if short_notes:
                 document.add_heading("Notes", level=2)
-                document.add_paragraph(notes)
+                document.add_paragraph(str(short_notes))
 
             document.add_page_break()
 
     def _convert_culinary_places_to_docx(
         self, entries: list[Any], document: _DocxDocument
     ) -> None:
-        """Converts culinary places entries to DOCX format."""
+        """Converts culinary places entries to DOCX format (schema v3.0)."""
         entries = self._normalize_entries(entries)
         list_bullet = document.styles["List Bullet"]
         for entry in entries:
-            name = entry.get("name_original", "Unknown")
-            document.add_heading(name, level=1)
+            if not isinstance(entry, dict):
+                continue
+            names = _as_dict(entry.get("names"))
+            name = names.get("original") or names.get("modern_english") or "Unknown"
+            document.add_heading(str(name), level=1)
 
-            modern_name = entry.get("name_modern_english")
+            modern_name = names.get("modern_english")
             if modern_name and modern_name != name:
                 document.add_paragraph(f"Modern Name: {modern_name}")
 
             place_type = entry.get("place_type")
-            country = entry.get("country_modern")
             if place_type:
                 document.add_paragraph(f"Type: {place_type}")
-            if country:
-                document.add_paragraph(f"Country: {country}")
+
+            geography_str = _format_geography(entry.get("geography"))
+            if geography_str:
+                document.add_paragraph(f"Geography: {geography_str}")
+
+            importance = entry.get("historical_importance")
+            if importance is not None:
+                document.add_paragraph(f"Historical Importance: {importance}/7")
 
             period_str = self._format_period(entry)
             if period_str:
-                document.add_paragraph(f"Period: {period_str}")
+                document.add_paragraph(f"Timeframe: {period_str}")
 
-            roles = entry.get("roles_in_culinary_ecosystem", [])
+            roles = self.join_list(entry.get("roles_in_culinary_ecosystem"))
             if roles:
-                document.add_paragraph(f"Roles: {', '.join(roles)}")
+                document.add_paragraph(f"Roles: {roles}")
 
-            products = entry.get("associated_products", [])
-            if products:
-                document.add_heading("Associated Products", level=2)
-                for product in products:
-                    document.add_paragraph(product, style=list_bullet)
+            events = _event_lines(entry.get("events"))
+            if events:
+                document.add_heading("Events", level=2)
+                for event in events:
+                    document.add_paragraph(event, style=list_bullet)
 
-            establishments = entry.get("notable_establishments", [])
-            if establishments:
-                document.add_heading("Notable Establishments", level=2)
-                for est in establishments:
-                    document.add_paragraph(est, style=list_bullet)
+            associations = _association_lines(entry.get("associations"))
+            if associations:
+                document.add_heading("Associations", level=2)
+                for assoc in associations:
+                    document.add_paragraph(assoc, style=list_bullet)
 
-            notes = entry.get("notes")
-            if notes:
+            short_notes = entry.get("short_notes")
+            if short_notes:
                 document.add_heading("Notes", level=2)
-                document.add_paragraph(notes)
+                document.add_paragraph(str(short_notes))
 
             document.add_page_break()
 
     def _convert_culinary_works_to_docx(
         self, entries: list[Any], document: _DocxDocument
     ) -> None:
-        """Converts culinary works entries to DOCX format."""
+        """Converts culinary works entries to DOCX format (schema v3.0)."""
         entries = self._normalize_entries(entries)
         list_bullet = document.styles["List Bullet"]
         for entry in entries:
-            title = entry.get("title_original", "Unknown")
-            document.add_heading(title, level=1)
+            if not isinstance(entry, dict):
+                continue
+            titles = _as_dict(entry.get("titles"))
+            title = titles.get("original") or titles.get("modern_english") or "Unknown"
+            document.add_heading(str(title), level=1)
 
-            modern_title = entry.get("title_modern_english")
+            modern_title = titles.get("modern_english")
             if modern_title and modern_title != title:
                 document.add_paragraph(f"Modern Title: {modern_title}")
 
-            short_title = entry.get("short_title")
+            short_title = titles.get("short")
             if short_title:
                 document.add_paragraph(f"Short Title: {short_title}")
 
@@ -927,55 +973,62 @@ class DocumentConverter(BaseConverter):
             if genre:
                 document.add_paragraph(f"Genre: {genre}")
 
-            description = entry.get("description")
-            if description:
-                document.add_paragraph(f"Description: {description}")
+            importance = entry.get("historical_importance")
+            if importance is not None:
+                document.add_paragraph(f"Historical Importance: {importance}/7")
 
-            culinary_focus = entry.get("culinary_focus", [])
+            culinary_focus = self.join_list(entry.get("culinary_focus"))
             if culinary_focus:
-                document.add_paragraph(f"Culinary Focus: {', '.join(culinary_focus)}")
+                document.add_paragraph(f"Culinary Focus: {culinary_focus}")
 
-            languages = entry.get("languages", [])
+            languages = self.join_list(entry.get("languages"))
             if languages:
-                document.add_paragraph(f"Languages: {', '.join(languages)}")
+                document.add_paragraph(f"Languages: {languages}")
 
-            edition_years = entry.get("edition_years", [])
+            edition_years = self.join_list(entry.get("edition_years"))
             if edition_years:
-                years_str = ", ".join([str(y) for y in edition_years if y is not None])
-                document.add_paragraph(f"Edition Years: {years_str}")
+                document.add_paragraph(f"Edition Years: {edition_years}")
 
-            contributors = entry.get("contributors", [])
+            period_str = self._format_period(entry)
+            if period_str:
+                document.add_paragraph(f"Timeframe: {period_str}")
+
+            geography_str = _format_geography(entry.get("geography"))
+            if geography_str:
+                document.add_paragraph(f"Geography: {geography_str}")
+
+            contributors = _contributor_lines(entry.get("contributors"))
             if contributors:
                 document.add_heading("Contributors", level=2)
                 for contrib in contributors:
-                    name = contrib.get("name_original", "")
-                    role = contrib.get("role", "")
-                    document.add_paragraph(f"{name} ({role})", style=list_bullet)
+                    document.add_paragraph(contrib, style=list_bullet)
 
-            pub_places = entry.get("publication_places", [])
-            if pub_places:
-                document.add_heading("Publication Places", level=2)
-                for place in pub_places:
-                    place_name = place.get("name_original", "")
-                    document.add_paragraph(place_name, style=list_bullet)
+            associations = _association_lines(entry.get("associations"))
+            if associations:
+                document.add_heading("Associations", level=2)
+                for assoc in associations:
+                    document.add_paragraph(assoc, style=list_bullet)
 
-            notes = entry.get("notes")
-            if notes:
+            short_notes = entry.get("short_notes")
+            if short_notes:
                 document.add_heading("Notes", level=2)
-                document.add_paragraph(notes)
+                document.add_paragraph(str(short_notes))
 
             document.add_page_break()
 
     # --- Culinary Schemas TXT Converters ---
     def _convert_culinary_persons_to_txt(self, entries: list[Any]) -> list[str]:
-        """Converts culinary persons entries to TXT format."""
+        """Converts culinary persons entries to TXT format (schema v3.0)."""
         entries = self._normalize_entries(entries)
         lines: list[str] = []
         for entry in entries:
-            name = entry.get("canonical_name_original", "Unknown")
-            lines.append(name)
+            if not isinstance(entry, dict):
+                continue
+            names = _as_dict(entry.get("names"))
+            name = names.get("original") or names.get("modern_english") or "Unknown"
+            lines.append(str(name))
 
-            modern_name = entry.get("canonical_name_modern_english")
+            modern_name = names.get("modern_english")
             if modern_name and modern_name != name:
                 lines.append(f"Modern Name: {modern_name}")
 
@@ -983,92 +1036,106 @@ class DocumentConverter(BaseConverter):
             if gender:
                 lines.append(f"Gender: {gender}")
 
-            roles = entry.get("roles", [])
+            roles = self.join_list(entry.get("roles"))
             if roles:
-                lines.append(f"Roles: {', '.join(roles)}")
+                lines.append(f"Roles: {roles}")
+
+            importance = entry.get("historical_importance")
+            if importance is not None:
+                lines.append(f"Historical Importance: {importance}/7")
 
             period_str = self._format_period(entry)
             if period_str:
-                lines.append(f"Period: {period_str}")
+                lines.append(f"Timeframe: {period_str}")
 
-            associated_works = entry.get("associated_works", [])
-            if associated_works:
-                lines.append("Associated Works:")
-                for work in associated_works:
-                    title = work.get("title_original", "")
-                    role = work.get("role", "")
-                    lines.append(f" - {title} ({role})")
+            lifespan_str = _format_lifespan(entry.get("lifespan"))
+            if lifespan_str:
+                lines.append(f"Lifespan: {lifespan_str}")
 
-            associated_places = entry.get("associated_places", [])
-            if associated_places:
-                lines.append("Associated Places:")
-                for place in associated_places:
-                    place_name = place.get("place_original", "")
-                    assoc_type = place.get("association_type", "")
-                    lines.append(f" - {place_name} ({assoc_type})")
+            geography_str = _format_geography(entry.get("geography"))
+            if geography_str:
+                lines.append(f"Geography: {geography_str}")
 
-            notes = entry.get("notes")
-            if notes:
-                lines.append(f"Notes: {notes}")
+            associations = _association_lines(entry.get("associations"))
+            if associations:
+                lines.append("Associations:")
+                lines.extend(f" - {assoc}" for assoc in associations)
+
+            short_notes = entry.get("short_notes")
+            if short_notes:
+                lines.append(f"Notes: {short_notes}")
 
             lines.append("\n" + "=" * 40 + "\n")
         return lines
 
     def _convert_culinary_places_to_txt(self, entries: list[Any]) -> list[str]:
-        """Converts culinary places entries to TXT format."""
+        """Converts culinary places entries to TXT format (schema v3.0)."""
         entries = self._normalize_entries(entries)
         lines: list[str] = []
         for entry in entries:
-            name = entry.get("name_original", "Unknown")
-            lines.append(name)
+            if not isinstance(entry, dict):
+                continue
+            names = _as_dict(entry.get("names"))
+            name = names.get("original") or names.get("modern_english") or "Unknown"
+            lines.append(str(name))
 
-            modern_name = entry.get("name_modern_english")
+            modern_name = names.get("modern_english")
             if modern_name and modern_name != name:
                 lines.append(f"Modern Name: {modern_name}")
 
             place_type = entry.get("place_type")
-            country = entry.get("country_modern")
             if place_type:
                 lines.append(f"Type: {place_type}")
-            if country:
-                lines.append(f"Country: {country}")
+
+            geography_str = _format_geography(entry.get("geography"))
+            if geography_str:
+                lines.append(f"Geography: {geography_str}")
+
+            importance = entry.get("historical_importance")
+            if importance is not None:
+                lines.append(f"Historical Importance: {importance}/7")
 
             period_str = self._format_period(entry)
             if period_str:
-                lines.append(f"Period: {period_str}")
+                lines.append(f"Timeframe: {period_str}")
 
-            roles = entry.get("roles_in_culinary_ecosystem", [])
+            roles = self.join_list(entry.get("roles_in_culinary_ecosystem"))
             if roles:
-                lines.append(f"Roles: {', '.join(roles)}")
+                lines.append(f"Roles: {roles}")
 
-            products = entry.get("associated_products", [])
-            if products:
-                lines.append(f"Associated Products: {', '.join(products)}")
+            events = _event_lines(entry.get("events"))
+            if events:
+                lines.append("Events:")
+                lines.extend(f" - {event}" for event in events)
 
-            establishments = entry.get("notable_establishments", [])
-            if establishments:
-                lines.append(f"Notable Establishments: {', '.join(establishments)}")
+            associations = _association_lines(entry.get("associations"))
+            if associations:
+                lines.append("Associations:")
+                lines.extend(f" - {assoc}" for assoc in associations)
 
-            notes = entry.get("notes")
-            if notes:
-                lines.append(f"Notes: {notes}")
+            short_notes = entry.get("short_notes")
+            if short_notes:
+                lines.append(f"Notes: {short_notes}")
 
             lines.append("\n" + "=" * 40 + "\n")
         return lines
 
     def _convert_culinary_works_to_txt(self, entries: list[Any]) -> list[str]:
-        """Converts culinary works entries to TXT format."""
+        """Converts culinary works entries to TXT format (schema v3.0)."""
         entries = self._normalize_entries(entries)
         lines: list[str] = []
         for entry in entries:
-            title = entry.get("title_original", "Unknown")
-            lines.append(title)
+            if not isinstance(entry, dict):
+                continue
+            titles = _as_dict(entry.get("titles"))
+            title = titles.get("original") or titles.get("modern_english") or "Unknown"
+            lines.append(str(title))
 
-            modern_title = entry.get("title_modern_english")
+            modern_title = titles.get("modern_english")
             if modern_title and modern_title != title:
                 lines.append(f"Modern Title: {modern_title}")
 
-            short_title = entry.get("short_title")
+            short_title = titles.get("short")
             if short_title:
                 lines.append(f"Short Title: {short_title}")
 
@@ -1076,275 +1143,45 @@ class DocumentConverter(BaseConverter):
             if genre:
                 lines.append(f"Genre: {genre}")
 
-            description = entry.get("description")
-            if description:
-                lines.append(f"Description: {description}")
+            importance = entry.get("historical_importance")
+            if importance is not None:
+                lines.append(f"Historical Importance: {importance}/7")
 
-            culinary_focus = entry.get("culinary_focus", [])
+            culinary_focus = self.join_list(entry.get("culinary_focus"))
             if culinary_focus:
-                lines.append(f"Culinary Focus: {', '.join(culinary_focus)}")
+                lines.append(f"Culinary Focus: {culinary_focus}")
 
-            languages = entry.get("languages", [])
+            languages = self.join_list(entry.get("languages"))
             if languages:
-                lines.append(f"Languages: {', '.join(languages)}")
+                lines.append(f"Languages: {languages}")
 
-            edition_years = entry.get("edition_years", [])
+            edition_years = self.join_list(entry.get("edition_years"))
             if edition_years:
-                years_str = ", ".join([str(y) for y in edition_years if y is not None])
-                lines.append(f"Edition Years: {years_str}")
+                lines.append(f"Edition Years: {edition_years}")
 
-            contributors = entry.get("contributors", [])
+            period_str = self._format_period(entry)
+            if period_str:
+                lines.append(f"Timeframe: {period_str}")
+
+            geography_str = _format_geography(entry.get("geography"))
+            if geography_str:
+                lines.append(f"Geography: {geography_str}")
+
+            contributors = _contributor_lines(entry.get("contributors"))
             if contributors:
                 lines.append("Contributors:")
-                for contrib in contributors:
-                    name = contrib.get("name_original", "")
-                    role = contrib.get("role", "")
-                    lines.append(f" - {name} ({role})")
+                lines.extend(f" - {contrib}" for contrib in contributors)
 
-            pub_places = entry.get("publication_places", [])
-            if pub_places:
-                place_names = [p.get("name_original", "") for p in pub_places]
-                lines.append(f"Publication Places: {', '.join(place_names)}")
+            associations = _association_lines(entry.get("associations"))
+            if associations:
+                lines.append("Associations:")
+                lines.extend(f" - {assoc}" for assoc in associations)
 
-            notes = entry.get("notes")
-            if notes:
-                lines.append(f"Notes: {notes}")
+            short_notes = entry.get("short_notes")
+            if short_notes:
+                lines.append(f"Notes: {short_notes}")
 
             lines.append("\n" + "=" * 40 + "\n")
-        return lines
-
-    # --- Michelin Guide Converters ---
-
-    # (key, full_label, compact_label)
-    _MICHELIN_AWARD_KEYS = [
-        ("bib_gourmand", "Bib Gourmand", "Bib Gourmand"),
-        ("green_star", "Green Star", "Green Star"),
-        ("michelin_plate", "Michelin Plate", "Michelin Plate"),
-        ("new_in_guide", "New in Guide", "New"),
-    ]
-
-    _MICHELIN_AMENITY_KEYS = [
-        ("terrace", "Terrace", "Terrace"),
-        ("garden_or_park", "Garden", "Garden"),
-        ("great_view", "Great View", "View"),
-        ("parking", "Parking", "Parking"),
-        ("wheelchair_access", "Wheelchair Access", "Wheelchair"),
-        ("notable_wine_list", "Notable Wine List", "Wine List"),
-    ]
-
-    @classmethod
-    def _build_michelin_awards(cls, awards: dict, compact: bool = False) -> list[str]:
-        """Return list of award display strings from an awards dict."""
-        return [
-            (short if compact else full)
-            for key, full, short in cls._MICHELIN_AWARD_KEYS
-            if awards.get(key)
-        ]
-
-    @classmethod
-    def _build_michelin_amenities(
-        cls, amenities: dict, compact: bool = False
-    ) -> list[str]:
-        """Return list of amenity display strings from an amenities dict."""
-        return [
-            (short if compact else full)
-            for key, full, short in cls._MICHELIN_AMENITY_KEYS
-            if amenities.get(key)
-        ]
-
-    def _convert_michelin_guides_to_docx(
-        self, entries: list[Any], document: _DocxDocument
-    ) -> None:
-        """Convert Michelin Guide entries to DOCX format."""
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-
-            # Header with establishment name and stars
-            name = entry.get("establishment_name", "Unknown Establishment")
-            awards = entry.get("awards", {}) or {}
-            stars = awards.get("stars", 0) or 0
-            star_display = "⭐" * stars if stars else ""
-
-            document.add_heading(f"{name} {star_display}", level=1)
-
-            # Location and Address
-            location = entry.get("location", {}) or {}
-            address = entry.get("address", {}) or {}
-            city = location.get("city_or_town", "")
-            neighbourhood = location.get("neighbourhood_or_area", "")
-            street = address.get("street", "")
-            house_number = address.get("house_number", "")
-            postal_code = address.get("postal_code", "")
-
-            location_parts = [p for p in [neighbourhood, city] if p]
-            if location_parts:
-                document.add_paragraph(f"Location: {', '.join(location_parts)}")
-
-            address_parts = [p for p in [street, house_number, postal_code] if p]
-            if address_parts:
-                document.add_paragraph(f"Address: {' '.join(address_parts)}")
-
-            # Awards section
-            award_items = self._build_michelin_awards(awards)
-            if award_items:
-                document.add_paragraph(f"Awards: {', '.join(award_items)}")
-
-            # Cuisine
-            cuisine = entry.get("cuisine", {}) or {}
-            styles = cuisine.get("styles", [])
-            if styles and isinstance(styles, list):
-                document.add_paragraph(f"Cuisine: {', '.join(styles)}")
-            chef = cuisine.get("chef")
-            if chef:
-                document.add_paragraph(f"Chef: {chef}")
-            specialties = cuisine.get("specialties", [])
-            if specialties and isinstance(specialties, list):
-                document.add_paragraph(f"Specialties: {', '.join(specialties)}")
-
-            # Pricing
-            pricing = entry.get("pricing", {}) or {}
-            currency = pricing.get("currency", "")
-            menu_min = pricing.get("menu_price_min")
-            menu_max = pricing.get("menu_price_max")
-            if menu_min or menu_max:
-                price_str = f"{currency} {menu_min or '?'} - {menu_max or '?'}"
-                document.add_paragraph(f"Menu Price: {price_str}")
-
-            alc_min = pricing.get("a_la_carte_price_min")
-            alc_max = pricing.get("a_la_carte_price_max")
-            if alc_min or alc_max:
-                price_str = f"{currency} {alc_min or '?'} - {alc_max or '?'}"
-                document.add_paragraph(f"À la carte: {price_str}")
-
-            # Contact
-            contact = entry.get("contact", {}) or {}
-            tel = contact.get("telephone")
-            if tel:
-                document.add_paragraph(f"Telephone: {tel}")
-            website = contact.get("website")
-            if website:
-                document.add_paragraph(f"Website: {website}")
-
-            # Opening hours
-            opening = entry.get("opening", {}) or {}
-            lunch = opening.get("lunch_hours")
-            dinner = opening.get("dinner_hours")
-            if lunch:
-                document.add_paragraph(f"Lunch: {lunch}")
-            if dinner:
-                document.add_paragraph(f"Dinner: {dinner}")
-            days_closed = opening.get("days_closed", [])
-            if days_closed and isinstance(days_closed, list):
-                document.add_paragraph(f"Closed: {', '.join(days_closed)}")
-
-            # Amenities
-            amenities = entry.get("amenities", {}) or {}
-            amenity_list = self._build_michelin_amenities(amenities)
-            if amenity_list:
-                document.add_paragraph(f"Amenities: {', '.join(amenity_list)}")
-
-            document.add_page_break()
-
-    def _convert_michelin_guides_to_txt(self, entries: list[Any]) -> list[str]:
-        """Convert Michelin Guide entries to TXT format."""
-        lines: list[str] = []
-
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-
-            # Header
-            name = entry.get("establishment_name", "Unknown Establishment")
-            awards = entry.get("awards", {}) or {}
-            stars = awards.get("stars", 0) or 0
-            star_display = "*" * stars if stars else "No stars"
-
-            lines.append(f"{'=' * 60}")
-            lines.append(f"{name}")
-            lines.append(f"Stars: {star_display}")
-            lines.append(f"{'=' * 60}")
-
-            # Location and Address
-            location = entry.get("location", {}) or {}
-            address = entry.get("address", {}) or {}
-            city = location.get("city_or_town", "")
-            neighbourhood = location.get("neighbourhood_or_area", "")
-
-            if city or neighbourhood:
-                loc_str = ", ".join([p for p in [neighbourhood, city] if p])
-                lines.append(f"Location: {loc_str}")
-
-            street = address.get("street", "")
-            house_number = address.get("house_number", "")
-            postal_code = address.get("postal_code", "")
-            if street or house_number or postal_code:
-                addr_str = " ".join(
-                    [p for p in [street, house_number, postal_code] if p]
-                )
-                lines.append(f"Address: {addr_str}")
-
-            # Awards
-            award_items = self._build_michelin_awards(awards, compact=True)
-            if award_items:
-                lines.append(f"Awards: {', '.join(award_items)}")
-
-            # Cuisine
-            cuisine = entry.get("cuisine", {}) or {}
-            styles = cuisine.get("styles", [])
-            if styles and isinstance(styles, list):
-                lines.append(f"Cuisine: {', '.join(styles)}")
-            chef = cuisine.get("chef")
-            if chef:
-                lines.append(f"Chef: {chef}")
-            specialties = cuisine.get("specialties", [])
-            if specialties and isinstance(specialties, list):
-                lines.append(f"Specialties: {', '.join(specialties)}")
-
-            # Pricing
-            pricing = entry.get("pricing", {}) or {}
-            currency = pricing.get("currency", "")
-            menu_min = pricing.get("menu_price_min")
-            menu_max = pricing.get("menu_price_max")
-            if menu_min or menu_max:
-                lines.append(f"Menu: {currency} {menu_min or '?'} - {menu_max or '?'}")
-
-            alc_min = pricing.get("a_la_carte_price_min")
-            alc_max = pricing.get("a_la_carte_price_max")
-            if alc_min or alc_max:
-                lines.append(
-                    f"À la carte: {currency} {alc_min or '?'} - {alc_max or '?'}"
-                )
-
-            # Contact
-            contact = entry.get("contact", {}) or {}
-            tel = contact.get("telephone")
-            if tel:
-                lines.append(f"Tel: {tel}")
-            website = contact.get("website")
-            if website:
-                lines.append(f"Web: {website}")
-
-            # Opening
-            opening = entry.get("opening", {}) or {}
-            lunch = opening.get("lunch_hours")
-            dinner = opening.get("dinner_hours")
-            if lunch:
-                lines.append(f"Lunch: {lunch}")
-            if dinner:
-                lines.append(f"Dinner: {dinner}")
-            days_closed = opening.get("days_closed", [])
-            if days_closed and isinstance(days_closed, list):
-                lines.append(f"Closed: {', '.join(days_closed)}")
-
-            # Amenities
-            amenities = entry.get("amenities", {}) or {}
-            amenity_list = self._build_michelin_amenities(amenities, compact=True)
-            if amenity_list:
-                lines.append(f"Amenities: {', '.join(amenity_list)}")
-
-            lines.append("")
-
         return lines
 
     # --- Michelin Guides Light Converters (schema 3.4-light) ---
@@ -1360,7 +1197,7 @@ class DocumentConverter(BaseConverter):
 
             name = entry.get("establishment_name", "Unknown Establishment")
             awards = entry.get("awards", {}) or {}
-            stars = awards.get("stars") or 0
+            stars = _star_count(awards.get("stars"))
             star_display = "⭐" * stars if stars else ""
             document.add_heading(f"{name} {star_display}".strip(), level=1)
 
@@ -1444,7 +1281,7 @@ class DocumentConverter(BaseConverter):
 
             name = entry.get("establishment_name", "Unknown Establishment")
             awards = entry.get("awards", {}) or {}
-            stars = awards.get("stars") or 0
+            stars = _star_count(awards.get("stars"))
             star_display = "*" * stars if stars else "No stars"
 
             lines.append(f"{'=' * 60}")
@@ -1528,17 +1365,18 @@ class DocumentConverter(BaseConverter):
         for entry in entries:
             if not isinstance(entry, dict):
                 continue
-            lines.append(f"title: {self.safe_str(entry.get('title', 'unknown'))}")
-            lines.append(f"author: {self.safe_str(entry.get('author', 'anonymous'))}")
-            lines.append(f"year: {self.safe_str(entry.get('year', 'unknown'))}")
-            lines.append(f"edition: {self.safe_str(entry.get('edition', 'unknown'))}")
-            lines.append(f"content: {self.safe_str(entry.get('content', ''))}")
-            lines.append(f"notes: {self.safe_str(entry.get('notes', ''))}")
-            lines.append(f"library: {self.safe_str(entry.get('library', 'unknown'))}")
+            lines.append(f"title: {self.safe_str(entry.get('title') or 'unknown')}")
+            lines.append(f"author: {self.safe_str(entry.get('author') or 'anonymous')}")
+            lines.append(f"year: {self.safe_str(entry.get('year') or 'unknown')}")
+            lines.append(f"edition: {self.safe_str(entry.get('edition') or 'unknown')}")
+            lines.append(f"content: {self.safe_str(entry.get('content') or '')}")
+            lines.append(f"notes: {self.safe_str(entry.get('notes') or '')}")
+            lines.append(f"library: {self.safe_str(entry.get('library') or 'unknown')}")
             lines.append(
-                f"digitizer: {self.safe_str(entry.get('digitizer', 'unknown'))}"
+                f"digitizer: {self.safe_str(entry.get('digitizer') or 'unknown')}"
             )
-            lines.append(f"misc: {self.safe_str(entry.get('misc', ''))}")
+            lines.append(f"misc: {self.safe_str(entry.get('misc') or '')}")
+            lines.append("\n" + "=" * 40 + "\n")
         return lines
 
     # --- CookbookMetadataEntries DOCX Converter ---
@@ -1574,12 +1412,14 @@ class DocumentConverter(BaseConverter):
     def _convert_historical_recipes_production_to_docx(
         self, entries: list[Any], document: _DocxDocument
     ) -> None:
-        """Converts HistoricalRecipesEntriesProduction entries to DOCX (schema v1.2)."""
+        """Converts HistoricalRecipesEntriesProduction entries to DOCX (schema v3.0)."""
         entries = self._normalize_entries(entries)
         list_bullet = document.styles["List Bullet"]
         for entry in entries:
-            title = entry.get("title_original", "Unknown Recipe")
-            document.add_heading(title, level=1)
+            if not isinstance(entry, dict):
+                continue
+            title = entry.get("title_original") or "Unknown Recipe"
+            document.add_heading(str(title), level=1)
 
             modern_title = entry.get("title_modern_english")
             if modern_title and modern_title != title:
@@ -1641,6 +1481,13 @@ class DocumentConverter(BaseConverter):
                         method_text += f" [Complexity: {complexity}]"
                     document.add_paragraph(method_text, style=list_bullet)
 
+            # Utensils and equipment with per-utensil ratings
+            utensils = _utensil_lines(entry.get("utensils_equipment"))
+            if utensils:
+                document.add_heading("Utensils and Equipment", level=2)
+                for utensil in utensils:
+                    document.add_paragraph(utensil, style=list_bullet)
+
             # Culinary style
             culinary_style = entry.get("culinary_style", {}) or {}
             modernity = culinary_style.get("modernity_rating_1_7")
@@ -1670,12 +1517,14 @@ class DocumentConverter(BaseConverter):
     def _convert_historical_recipes_production_to_txt(
         self, entries: list[Any]
     ) -> list[str]:
-        """Converts HistoricalRecipesEntriesProduction entries to TXT (schema v1.2)."""
+        """Converts HistoricalRecipesEntriesProduction entries to TXT (schema v3.0)."""
         entries = self._normalize_entries(entries)
         lines: list[str] = []
         for entry in entries:
-            title = entry.get("title_original", "Unknown Recipe")
-            lines.append(title)
+            if not isinstance(entry, dict):
+                continue
+            title = entry.get("title_original") or "Unknown Recipe"
+            lines.append(str(title))
 
             modern_title = entry.get("title_modern_english")
             if modern_title and modern_title != title:
@@ -1737,6 +1586,12 @@ class DocumentConverter(BaseConverter):
                         part += f" [Complexity: {complexity}]"
                     method_parts.append(part)
                 lines.append(f"Cooking Methods: {', '.join(method_parts)}")
+
+            # Utensils and equipment with per-utensil ratings
+            utensils = _utensil_lines(entry.get("utensils_equipment"))
+            if utensils:
+                lines.append("Utensils and Equipment:")
+                lines.extend(f" - {utensil}" for utensil in utensils)
 
             # Culinary style
             culinary_style = entry.get("culinary_style", {}) or {}

@@ -28,16 +28,18 @@ def resolve_field(entry: dict, key: str, default: Any = "") -> Any:
 
     :param entry: Source dictionary
     :param key: Flat or dotted key
-    :param default: Value returned when the key is absent
+    :param default: Value returned when the key is absent or explicitly null
     :return: Resolved value or *default*
     """
     if "." in key:
         outer, inner = key.split(".", 1)
         sub = entry.get(outer)
         if isinstance(sub, dict):
-            return sub.get(inner, default)
+            value = sub.get(inner, default)
+            return default if value is None else value
         return default
-    return entry.get(key, default)
+    value = entry.get(key, default)
+    return default if value is None else value
 
 
 class BaseConverter(ABC):
@@ -70,8 +72,6 @@ class BaseConverter(ABC):
         :return: List of non-None entries
         """
         entries = extract_entries_from_json(json_file)
-        if entries is None:
-            return []
         return [entry for entry in entries if entry is not None]
 
     @staticmethod
@@ -152,14 +152,12 @@ class BaseConverter(ABC):
 
     @staticmethod
     def _normalize_entries(entries: list[Any]) -> list[Any]:
-        """Guard against a None list and filter out null elements."""
-        if entries is None:
-            return []
+        """Filter out null elements."""
         return [e for e in entries if e is not None]
 
     @staticmethod
-    def _extract_period(entry: dict[str, Any], key: str = "period") -> tuple:
-        """Return (start_year, end_year, notation) from a nested period dict."""
+    def _extract_period(entry: dict[str, Any], key: str = "timeframe") -> tuple:
+        """Return (start_year, end_year, notation) from a nested timeframe dict."""
         period = entry.get(key, {})
         if not isinstance(period, dict):
             return None, None, None
@@ -170,14 +168,14 @@ class BaseConverter(ABC):
         )
 
     @staticmethod
-    def _format_period(entry: dict[str, Any], key: str = "period") -> str:
-        """Format a period dict as 'start - end (notation)' string."""
+    def _format_period(entry: dict[str, Any], key: str = "timeframe") -> str:
+        """Format a timeframe dict as 'start - end (notation)' string."""
         period = entry.get(key, {})
         if not isinstance(period, dict) or not period:
             return ""
         period_str = (
-            f"{period.get('start_year', 'Unknown')} - "
-            f"{period.get('end_year', 'Unknown')}"
+            f"{period.get('start_year') or 'Unknown'} - "
+            f"{period.get('end_year') or 'Unknown'}"
         )
         if period.get("notation"):
             period_str += f" ({period['notation']})"
@@ -185,17 +183,24 @@ class BaseConverter(ABC):
 
     @staticmethod
     def _format_links(links: Any) -> str:
-        """Format a links list as semicolon-separated descriptor strings."""
+        """Format an association list as semicolon-separated descriptor strings.
+
+        Each item is rendered as ``entity_type: label - relationship`` where
+        *label* prefers ``entity_label_modern`` and falls back to
+        ``entity_label_original`` (schema v3.0 association shape).
+        """
         if not isinstance(links, list):
             return ""
-        return "; ".join(
-            (
-                f"{link.get('entity_type', '')}: {link.get('entity_label', '')}"
-                f" - {link.get('relationship', '')}"
+        formatted: list[str] = []
+        for link in links:
+            if not isinstance(link, dict):
+                continue
+            label = link.get("entity_label_modern") or link.get("entity_label_original")
+            formatted.append(
+                f"{link.get('entity_type') or ''}: {label or ''}"
+                f" - {link.get('relationship') or ''}"
             )
-            for link in links
-            if isinstance(link, dict)
-        )
+        return "; ".join(formatted)
 
     @staticmethod
     def _format_officials(entry: dict) -> str:

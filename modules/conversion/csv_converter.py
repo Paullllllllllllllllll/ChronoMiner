@@ -22,16 +22,28 @@ logger = logging.getLogger(__name__)
 
 def _join_list(entry: dict, key: str, sep: str = ", ") -> str:
     """Join a simple list field into a string."""
-    vals = entry.get(key, [])
+    vals = entry.get(key) or []
     if isinstance(vals, list):
         return sep.join(str(v) for v in vals if v is not None)
     return ""
 
 
 def _join_dicts(entry: dict, key: str, fmt: Callable, sep: str = "; ") -> str:
-    """Join a list-of-dicts field by applying *fmt* to each element."""
-    items = entry.get(key, [])
+    """Join a list-of-dicts field by applying *fmt* to each element.
+
+    A null or non-list value (schema-valid for optional list fields) yields
+    an empty string rather than raising.
+    """
+    items = entry.get(key) or []
+    if not isinstance(items, list):
+        return ""
     return sep.join(fmt(item) for item in items if isinstance(item, dict))
+
+
+def _nested(entry: dict, key: str) -> dict:
+    """Return a nested object field as a dict, tolerating null/non-dict."""
+    value = entry.get(key)
+    return value if isinstance(value, dict) else {}
 
 
 class CSVConverter(BaseConverter):
@@ -46,11 +58,15 @@ class CSVConverter(BaseConverter):
         self.convert_to_csv(json_file, output_file)
 
     def convert_to_csv(self, json_file: Path, output_csv: Path) -> None:
-        """Convert JSON entries to a CSV file."""
+        """Convert JSON entries to a CSV file.
+
+        An empty entry list still produces a file so that the CSV, DOCX and
+        TXT paths agree: header-only when the schema has a declarative field
+        spec, otherwise an empty file.
+        """
         entries = self.get_entries(json_file)
         if not entries:
             logger.warning("No entries found for CSV conversion.")
-            return
 
         converters = {
             "bibliographicentries": self._convert_bibliographic_entries_to_df,
@@ -69,7 +85,6 @@ class CSVConverter(BaseConverter):
             "historicalrecipesentriesproductionv3": (
                 self._convert_historical_recipes_production_to_df
             ),
-            "michelinguides": self._convert_michelin_guides_to_df,
             "michelinguideslight": self._convert_michelin_guides_light_to_df,
             "cookbookmetadataentries": self._convert_cookbook_metadata_to_df,
         }
@@ -125,7 +140,7 @@ class CSVConverter(BaseConverter):
                 else:
                     row[col] = resolve_field(entry, extractor, default)
             rows.append(row)
-        return pd.DataFrame(rows)
+        return pd.DataFrame(rows, columns=[col for col, _, _ in field_specs])
 
     # ------------------------------------------------------------------
     # Declarative field specs for simple / medium schemas
@@ -208,148 +223,104 @@ class CSVConverter(BaseConverter):
         ("observations", "observations", ""),
     ]
 
+    # CulinaryPersonsEntries (schema v3.0) — nested names/timeframe/lifespan/
+    # geography plus the unified associations list.
     _CULINARY_PERSONS_CSV_FIELDS: list[tuple] = [
-        ("canonical_name_original", "canonical_name_original", None),
-        ("canonical_name_modern_english", "canonical_name_modern_english", None),
+        ("name_original", "names.original", None),
+        ("name_modern_english", "names.modern_english", None),
+        ("short_notes", "short_notes", None),
+        ("historical_importance", "historical_importance", None),
         ("gender", "gender", None),
         ("roles", lambda e: _join_list(e, "roles"), None),
-        ("period_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
-        ("period_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
-        ("period_notation", lambda e: BaseConverter._extract_period(e)[2], None),
+        ("timeframe_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
+        ("timeframe_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
+        ("timeframe_notation", lambda e: BaseConverter._extract_period(e)[2], None),
+        ("birth_year", lambda e: _nested(e, "lifespan").get("birth_year"), None),
+        ("death_year", lambda e: _nested(e, "lifespan").get("death_year"), None),
+        ("city_original", "geography.city_original", None),
+        ("city_modern", "geography.city_modern", None),
+        ("country_original", "geography.country_original", None),
+        ("country_modern", "geography.country_modern", None),
         (
-            "name_variants",
-            lambda e: _join_dicts(
-                e,
-                "name_variants",
-                lambda v: (
-                    f"{v.get('name_original', '')} ({v.get('name_modern_english', '')})"
-                ),
-            ),
+            "associations",
+            lambda e: BaseConverter._format_links(e.get("associations")),
             None,
         ),
-        (
-            "associated_places",
-            lambda e: _join_dicts(
-                e,
-                "associated_places",
-                lambda p: (
-                    f"{p.get('place_original', '')} - {p.get('association_type', '')}"
-                ),
-            ),
-            None,
-        ),
-        (
-            "associated_works",
-            lambda e: _join_dicts(
-                e,
-                "associated_works",
-                lambda w: f"{w.get('title_original', '')} ({w.get('role', '')})",
-            ),
-            None,
-        ),
-        ("notes", "notes", None),
-        (
-            "sources",
-            lambda e: _join_dicts(
-                e,
-                "sources",
-                lambda s: (
-                    f"{s.get('author', '')} - "
-                    f"{s.get('title', '')} ({s.get('year', '')})"
-                ),
-            ),
-            None,
-        ),
-        ("links", lambda e: BaseConverter._format_links(e.get("links", [])), None),
     ]
 
+    # CulinaryPlacesEntries (schema v3.0).
     _CULINARY_PLACES_CSV_FIELDS: list[tuple] = [
-        ("name_original", "name_original", None),
-        ("name_modern_english", "name_modern_english", None),
+        ("name_original", "names.original", None),
+        ("name_modern_english", "names.modern_english", None),
+        ("short_notes", "short_notes", None),
+        ("historical_importance", "historical_importance", None),
         ("place_type", "place_type", None),
-        ("country_modern", "country_modern", None),
-        ("period_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
-        ("period_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
-        ("period_notation", lambda e: BaseConverter._extract_period(e)[2], None),
         (
             "roles_in_culinary_ecosystem",
             lambda e: _join_list(e, "roles_in_culinary_ecosystem"),
             None,
         ),
-        ("associated_products", lambda e: _join_list(e, "associated_products"), None),
+        ("timeframe_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
+        ("timeframe_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
+        ("timeframe_notation", lambda e: BaseConverter._extract_period(e)[2], None),
+        ("city_original", "geography.city_original", None),
+        ("city_modern", "geography.city_modern", None),
+        ("country_original", "geography.country_original", None),
+        ("country_modern", "geography.country_modern", None),
         (
-            "notable_establishments",
-            lambda e: _join_list(e, "notable_establishments"),
-            None,
-        ),
-        (
-            "associated_people",
+            "events",
             lambda e: _join_dicts(
                 e,
-                "associated_people",
-                lambda p: (
-                    f"{p.get('name_original', '')} - {p.get('association_type', '')}"
+                "events",
+                lambda ev: (
+                    f"{ev.get('event_type') or ''} ({ev.get('year') or ''}):"
+                    f" {ev.get('description') or ''}"
                 ),
             ),
             None,
         ),
-        ("notes", "notes", None),
-        ("links", lambda e: BaseConverter._format_links(e.get("links", [])), None),
+        (
+            "associations",
+            lambda e: BaseConverter._format_links(e.get("associations")),
+            None,
+        ),
     ]
 
+    # CulinaryWorksEntries (schema v3.0) — nested titles/timeframe/geography.
     _CULINARY_WORKS_CSV_FIELDS: list[tuple] = [
-        ("title_original", "title_original", None),
-        ("title_modern_english", "title_modern_english", None),
-        ("short_title", "short_title", None),
-        ("description", "description", None),
+        ("title_original", "titles.original", None),
+        ("title_modern_english", "titles.modern_english", None),
+        ("title_short", "titles.short", None),
+        ("short_notes", "short_notes", None),
+        ("historical_importance", "historical_importance", None),
         ("genre", "genre", None),
         ("culinary_focus", lambda e: _join_list(e, "culinary_focus"), None),
         ("languages", lambda e: _join_list(e, "languages"), None),
+        ("edition_years", lambda e: _join_list(e, "edition_years"), None),
+        ("timeframe_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
+        ("timeframe_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
+        ("timeframe_notation", lambda e: BaseConverter._extract_period(e)[2], None),
+        ("city_original", "geography.city_original", None),
+        ("city_modern", "geography.city_modern", None),
+        ("country_original", "geography.country_original", None),
+        ("country_modern", "geography.country_modern", None),
         (
             "contributors",
             lambda e: _join_dicts(
                 e,
                 "contributors",
-                lambda c: f"{c.get('name_original', '')} ({c.get('role', '')})",
-            ),
-            None,
-        ),
-        ("edition_years", lambda e: _join_list(e, "edition_years"), None),
-        (
-            "publication_places",
-            lambda e: _join_dicts(
-                e,
-                "publication_places",
-                lambda p: (
-                    f"{p.get('name_original', '')} ({p.get('name_modern_english', '')})"
+                lambda c: (
+                    f"{c.get('name_original') or c.get('name_modern_english') or ''}"
+                    f" ({c.get('role') or ''})"
                 ),
             ),
             None,
         ),
         (
-            "associated_places",
-            lambda e: _join_dicts(
-                e,
-                "associated_places",
-                lambda p: (
-                    f"{p.get('name_original', '')} - {p.get('association_type', '')}"
-                ),
-            ),
+            "associations",
+            lambda e: BaseConverter._format_links(e.get("associations")),
             None,
         ),
-        (
-            "associated_persons",
-            lambda e: _join_dicts(
-                e,
-                "associated_persons",
-                lambda p: (
-                    f"{p.get('name_original', '')} - {p.get('association_type', '')}"
-                ),
-            ),
-            None,
-        ),
-        ("notes", "notes", None),
-        ("links", lambda e: BaseConverter._format_links(e.get("links", [])), None),
     ]
 
     # ------------------------------------------------------------------
@@ -514,64 +485,41 @@ class CSVConverter(BaseConverter):
             if not isinstance(profile, dict):
                 profile = {}
 
-            names = profile.get("names", {}) or {}
-            timeframe = profile.get("timeframe", {}) or {}
-            topical_focus = profile.get("topical_focus")
-            language_contexts = profile.get("language_contexts")
-            associations = profile.get("associations")
+            names = _nested(profile, "names")
+            timeframe = _nested(profile, "timeframe")
+            geography = _nested(profile, "geography")
 
             row: dict[str, Any] = {
                 "entry_type": entry_type,
                 "names_original": names.get("original"),
                 "names_modern_english": names.get("modern_english"),
-                "entity_summary": profile.get("entity_summary"),
+                "importance": profile.get("importance"),
+                "summary": profile.get("summary"),
                 "timeframe_start_year": timeframe.get("start_year"),
                 "timeframe_end_year": timeframe.get("end_year"),
                 "timeframe_notation": timeframe.get("notation"),
-                "topical_focus": self.join_list(topical_focus),
-                "language_contexts": self.join_list(language_contexts),
-                "associations": self.format_associations(associations),
-                "notes": profile.get("notes"),
+                "geography_primary_location": geography.get("primary_location"),
+                "geography_additional_context": geography.get("additional_context"),
+                "topical_focus": self.join_list(profile.get("topical_focus")),
+                "language_contexts": self.join_list(profile.get("language_contexts")),
                 # Person-specific defaults
-                "person_gender": None,
                 "person_roles": None,
-                "person_name_variants": None,
-                "person_biographical_notes": None,
                 # Place-specific defaults
-                "place_type": None,
-                "place_country_modern": None,
                 "place_roles_in_culinary_ecosystem": None,
                 "place_associated_products": None,
                 "place_notable_establishments": None,
                 "place_notes": None,
                 # Work-specific defaults
                 "work_short_title": None,
-                "work_description": None,
                 "work_genre": None,
-                "work_edition_years": None,
-                "work_material_format": None,
-                "work_material_has_illustrations": None,
-                "work_material_page_count": None,
-                "work_material_notes": None,
             }
 
             if entry_type == "Person":
-                row.update(
-                    {
-                        "person_gender": profile.get("gender"),
-                        "person_roles": self.join_list(profile.get("roles")),
-                        "person_name_variants": self.format_name_variants(
-                            profile.get("name_variants")
-                        ),
-                        "person_biographical_notes": profile.get("biographical_notes"),
-                    }
-                )
+                row["person_roles"] = self.join_list(profile.get("roles"))
 
             elif entry_type == "Place":
                 row.update(
                     {
-                        "place_type": profile.get("place_type"),
-                        "place_country_modern": profile.get("country_modern"),
                         "place_roles_in_culinary_ecosystem": self.join_list(
                             profile.get("roles_in_culinary_ecosystem")
                         ),
@@ -586,195 +534,13 @@ class CSVConverter(BaseConverter):
                 )
 
             elif entry_type == "Work":
-                material_features = profile.get("material_features", {}) or {}
                 row.update(
                     {
                         "work_short_title": profile.get("short_title"),
-                        "work_description": profile.get("description"),
                         "work_genre": profile.get("genre"),
-                        "work_edition_years": self.join_list(
-                            profile.get("edition_years")
-                        ),
-                        "work_material_format": material_features.get("format"),
-                        "work_material_has_illustrations": material_features.get(
-                            "has_illustrations"
-                        ),
-                        "work_material_page_count": material_features.get("page_count"),
-                        "work_material_notes": material_features.get("notes"),
                     }
                 )
 
-            rows.append(row)
-
-        df = pd.DataFrame(rows)
-        return df
-
-    def _convert_michelin_guides_to_df(self, entries: list[Any]) -> pd.DataFrame:
-        """
-        Converts Michelin Guide entries to DataFrame according to schema v1.1.
-        Handles deeply nested structures for location, address, awards,
-        cuisine, pricing, amenities, etc.
-        """
-        entries = self._normalize_entries(entries)
-        rows = []
-
-        for entry in entries:
-            if not isinstance(entry, dict):
-                continue
-
-            # Basic info
-            establishment_name = entry.get("establishment_name")
-            raw_entry_text = entry.get("raw_entry_text")
-
-            # Location
-            location = entry.get("location", {}) or {}
-            city = location.get("city_or_town")
-            neighbourhood = location.get("neighbourhood_or_area")
-
-            # Address
-            address = entry.get("address", {}) or {}
-            street = address.get("street")
-            house_number = address.get("house_number")
-            postal_code = address.get("postal_code")
-
-            # Contact
-            contact = entry.get("contact", {}) or {}
-            telephone = contact.get("telephone")
-            fax = contact.get("fax")
-            website = contact.get("website")
-            email = contact.get("email")
-
-            # Map reference
-            map_ref = entry.get("map_reference", {}) or {}
-            plan_grid = map_ref.get("plan_grid")
-
-            # Awards
-            awards = entry.get("awards", {}) or {}
-            stars = awards.get("stars")
-            bib_gourmand = awards.get("bib_gourmand")
-            michelin_plate = awards.get("michelin_plate")
-            green_star = awards.get("green_star")
-            new_in_guide = awards.get("new_in_guide")
-            pleasant_marker = awards.get("pleasant_marker")
-            comfort_covers = awards.get("comfort_covers")
-
-            # Cuisine
-            cuisine = entry.get("cuisine", {}) or {}
-            styles = cuisine.get("styles", [])
-            styles_str = self.join_list(styles)
-            specialties = cuisine.get("specialties", [])
-            specialties_str = self.join_list(specialties)
-            chef = cuisine.get("chef")
-            keywords = cuisine.get("keywords", [])
-            keywords_str = self.join_list(keywords)
-
-            # Opening
-            opening = entry.get("opening", {}) or {}
-            lunch_hours = opening.get("lunch_hours")
-            dinner_hours = opening.get("dinner_hours")
-            days_closed = opening.get("days_closed", [])
-            days_closed_str = self.join_list(days_closed)
-            annual_closure = opening.get("annual_closure")
-            open_for_breakfast = opening.get("open_for_breakfast")
-
-            # Pricing
-            pricing = entry.get("pricing", {}) or {}
-            currency = pricing.get("currency")
-            menu_price_min = pricing.get("menu_price_min")
-            menu_price_max = pricing.get("menu_price_max")
-            a_la_carte_min = pricing.get("a_la_carte_price_min")
-            a_la_carte_max = pricing.get("a_la_carte_price_max")
-            lunch_menu_price = pricing.get("lunch_menu_price")
-            price_note = pricing.get("price_note")
-            set_menus = pricing.get("set_menus", [])
-            set_menus_str = (
-                "; ".join(
-                    [
-                        (
-                            f"{m.get('label', '')}: "
-                            f"{m.get('price_min', '')}-{m.get('price_max', '')}"
-                        )
-                        for m in set_menus
-                        if isinstance(m, dict)
-                    ]
-                )
-                if isinstance(set_menus, list) and set_menus
-                else ""
-            )
-
-            # Amenities
-            amenities = entry.get("amenities", {}) or {}
-
-            # Rooms
-            rooms = entry.get("rooms", {}) or {}
-            room_count = rooms.get("room_count")
-            room_price_min = rooms.get("room_price_min")
-            room_price_max = rooms.get("room_price_max")
-            room_currency = rooms.get("room_currency")
-            breakfast_available = rooms.get("breakfast_available")
-
-            # Payments
-            payments = entry.get("payments", {}) or {}
-
-            row = {
-                "establishment_name": establishment_name,
-                "city_or_town": city,
-                "neighbourhood_or_area": neighbourhood,
-                "street": street,
-                "house_number": house_number,
-                "postal_code": postal_code,
-                "telephone": telephone,
-                "fax": fax,
-                "website": website,
-                "email": email,
-                "plan_grid": plan_grid,
-                "stars": stars,
-                "bib_gourmand": bib_gourmand,
-                "michelin_plate": michelin_plate,
-                "green_star": green_star,
-                "new_in_guide": new_in_guide,
-                "pleasant_marker": pleasant_marker,
-                "comfort_covers": comfort_covers,
-                "cuisine_styles": styles_str,
-                "specialties": specialties_str,
-                "chef": chef,
-                "cuisine_keywords": keywords_str,
-                "lunch_hours": lunch_hours,
-                "dinner_hours": dinner_hours,
-                "days_closed": days_closed_str,
-                "annual_closure": annual_closure,
-                "open_for_breakfast": open_for_breakfast,
-                "currency": currency,
-                "menu_price_min": menu_price_min,
-                "menu_price_max": menu_price_max,
-                "a_la_carte_price_min": a_la_carte_min,
-                "a_la_carte_price_max": a_la_carte_max,
-                "lunch_menu_price": lunch_menu_price,
-                "set_menus": set_menus_str,
-                "price_note": price_note,
-                "wheelchair_access": amenities.get("wheelchair_access"),
-                "air_conditioning": amenities.get("air_conditioning"),
-                "terrace": amenities.get("terrace"),
-                "garden_or_park": amenities.get("garden_or_park"),
-                "outside_dining": amenities.get("outside_dining"),
-                "great_view": amenities.get("great_view"),
-                "peaceful": amenities.get("peaceful"),
-                "notable_wine_list": amenities.get("notable_wine_list"),
-                "private_dining_room": amenities.get("private_dining_room"),
-                "parking": amenities.get("parking"),
-                "valet_parking": amenities.get("valet_parking"),
-                "has_rooms": amenities.get("has_rooms"),
-                "room_count": room_count,
-                "room_price_min": room_price_min,
-                "room_price_max": room_price_max,
-                "room_currency": room_currency,
-                "breakfast_available": breakfast_available,
-                "credit_cards_accepted": payments.get("credit_cards_accepted"),
-                "accept_visa": payments.get("accept_visa"),
-                "accept_mastercard": payments.get("accept_mastercard"),
-                "accept_amex": payments.get("accept_amex"),
-                "raw_entry_text": raw_entry_text,
-            }
             rows.append(row)
 
         df = pd.DataFrame(rows)
@@ -840,24 +606,28 @@ class CSVConverter(BaseConverter):
         return pd.DataFrame(rows)
 
     # ------------------------------------------------------------------
-    # HistoricalRecipesEntriesProduction (schema v1.2)
+    # HistoricalRecipesEntriesProduction (schema v3.0)
     # ------------------------------------------------------------------
 
     def _convert_historical_recipes_production_to_df(
         self, entries: list[Any]
     ) -> pd.DataFrame:
         """
-        Converts HistoricalRecipesEntriesProduction entries to DataFrame (schema v1.2).
+        Converts HistoricalRecipesEntriesProduction entries to DataFrame (schema v3.0).
 
         Extends the base recipe converter with per-ingredient rating columns
-        (luxury signal, trade distance, novelty) and per-method complexity rating,
-        each serialised as a semicolon-separated list in ingredient order.
-        Also exposes culinary_style and intertextuality analytical fields.
+        (luxury signal, trade distance, novelty, stated origin), per-method
+        complexity rating and per-utensil specialization/modernity ratings,
+        each serialised as a semicolon-separated list in source order. Also
+        exposes the culinary_style, intertextuality, geographic_signals,
+        economic_signals and religious_signals analytical fields.
         """
         entries = self._normalize_entries(entries)
         rows: list[dict[str, Any]] = []
 
         for entry in entries:
+            if not isinstance(entry, dict):
+                continue
             # Base textual fields
             recipe_text_orig = entry.get("recipe_text_original")
             recipe_text_modern = entry.get("recipe_text_modern_english")
@@ -867,11 +637,12 @@ class CSVConverter(BaseConverter):
 
             # Ingredients — production schema uses quantity_original
             # (no standardized fields)
-            ingredients = entry.get("ingredients", [])
+            ingredients = entry.get("ingredients") or []
             ingredients_list: list[str] = []
             luxury_ratings: list[str] = []
             trade_distance_ratings: list[str] = []
             novelty_ratings: list[str] = []
+            ingredient_origins: list[str] = []
             for ing in ingredients:
                 if not isinstance(ing, dict):
                     continue
@@ -888,14 +659,18 @@ class CSVConverter(BaseConverter):
                 novelty_ratings.append(
                     str(ing.get("ingredient_novelty_rating_1_7") or "")
                 )
+                ingredient_origins.append(
+                    str(ing.get("origin_explicitly_stated") or "")
+                )
 
             ingredients_str = "; ".join(ingredients_list)
             luxury_ratings_str = "; ".join(luxury_ratings)
             trade_distance_ratings_str = "; ".join(trade_distance_ratings)
             novelty_ratings_str = "; ".join(novelty_ratings)
+            ingredient_origins_str = "; ".join(ingredient_origins)
 
             # Cooking methods
-            methods = entry.get("cooking_methods", [])
+            methods = entry.get("cooking_methods") or []
             methods_list: list[str] = []
             complexity_ratings: list[str] = []
             for m in methods:
@@ -910,13 +685,26 @@ class CSVConverter(BaseConverter):
             methods_str = ", ".join(methods_list)
             complexity_ratings_str = "; ".join(complexity_ratings)
 
-            # Utensils
-            utensils = entry.get("utensils_equipment", [])
-            utensils_str = ", ".join(
-                u.get("utensil_modern_english") or u.get("utensil_original") or ""
-                for u in utensils
-                if isinstance(u, dict)
-            )
+            # Utensils with per-utensil ratings, kept index-parallel
+            utensils = entry.get("utensils_equipment") or []
+            utensils_list: list[str] = []
+            utensil_specialization: list[str] = []
+            utensil_modernity: list[str] = []
+            for u in utensils:
+                if not isinstance(u, dict):
+                    continue
+                utensils_list.append(
+                    u.get("utensil_modern_english") or u.get("utensil_original") or ""
+                )
+                utensil_specialization.append(
+                    str(u.get("utensil_specialization_rating_1_7") or "")
+                )
+                utensil_modernity.append(
+                    str(u.get("utensil_modernity_rating_1_7") or "")
+                )
+            utensils_str = "; ".join(utensils_list)
+            utensil_specialization_str = "; ".join(utensil_specialization)
+            utensil_modernity_str = "; ".join(utensil_modernity)
 
             # Timing/yield — production schema stores these in a nested object
             timing_yield = entry.get("timing_yield", {}) or {}
@@ -942,6 +730,20 @@ class CSVConverter(BaseConverter):
             # Intertextuality analytical fields
             inter = entry.get("intertextuality", {}) or {}
 
+            # Geographic / economic / religious signal blocks
+            geo = entry.get("geographic_signals", {}) or {}
+            place_refs = geo.get("place_references") or []
+            place_refs_str = "; ".join(
+                (
+                    f"{ref.get('place_name_original') or ''}"
+                    f" ({ref.get('reference_function') or ''})"
+                )
+                for ref in place_refs
+                if isinstance(ref, dict)
+            )
+            econ = entry.get("economic_signals", {}) or {}
+            relig = entry.get("religious_signals", {}) or {}
+
             row: dict[str, Any] = {
                 "recipe_text_original": recipe_text_orig,
                 "recipe_text_modern_english": recipe_text_modern,
@@ -952,9 +754,12 @@ class CSVConverter(BaseConverter):
                 "ingredient_luxury_signal_ratings": luxury_ratings_str,
                 "ingredient_trade_distance_ratings": trade_distance_ratings_str,
                 "ingredient_novelty_ratings": novelty_ratings_str,
+                "ingredient_origins_explicitly_stated": ingredient_origins_str,
                 "cooking_methods": methods_str,
                 "method_complexity_ratings": complexity_ratings_str,
                 "utensils_equipment": utensils_str,
+                "utensil_specialization_ratings": utensil_specialization_str,
+                "utensil_modernity_ratings": utensil_modernity_str,
                 "yield": yield_str,
                 "preparation_time": prep_time_str,
                 "cooking_time": cook_time_str,
@@ -997,6 +802,18 @@ class CSVConverter(BaseConverter):
                 ),
                 "anti_foreign_sentiment_present": inter.get(
                     "anti_foreign_sentiment_present"
+                ),
+                "place_references": place_refs_str,
+                "economic_framing_detected": self.join_list(
+                    econ.get("economic_framing_detected"), "; "
+                ),
+                "luxury_intensity_rating_1_7": econ.get("luxury_intensity_rating_1_7"),
+                "occasion_type": self.join_list(econ.get("occasion_type"), "; "),
+                "fasting_context_indicated": relig.get("fasting_context_indicated"),
+                "meat_day_context_indicated": relig.get("meat_day_context_indicated"),
+                "confessional_hint": relig.get("confessional_hint"),
+                "moral_virtue_framing_present": relig.get(
+                    "moral_virtue_framing_present"
                 ),
             }
             rows.append(row)

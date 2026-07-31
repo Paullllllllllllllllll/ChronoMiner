@@ -221,7 +221,7 @@ def _extract_json_from_text(text: str) -> str | None:
             if ch == "\\":
                 escape_next = True
                 continue
-            if ch == '"' and not escape_next:
+            if ch == '"':
                 in_string = not in_string
                 continue
             if in_string:
@@ -234,6 +234,18 @@ def _extract_json_from_text(text: str) -> str | None:
                     return text[start : i + 1]
 
     return None
+
+
+def _coerce_entry_list(value: Any) -> list[Any]:
+    """Return *value* as a list of non-null entries.
+
+    ``entries`` is schema-valid as ``null`` (a chunk that legitimately found
+    nothing), so any non-list value degrades to an empty list instead of
+    raising and aborting the conversion of the whole file.
+    """
+    if not isinstance(value, list):
+        return []
+    return [e for e in value if e is not None]
 
 
 def _parse_entries_from_text(text: str) -> list[Any] | None:
@@ -271,7 +283,7 @@ def _parse_entries_from_text(text: str) -> list[Any] | None:
         return None
     if "entries" not in parsed:
         return None
-    return [e for e in parsed["entries"] if e is not None]
+    return _coerce_entry_list(parsed["entries"])
 
 
 def _extract_entries_from_record(record: Any) -> list[Any]:
@@ -311,7 +323,7 @@ def _extract_entries_from_record(record: Any) -> list[Any]:
         logger.debug("Record response indicated no content of requested type")
         return []
     if "entries" in response:
-        return [e for e in response["entries"] if e is not None]
+        return _coerce_entry_list(response["entries"])
 
     # Case 4: response is a raw API body — extract text, then parse
     text = _extract_text_from_api_body(response)
@@ -361,9 +373,9 @@ def extract_entries_from_json(json_file: Path) -> list[Any]:
             )
             return []
 
-        # Direct entries format
+        # Direct entries format ("entries" may be null and still be valid)
         if "entries" in data:
-            entries = data["entries"]
+            entries = _coerce_entry_list(data["entries"])
 
         # Unified records format (sync path and, since v1.20.0, batch
         # finalization via build_unified_batch_output)
@@ -406,14 +418,16 @@ def extract_entries_from_json(json_file: Path) -> list[Any]:
         for chunk in data:
             entries.extend(_extract_entries_from_record(chunk))
 
-        # Direct list of entries (fallback)
-        if not entries:
+        # Direct list of entries (fallback). Only applies when no element
+        # looks like a chunk record; otherwise a run of empty chunks would
+        # be mistaken for the entries themselves.
+        if not entries and not any(
+            isinstance(chunk, dict) and "response" in chunk for chunk in data
+        ):
             entries = data
 
     # Filter out any None entries from the final list
-    entries = [entry for entry in entries if entry is not None]
-
-    return entries
+    return _coerce_entry_list(entries)
 
 
 # ---------------------------------------------------------------------------
