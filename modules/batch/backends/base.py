@@ -6,11 +6,14 @@ Supports both text chunk extraction and visual (image/PDF) extraction.
 
 from __future__ import annotations
 
+import logging
 from abc import ABC, abstractmethod
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 
 class BatchStatus(Enum):
@@ -272,3 +275,24 @@ class BatchBackend(ABC):
         if status_info.error_message:
             return status_info.error_message
         return f"Batch {handle.batch_id} has status {status_info.status.value}"
+
+    @staticmethod
+    def _clamp_max_output_tokens(requested: int, caps: Any, model_name: str) -> int:
+        """Clamp a requested output budget to the model's registered cap.
+
+        Mirrors the synchronous path's ``_effective_max_tokens``: providers
+        reject requests whose ``max_output_tokens`` exceeds the per-model
+        ceiling, so the value is clamped at request-build time. Models with
+        an unknown cap (``None`` in the capability registry) are never
+        clamped.
+        """
+        cap = getattr(caps, "max_output_tokens", None)
+        if cap is not None and requested > int(cap):
+            logger.warning(
+                "max_output_tokens %s exceeds the %s cap of %s; clamping.",
+                requested,
+                model_name,
+                cap,
+            )
+            return int(cap)
+        return requested

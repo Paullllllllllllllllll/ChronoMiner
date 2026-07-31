@@ -1,10 +1,4 @@
-"""Shared batch helpers consumed by the check, cancel, and repair scripts.
-
-Moved from ``main/check_batches.py`` to eliminate the cross-``main`` coupling
-that ``main/repair_extractions.py`` previously relied on (it imported five
-helpers directly from the check-batches script). Now check, cancel, and
-repair all import from a single module under :mod:`modules.batch`.
-"""
+"""Shared batch helpers consumed by the check, cancel, and repair scripts."""
 
 from __future__ import annotations
 

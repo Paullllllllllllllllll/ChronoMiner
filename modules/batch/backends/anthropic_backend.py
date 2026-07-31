@@ -95,6 +95,13 @@ class AnthropicBatchBackend(BatchBackend):
         """Submit a batch to Anthropic's Message Batches API."""
         client = self._get_client()
 
+        if schema is not None:
+            logger.warning(
+                "Anthropic batch requests do not enforce structured output; "
+                "relying on prompt-guided JSON for schema %r.",
+                schema_name,
+            )
+
         # Model configuration
         tm = model_config.get("extraction_model", {}) or model_config
         model_name = tm.get("name", "claude-sonnet-4-20250514")
@@ -210,14 +217,22 @@ class AnthropicBatchBackend(BatchBackend):
         total = processing + succeeded + errored + canceled + expired
 
         # Determine status
+        error_message = None
         if processing_status == "in_progress":
+            status = BatchStatus.IN_PROGRESS
+        elif processing_status == "canceling":
+            # Not a terminal state; matches OpenAI "cancelling" and Google
+            # "JOB_STATE_CANCELLING" mapping to IN_PROGRESS.
             status = BatchStatus.IN_PROGRESS
         elif processing_status == "ended":
             if total == 0:
                 # request_counts absent/all-zero: outcome is indeterminate.
                 # Without this guard `errored == total` (0 == 0) mislabels the
-                # batch FAILED.
+                # batch FAILED. An error_message is required so check_batches
+                # routes this to recovery instead of treating a bare UNKNOWN
+                # as "still processing" forever.
                 status = BatchStatus.UNKNOWN
+                error_message = "Anthropic batch ended but reported no request counts"
             elif errored == total:
                 status = BatchStatus.FAILED
             elif canceled == total:
@@ -241,6 +256,7 @@ class AnthropicBatchBackend(BatchBackend):
             pending_requests=processing,
             results_available=results_available,
             output_file_id=results_url,  # Use results_url as output reference
+            error_message=error_message,
         )
 
     def download_results(self, handle: BatchHandle) -> Iterator[BatchResultItem]:

@@ -57,6 +57,16 @@ def _apply_reasoning(body: dict[str, Any], tm: dict[str, Any], caps: Any) -> Non
         body["reasoning"] = tm["reasoning"]
 
 
+def _apply_sampler_controls(
+    body: dict[str, Any], tm: dict[str, Any], caps: Any
+) -> None:
+    """Apply sampler controls (temperature, top_p, etc.) if supported."""
+    if caps.supports_sampler_controls:
+        for k in ("temperature", "top_p", "frequency_penalty", "presence_penalty"):
+            if k in tm and tm[k] is not None:
+                body[k] = tm[k]
+
+
 def _build_responses_body(
     *,
     model_config: dict[str, Any],
@@ -85,10 +95,14 @@ def _build_responses_body(
                 ],
             },
         ],
-        "max_output_tokens": int(
-            tm.get("max_output_tokens")
-            or tm.get("max_completion_tokens")
-            or tm.get("max_tokens", 4096)
+        "max_output_tokens": BatchBackend._clamp_max_output_tokens(
+            int(
+                tm.get("max_output_tokens")
+                or tm.get("max_completion_tokens")
+                or tm.get("max_tokens", 4096)
+            ),
+            caps,
+            model_name,
         ),
     }
 
@@ -108,10 +122,7 @@ def _build_responses_body(
     _apply_reasoning(body, tm, caps)
 
     # Sampler controls
-    if caps.supports_sampler_controls:
-        for k in ("temperature", "top_p", "frequency_penalty", "presence_penalty"):
-            if k in tm and tm[k] is not None:
-                body[k] = tm[k]
+    _apply_sampler_controls(body, tm, caps)
 
     return body
 
@@ -152,10 +163,14 @@ def _build_image_responses_body(
                 ],
             },
         ],
-        "max_output_tokens": int(
-            tm.get("max_output_tokens")
-            or tm.get("max_completion_tokens")
-            or tm.get("max_tokens", 4096)
+        "max_output_tokens": BatchBackend._clamp_max_output_tokens(
+            int(
+                tm.get("max_output_tokens")
+                or tm.get("max_completion_tokens")
+                or tm.get("max_tokens", 4096)
+            ),
+            caps,
+            model_name,
         ),
     }
 
@@ -173,6 +188,9 @@ def _build_image_responses_body(
 
     # Reasoning controls for reasoning models
     _apply_reasoning(body, tm, caps)
+
+    # Sampler controls
+    _apply_sampler_controls(body, tm, caps)
 
     return body
 
@@ -331,6 +349,29 @@ class OpenAIBatchBackend(BatchBackend):
         # Get output file id
         output_file_id = getattr(batch, "output_file_id", None)
 
+        # For a failed (or expired-with-errors) batch, the SDK Batch object
+        # carries structured errors in batch.errors.data[*].{code,message,line}
+        # that diagnostics otherwise drop on the floor, leaving a
+        # content-free status. Surface them here.
+        error_message = None
+        if status in (BatchStatus.FAILED, BatchStatus.EXPIRED):
+            errors = getattr(batch, "errors", None)
+            error_data = getattr(errors, "data", None) if errors else None
+            if error_data:
+                parts = []
+                for err in error_data:
+                    code = getattr(err, "code", None)
+                    message = getattr(err, "message", None)
+                    line = getattr(err, "line", None)
+                    piece = message or "unknown error"
+                    if code:
+                        piece = f"{piece} (code={code})"
+                    if line is not None:
+                        piece = f"{piece} [line={line}]"
+                    parts.append(piece)
+                if parts:
+                    error_message = "; ".join(parts)
+
         # OpenAI writes (and charges for) the completed work of expired,
         # cancelled, and failed batches to output_file_id too, so results are
         # available for any terminal state that produced an output file, not
@@ -352,6 +393,7 @@ class OpenAIBatchBackend(BatchBackend):
             results_available=output_file_id is not None
             and status in terminal_with_output,
             output_file_id=output_file_id,
+            error_message=error_message,
         )
 
     def download_results(self, handle: BatchHandle) -> Iterator[BatchResultItem]:
@@ -491,8 +533,13 @@ class OpenAIBatchBackend(BatchBackend):
 
                 # Try to extract text from Responses API format
                 if isinstance(body, dict):
-                    # Extract from output array
+                    # Extract from output array. Accumulate ALL text parts
+                    # across ALL message items (matching the Anthropic and
+                    # Google backends' concatenation behavior); keeping only
+                    # the first part of the first item silently drops content
+                    # when a response spans multiple message/text segments.
                     output = body.get("output", [])
+                    text_parts = []
                     for item in output if isinstance(output, list) else []:
                         if isinstance(item, dict) and item.get("type") == "message":
                             content_list = item.get("content", [])
@@ -503,8 +550,8 @@ class OpenAIBatchBackend(BatchBackend):
                                     isinstance(c, dict)
                                     and c.get("type") == "output_text"
                                 ):
-                                    result_item.content = c.get("text", "")
-                                    break
+                                    text_parts.append(c.get("text", ""))
+                    result_item.content = "".join(text_parts)
 
                     # Try to parse as JSON for structured output
                     if result_item.content:

@@ -258,6 +258,69 @@ class TestOpenAIBackend:
             assert status.results_available is True
 
     @patch("openai.OpenAI")
+    def test_get_status_failed_builds_error_message_from_errors(
+        self, mock_openai_class
+    ):
+        """Regression: a failed batch's SDK errors.data[*].{code,message,line}
+        must populate error_message; previously only the retrieve()-exception
+        path set it, so a structurally failed batch produced no diagnostic
+        content even though the SDK carried one."""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        mock_batch = MagicMock()
+        mock_batch.status = "failed"
+        mock_batch.request_counts = MagicMock()
+        mock_batch.request_counts.total = 5
+        mock_batch.request_counts.completed = 0
+        mock_batch.request_counts.failed = 5
+        mock_batch.output_file_id = None
+
+        err_item = MagicMock()
+        err_item.code = "invalid_request"
+        err_item.message = "model not found"
+        err_item.line = 3
+        mock_batch.errors = MagicMock()
+        mock_batch.errors.data = [err_item]
+        mock_client.batches.retrieve.return_value = mock_batch
+
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+            backend = get_batch_backend("openai")
+            handle = BatchHandle(provider="openai", batch_id="batch-123")
+
+            status = backend.get_status(handle)
+
+            assert status.status == BatchStatus.FAILED
+            assert status.error_message is not None
+            assert "model not found" in status.error_message
+            assert "invalid_request" in status.error_message
+
+    @patch("openai.OpenAI")
+    def test_get_status_completed_has_no_error_message(self, mock_openai_class):
+        """A completed batch (no errors attribute set on the mock) must not
+        raise while building error_message and should leave it None."""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        mock_batch = MagicMock(spec=["status", "request_counts", "output_file_id"])
+        mock_batch.status = "completed"
+        mock_batch.request_counts = MagicMock()
+        mock_batch.request_counts.total = 1
+        mock_batch.request_counts.completed = 1
+        mock_batch.request_counts.failed = 0
+        mock_batch.output_file_id = "output-file-1"
+        mock_client.batches.retrieve.return_value = mock_batch
+
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+            backend = get_batch_backend("openai")
+            handle = BatchHandle(provider="openai", batch_id="batch-123")
+
+            status = backend.get_status(handle)
+
+            assert status.status == BatchStatus.COMPLETED
+            assert status.error_message is None
+
+    @patch("openai.OpenAI")
     def test_download_results_does_not_delete_but_cleanup_does(self, mock_openai_class):
         """Deletion moved out of download_results (Bug 7): iterating results must
         NOT delete remote files; cleanup(handle) deletes both input and output
@@ -307,6 +370,59 @@ class TestOpenAIBackend:
         assert len(results) == 1
         deleted = {call.args[0] for call in mock_client.files.delete.call_args_list}
         assert deleted == {"input-file-1", "output-file-1"}
+
+    @patch("openai.OpenAI")
+    def test_download_results_accumulates_all_text_parts(self, mock_openai_class):
+        """Regression: text extraction must accumulate ALL output_text parts
+        across ALL message items, not just the first part of the first
+        message item (the old `break` after the first part, with a later
+        message item overwriting `result_item.content`, silently dropped
+        content). Matches Anthropic/Google concatenation behavior."""
+        mock_client = MagicMock()
+        mock_openai_class.return_value = mock_client
+
+        mock_batch = MagicMock()
+        mock_batch.output_file_id = "output-file-1"
+        mock_batch.error_file_id = None
+        mock_client.batches.retrieve.return_value = mock_batch
+
+        result_line = json.dumps(
+            {
+                "custom_id": "req-1",
+                "response": {
+                    "status_code": 200,
+                    "body": {
+                        "output": [
+                            {
+                                "type": "message",
+                                "content": [
+                                    {"type": "output_text", "text": '{"a": 1'},
+                                    {"type": "output_text", "text": ", "},
+                                ],
+                            },
+                            {
+                                "type": "message",
+                                "content": [
+                                    {"type": "output_text", "text": '"b": 2}'},
+                                ],
+                            },
+                        ]
+                    },
+                },
+            }
+        )
+        mock_stream = MagicMock()
+        mock_stream.read.return_value = result_line.encode("utf-8")
+        mock_client.files.content.return_value = mock_stream
+
+        with patch.dict("os.environ", {"OPENAI_API_KEY": "test-key"}):
+            backend = get_batch_backend("openai")
+            handle = BatchHandle(provider="openai", batch_id="batch-123")
+            results = list(backend.download_results(handle))
+
+        assert len(results) == 1
+        assert results[0].content == '{"a": 1, "b": 2}'
+        assert results[0].parsed_output == {"a": 1, "b": 2}
 
     @patch("openai.OpenAI")
     def test_cleanup_survives_delete_failure(self, mock_openai_class):
@@ -392,7 +508,9 @@ class TestAnthropicBackend:
     def test_get_status_ended_without_counts_is_unknown(self, mock_anthropic_class):
         """Regression (C6): an ``ended`` batch with absent/all-zero
         request_counts must map to UNKNOWN, not FAILED. With total == 0 the
-        old `errored == total` check (0 == 0) mislabeled it FAILED."""
+        old `errored == total` check (0 == 0) mislabeled it FAILED. An
+        error_message must also be set so check_batches routes this to
+        recovery instead of treating a bare UNKNOWN as still processing."""
         mock_client = MagicMock()
         mock_anthropic_class.return_value = mock_client
 
@@ -409,6 +527,36 @@ class TestAnthropicBackend:
             status = backend.get_status(handle)
 
             assert status.status == BatchStatus.UNKNOWN
+            assert status.error_message
+            assert "no request counts" in status.error_message
+
+    @patch("anthropic.Anthropic")
+    def test_get_status_canceling_is_in_progress(self, mock_anthropic_class):
+        """Regression: the Anthropic SDK's processing_status Literal includes
+        'canceling' (not just 'in_progress'/'ended'); it must map to
+        IN_PROGRESS rather than falling into the else -> PENDING branch,
+        matching OpenAI's 'cancelling' and Google's 'JOB_STATE_CANCELLING'."""
+        mock_client = MagicMock()
+        mock_anthropic_class.return_value = mock_client
+
+        mock_batch = MagicMock()
+        mock_batch.processing_status = "canceling"
+        mock_batch.request_counts = MagicMock()
+        mock_batch.request_counts.processing = 2
+        mock_batch.request_counts.succeeded = 1
+        mock_batch.request_counts.errored = 0
+        mock_batch.request_counts.canceled = 0
+        mock_batch.request_counts.expired = 0
+        mock_batch.results_url = None
+        mock_client.messages.batches.retrieve.return_value = mock_batch
+
+        with patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test-key"}):
+            backend = get_batch_backend("anthropic")
+            handle = BatchHandle(provider="anthropic", batch_id="batch-123")
+
+            status = backend.get_status(handle)
+
+            assert status.status == BatchStatus.IN_PROGRESS
 
 
 class TestGoogleBackend:
@@ -501,9 +649,10 @@ class TestGoogleBackend:
         assert "SAFETY" in (results[0].error or "")
 
     def test_submit_batch_wires_sanitized_response_schema(self):
-        """Regression (A4): the structured-output schema must reach Gemini's
-        generation_config as response_schema/response_mime_type, with keys
-        Gemini rejects (e.g. additionalProperties, $ref) stripped."""
+        """Regression (A4): a ref-free structured-output schema must reach
+        Gemini's generation_config as response_schema/response_mime_type,
+        with keys Gemini rejects (e.g. additionalProperties, title)
+        stripped."""
         import sys
 
         mock_genai = MagicMock()
@@ -527,10 +676,8 @@ class TestGoogleBackend:
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
-                    "ref_field": {"$ref": "#/$defs/Thing"},
                     "name": {"type": "string", "title": "Name"},
                 },
-                "$defs": {"Thing": {"type": "string"}},
             },
         }
 
@@ -556,10 +703,60 @@ class TestGoogleBackend:
         assert gen_config["system_instruction"] == "Extract data."
         response_schema = gen_config["response_schema"]
         assert "additionalProperties" not in response_schema
-        assert "$defs" not in response_schema
         assert "title" not in response_schema["properties"]["name"]
-        # The forbidden $ref is stripped from the nested property.
-        assert "$ref" not in response_schema["properties"]["ref_field"]
+
+    def test_submit_batch_skips_response_schema_for_ref_schemas(self):
+        """A schema using $ref/$defs cannot be expressed as a Gemini
+        response_schema (stripping the reference leaves empty nodes), so
+        submission must fall back to prompt-guided JSON instead of sending
+        a broken schema."""
+        import sys
+
+        mock_genai = MagicMock()
+        mock_client = MagicMock()
+        mock_genai.Client.return_value = mock_client
+
+        captured = {}
+
+        def _capture_create(*_args, **kwargs):
+            captured["src"] = kwargs.get("src")
+            return MagicMock()
+
+        mock_client.batches.create.side_effect = _capture_create
+
+        mock_google = MagicMock()
+        mock_google.genai = mock_genai
+
+        schema = {
+            "name": "TestSchema",
+            "schema": {
+                "type": "object",
+                "properties": {
+                    "ref_field": {"$ref": "#/$defs/Thing"},
+                },
+                "$defs": {"Thing": {"type": "string"}},
+            },
+        }
+
+        with (
+            patch.dict("os.environ", {"GOOGLE_API_KEY": "test"}),
+            patch.dict(
+                sys.modules, {"google": mock_google, "google.genai": mock_genai}
+            ),
+        ):
+            backend = get_batch_backend("google")
+            backend.submit_batch(
+                [BatchRequest(custom_id="req-1", text="hello", order_index=1)],
+                {"extraction_model": {"name": "gemini-2.5-flash"}},
+                system_prompt="Extract data.",
+                schema=schema,
+                schema_name="TestSchema",
+            )
+
+        gen_config = captured["src"][0]["config"]
+        assert "response_schema" not in gen_config
+        assert "response_mime_type" not in gen_config
+        assert gen_config["system_instruction"] == "Extract data."
 
     def test_submit_batch_skips_schema_when_unsupported(self):
         """Regression (A4): when the model lacks structured-output support, no
@@ -770,6 +967,65 @@ class TestOpenAIImageResponsesBody:
         )
 
         assert body.get("service_tier") == "auto"
+
+    def test_sampler_controls_applied(self):
+        """Regression: sampler controls (temperature, top_p,
+        frequency_penalty, presence_penalty) are applied to the text body
+        builder but were omitted from the image body builder; they must be
+        applied identically here for models that support them."""
+        from modules.batch.backends.openai_backend import _build_image_responses_body
+
+        model_config = {
+            "extraction_model": {
+                "name": "gpt-4o",
+                "max_output_tokens": 512,
+                "temperature": 0.2,
+                "top_p": 0.9,
+                "frequency_penalty": 0.1,
+                "presence_penalty": 0.3,
+            }
+        }
+        body = _build_image_responses_body(
+            model_config=model_config,
+            system_prompt="sys",
+            image_base64="AAAA",
+            mime_type="image/png",
+        )
+
+        assert body.get("temperature") == 0.2
+        assert body.get("top_p") == 0.9
+        assert body.get("frequency_penalty") == 0.1
+        assert body.get("presence_penalty") == 0.3
+
+    def test_sampler_controls_omitted_when_unsupported(self):
+        """When the model does not support sampler controls, none of the
+        keys should be set on the image body."""
+        from modules.batch.backends.openai_backend import _build_image_responses_body
+
+        unsupported = MagicMock()
+        unsupported.supports_sampler_controls = False
+        unsupported.supports_structured_outputs = False
+        unsupported.supports_reasoning_effort = False
+
+        model_config = {
+            "extraction_model": {
+                "name": "some-reasoning-model",
+                "max_output_tokens": 512,
+                "temperature": 0.2,
+            }
+        }
+        with patch(
+            "modules.batch.backends.openai_backend.detect_capabilities",
+            return_value=unsupported,
+        ):
+            body = _build_image_responses_body(
+                model_config=model_config,
+                system_prompt="sys",
+                image_base64="AAAA",
+                mime_type="image/png",
+            )
+
+        assert "temperature" not in body
 
 
 class TestOpenAIVisualBatchRouting:
@@ -998,12 +1254,14 @@ class TestGoogleInlineRequestShape:
 
         src = captured["src"]
         item = src[0]
-        # No forbidden top-level keys.
-        assert set(item.keys()) == {"contents", "config"}
+        # No forbidden top-level keys (metadata carries the correlation key).
+        assert set(item.keys()) == {"contents", "config", "metadata"}
         assert item["config"]["system_instruction"] == "Extract data."
+        assert item["metadata"] == {"key": "req-1"}
         # Constructing BatchJobSource with the real model must not raise.
         source = real_types.BatchJobSource(inlined_requests=src)
         assert source.inlined_requests[0].config.system_instruction == "Extract data."
+        assert source.inlined_requests[0].metadata == {"key": "req-1"}
 
 
 class TestAnthropicMaxTokensClamp:

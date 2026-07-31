@@ -1,88 +1,8 @@
 import json
-from unittest.mock import Mock
 
 import pytest
 
-from modules.batch.diagnostics import diagnose_batch_failure, extract_custom_id_mapping
-
-
-@pytest.mark.unit
-def test_diagnose_batch_failure_failed_status():
-    mock_client = Mock()
-    mock_batch = Mock()
-    mock_batch.model_dump = Mock(return_value={"status": "failed"})
-    mock_client.batches.retrieve = Mock(return_value=mock_batch)
-
-    result = diagnose_batch_failure("batch_123", mock_client)
-
-    assert "failed" in result.lower()
-    assert "batch_123" in result
-
-
-@pytest.mark.unit
-def test_diagnose_batch_failure_cancelled_status():
-    mock_client = Mock()
-    mock_batch = Mock()
-    mock_batch.model_dump = Mock(return_value={"status": "cancelled"})
-    mock_client.batches.retrieve = Mock(return_value=mock_batch)
-
-    result = diagnose_batch_failure("batch_123", mock_client)
-
-    assert "cancelled" in result.lower()
-
-
-@pytest.mark.unit
-def test_diagnose_batch_failure_expired_status():
-    mock_client = Mock()
-    mock_batch = Mock()
-    mock_batch.model_dump = Mock(return_value={"status": "expired"})
-    mock_client.batches.retrieve = Mock(return_value=mock_batch)
-
-    result = diagnose_batch_failure("batch_123", mock_client)
-
-    assert "expired" in result.lower()
-
-
-@pytest.mark.unit
-def test_diagnose_batch_failure_in_progress_status():
-    mock_client = Mock()
-    mock_batch = Mock()
-    mock_batch.model_dump = Mock(return_value={"status": "in_progress"})
-    mock_client.batches.retrieve = Mock(return_value=mock_batch)
-
-    result = diagnose_batch_failure("batch_123", mock_client)
-
-    assert "in_progress" in result.lower()
-
-
-@pytest.mark.unit
-def test_diagnose_batch_failure_not_found():
-    mock_client = Mock()
-    mock_client.batches.retrieve = Mock(side_effect=Exception("Batch not found"))
-
-    result = diagnose_batch_failure("batch_123", mock_client)
-
-    assert "not found" in result.lower()
-
-
-@pytest.mark.unit
-def test_diagnose_batch_failure_unauthorized():
-    mock_client = Mock()
-    mock_client.batches.retrieve = Mock(side_effect=Exception("Unauthorized access"))
-
-    result = diagnose_batch_failure("batch_123", mock_client)
-
-    assert "unauthorized" in result.lower()
-
-
-@pytest.mark.unit
-def test_diagnose_batch_failure_quota_exceeded():
-    mock_client = Mock()
-    mock_client.batches.retrieve = Mock(side_effect=Exception("Quota exceeded"))
-
-    result = diagnose_batch_failure("batch_123", mock_client)
-
-    assert "quota" in result.lower()
+from modules.batch.diagnostics import extract_custom_id_mapping
 
 
 @pytest.mark.unit

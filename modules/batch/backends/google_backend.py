@@ -36,8 +36,10 @@ MAX_INLINE_BYTES = 20 * 1024 * 1024  # 20 MB for inline requests
 # JSON-Schema keywords Gemini's ``response_schema`` rejects. Stripped before
 # the schema is forwarded so a standard ChronoMiner schema (which carries
 # ``additionalProperties: false``) does not 400 at submit time. Schemas that
-# rely on ``$ref`` cannot be fully expressed this way; the reference is dropped
-# and Gemini falls back to looser, prompt-guided JSON (flagged for follow-up).
+# rely on ``$ref``/``$defs`` cannot be expressed this way at all: stripping
+# the reference would leave empty ``{}`` schema nodes (invalid for required
+# properties), so ``response_schema`` is skipped entirely for such schemas
+# and Gemini falls back to prompt-guided JSON (see ``_contains_schema_refs``).
 _GEMINI_UNSUPPORTED_SCHEMA_KEYS = frozenset(
     {
         "$schema",
@@ -65,6 +67,17 @@ def _sanitize_gemini_schema(node: Any) -> Any:
     if isinstance(node, list):
         return [_sanitize_gemini_schema(item) for item in node]
     return node
+
+
+def _contains_schema_refs(node: Any) -> bool:
+    """Whether a JSON schema uses ``$ref``/``$defs``/``definitions`` anywhere."""
+    if isinstance(node, dict):
+        if any(k in node for k in ("$ref", "$defs", "definitions")):
+            return True
+        return any(_contains_schema_refs(v) for v in node.values())
+    if isinstance(node, list):
+        return any(_contains_schema_refs(item) for item in node)
+    return False
 
 
 class GoogleBatchBackend(BatchBackend):
@@ -118,12 +131,17 @@ class GoogleBatchBackend(BatchBackend):
             api_model_name = model_name
 
         # Build generation config
+        caps = detect_capabilities(model_name, provider="google")
         generation_config: dict[str, Any] = {}
         max_tokens = tm.get("max_output_tokens") or tm.get("max_tokens")
         if max_tokens:
-            generation_config["max_output_tokens"] = int(max_tokens)
+            generation_config["max_output_tokens"] = self._clamp_max_output_tokens(
+                int(max_tokens), caps, model_name
+            )
         temperature = tm.get("temperature")
-        if temperature is not None:
+        # Gate on the capability registry, matching the OpenAI and Anthropic
+        # backends: reasoning models reject sampler controls.
+        if temperature is not None and caps.supports_sampler_controls:
             generation_config["temperature"] = float(temperature)
 
         # Wire structured-output schema when the model supports it. Without
@@ -131,13 +149,22 @@ class GoogleBatchBackend(BatchBackend):
         # the schema is embedded in the system prompt. Gate on the capability
         # registry so reasoning/unsupported models are left unconstrained, and
         # sanitize the schema for Gemini's response_schema restrictions.
-        caps = detect_capabilities(model_name, provider="google")
+        # Schemas using $ref/$defs cannot be sanitized into a valid
+        # response_schema (stripping references leaves empty nodes), so they
+        # fall back to prompt-guided JSON instead of sending a broken schema.
         if schema and caps.supports_structured_outputs:
             if "schema" in schema and isinstance(schema["schema"], dict):
                 response_schema = schema["schema"]
             else:
                 response_schema = schema
-            if response_schema:
+            if response_schema and _contains_schema_refs(response_schema):
+                logger.warning(
+                    "Schema %s uses $ref/$defs, which Gemini's response_schema "
+                    "cannot express; submitting without schema enforcement "
+                    "(prompt-guided JSON).",
+                    schema_name or "<unnamed>",
+                )
+            elif response_schema:
                 generation_config["response_mime_type"] = "application/json"
                 generation_config["response_schema"] = _sanitize_gemini_schema(
                     response_schema
@@ -210,6 +237,13 @@ class GoogleBatchBackend(BatchBackend):
                     {
                         "contents": item["request"]["contents"],
                         "config": req_config,
+                        # Explicit correlation: InlinedResponse echoes this
+                        # metadata back, so results are matched by key rather
+                        # than purely by position. Positional matching alone
+                        # mis-attributes every response after a gap when the
+                        # API returns fewer or reordered responses (e.g. under
+                        # JOB_STATE_PARTIALLY_SUCCEEDED).
+                        "metadata": {"key": str(item["key"])},
                     }
                 )
 
@@ -293,12 +327,28 @@ class GoogleBatchBackend(BatchBackend):
             "JOB_STATE_PENDING": BatchStatus.PENDING,
             "JOB_STATE_RUNNING": BatchStatus.IN_PROGRESS,
             "JOB_STATE_CANCELLING": BatchStatus.IN_PROGRESS,
+            "JOB_STATE_PAUSED": BatchStatus.IN_PROGRESS,
+            "JOB_STATE_UPDATING": BatchStatus.IN_PROGRESS,
             "JOB_STATE_SUCCEEDED": BatchStatus.COMPLETED,
+            # Terminal with downloadable results; per-request failures are
+            # yielded as failed items by _iter_results, mirroring OpenAI's
+            # completed-with-failed-requests semantics. Without this mapping
+            # a partially-succeeded job read as UNKNOWN-without-error and
+            # check_batches reported "still processing" forever.
+            "JOB_STATE_PARTIALLY_SUCCEEDED": BatchStatus.COMPLETED,
             "JOB_STATE_FAILED": BatchStatus.FAILED,
             "JOB_STATE_CANCELLED": BatchStatus.CANCELLED,
             "JOB_STATE_EXPIRED": BatchStatus.EXPIRED,
         }
         status = status_map.get(state_name, BatchStatus.UNKNOWN)
+        if status is BatchStatus.UNKNOWN and state_name:
+            # An unmapped state must never wedge the batch silently: attach
+            # the state so check_batches treats it as actionable.
+            return BatchStatusInfo(
+                status=BatchStatus.UNKNOWN,
+                total_requests=handle.metadata.get("request_count", 0),
+                error_message=f"Unmapped Google batch state: {state_name}",
+            )
 
         # Check for results
         dest = getattr(batch_job, "dest", None)
@@ -460,18 +510,23 @@ class GoogleBatchBackend(BatchBackend):
         # Check for inline results
         elif hasattr(dest, "inlined_responses") and dest.inlined_responses:
             for i, inline_response in enumerate(dest.inlined_responses):
-                # For inline, we need to map index back to custom_id
-                custom_id_map = handle.metadata.get("custom_id_map", {})
-                # Reverse lookup
+                # Prefer the echoed request metadata (explicit correlation);
+                # fall back to the positional custom_id_map for batches
+                # submitted before metadata was attached.
                 custom_id = None
-                for cid, idx in custom_id_map.items():
-                    if idx == i:
-                        custom_id = cid
-                        break
+                response_meta = getattr(inline_response, "metadata", None)
+                if isinstance(response_meta, dict):
+                    custom_id = response_meta.get("key")
+                if not custom_id:
+                    custom_id_map = handle.metadata.get("custom_id_map", {})
+                    for cid, idx in custom_id_map.items():
+                        if idx == i:
+                            custom_id = cid
+                            break
                 if custom_id is None:
                     custom_id = f"req-{i + 1}"
 
-                result_item = BatchResultItem(custom_id=custom_id)
+                result_item = BatchResultItem(custom_id=str(custom_id))
 
                 if hasattr(inline_response, "error") and inline_response.error:
                     result_item.success = False
@@ -487,6 +542,23 @@ class GoogleBatchBackend(BatchBackend):
                         result_item.content = response.text
                     except AttributeError:
                         result_item.content = str(response)
+
+                    # Preserve provider metadata and token usage, mirroring
+                    # the file-based branch. Without this, every inline batch
+                    # (the common, under-20MB case) reported zero tokens and
+                    # an empty raw_response.
+                    with contextlib.suppress(Exception):
+                        dumped = response.model_dump(mode="json")
+                        if isinstance(dumped, dict):
+                            result_item.raw_response = dumped
+                    usage_md = getattr(response, "usage_metadata", None)
+                    if usage_md is not None:
+                        result_item.input_tokens = int(
+                            getattr(usage_md, "prompt_token_count", 0) or 0
+                        )
+                        result_item.output_tokens = int(
+                            getattr(usage_md, "candidates_token_count", 0) or 0
+                        )
 
                     # Try to parse as JSON
                     if result_item.content:
