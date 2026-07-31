@@ -173,16 +173,18 @@ def print_error(message: str, prefix: str = "[ERROR]") -> None:
     ui_print(f"{prefix} {message}", PromptStyle.ERROR)
 
 
-def print_navigation_help(allow_back: bool = False) -> None:
+def print_navigation_help(allow_back: bool = False, allow_quit: bool = True) -> None:
     """Print navigation options help text.
 
     Args:
         allow_back: Whether to show the 'back' option
+        allow_quit: Whether to show the 'quit' option
     """
     options = []
     if allow_back:
         options.append("'b' to go back")
-    options.append("'q' to quit")
+    if allow_quit:
+        options.append("'q' to quit")
 
     if options:
         help_text = " | ".join(options)
@@ -215,6 +217,58 @@ def handle_navigation_input(
     return None
 
 
+class IndexSelectionError(ValueError):
+    """Raised when an index/range token lies outside the selectable bounds.
+
+    Carries the offending token so each call site can phrase its own message.
+    A malformed (non-integer) token still raises a plain :class:`ValueError`
+    from ``int()``.
+    """
+
+    def __init__(self, message: str, part: str, is_range: bool) -> None:
+        super().__init__(message)
+        self.part = part
+        self.is_range = is_range
+
+
+def parse_index_selection(normalized: str, count: int) -> set[int]:
+    """Parse '1,3,5' / '1-3,5' into a 0-based index set. Raises ValueError.
+
+    Args:
+        normalized: Comma-separated selection string; each token is either a
+            single 1-based number or an inclusive ``start-end`` range. Empty
+            tokens are ignored.
+        count: Number of selectable items (upper 1-based bound).
+
+    Returns:
+        Set of 0-based indices.
+
+    Raises:
+        IndexSelectionError: A token is outside the range 1..``count``.
+        ValueError: A token is not an integer or an integer range.
+    """
+    indices: set[int] = set()
+
+    for raw_part in normalized.split(","):
+        part = raw_part.strip()
+        if not part:
+            continue
+        if "-" in part:
+            start, end = part.split("-", 1)
+            start_idx = int(start.strip())
+            end_idx = int(end.strip())
+            if not 1 <= start_idx <= end_idx <= count:
+                raise IndexSelectionError(f"Invalid range: {part}", part, True)
+            indices.update(range(start_idx - 1, end_idx))
+        else:
+            idx = int(part)
+            if not 1 <= idx <= count:
+                raise IndexSelectionError(f"Index {idx} out of range", part, False)
+            indices.add(idx - 1)
+
+    return indices
+
+
 def prompt_select(
     question: str,
     options: list[tuple[str, str]],
@@ -234,6 +288,10 @@ def prompt_select(
     Returns:
         PromptResult with the selected value or navigation action
     """
+    if not options:
+        print_error("No options available to choose from.")
+        return PromptResult(NavigationAction.BACK)
+
     ui_print(f"\n{question}", PromptStyle.PROMPT)
     print_separator()
 
@@ -241,7 +299,7 @@ def prompt_select(
         ui_print(f"  {idx}. {description}")
 
     if show_help:
-        print_navigation_help(allow_back)
+        print_navigation_help(allow_back, allow_quit)
 
     while True:
         choice = ui_input("\nEnter your choice: ")
@@ -253,8 +311,9 @@ def prompt_select(
         if nav_action == NavigationAction.BACK:
             return PromptResult(NavigationAction.BACK)
 
-        # Check for valid selection
-        if choice.isdigit():
+        # Check for valid selection. isdigit() also accepts non-ASCII digits
+        # (e.g. superscripts) that int() rejects, so gate on isascii() too.
+        if choice.isascii() and choice.isdigit():
             idx = int(choice)
             if 1 <= idx <= len(options):
                 return PromptResult(NavigationAction.CONTINUE, options[idx - 1][0])
@@ -289,8 +348,8 @@ def prompt_yes_no(
 
     ui_print(f"\n{question}{suffix}", PromptStyle.PROMPT)
 
-    if allow_back:
-        print_navigation_help(allow_back)
+    if allow_back or allow_quit:
+        print_navigation_help(allow_back, allow_quit)
 
     while True:
         choice = ui_input("> ").lower()
@@ -344,22 +403,23 @@ def prompt_text(
 
     ui_print(f"\n{prompt_text_display}", PromptStyle.PROMPT)
 
-    if allow_back:
-        print_navigation_help(allow_back)
+    if allow_back or allow_quit:
+        print_navigation_help(allow_back, allow_quit)
 
     while True:
         value = ui_input("> ")
 
-        # Use default if empty and default provided
-        if not value and default:
-            value = default
-
-        # Check for navigation
+        # Check for navigation before the default is substituted, so that a
+        # default value can never be mistaken for a navigation command.
         nav_action = handle_navigation_input(value, allow_back, allow_quit)
         if nav_action == NavigationAction.QUIT:
             sys.exit(0)
         if nav_action == NavigationAction.BACK:
             return PromptResult(NavigationAction.BACK)
+
+        # Use default if empty and default provided
+        if not value and default:
+            value = default
 
         # Check for empty
         if not value and not allow_empty:
@@ -418,6 +478,10 @@ def prompt_multiselect(
     Returns:
         PromptResult with list of selected identifiers or navigation action
     """
+    if not items:
+        print_error("No items available to choose from.")
+        return PromptResult(NavigationAction.BACK)
+
     ui_print(f"\n{question}", PromptStyle.PROMPT)
     print_separator()
 
@@ -435,7 +499,7 @@ def prompt_multiselect(
 
     if allow_back:
         ui_print("")  # Spacing
-        print_navigation_help(allow_back)
+        print_navigation_help(allow_back, allow_quit)
 
     while True:
         choice = ui_input("\nYour selection: ").strip()
@@ -480,34 +544,19 @@ def prompt_multiselect(
         else:
             # Numeric selection
             try:
-                parts = normalized_input.split(",")
-                for part in parts:
-                    if not part:
-                        continue
-                    if "-" in part:
-                        # Range
-                        start, end = part.split("-", 1)
-                        start_idx = int(start.strip())
-                        end_idx = int(end.strip())
-                        if not (1 <= start_idx <= end_idx <= len(items)):
-                            print_error(
-                                f"Range {part} is invalid. "
-                                f"Must be between 1 and {len(items)}."
-                            )
-                            selected_indices.clear()
-                            break
-                        selected_indices.update(range(start_idx - 1, end_idx))
-                    else:
-                        # Single number
-                        idx = int(part)
-                        if not (1 <= idx <= len(items)):
-                            print_error(
-                                f"Selection {part} is out of range. "
-                                f"Must be between 1 and {len(items)}."
-                            )
-                            selected_indices.clear()
-                            break
-                        selected_indices.add(idx - 1)
+                selected_indices = parse_index_selection(normalized_input, len(items))
+            except IndexSelectionError as exc:
+                if exc.is_range:
+                    print_error(
+                        f"Range {exc.part} is invalid. "
+                        f"Must be between 1 and {len(items)}."
+                    )
+                else:
+                    print_error(
+                        f"Selection {exc.part} is out of range. "
+                        f"Must be between 1 and {len(items)}."
+                    )
+                continue
             except ValueError:
                 print_error(
                     f"Invalid input: '{choice}'. "

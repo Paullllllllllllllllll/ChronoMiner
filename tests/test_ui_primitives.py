@@ -18,11 +18,14 @@ import pytest
 
 import modules.ui.prompts as prompts_mod
 from modules.ui import (
+    IndexSelectionError,
     NavigationAction,
     PromptResult,
     PromptStyle,
+    parse_index_selection,
     print_error,
     print_info,
+    print_navigation_help,
     print_success,
     print_warning,
     prompt_multiselect,
@@ -240,3 +243,186 @@ class TestAllowQuit:
             result = prompt_text("enter", allow_empty=True, allow_quit=False)
         assert result.action is NavigationAction.CONTINUE
         assert result.value == "q"
+
+
+@pytest.mark.unit
+class TestNonAsciiDigitSelection:
+    """int() rejects digits that str.isdigit() accepts (superscripts, etc.);
+    prompt_select must treat them as invalid input, not crash (regression)."""
+
+    def test_superscript_digit_is_invalid_not_a_crash(self):
+        options = [("a", "A"), ("b", "B")]
+        # U+00B2 (superscript two) passes isdigit() but int() raises.
+        with patch("builtins.input", side_effect=["²", "2"]):
+            result = prompt_select("pick", options)
+        assert result.action is NavigationAction.CONTINUE
+        assert result.value == "b"
+
+    def test_devanagari_digit_is_invalid_not_a_crash(self):
+        options = [("a", "A")]
+        with patch("builtins.input", side_effect=["१", "1"]):
+            result = prompt_select("pick", options)
+        assert result.value == "a"
+
+
+@pytest.mark.unit
+class TestNavigationHelp:
+    """The help line must advertise only the navigation actually available."""
+
+    def test_help_omits_quit_when_disallowed(self, capsys):
+        print_navigation_help(allow_back=True, allow_quit=False)
+        out = capsys.readouterr().out
+        assert "go back" in out
+        assert "quit" not in out
+
+    def test_help_prints_nothing_when_both_disallowed(self, capsys):
+        print_navigation_help(allow_back=False, allow_quit=False)
+        assert capsys.readouterr().out.strip() == ""
+
+    def test_prompt_select_help_omits_quit_when_disallowed(self, capsys):
+        options = [("a", "A"), ("b", "B")]
+        with patch("builtins.input", return_value="1"):
+            prompt_select("pick", options, allow_back=False, allow_quit=False)
+        assert "'q' to quit" not in capsys.readouterr().out
+
+    def test_prompt_text_shows_quit_help_without_back(self, capsys):
+        """allow_back=False, allow_quit=True still tells the user 'q' exits."""
+        with patch("builtins.input", return_value="x"):
+            prompt_text("enter", allow_back=False, allow_quit=True)
+        assert "'q' to quit" in capsys.readouterr().out
+
+    def test_prompt_yes_no_shows_quit_help_without_back(self, capsys):
+        with patch("builtins.input", return_value="y"):
+            prompt_yes_no("ok?", allow_back=False, allow_quit=True)
+        assert "'q' to quit" in capsys.readouterr().out
+
+
+@pytest.mark.unit
+class TestEmptyChoiceGuards:
+    """An empty option list must not strand the user in an unanswerable loop."""
+
+    def test_prompt_select_empty_options_returns_back(self, capsys):
+        with patch("builtins.input", side_effect=AssertionError("must not prompt")):
+            result = prompt_select("pick", [])
+        assert result.action is NavigationAction.BACK
+        assert "No options available" in capsys.readouterr().out
+
+    def test_prompt_multiselect_empty_items_returns_back(self, capsys):
+        with patch("builtins.input", side_effect=AssertionError("must not prompt")):
+            result = prompt_multiselect("pick", [])
+        assert result.action is NavigationAction.BACK
+        assert "No items available" in capsys.readouterr().out
+
+
+@pytest.mark.unit
+class TestPromptTextDefaultVersusNavigation:
+    """The default must be substituted only after the navigation check, so a
+    default that happens to read like a command is returned as a value."""
+
+    def test_default_that_looks_like_quit_is_returned(self):
+        with patch("builtins.input", return_value=""):
+            result = prompt_text("enter", default="q")
+        assert result.action is NavigationAction.CONTINUE
+        assert result.value == "q"
+
+    def test_default_that_looks_like_back_is_returned(self):
+        with patch("builtins.input", return_value=""):
+            result = prompt_text("enter", default="b", allow_back=True)
+        assert result.action is NavigationAction.CONTINUE
+        assert result.value == "b"
+
+    def test_explicitly_typed_quit_still_exits(self):
+        with (
+            patch("builtins.input", return_value="q"),
+            pytest.raises(SystemExit),
+        ):
+            prompt_text("enter", default="fallback")
+
+
+@pytest.mark.unit
+class TestParseIndexSelection:
+    """The shared index/range parser backing every numbered-list prompt."""
+
+    def test_comma_separated(self):
+        assert parse_index_selection("1,3,5", 5) == {0, 2, 4}
+
+    def test_range_and_single(self):
+        assert parse_index_selection("1-3,5", 5) == {0, 1, 2, 4}
+
+    def test_whitespace_tolerated(self):
+        assert parse_index_selection(" 2 , 4 ", 4) == {1, 3}
+
+    def test_empty_tokens_ignored(self):
+        assert parse_index_selection("1,,3", 3) == {0, 2}
+
+    def test_empty_string_selects_nothing(self):
+        assert parse_index_selection("", 3) == set()
+
+    def test_single_point_range(self):
+        assert parse_index_selection("2-2", 3) == {1}
+
+    def test_out_of_range_single_raises_with_token(self):
+        with pytest.raises(IndexSelectionError) as exc:
+            parse_index_selection("9", 3)
+        assert exc.value.part == "9"
+        assert exc.value.is_range is False
+        assert str(exc.value) == "Index 9 out of range"
+
+    def test_out_of_range_high_bound_raises(self):
+        with pytest.raises(IndexSelectionError) as exc:
+            parse_index_selection("1-9", 3)
+        assert exc.value.part == "1-9"
+        assert exc.value.is_range is True
+        assert str(exc.value) == "Invalid range: 1-9"
+
+    def test_reversed_range_raises(self):
+        with pytest.raises(IndexSelectionError):
+            parse_index_selection("3-1", 5)
+
+    def test_zero_is_out_of_range(self):
+        with pytest.raises(IndexSelectionError):
+            parse_index_selection("0", 5)
+
+    def test_non_numeric_raises_plain_value_error(self):
+        with pytest.raises(ValueError) as exc:
+            parse_index_selection("abc", 5)
+        assert not isinstance(exc.value, IndexSelectionError)
+
+    def test_negative_token_raises_plain_value_error(self):
+        with pytest.raises(ValueError) as exc:
+            parse_index_selection("-3", 5)
+        assert not isinstance(exc.value, IndexSelectionError)
+
+
+@pytest.mark.unit
+class TestPromptMultiselectMessagesUnchanged:
+    """The consolidated parser must keep the multiselect wording intact."""
+
+    def test_out_of_range_single_message(self, capsys):
+        items = [("a", "A"), ("b", "B")]
+        with patch("builtins.input", side_effect=["9", "1"]):
+            result = prompt_multiselect("pick", items)
+        out = capsys.readouterr().out
+        assert "Selection 9 is out of range. Must be between 1 and 2." in out
+        assert result.value == ["a"]
+
+    def test_out_of_range_range_message(self, capsys):
+        items = [("a", "A"), ("b", "B")]
+        with patch("builtins.input", side_effect=["1-9", "2"]):
+            result = prompt_multiselect("pick", items)
+        out = capsys.readouterr().out
+        assert "Range 1-9 is invalid. Must be between 1 and 2." in out
+        assert result.value == ["b"]
+
+    def test_malformed_numeric_message(self, capsys):
+        items = [("a", "A"), ("b", "B")]
+        with patch("builtins.input", side_effect=["1-2-3", "1"]):
+            result = prompt_multiselect("pick", items)
+        assert "Invalid input: '1-2-3'" in capsys.readouterr().out
+        assert result.value == ["a"]
+
+    def test_range_selection_still_works(self):
+        items = [("a", "A"), ("b", "B"), ("c", "C")]
+        with patch("builtins.input", return_value="1-2"):
+            result = prompt_multiselect("pick", items)
+        assert result.value == ["a", "b"]

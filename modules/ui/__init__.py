@@ -13,9 +13,11 @@ Structure:
 
 from modules.ui.core import UserInterface
 from modules.ui.prompts import (
+    IndexSelectionError,
     NavigationAction,
     PromptResult,
     PromptStyle,
+    parse_index_selection,
     print_error,
     print_header,
     print_info,
@@ -53,4 +55,7 @@ __all__ = [
     "prompt_yes_no",
     "prompt_text",
     "prompt_multiselect",
+    # Selection parsing
+    "parse_index_selection",
+    "IndexSelectionError",
 ]

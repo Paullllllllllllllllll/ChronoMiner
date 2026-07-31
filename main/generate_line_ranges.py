@@ -36,6 +36,15 @@ from modules.line_ranges.generator import (
     write_line_ranges_file,
 )
 
+# Auxiliary sidecar files excluded from interactive discovery (mirrors
+# UserInterface._AUXILIARY_SUFFIXES).
+_AUXILIARY_SUFFIXES = (
+    "_line_ranges.txt",
+    "_line_range.txt",
+    "_context.txt",
+    "_output.txt",
+)
+
 
 class GenerateLineRangesScript(DualModeScript):
     """Script to generate line ranges for text files based on token chunking."""
@@ -115,6 +124,11 @@ class GenerateLineRangesScript(DualModeScript):
                 )
         elif mode == "folder":
             files = self._select_folder_files(raw_text_dir)
+            if not files:
+                # Nothing to process: return to input mode selection.
+                return self._select_files_interactive(
+                    raw_text_dir, allow_back=allow_back
+                )
 
         return files
 
@@ -123,41 +137,59 @@ class GenerateLineRangesScript(DualModeScript):
     ) -> list[Path] | None:
         """Select a single file for processing."""
         assert self.ui is not None
-        file_input = self.ui.get_input(
-            "Enter the filename to process (with or without .txt extension)",
-            allow_back=allow_back,
-            allow_quit=True,
-        )
+        # Containment base: the filename is handed to rglob as a glob pattern,
+        # so guard every match against escaping the configured input directory
+        # (e.g. via "../" or an absolute path).
+        resolved_base = raw_text_dir.resolve()
 
-        if not file_input:
-            return None
+        while True:
+            file_input = self.ui.get_input(
+                "Enter the filename to process (with or without .txt extension)",
+                allow_back=allow_back,
+                allow_quit=True,
+            )
 
-        if not file_input.lower().endswith(".txt"):
-            file_input += ".txt"
+            if not file_input:
+                return None
 
-        file_candidates: list[Path] = [
-            f
-            for f in raw_text_dir.rglob(file_input)
-            if not f.name.endswith("_line_ranges.txt")
-            and not f.name.endswith("_context.txt")
-            and not f.name.endswith("_output.txt")
-        ]
+            if not file_input.lower().endswith(".txt"):
+                file_input += ".txt"
 
-        if not file_candidates:
-            self.ui.print_error(f"File '{file_input}' not found in {raw_text_dir}")
-            sys.exit(1)
-        elif len(file_candidates) == 1:
-            file_path: Path = file_candidates[0]
-            self.ui.print_success(f"Selected: {file_path.name}")
-            return [file_path]
-        else:
+            try:
+                file_candidates: list[Path] = [
+                    f
+                    for f in raw_text_dir.rglob(file_input)
+                    if f.resolve().is_relative_to(resolved_base)
+                    and not any(
+                        f.name.endswith(suffix) for suffix in _AUXILIARY_SUFFIXES
+                    )
+                ]
+            except (NotImplementedError, ValueError):
+                # Python raises NotImplementedError for non-relative (absolute)
+                # glob patterns and ValueError for malformed ones.
+                file_candidates = []
+
+            if not file_candidates:
+                if Path(file_input).is_absolute():
+                    self.ui.print_info(
+                        "Enter a name relative to the input directory,"
+                        " not an absolute path."
+                    )
+                self.ui.print_error(f"File '{file_input}' not found in {raw_text_dir}")
+                self.ui.print_info("Please try again or press 'b' to go back.")
+                continue
+
+            if len(file_candidates) == 1:
+                file_path: Path = file_candidates[0]
+                self.ui.print_success(f"Selected: {file_path.name}")
+                return [file_path]
+
             result = self._select_from_multiple(
                 file_candidates, raw_text_dir, allow_back=allow_back
             )
-            if result is None:
-                # User went back, recursively call this method again
-                return self._select_single_file(raw_text_dir, allow_back=allow_back)
-            return result
+            if result is not None:
+                return result
+            # User went back from the numbered list: ask for a filename again.
 
     def _select_from_multiple(
         self, candidates: list[Path], base_dir: Path, allow_back: bool = False
@@ -192,19 +224,24 @@ class GenerateLineRangesScript(DualModeScript):
                 self.ui.print_error("Invalid input. Please enter a number.")
 
     def _select_folder_files(self, raw_text_dir: Path) -> list[Path]:
-        """Select all text files in a folder."""
+        """Select all text files in a folder.
+
+        Returns an empty list when the folder holds no eligible files, so the
+        caller can re-prompt instead of aborting the run.
+        """
         assert self.ui is not None
         files = [
             f
             for f in raw_text_dir.rglob("*.txt")
-            if not f.name.endswith("_line_ranges.txt")
-            and not f.name.endswith("_context.txt")
-            and not f.name.endswith("_output.txt")
+            if not any(f.name.endswith(suffix) for suffix in _AUXILIARY_SUFFIXES)
         ]
 
         if not files:
             self.ui.print_error(f"No .txt files found in {raw_text_dir}")
-            sys.exit(1)
+            self.ui.print_info(
+                "Please check the directory or go back to select a different option."
+            )
+            return []
 
         self.ui.print_success(f"Found {len(files)} text files to process")
         return files

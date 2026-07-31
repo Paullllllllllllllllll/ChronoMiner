@@ -28,6 +28,7 @@ from modules.config.constants import (
 from modules.ui.prompts import (
     NavigationAction,
     PromptStyle,
+    parse_index_selection,
     print_header,
     prompt_select,
     prompt_text,
@@ -88,8 +89,11 @@ class UserInterface:
         """
         self.logger = logger
         self.use_colors = use_colors
-        if not use_colors:
-            # Disable colors
+        if not use_colors or not PromptStyle.supports_color():
+            # Disable colors. Every other message path routes through
+            # ui_print()/PromptStyle, which consult supports_color(); the
+            # class-level codes are interpolated directly, so they must honor
+            # the same check or ANSI escapes leak into redirected output.
             self.RESET = self.BOLD = self.DIM = ""
             self.SUCCESS = self.WARNING = self.ERROR = self.INFO = self.PROMPT = ""
 
@@ -426,10 +430,10 @@ class UserInterface:
     def ask_image_detail(self, allow_back: bool = False) -> str | None:
         """Prompt user for image detail level for vision models."""
         options = [
-            ("auto", "Auto  — let the model decide (recommended)"),
-            ("high", "High  — full resolution, higher cost"),
-            ("low", "Low   — 512 px tile, cheapest"),
-            ("original", "Original — no resizing, maximum fidelity"),
+            ("auto", "Auto  - let the model decide (recommended)"),
+            ("high", "High  - full resolution, higher cost"),
+            ("low", "Low   - 512 px tile, cheapest"),
+            ("original", "Original - no resizing, maximum fidelity"),
         ]
         return self.select_option(
             "Select image detail level:",
@@ -699,7 +703,7 @@ class UserInterface:
                                     "Invalid input. Please enter a number."
                                 )
 
-                        # Broke out of number selection — retry filename input
+                        # Broke out of number selection - retry filename input
                         continue
 
                 # If we broke out of the filename loop, return to mode selection
@@ -741,30 +745,10 @@ class UserInterface:
                         break
 
                     try:
-                        # Parse comma-separated indices and ranges
-                        selected_indices: set[int] = set()
-                        parts = selection.split(",")
-
-                        for part in parts:
-                            part = part.strip()
-                            if "-" in part:
-                                # Range like "1-3"
-                                start, end = part.split("-", 1)
-                                start_idx = int(start.strip())
-                                end_idx = int(end.strip())
-                                if (
-                                    start_idx < 1
-                                    or end_idx > len(all_files)
-                                    or start_idx > end_idx
-                                ):
-                                    raise ValueError(f"Invalid range: {part}")
-                                selected_indices.update(range(start_idx, end_idx + 1))
-                            else:
-                                # Single index
-                                idx = int(part)
-                                if idx < 1 or idx > len(all_files):
-                                    raise ValueError(f"Index {idx} out of range")
-                                selected_indices.add(idx)
+                        # Parse comma-separated indices and ranges (0-based)
+                        selected_indices = parse_index_selection(
+                            selection, len(all_files)
+                        )
 
                         if not selected_indices:
                             self.print_error(
@@ -774,7 +758,7 @@ class UserInterface:
                             continue
 
                         # Convert to file paths
-                        files = [all_files[idx - 1] for idx in sorted(selected_indices)]
+                        files = [all_files[idx] for idx in sorted(selected_indices)]
 
                         # Confirm selection
                         self.print_success(f"Selected {len(files)} file(s):")
@@ -842,8 +826,7 @@ class UserInterface:
 
         file_type = "file" if len(files) == 1 else "files"
         self.console_print(
-            f"\n  Ready to process {self.BOLD}{len(files)}{self.RESET}"
-            f" text {file_type}\n"
+            f"\n  Ready to process {self.BOLD}{len(files)}{self.RESET} {file_type}\n"
         )
 
         # === Processing Configuration ===

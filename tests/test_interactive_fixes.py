@@ -480,3 +480,130 @@ def test_select_input_source_absolute_filename_does_not_crash(
 
     assert result is None  # no crash; wizard completed the back-navigation
     assert any("relative to the input directory" in m for m in infos)
+
+
+# ---------------------------------------------------------------------------
+# FIX: ANSI codes must not leak into redirected output. All production
+# constructors pass use_colors=True, so the styling constants have to honor
+# PromptStyle.supports_color() as every other message path does.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_style_codes_blank_when_terminal_lacks_color(monkeypatch) -> None:
+    from modules.ui.prompts import PromptStyle
+
+    monkeypatch.setattr(PromptStyle, "supports_color", staticmethod(lambda: False))
+    ui = UserInterface(use_colors=True)
+
+    assert ui.BOLD == ""
+    assert ui.DIM == ""
+    assert ui.RESET == ""
+    assert ui.SUCCESS == ui.WARNING == ui.ERROR == ui.INFO == ui.PROMPT == ""
+
+
+@pytest.mark.unit
+def test_style_codes_kept_when_terminal_supports_color(monkeypatch) -> None:
+    from modules.ui.prompts import PromptStyle
+
+    monkeypatch.setattr(PromptStyle, "supports_color", staticmethod(lambda: True))
+    ui = UserInterface(use_colors=True)
+
+    assert ui.BOLD != ""
+    assert ui.RESET != ""
+
+
+def _capture_processing_summary(ui: UserInterface, **kwargs: Any) -> str:
+    lines: list[str] = []
+    ui.console_print = lambda message, log_also=False: lines.append(message)  # type: ignore[method-assign]
+    ui.print_section_header = lambda title: lines.append(title)  # type: ignore[method-assign]
+    ui.confirm = lambda *a, **k: True  # type: ignore[method-assign]
+    ui.display_processing_summary(**kwargs)
+    return "\n".join(lines)
+
+
+@pytest.mark.unit
+def test_processing_summary_does_not_hardcode_text_files(monkeypatch) -> None:
+    """An image/PDF run must not be announced as 'text files'."""
+    from modules.ui.prompts import PromptStyle
+
+    monkeypatch.setattr(PromptStyle, "supports_color", staticmethod(lambda: False))
+    ui = UserInterface(use_colors=False)
+    text = _capture_processing_summary(
+        ui,
+        files=[Path("scan1.pdf"), Path("scan2.pdf")],
+        selected_schema_name="TestSchema",
+        global_chunking_method="auto",
+        use_batch=False,
+    )
+    assert "Ready to process 2 files" in text
+    assert "text files" not in text
+
+
+@pytest.mark.unit
+def test_processing_summary_has_no_ansi_when_color_unsupported(monkeypatch) -> None:
+    from modules.ui.prompts import PromptStyle
+
+    monkeypatch.setattr(PromptStyle, "supports_color", staticmethod(lambda: False))
+    ui = UserInterface(use_colors=True)
+    text = _capture_processing_summary(
+        ui,
+        files=[Path("a.txt")],
+        selected_schema_name="TestSchema",
+        global_chunking_method="auto",
+        use_batch=False,
+    )
+    assert "\033[" not in text
+
+
+# ---------------------------------------------------------------------------
+# FIX: the multi-file selection branch delegates to the shared index parser;
+# its messages and semantics must be unchanged.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.unit
+def test_select_input_source_multi_parses_ranges(monkeypatch, tmp_path: Path) -> None:
+    ui = UserInterface(use_colors=False)
+    for name in ("a.txt", "b.txt", "c.txt", "d.txt"):
+        (tmp_path / name).write_text("x", encoding="utf-8")
+
+    mode_answers = iter(["multi"])
+    selection_answers = iter(["1-2,4"])
+    monkeypatch.setattr(ui, "select_option", lambda *a, **k: next(mode_answers))
+    monkeypatch.setattr(ui, "get_input", lambda *a, **k: next(selection_answers))
+    monkeypatch.setattr(ui, "print_info", lambda *a, **k: None)
+    monkeypatch.setattr(ui, "print_success", lambda *a, **k: None)
+    monkeypatch.setattr(ui, "console_print", lambda *a, **k: None)
+
+    result = ui.select_input_source(tmp_path, allow_back=True, input_type="text")
+
+    assert result is not None
+    assert [p.name for p in result] == ["a.txt", "b.txt", "d.txt"]
+
+
+@pytest.mark.unit
+def test_select_input_source_multi_rejects_out_of_range(
+    monkeypatch, tmp_path: Path
+) -> None:
+    ui = UserInterface(use_colors=False)
+    for name in ("a.txt", "b.txt"):
+        (tmp_path / name).write_text("x", encoding="utf-8")
+
+    mode_answers = iter(["multi"])
+    # First an out-of-range index (must be rejected, not silently clamped),
+    # then a valid one.
+    selection_answers = iter(["9", "2"])
+    errors: list[str] = []
+    monkeypatch.setattr(ui, "select_option", lambda *a, **k: next(mode_answers))
+    monkeypatch.setattr(ui, "get_input", lambda *a, **k: next(selection_answers))
+    monkeypatch.setattr(ui, "print_info", lambda *a, **k: None)
+    monkeypatch.setattr(ui, "print_success", lambda *a, **k: None)
+    monkeypatch.setattr(ui, "print_error", lambda msg: errors.append(msg))
+    monkeypatch.setattr(ui, "console_print", lambda *a, **k: None)
+
+    result = ui.select_input_source(tmp_path, allow_back=True, input_type="text")
+
+    assert result is not None
+    assert [p.name for p in result] == ["b.txt"]
+    assert any("Index 9 out of range" in e for e in errors)

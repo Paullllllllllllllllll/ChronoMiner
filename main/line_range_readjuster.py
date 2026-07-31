@@ -181,7 +181,12 @@ def _prompt_int(ui: UserInterface | None, message: str, default: int) -> int:
             return default
         try:
             value = int(response)
-            return max(1, value)
+            if value < 1:
+                ui.print_warning(
+                    f"Value must be at least 1; using 1 instead of {value}."
+                )
+                return 1
+            return value
         except ValueError:
             ui.print_warning("Invalid number provided; using default.")
             return default
@@ -194,7 +199,10 @@ def _prompt_int(ui: UserInterface | None, message: str, default: int) -> int:
             return default
         try:
             value = int(response)
-            return max(1, value)
+            if value < 1:
+                print(f"[WARN] Value must be at least 1; using 1 instead of {value}.")
+                return 1
+            return value
         except ValueError:
             print("[WARN] Invalid number provided; using default.")
             return default

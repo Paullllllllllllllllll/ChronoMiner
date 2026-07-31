@@ -41,6 +41,7 @@ from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.jsonl import atomic_write_json
 from modules.infra.logger import setup_logger
 from modules.ui.core import UserInterface
+from modules.ui.prompts import parse_index_selection
 
 logger = setup_logger(__name__)
 
@@ -83,9 +84,10 @@ def _discover_candidate_temp_files(
                     if cid_map:
                         combined_custom_id_map.update(cid_map)
                     if order_map:
-                        offset = len(combined_order_map)
-                        for cid, idx in order_map.items():
-                            combined_order_map[cid] = idx + offset
+                        # order_index values are absolute document indices
+                        # (stamped at submission time), so parts merge by
+                        # plain union -- no per-part offset re-basing.
+                        combined_order_map.update(order_map)
 
                 identifier = base_stem.removesuffix("_temp")
                 # CM-6: the final output lives with the submission (the
@@ -405,9 +407,7 @@ class RepairExtractionsScript(DualModeScript):
             return
 
         try:
-            indices = sorted(
-                {int(part.strip()) - 1 for part in selection.split(",") if part.strip()}
-            )
+            indices = sorted(parse_index_selection(selection, len(candidates)))
         except ValueError:
             self.ui.print_error(
                 "Invalid selection. Please provide comma-separated numbers."
