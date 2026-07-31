@@ -10,12 +10,14 @@ Supports multiple LLM providers via LangChain:
 
 from __future__ import annotations
 
-import asyncio
+import contextlib
 import hashlib
 import json
 import logging
+import os
 import re
 import unicodedata
+import uuid
 from collections.abc import Generator, Iterable, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -232,6 +234,15 @@ class LineRangeReadjuster:
 
         self.model_name = model_name
         self._model_config = model_config
+        # Provider: explicit config first (required for custom endpoints,
+        # whose names are not auto-detectable), auto-detection as fallback.
+        # Mirrors the extraction path in processing_strategy.
+        config_provider = transcription_cfg.get("provider")
+        valid_providers = ("openai", "anthropic", "google", "openrouter", "custom")
+        if config_provider and config_provider in valid_providers:
+            self.provider = config_provider
+        else:
+            self.provider = ProviderConfig._detect_provider(model_name)
         self.context_window = max(1, int(context_window))
         self.prompt_path = prompt_path or (PROMPTS_DIR / "semantic_boundary_prompt.txt")
         self.prompt_template = load_prompt_template(self.prompt_path)
@@ -240,7 +251,7 @@ class LineRangeReadjuster:
         ).hexdigest()
         self.text_processor = TextProcessor()
         self._enable_cache_control = detect_capabilities(
-            model_name
+            model_name, provider=self.provider
         ).supports_prompt_caching
 
         # Load matching configuration with defaults
@@ -377,8 +388,9 @@ class LineRangeReadjuster:
         else:
             selected_indices = set(range(1, total_range_count + 1))
 
-        # Detect provider from model name and get appropriate API key
-        provider = ProviderConfig._detect_provider(self.model_name)
+        # Provider resolved at construction (explicit config first); get the
+        # matching API key.
+        provider = self.provider
         api_key = ProviderConfig._get_api_key(provider)
         if not api_key:
             raise RuntimeError(
@@ -466,6 +478,7 @@ class LineRangeReadjuster:
             api_key=api_key,
             prompt_path=self.prompt_path,
             model=self.model_name,
+            provider=provider,
             model_config_override=self._model_config,
         ) as extractor:
             with JsonlWriter(temp_jsonl_path, mode=file_mode) as writer:
@@ -589,6 +602,34 @@ class LineRangeReadjuster:
             adjusted_ranges, ranges_to_delete = self._rebuild_ranges_from_jsonl(
                 temp_jsonl_path, ranges
             )
+
+        # Physically drop deleted ranges only when the JSONL covers every
+        # range. A sliced partial run that removed ranges from the written
+        # file would shift every later index: the next resume would skip the
+        # wrong ranges (treating a shifted neighbor as "already processed"),
+        # record new decisions under shifted indices, and eventually finalize
+        # with one range permanently unadjusted. Until full coverage the
+        # deleted ranges are kept in place; their deletion stays recorded in
+        # the JSONL and is applied by the eventual full-coverage rewrite.
+        pre_write_recorded_ids: set[int] = (
+            extract_completed_ids(temp_jsonl_path, id_pattern=_RANGE_ID_PATTERN)
+            if temp_jsonl_path.exists()
+            else set()
+        )
+        all_range_indices = set(range(1, total_range_count + 1))
+        if ranges_to_delete and not pre_write_recorded_ids >= all_range_indices:
+            logger.info(
+                "Deferring deletion of %d range(s) until a run covers all "
+                "ranges (currently %d/%d recorded); deferred ranges keep "
+                "their original bounds for now.",
+                len(ranges_to_delete),
+                len(pre_write_recorded_ids & all_range_indices),
+                len(all_range_indices),
+            )
+            for i in sorted(ranges_to_delete):
+                if 0 <= i < len(ranges):
+                    adjusted_ranges.insert(i, ranges[i])
+            ranges_to_delete = []
 
         # Spans confirmed to contain no semantic content. Gap enforcement must
         # not re-extend a preceding range across them, or deletion would be
@@ -1555,13 +1596,26 @@ class LineRangeReadjuster:
     def _write_line_ranges(
         self, line_ranges_file: Path, ranges: Sequence[tuple[int, int]]
     ) -> None:
+        # Atomic (temp-then-replace, mirroring atomic_write_json): a crash
+        # mid-write must not leave a truncated ranges file. A truncated file
+        # matches neither recorded fingerprint, so the next run would discard
+        # the temp JSONL -- destroying every paid per-range decision -- and
+        # the semantic adjustment itself.
         safe_line_ranges_file = ensure_path_safe(line_ranges_file)
-        # newline="\n": emit LF like the generator, so the rewritten file
-        # keeps the same byte format on Windows (readers are newline-agnostic,
-        # but the ranges fingerprint hashes raw bytes).
-        with safe_line_ranges_file.open("w", encoding="utf-8", newline="\n") as handle:
-            for start, end in ranges:
-                handle.write(f"({start}, {end})\n")
+        tmp_path = safe_line_ranges_file.with_name(
+            f"{safe_line_ranges_file.name}.{os.getpid()}.{uuid.uuid4().hex[:8]}.tmp"
+        )
+        try:
+            # newline="\n": emit LF like the generator, so the rewritten file
+            # keeps the same byte format on Windows (readers are
+            # newline-agnostic, but the ranges fingerprint hashes raw bytes).
+            with tmp_path.open("w", encoding="utf-8", newline="\n") as handle:
+                for start, end in ranges:
+                    handle.write(f"({start}, {end})\n")
+            tmp_path.replace(safe_line_ranges_file)
+        finally:
+            with contextlib.suppress(OSError):
+                tmp_path.unlink(missing_ok=True)
 
     @staticmethod
     def _remove_overlaps(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -1727,62 +1781,3 @@ class LineRangeReadjuster:
             enforced.append((start, end))
 
         return enforced
-
-
-async def adjust_line_ranges_for_paths(
-    *,
-    model_config: dict[str, Any],
-    text_files: Iterable[Path],
-    context_window: int,
-    prompt_path: Path | None = None,
-    dry_run: bool = False,
-    boundary_type: str,
-) -> dict[Path, list[tuple[int, int]]]:
-    """Adjust line ranges for multiple files.
-
-    Context is resolved automatically using hierarchical fallback.
-    """
-    readjuster = LineRangeReadjuster(
-        model_config,
-        context_window=context_window,
-        prompt_path=prompt_path,
-    )
-
-    results: dict[Path, list[tuple[int, int]]] = {}
-    for text_file in text_files:
-        ranges = await readjuster.ensure_adjusted_line_ranges(
-            text_file=text_file,
-            dry_run=dry_run,
-            boundary_type=boundary_type,
-        )
-        results[text_file] = ranges
-    return results
-
-
-def run_adjustment_sync(
-    *,
-    model_config: dict[str, Any],
-    text_file: Path,
-    context_window: int,
-    prompt_path: Path | None = None,
-    dry_run: bool = False,
-    boundary_type: str,
-) -> list[tuple[int, int]]:
-    """Run line range adjustment synchronously.
-
-    Context is resolved automatically using hierarchical fallback.
-    """
-
-    async def _runner() -> list[tuple[int, int]]:
-        readjuster = LineRangeReadjuster(
-            model_config,
-            context_window=context_window,
-            prompt_path=prompt_path,
-        )
-        return await readjuster.ensure_adjusted_line_ranges(
-            text_file=text_file,
-            dry_run=dry_run,
-            boundary_type=boundary_type,
-        )
-
-    return asyncio.run(_runner())
