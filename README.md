@@ -1,4 +1,4 @@
-# ChronoMiner v2.5.0
+# ChronoMiner v2.6.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -805,6 +805,29 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.6.0** (31 July 2026) -- Bug-hunt release from the fourth full-repo
+    maintenance sweep. Output converters are realigned with the shipped
+    v3.0 culinary schemas and the v4.4 bibliographic DOCX layout, with
+    null-safety guards so a single malformed chunk no longer kills a
+    file's CSV/DOCX/TXT output, and the recipe converters now emit the
+    v3.0 analytic signal blocks and utensil ratings. Text resume refuses
+    to mix records produced under different chunking, batch resubmission
+    preserves tracking of still-pending batches, empty batch outputs are
+    recorded as failed (retriable) chunks, and the Google backend maps
+    all terminal job states, correlates inline results by metadata key,
+    reports inline token usage, and no longer sends broken $ref schemas.
+    The 429 retry classifier is context-gated, the configured request
+    timeout now reaches live calls, custom-endpoint provider routing is
+    honored on the visual and readjuster paths, multi-block responses are
+    joined instead of truncated, and prompt-cache hits are visible again.
+    CLI entry points honor the documented exit-code contract, the
+    readjuster writes line-range files atomically and defers deletions
+    until full coverage, the rate limiter validates its config and uses a
+    monotonic clock, the interactive wizard survives absolute-path input
+    and empty context paths, the shipped paths template registers the
+    production recipe schema under its real name, and dead code (payload
+    builder chain, disabled-params helpers, retired MichelinGuides
+    converters, unused entry points) is removed.
 - **v2.5.0** (19 July 2026) -- Dependency and documentation release from the
     third full-repo maintenance sweep. All dependencies are upgraded to their
     latest compatible versions within current majors (notably anthropic 0.117,

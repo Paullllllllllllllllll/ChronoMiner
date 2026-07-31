@@ -4,7 +4,7 @@
 # Used by: modules/infra/chunking.py, modules/line_ranges/readjuster.py
 #
 # Note: Context is resolved automatically via modules/config/context.py
-# using hierarchical fallback (file-specific > folder-specific > schema-specific > global).
+# using hierarchical fallback (file-specific > folder-specific > global).
 # See the context/ directory (extract_context.txt, adjust_context.txt).
 
 # ── Chunking ───────────────────────────────────────────────────────────────────

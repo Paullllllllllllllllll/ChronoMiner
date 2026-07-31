@@ -51,6 +51,20 @@ general:
   # the user-level file is absent.
   state_dir: ''
 
+  # -------------------------------------------------------------------------
+  # Relative Path Resolution
+  # -------------------------------------------------------------------------
+  # When true: relative paths in this file (logs_dir, schema input/output,
+  # etc.) are resolved against base_directory below.
+  # When false: relative paths are left as-is (resolved against the process's
+  # working directory at run time).
+  allow_relative_paths: false
+
+  # Base directory for relative-path resolution. Only applies when
+  # allow_relative_paths is true above; ignored otherwise. Can be absolute or
+  # relative to the current working directory.
+  base_directory: ''
+
 # =============================================================================
 # Schema Paths
 # =============================================================================
@@ -106,7 +120,7 @@ schemas_paths:
     csv_output: False
     docx_output: False
     txt_output: False
-  HistoricalRecipesEntriesProduction:
+  HistoricalRecipesEntriesProductionV3:
     input: ''
     output: ''
     csv_output: False
