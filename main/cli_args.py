@@ -32,9 +32,25 @@ def _positive_int(value: str) -> int:
 
 InputType = Literal["text", "image", "pdf", "mixed"]
 
+# Text extensions collected as processable input by the extraction CLI.
+SUPPORTED_TEXT_EXTENSIONS = frozenset({".txt", ".md"})
+
+# Sidecar/report files the extraction CLI writes next to its inputs and never
+# re-ingests. Detection and collection must apply the same list, or a folder is
+# classified by files that the collection step then throws away.
+DEFAULT_EXCLUDE_PATTERNS = [
+    "*_line_ranges.txt",
+    "*_context.txt",
+    "*_output.txt",
+]
+
 
 def detect_input_type(path: Path) -> InputType:
     """Detect the input type from a file or directory.
+
+    Directories are scanned RECURSIVELY with the same extension sets and
+    exclusion rules :func:`get_files_from_path` applies, so a nested-mixed
+    directory classifies exactly as an equivalently populated flat one.
 
     :param path: Input path (file or directory).
     :return: One of 'text', 'image', 'pdf', or 'mixed'.
@@ -51,15 +67,17 @@ def detect_input_type(path: Path) -> InputType:
         has_text = False
         has_image = False
         has_pdf = False
-        for f in path.iterdir():
+        for f in path.rglob("*"):
             if not f.is_file():
                 continue
             ext = f.suffix.lower()
+            if not _passes_dir_filters(f, path, DEFAULT_EXCLUDE_PATTERNS):
+                continue
             if ext in SUPPORTED_IMAGE_EXTENSIONS:
                 has_image = True
             elif ext in SUPPORTED_PDF_EXTENSIONS:
                 has_pdf = True
-            elif ext in (".txt", ".md"):
+            elif ext in SUPPORTED_TEXT_EXTENSIONS:
                 has_text = True
         visual = has_image or has_pdf
         if visual and has_text:

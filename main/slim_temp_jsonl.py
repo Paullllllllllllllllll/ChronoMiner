@@ -15,7 +15,9 @@ passed through untouched. The rewrite is atomic per file (write to a
 sibling ``.tmp``, then replace).
 
 Targets sync temp files (``*_temp.jsonl``) only; batch temp parts
-(``*_temp_part{n}.jsonl``) are not matched and are left untouched.
+(``*_temp_part{n}.jsonl``) are not matched and are left untouched, and
+line-range adjustment temps (``*_adjust_temp.jsonl``), which carry a
+different record shape, are excluded from the directory scan.
 
 Usage:
     uv run python main/slim_temp_jsonl.py <directory> [--dry-run]
@@ -34,6 +36,11 @@ from pathlib import Path
 # anyway while the writer holds the handle, but skipping avoids orphan
 # .tmp snapshots and noisy errors).
 ACTIVE_WINDOW_SECONDS = 600
+
+# The line-range readjuster writes ``{stem}_adjust_temp.jsonl``, which the
+# ``*_temp.jsonl`` glob also matches. Its records hold boundary decisions, not
+# extraction responses, so they are never a slimming target: exclude them.
+ADJUST_TEMP_SUFFIX = "_adjust_temp.jsonl"
 
 _PROJECT_ROOT = Path(__file__).resolve().parents[1]
 if str(_PROJECT_ROOT) not in sys.path:
@@ -109,7 +116,11 @@ def main() -> None:
     if target.is_file():
         files = [target]
     elif target.is_dir():
-        files = sorted(target.rglob("*_temp.jsonl"))
+        files = sorted(
+            p
+            for p in target.rglob("*_temp.jsonl")
+            if not p.name.endswith(ADJUST_TEMP_SUFFIX)
+        )
     else:
         print(f"[ERROR] Target not found: {target}")
         sys.exit(1)

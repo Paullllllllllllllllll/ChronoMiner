@@ -345,8 +345,20 @@ class LineRangeReadjuster:
             return []
 
         safe_text_file = ensure_path_safe(text_file)
-        with safe_text_file.open("r", encoding="utf-8") as handle:
-            raw_lines = handle.readlines()
+        # Mirror FileProcessor's tolerant read: UTF-8 first, then charset
+        # detection. A file that extracts fine must not crash readjustment.
+        try:
+            with safe_text_file.open("r", encoding="utf-8") as handle:
+                raw_lines = handle.readlines()
+        except UnicodeDecodeError:
+            detected_encoding = TextProcessor.detect_encoding(safe_text_file)
+            logger.warning(
+                "UTF-8 decode failed for %s; using detected encoding %s",
+                safe_text_file.name,
+                detected_encoding,
+            )
+            with safe_text_file.open("r", encoding=detected_encoding) as handle:
+                raw_lines = handle.readlines()
 
         # Clamp ranges to the actual file length before any indexing. An `end`
         # past the line count would otherwise raise IndexError in the context

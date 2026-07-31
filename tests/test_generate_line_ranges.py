@@ -33,6 +33,22 @@ def test_generate_and_write_line_ranges(tmp_path: Path, monkeypatch):
 
 
 @pytest.mark.unit
+def test_generate_line_ranges_reads_non_utf8_file(tmp_path: Path):
+    """Regression: the generator read inputs as strict UTF-8 while the
+    extraction path (FileProcessor) falls back to charset detection. A file
+    that extracts fine must not crash line-range generation."""
+    text_file = tmp_path / "latin1.txt"
+    text_file.write_bytes(("Küchen Meisterey\n" * 20).encode("cp1252"))
+
+    ranges = generate_line_ranges_for_file(
+        text_file=text_file, default_tokens_per_chunk=10, model_name="gpt-4o"
+    )
+
+    assert ranges
+    assert ranges[0][0] == 1
+
+
+@pytest.mark.unit
 def test_select_single_file_excludes_context_files(tmp_path: Path):
     """_select_single_file must not return context files as candidates."""
     from main.generate_line_ranges import GenerateLineRangesScript

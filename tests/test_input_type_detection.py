@@ -65,6 +65,79 @@ class TestDetectInputType:
         assert detect_input_type(f) == "image"
 
 
+class TestDetectInputTypeNested:
+    """Detection must scan recursively, exactly like the collection step.
+
+    ``get_files_from_path`` walks with ``rglob``; when detection looked only at
+    the top level, a directory whose files all sit one level down classified as
+    'text' (the fallback) and a visual run was never selected.
+    """
+
+    def test_nested_images_only(self, tmp_path):
+        sub = tmp_path / "scans"
+        sub.mkdir()
+        (sub / "a.png").write_bytes(b"x")
+        (sub / "b.jpg").write_bytes(b"x")
+        assert detect_input_type(tmp_path) == "image"
+
+    def test_nested_pdfs_only(self, tmp_path):
+        sub = tmp_path / "volume_1"
+        sub.mkdir()
+        (sub / "a.pdf").write_bytes(b"x")
+        assert detect_input_type(tmp_path) == "pdf"
+
+    def test_nested_text_only(self, tmp_path):
+        sub = tmp_path / "transcriptions"
+        sub.mkdir()
+        (sub / "a.txt").write_text("hello")
+        assert detect_input_type(tmp_path) == "text"
+
+    def test_nested_mixed_across_subdirectories(self, tmp_path):
+        images = tmp_path / "images"
+        images.mkdir()
+        (images / "a.png").write_bytes(b"x")
+        texts = tmp_path / "texts"
+        texts.mkdir()
+        (texts / "b.txt").write_text("hello")
+        assert detect_input_type(tmp_path) == "mixed"
+
+    def test_nested_mixed_matches_flat_equivalent(self, tmp_path):
+        flat = tmp_path / "flat"
+        flat.mkdir()
+        (flat / "a.png").write_bytes(b"x")
+        (flat / "b.pdf").write_bytes(b"x")
+
+        nested = tmp_path / "nested"
+        (nested / "one").mkdir(parents=True)
+        (nested / "two").mkdir(parents=True)
+        (nested / "one" / "a.png").write_bytes(b"x")
+        (nested / "two" / "b.pdf").write_bytes(b"x")
+
+        assert detect_input_type(nested) == detect_input_type(flat) == "mixed"
+
+    def test_empty_top_level_with_deeply_nested_images(self, tmp_path):
+        deep = tmp_path / "a" / "b" / "c"
+        deep.mkdir(parents=True)
+        (deep / "page.tiff").write_bytes(b"x")
+        assert detect_input_type(tmp_path) == "image"
+
+    def test_ignores_nested_output_directory(self, tmp_path):
+        out = tmp_path / "output"
+        out.mkdir()
+        (out / "prior.png").write_bytes(b"x")
+        (tmp_path / "a.txt").write_text("hello")
+        assert detect_input_type(tmp_path) == "text"
+
+    def test_ignores_sidecar_text_files(self, tmp_path):
+        """A folder of images plus the tool's own sidecars is not 'mixed':
+        the collection step excludes those sidecars."""
+        (tmp_path / "a.png").write_bytes(b"x")
+        (tmp_path / "a_line_ranges.txt").write_text("(1, 5)")
+        (tmp_path / "a_extract_context.txt").write_text("ctx")
+        (tmp_path / "a_output.txt").write_text("done")
+        assert detect_input_type(tmp_path) == "image"
+
+
 class TestGetFilesFromPathVisual:
     def test_image_input_type_collects_images(self, tmp_path):
         (tmp_path / "a.png").write_bytes(b"x")

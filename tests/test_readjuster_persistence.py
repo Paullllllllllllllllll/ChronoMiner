@@ -341,6 +341,48 @@ class TestReadjusterTempJsonl:
         assert records[1]["custom_id"] == "sample_line_ranges-range-1"
         assert records[2]["custom_id"] == "sample_line_ranges-range-2"
 
+    @pytest.mark.asyncio
+    async def test_reads_non_utf8_text_file(self, tmp_path: Path) -> None:
+        """Regression: the readjuster read the source text as strict UTF-8
+        while the extraction path falls back to charset detection, so a file
+        that extracts fine crashed readjustment with a UnicodeDecodeError."""
+        text_file = tmp_path / "sample.txt"
+        text_file.write_bytes(
+            "\n".join(f"Küche {i}" for i in range(1, 21)).encode("cp1252") + b"\n"
+        )
+        lr_file = tmp_path / "sample_line_ranges.txt"
+        lr_file.write_text("(1, 10)\n(11, 20)\n", encoding="utf-8")
+
+        readjuster = _make_readjuster()
+
+        async def mock_process_range(**kwargs: Any) -> RangeResult:
+            return _fake_range_result(1, (1, 10), (1, 10))
+
+        with (
+            patch.object(
+                readjuster, "_process_single_range", side_effect=mock_process_range
+            ),
+            patch("modules.line_ranges.readjuster.ProviderConfig") as mock_provider,
+            patch(
+                "modules.line_ranges.readjuster.open_extractor",
+                new_callable=lambda: _async_noop_context,
+            ),
+            patch(
+                "modules.line_ranges.readjuster.resolve_context_for_readjustment",
+                return_value=(None, None),
+            ),
+        ):
+            mock_provider._detect_provider.return_value = "openai"
+            mock_provider._get_api_key.return_value = "fake-key"
+
+            adjusted = await readjuster.ensure_adjusted_line_ranges(
+                text_file=text_file,
+                line_ranges_file=lr_file,
+                boundary_type="TestSchema",
+            )
+
+        assert adjusted
+
 
 class TestReadjusterResume:
     """Verify range-level resume from a partial temp JSONL."""

@@ -34,6 +34,7 @@ from main.bootstrap import (
     validate_schema_paths,
 )
 from main.cli_args import (
+    DEFAULT_EXCLUDE_PATTERNS,
     create_process_parser,
     detect_input_type,
     get_files_from_path,
@@ -237,6 +238,54 @@ from modules.extract.config_builder import (
     _build_effective_paths_config,
 )
 from modules.extract.file_processor import is_visual_input
+
+
+def _warn_input_type_conflict(input_path: Path, detected: str, override: str) -> None:
+    """Warn when --input-type contradicts a single input FILE's extension.
+
+    For a single file the processing route is decided by the file's own
+    extension (``is_visual_input``), so a contradicting --input-type has no
+    effect on what happens to that file. Say so explicitly instead of
+    silently doing something other than what was asked.
+    """
+    if not input_path.is_file() or override == detected:
+        return
+    message = (
+        f"--input-type '{override}' contradicts the extension of "
+        f"'{input_path.name}' (detected type: '{detected}'). For a single "
+        f"file the extension decides how it is processed, so '{override}' "
+        f"is ignored."
+    )
+    logger.warning(message)
+    print(f"[WARNING] {message}", file=sys.stderr)
+
+
+def _parse_page_range(raw: str) -> tuple[int, int]:
+    """Parse and validate a ``--page-range START-END`` value.
+
+    Emits the same parse-error style as the other argument validations and
+    exits with code 2 on a malformed or out-of-bounds value (e.g. ``0-5``,
+    ``7-3``), rather than letting ``ChunkSlice`` raise a bare ValueError.
+    """
+    parts = raw.replace(" ", "").split("-", 1)
+    try:
+        start, end = int(parts[0]), int(parts[1])
+    except (ValueError, IndexError):
+        start, end = 0, 0
+        valid = False
+    else:
+        valid = start >= 1 and end >= start
+
+    if not valid:
+        logger.error(f"Invalid --page-range value: {raw!r}")
+        print(
+            f"[ERROR] Invalid --page-range '{raw}'. "
+            f"Expected START-END with positive integers and END >= START, "
+            f"e.g. 70-337."
+        )
+        sys.exit(2)
+
+    return start, end
 
 
 def _file_concurrency_limit(
@@ -885,6 +934,7 @@ async def _run_cli_mode(
 
     # Apply --input-type override if provided
     if getattr(args, "input_type", None):
+        _warn_input_type_conflict(input_path, input_type, args.input_type)
         input_type = args.input_type
         is_visual = input_type in ("image", "pdf", "mixed")
 
@@ -934,27 +984,14 @@ async def _run_cli_mode(
     elif last_n is not None:
         chunk_slice = ChunkSlice(last_n=last_n)
     elif page_range_raw is not None:
-        parts = page_range_raw.replace(" ", "").split("-", 1)
-        try:
-            start, end = int(parts[0]), int(parts[1])
-        except (ValueError, IndexError):
-            logger.error(f"Invalid --page-range value: {page_range_raw!r}")
-            print(
-                f"[ERROR] Invalid --page-range '{page_range_raw}'. "
-                f"Expected START-END with positive integers, e.g. 70-337."
-            )
-            sys.exit(2)
-        chunk_slice = ChunkSlice(page_range=(start, end))
+        chunk_slice = ChunkSlice(page_range=_parse_page_range(page_range_raw))
 
     # Collect files; exclude the tool's own sidecar/report files so a second
     # run does not re-extract from {stem}_output.txt. The excludes also apply
     # to the visual branch: a "mixed" folder collects .txt/.md alongside
     # images, and without them the sidecars are ingested (and billed) too.
-    text_excludes = [
-        "*_line_ranges.txt",
-        "*_context.txt",
-        "*_output.txt",
-    ]
+    # Shared with detect_input_type so classification and collection agree.
+    text_excludes = list(DEFAULT_EXCLUDE_PATTERNS)
     if is_visual:
         files = get_files_from_path(
             input_path, input_type=input_type, exclude_patterns=text_excludes

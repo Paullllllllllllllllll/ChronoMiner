@@ -580,5 +580,122 @@ class TestExampleFilesDiscovery:
         assert files[0] == single_file
 
 
+@pytest.mark.unit
+class TestPageRangeValidation:
+    """--page-range bounds must fail as an argument-parse error (exit 2), not
+    as a ValueError traceback out of ChunkSlice."""
+
+    def test_valid_range_parsed(self):
+        from main.process_text_files import _parse_page_range
+
+        assert _parse_page_range("70-337") == (70, 337)
+        assert _parse_page_range(" 5 - 9 ") == (5, 9)
+
+    def test_zero_start_exits_2(self, capsys):
+        from main.process_text_files import _parse_page_range
+
+        with pytest.raises(SystemExit) as exc:
+            _parse_page_range("0-5")
+        assert exc.value.code == 2
+        assert "Invalid --page-range '0-5'" in capsys.readouterr().out
+
+    def test_reversed_bounds_exit_2(self, capsys):
+        from main.process_text_files import _parse_page_range
+
+        with pytest.raises(SystemExit) as exc:
+            _parse_page_range("7-3")
+        assert exc.value.code == 2
+        assert "Invalid --page-range '7-3'" in capsys.readouterr().out
+
+    def test_malformed_value_still_exits_2(self):
+        from main.process_text_files import _parse_page_range
+
+        with pytest.raises(SystemExit) as exc:
+            _parse_page_range("abc")
+        assert exc.value.code == 2
+
+
+@pytest.mark.unit
+class TestInputTypeConflictWarning:
+    """A single FILE is routed by its extension, so a contradicting
+    --input-type must be reported rather than silently ignored."""
+
+    def test_warns_when_override_contradicts_extension(
+        self, tmp_path: Path, capsys
+    ) -> None:
+        from main.process_text_files import _warn_input_type_conflict
+
+        f = tmp_path / "document.txt"
+        f.write_text("content", encoding="utf-8")
+
+        _warn_input_type_conflict(f, "text", "image")
+
+        err = capsys.readouterr().err
+        assert "document.txt" in err
+        assert "'image'" in err
+        assert "'text'" in err
+
+    def test_silent_when_override_matches(self, tmp_path: Path, capsys) -> None:
+        from main.process_text_files import _warn_input_type_conflict
+
+        f = tmp_path / "scan.png"
+        f.write_bytes(b"x")
+
+        _warn_input_type_conflict(f, "image", "image")
+
+        assert capsys.readouterr().err == ""
+
+    def test_silent_for_directories(self, tmp_path: Path, capsys) -> None:
+        """A directory override is a legitimate filter (e.g. a stray image in
+        a text folder), not a contradiction."""
+        from main.process_text_files import _warn_input_type_conflict
+
+        _warn_input_type_conflict(tmp_path, "mixed", "text")
+
+        assert capsys.readouterr().err == ""
+
+
+@pytest.mark.unit
+class TestSlimTempJsonlTargets:
+    """slim_temp_jsonl must not touch the readjuster's adjustment temps, whose
+    records carry boundary decisions rather than extraction responses."""
+
+    def test_directory_scan_skips_adjust_temp_files(
+        self, tmp_path: Path, monkeypatch, capsys
+    ) -> None:
+        import json
+
+        import main.slim_temp_jsonl as slim
+
+        extraction = tmp_path / "doc_temp.jsonl"
+        extraction.write_text(
+            json.dumps({"custom_id": "doc-chunk-1", "response": {"body": {"a": 1}}})
+            + "\n",
+            encoding="utf-8",
+        )
+        adjust = tmp_path / "doc_line_ranges_adjust_temp.jsonl"
+        adjust_line = (
+            json.dumps(
+                {
+                    "custom_id": "doc_line_ranges-range-1",
+                    "response": {"body": {"original_range": [1, 10]}},
+                }
+            )
+            + "\n"
+        )
+        adjust.write_text(adjust_line, encoding="utf-8")
+
+        # Bypass the "recently modified" guard so both files are candidates.
+        monkeypatch.setattr(slim, "ACTIVE_WINDOW_SECONDS", 0)
+        monkeypatch.setattr(sys, "argv", ["slim_temp_jsonl.py", str(tmp_path)])
+
+        slim.main()
+
+        out = capsys.readouterr().out
+        assert adjust.name not in out
+        assert extraction.name in out
+        assert adjust.read_text(encoding="utf-8") == adjust_line
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

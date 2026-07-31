@@ -27,8 +27,15 @@ def generate_line_ranges_for_file(
     Returns:
         A list of tuples representing line ranges.
     """
-    with text_file.open("r", encoding="utf-8") as f:
-        lines: list[str] = f.readlines()
+    # Mirror FileProcessor's tolerant read: UTF-8 first, then charset
+    # detection. A file that extracts fine must not crash range generation.
+    try:
+        with text_file.open("r", encoding="utf-8") as f:
+            lines: list[str] = f.readlines()
+    except UnicodeDecodeError:
+        encoding = TextProcessor.detect_encoding(text_file)
+        with text_file.open("r", encoding=encoding) as f:
+            lines = f.readlines()
 
     normalized_lines: list[str] = [TextProcessor.normalize_text(line) for line in lines]
     text_processor: TextProcessor = TextProcessor()
