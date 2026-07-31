@@ -12,7 +12,14 @@ logger = setup_logger(__name__)
 
 _TEXT_EXTENSIONS = {".txt", ".md"}
 _LINE_RANGE_SUFFIXES = {"_line_ranges.txt", "_line_range.txt"}
-_CONTEXT_SUFFIXES = {"_extraction.txt", "_line_ranges.txt", "_context.txt"}
+_CONTEXT_SUFFIXES = {
+    "_extraction.txt",
+    "_line_ranges.txt",
+    "_context.txt",
+    # The tool's own TXT report; without this, readjuster discovery under
+    # input_paths_is_output_path ingests {stem}_output.txt as a candidate.
+    "_output.txt",
+}
 
 
 def load_core_resources() -> tuple[

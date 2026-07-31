@@ -741,3 +741,64 @@ class TestCM6SubmissionLocalFinalization:
         assert not (submission / "temp_jsonl" / "doc_output.json").exists(), (
             "repaired output must not be written inside temp_jsonl/"
         )
+
+    @pytest.mark.unit
+    def test_repair_with_pending_batches_never_stamps_fully_completed(self, tmp_path):
+        """A repair while some batches are still running must write a
+        non-final output: stamping ``fully_completed: true`` would satisfy
+        check_batches' already-finalized skip and silently drop the pending
+        batches' results forever."""
+        from main.check_batches import _is_group_already_finalized
+        from main.repair_extractions import _repair_temp_file
+        from modules.batch import BatchStatus, BatchStatusInfo
+
+        submission, temp_file = self._write_submission(tmp_path)
+
+        def _status(handle):
+            if handle.batch_id == "batch-123":
+                return BatchStatusInfo(
+                    status=BatchStatus.COMPLETED, results_available=True
+                )
+            return BatchStatusInfo(status=BatchStatus.IN_PROGRESS)
+
+        backend = MagicMock()
+        backend.get_status.side_effect = _status
+
+        ui = MagicMock()
+        candidate = {
+            "temp_file": temp_file,
+            "schema_name": "BibliographicEntries",
+            "schema_config": {},
+            "responses": [],
+            "tracking": [
+                {"batch_id": "batch-123", "provider": "openai"},
+                {"batch_id": "batch-456", "provider": "openai"},
+            ],
+        }
+
+        with (
+            patch("main.repair_extractions.get_batch_backend", return_value=backend),
+            patch(
+                "main.repair_extractions.retrieve_responses_from_batch",
+                return_value=[{"custom_id": "doc-chunk-1", "response": {"ok": True}}],
+            ),
+            patch(
+                "main.repair_extractions.get_schema_handler",
+                return_value=MagicMock(),
+            ),
+        ):
+            status = _repair_temp_file(candidate, {}, ui=ui)
+
+        assert status == "repaired"
+        final_json = submission / "doc_output.json"
+        assert final_json.exists()
+        meta = json.loads(final_json.read_text(encoding="utf-8"))[
+            "_chronominer_metadata"
+        ]
+        assert meta["batch_tracking"]["fully_completed"] is False
+        assert not _is_group_already_finalized(final_json), (
+            "an output written while batches are pending must not satisfy "
+            "the already-finalized skip"
+        )
+        warning_calls = " ".join(str(call) for call in ui.print_warning.call_args_list)
+        assert "still running" in warning_calls

@@ -361,6 +361,25 @@ def test_generate_line_ranges_collects_md_files(tmp_path: Path) -> None:
     assert (tmp_path / "a_line_ranges.txt") not in files
 
 
+def test_default_excludes_cover_legacy_singular_sidecar(tmp_path: Path) -> None:
+    """The legacy singular '_line_range.txt' sidecar (recognized by the
+    readjuster and excluded by interactive discovery) must be excluded by
+    CLI collection too."""
+    from main.cli_args import DEFAULT_EXCLUDE_PATTERNS, get_files_from_path
+
+    (tmp_path / "a.txt").write_text("a", encoding="utf-8")
+    (tmp_path / "a_line_range.txt").write_text("x", encoding="utf-8")
+    (tmp_path / "a_line_ranges.txt").write_text("x", encoding="utf-8")
+
+    files = get_files_from_path(
+        tmp_path, pattern="*.txt", exclude_patterns=list(DEFAULT_EXCLUDE_PATTERNS)
+    )
+
+    assert (tmp_path / "a.txt") in files
+    assert (tmp_path / "a_line_range.txt") not in files
+    assert (tmp_path / "a_line_ranges.txt") not in files
+
+
 # ---------------------------------------------------------------------------
 # Fix 4: repair_extractions.py
 # ---------------------------------------------------------------------------
@@ -467,6 +486,41 @@ def test_repair_temp_file_reports_status_based_counts(
 
     status = repair_mod._repair_temp_file(candidate, {}, _Ui())  # type: ignore[arg-type]
     assert status == "skipped"
+
+
+def test_repair_confirm_keyboard_interrupt_exits_130(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Ctrl+C at the CLI confirm prompt must exit 130, not report success."""
+    candidates = [
+        {
+            "schema_name": "TestSchema",
+            "schema_config": {},
+            "temp_file": Path("x_temp.jsonl"),
+            "temp_files": [Path("x_temp.jsonl")],
+            "identifier": "x",
+            "final_json": Path("x_output.json"),
+            "responses_count": 0,
+            "tracking_count": 0,
+            "has_final": False,
+            "tracking": [],
+            "responses": [],
+            "custom_id_map": None,
+            "order_map": None,
+        }
+    ]
+    script = _make_repair_script(monkeypatch, candidates)
+    args = Namespace(schema=None, files=None, force=False, verbose=False)
+
+    def _raise_interrupt(_prompt: str) -> str:
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr("builtins.input", _raise_interrupt)
+
+    with pytest.raises(SystemExit) as exc:
+        script.run_cli(args)
+
+    assert exc.value.code == 130
 
 
 # ---------------------------------------------------------------------------

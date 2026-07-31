@@ -696,6 +696,62 @@ class TestSlimTempJsonlTargets:
         assert extraction.name in out
         assert adjust.read_text(encoding="utf-8") == adjust_line
 
+    def test_invalid_utf8_fails_per_file_not_whole_sweep(
+        self, tmp_path: Path, monkeypatch, capsys
+    ) -> None:
+        """A temp file with invalid UTF-8 bytes must produce a per-file
+        [ERROR] and exit 1 after processing the remaining files, not abort
+        the sweep with an unhandled UnicodeDecodeError."""
+        import json
+
+        import main.slim_temp_jsonl as slim
+
+        bad = tmp_path / "bad_temp.jsonl"
+        bad.write_bytes(b'\xff\xfe{"not": "utf8"}\n')
+        good = tmp_path / "good_temp.jsonl"
+        good.write_text(
+            json.dumps({"custom_id": "doc-chunk-1", "response": {"body": {"a": 1}}})
+            + "\n",
+            encoding="utf-8",
+        )
+
+        monkeypatch.setattr(slim, "ACTIVE_WINDOW_SECONDS", 0)
+        monkeypatch.setattr(sys, "argv", ["slim_temp_jsonl.py", str(tmp_path)])
+
+        with pytest.raises(SystemExit) as exc:
+            slim.main()
+
+        assert exc.value.code == 1
+        out = capsys.readouterr().out
+        assert f"[ERROR] {bad.name}" in out
+        assert good.name in out
+
+    def test_already_lean_file_left_untouched(
+        self, tmp_path: Path, monkeypatch, capsys
+    ) -> None:
+        """An already-lean file must not be rewritten: an mtime bump would
+        make an immediate re-run misflag it as an active extraction."""
+        import json
+
+        import main.slim_temp_jsonl as slim
+
+        lean = tmp_path / "doc_temp.jsonl"
+        lean.write_text(
+            json.dumps({"custom_id": "doc-chunk-1", "response": {"body": {"a": 1}}})
+            + "\n",
+            encoding="utf-8",
+        )
+        mtime_before = lean.stat().st_mtime_ns
+
+        monkeypatch.setattr(slim, "ACTIVE_WINDOW_SECONDS", 0)
+        monkeypatch.setattr(sys, "argv", ["slim_temp_jsonl.py", str(tmp_path)])
+
+        slim.main()
+
+        assert lean.stat().st_mtime_ns == mtime_before
+        assert "already lean" in capsys.readouterr().out
+        assert not lean.with_suffix(lean.suffix + ".tmp").exists()
+
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])

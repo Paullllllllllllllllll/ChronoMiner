@@ -40,6 +40,9 @@ SUPPORTED_TEXT_EXTENSIONS = frozenset({".txt", ".md"})
 # classified by files that the collection step then throws away.
 DEFAULT_EXCLUDE_PATTERNS = [
     "*_line_ranges.txt",
+    # Legacy singular sidecar spelling, still recognized by the readjuster
+    # and excluded by interactive discovery; keep CLI collection in step.
+    "*_line_range.txt",
     "*_context.txt",
     "*_output.txt",
 ]
@@ -435,6 +438,7 @@ Examples:
         metavar="N",
         help="Write only the last N generated line ranges",
     )
+    add_mode_override_arguments(parser)
 
     return parser
 

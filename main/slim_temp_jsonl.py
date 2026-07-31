@@ -77,6 +77,7 @@ def slim_file(path: Path, dry_run: bool = False) -> tuple[int, int]:
     tmp_path = path.with_suffix(path.suffix + ".tmp")
 
     size_after = 0
+    changed = False
     with path.open("r", encoding="utf-8") as src:
         if dry_run:
             for line in src:
@@ -85,7 +86,10 @@ def slim_file(path: Path, dry_run: bool = False) -> tuple[int, int]:
             try:
                 with tmp_path.open("w", encoding="utf-8", newline="\n") as dst:
                     for line in src:
-                        dst.write(slim_line(line))
+                        lean = slim_line(line)
+                        if lean != line:
+                            changed = True
+                        dst.write(lean)
                 size_after = tmp_path.stat().st_size
             except BaseException:
                 # Do not leak a half-written .tmp sibling on failure.
@@ -94,7 +98,15 @@ def slim_file(path: Path, dry_run: bool = False) -> tuple[int, int]:
                 raise
 
     if not dry_run:
-        tmp_path.replace(path)
+        if changed:
+            tmp_path.replace(path)
+        else:
+            # Already lean: leave the original untouched (an mtime bump would
+            # make an immediate re-run misflag the file as an active
+            # extraction via the ACTIVE_WINDOW_SECONDS guard).
+            with contextlib.suppress(OSError):
+                tmp_path.unlink()
+            size_after = size_before
     return size_before, size_after
 
 
@@ -143,7 +155,9 @@ def main() -> None:
             continue
         try:
             before, after = slim_file(path, dry_run=args.dry_run)
-        except OSError as e:
+        except (OSError, UnicodeDecodeError) as e:
+            # UnicodeDecodeError: a temp file with invalid UTF-8 bytes must
+            # fail per-file (documented contract), not abort the whole sweep.
             print(f"[ERROR] {path.name}: {e}")
             had_error = True
             continue
@@ -151,7 +165,7 @@ def main() -> None:
         total_before += before
         total_after += after
         saved = before - after
-        if saved > 1024:
+        if saved > 0:
             print(
                 f"[{'DRY' if args.dry_run else 'OK'}] {path.name}: "
                 f"{before / 1e6:,.1f} MB -> {after / 1e6:,.1f} MB "

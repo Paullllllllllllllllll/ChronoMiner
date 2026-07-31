@@ -17,11 +17,13 @@ def test_filter_text_files_skips_auxiliary(tmp_path: Path):
     b = tmp_path / "b_context.txt"
     c = tmp_path / "c_line_ranges.txt"
     d = tmp_path / "d.json"
+    # The tool's own TXT report must never be re-ingested as a candidate.
+    e = tmp_path / "e_output.txt"
 
-    for p in [a, b, c, d]:
+    for p in [a, b, c, d, e]:
         p.write_text("x", encoding="utf-8")
 
-    filtered = filter_text_files([a, b, c, d])
+    filtered = filter_text_files([a, b, c, d, e])
     assert filtered == [a]
 
 

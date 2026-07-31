@@ -133,6 +133,24 @@ class TestUiInput:
         with patch("builtins.input", return_value="typed-value"):
             assert ui_input("prompt") == "typed-value"
 
+    def test_keyboard_interrupt_reraises_for_exit_130(self):
+        """Ctrl+C must NOT exit 0: ui_input re-raises so the entry point's
+        interrupt handler exits 130 per the CLI agent contract."""
+        with (
+            patch("builtins.input", side_effect=KeyboardInterrupt),
+            pytest.raises(KeyboardInterrupt),
+        ):
+            ui_input("prompt")
+
+    def test_eof_exits_zero(self):
+        """EOF (no terminal input available) remains a clean cancel."""
+        with (
+            patch("builtins.input", side_effect=EOFError),
+            pytest.raises(SystemExit) as exc,
+        ):
+            ui_input("prompt")
+        assert exc.value.code == 0
+
 
 @pytest.mark.unit
 class TestPromptYesNo:
@@ -208,6 +226,21 @@ class TestPromptMultiselect:
         with patch("builtins.input", return_value="2"):
             result = prompt_multiselect("pick", options)
         assert "b" in result.value
+
+    def test_space_separated_indices(self):
+        """Regression: '1 3' must select items 1 and 3, not item 13."""
+        options = [("a", "A"), ("b", "B"), ("c", "C"), ("d", "D")]
+        with patch("builtins.input", return_value="1 3"):
+            result = prompt_multiselect("pick", options)
+        assert "a" in result.value and "c" in result.value
+        assert "b" not in result.value
+
+    def test_range_with_surrounding_spaces(self):
+        options = [("a", "A"), ("b", "B"), ("c", "C")]
+        with patch("builtins.input", return_value="1 - 2"):
+            result = prompt_multiselect("pick", options)
+        assert "a" in result.value and "b" in result.value
+        assert "c" not in result.value
 
 
 @pytest.mark.unit

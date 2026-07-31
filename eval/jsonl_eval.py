@@ -224,8 +224,8 @@ def _extract_chunk_index(custom_id: str, fallback: int = 0) -> int:
     if not custom_id:
         return fallback
 
-    # Pattern: {stem}-chunk-{idx}
-    match = re.search(r"-chunk-(\d+)$", custom_id)
+    # Pattern: {stem}-chunk-{idx} (text runs) or {stem}-page-{idx} (visual)
+    match = re.search(r"-(?:chunk|page)-(\d+)$", custom_id)
     if match:
         return int(match.group(1))
 

@@ -9,6 +9,7 @@ Synchronized with ChronoTranscriber's UI system for consistent UX across project
 from __future__ import annotations
 
 import os
+import re
 import sys
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -123,7 +124,13 @@ def ui_input(prompt: str, style: str = PromptStyle.PROMPT) -> str:
     styled_prompt = PromptStyle.colorize(prompt, style) if style else prompt
     try:
         return input(styled_prompt).strip()
-    except (EOFError, KeyboardInterrupt):
+    except KeyboardInterrupt:
+        # Re-raise so the entry point's interrupt handler exits 130
+        # (128 + SIGINT) per the CLI agent contract; swallowing Ctrl+C
+        # here as exit 0 would report success for an interrupted run.
+        ui_print("\n[INFO] Operation cancelled by user.", PromptStyle.INFO)
+        raise
+    except EOFError:
         ui_print("\n[INFO] Operation cancelled by user.", PromptStyle.INFO)
         sys.exit(0)
     except Exception as e:
@@ -522,8 +529,13 @@ def prompt_multiselect(
             print_success(f"Selected all {len(items)} items.")
             return PromptResult(NavigationAction.CONTINUE, selected)
 
-        # Determine if input is numeric selection or filename search
-        normalized_input = choice.replace(" ", "").replace(";", ",")
+        # Determine if input is numeric selection or filename search.
+        # Whitespace-separated tokens ("1 3") become comma-separated items;
+        # collapsing them to "13" would silently select the wrong entry.
+        # Whitespace around "-" and "," is cosmetic and simply trimmed.
+        normalized_input = choice.strip().replace(";", ",")
+        normalized_input = re.sub(r"\s*([-,])\s*", r"\1", normalized_input)
+        normalized_input = re.sub(r"\s+", ",", normalized_input)
         is_numeric_selection = all(
             c.isdigit() or c in ",-" for c in normalized_input
         ) and any(c.isdigit() for c in normalized_input)

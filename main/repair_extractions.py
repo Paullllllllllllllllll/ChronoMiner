@@ -197,6 +197,7 @@ def _repair_temp_file(
     completed_batches: list[dict[str, Any]] = []
     failed_batches: list[tuple[dict[str, Any], str]] = []
     missing_batches: list[str] = []
+    pending_batches: list[str] = []
     # Cache each batch's status so terminal batches with downloadable output
     # can be retrieved below without a second status call.
     status_by_id: dict[str, BatchStatusInfo] = {}
@@ -244,6 +245,7 @@ def _repair_temp_file(
                 ui.print_warning(f"Batch {batch_id} failed: {diagnosis}")
             failed_batches.append((track, status.value))
         else:
+            pending_batches.append(batch_id)
             ui.print_info(
                 f"Batch {batch_id} is {status.value}; waiting for completion."
             )
@@ -295,9 +297,17 @@ def _repair_temp_file(
     output_dir.mkdir(parents=True, exist_ok=True)
     final_json_path = output_dir / f"{identifier}_output.json"
 
-    # Honest completeness: only fully_completed when nothing failed or is
-    # missing (previously stamped True unconditionally).
-    fully_completed = not failed_batches and not missing_batches
+    # Honest completeness: only fully_completed when nothing failed, is
+    # missing, or is still running. Stamping True while batches are pending
+    # would satisfy check_batches' already-finalized skip and drop the
+    # pending batches' results forever.
+    if pending_batches:
+        ui.print_warning(
+            f"{len(pending_batches)} batch(es) still running "
+            f"({', '.join(pending_batches)}); writing a partial repair. "
+            f"Re-run repair or check_batches once they complete."
+        )
+    fully_completed = not failed_batches and not missing_batches and not pending_batches
     final_results: dict[str, Any] = build_unified_batch_output(
         responses,
         tracking,
@@ -427,6 +437,7 @@ class RepairExtractionsScript(DualModeScript):
 
         repaired_count = 0
         skipped_count = 0
+        fail_count = 0
 
         for index in indices:
             if 0 <= index < len(candidates):
@@ -443,6 +454,7 @@ class RepairExtractionsScript(DualModeScript):
                 except Exception as e:
                     self.ui.print_error(f"Failed to repair file {index + 1}: {e}")
                     self.logger.exception(f"Error repairing file at index {index}")
+                    fail_count += 1
             else:
                 self.ui.print_warning(
                     f"Selection {index + 1} is out of range; skipping."
@@ -454,6 +466,9 @@ class RepairExtractionsScript(DualModeScript):
             self.ui.print_warning(
                 f"Skipped (nothing to repair): {skipped_count} file(s)"
             )
+        if fail_count:
+            self.ui.print_warning(f"Failed to repair {fail_count} file(s)")
+            sys.exit(1)
 
     def run_cli(self, args: Namespace) -> None:
         """Run extraction repair in CLI mode."""
@@ -544,9 +559,13 @@ class RepairExtractionsScript(DualModeScript):
             print(f"\n[WARNING] About to repair {len(candidates)} file(s)")
             try:
                 confirm = input("Proceed? (y/N): ").strip().lower()
-            except (EOFError, KeyboardInterrupt):
+            except EOFError:
                 print("\n[INFO] Repair aborted")
                 return
+            except KeyboardInterrupt:
+                # Exit 130 (128 + SIGINT) per the CLI agent contract.
+                print("\n[INFO] Repair aborted")
+                sys.exit(130)
 
             if confirm not in ["y", "yes"]:
                 self.logger.info("Repair aborted by user")

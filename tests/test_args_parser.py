@@ -123,6 +123,16 @@ class TestChunkSliceArgs:
         assert args.last_n_chunks == 7
         assert args.first_n_chunks is None
 
+    def test_generate_ranges_parser_accepts_mode_override_flags(self):
+        """Regression: the only entry-point parser without the shared
+        --interactive/--non-interactive flags made
+        `generate_line_ranges.py --non-interactive` die with a usage error."""
+        parser = create_generate_ranges_parser()
+        args = parser.parse_args(["--input", "data/", "--non-interactive"])
+        assert args.non_interactive is True
+        args = parser.parse_args(["--input", "data/", "--interactive"])
+        assert args.interactive is True
+
 
 class TestGenerateRangesParserPositiveInt:
     """Regression: --tokens/--first-n-chunks/--last-n-chunks on the

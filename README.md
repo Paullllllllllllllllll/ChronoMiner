@@ -1,4 +1,4 @@
-# ChronoMiner v2.7.0
+# ChronoMiner v2.8.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -805,6 +805,29 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.8.0** (31 July 2026) -- Final round of the fifth full-repo
+    maintenance sweep. Literal special-token strings in source text no
+    longer crash chunking and token estimation; hand-edited line ranges
+    with non-positive or reversed bounds are skipped with a warning
+    instead of silently dropping text; a UTF-8 BOM on a temp JSONL no
+    longer invalidates resume; shared-budget runs keep the private token
+    state file warm so a degraded ledger cannot double the daily budget.
+    Batch submissions persist the schema and model name in tracking
+    records, so check_batches finalizes recovered and --input groups
+    under the schema they were submitted with and outputs stamp the real
+    model instead of "unknown"; repair_extractions no longer stamps
+    fully_completed while batches are still running (previously the
+    pending results were dropped forever), counts interactive failures
+    honestly, and Ctrl+C during any prompt now exits 130 instead of 0.
+    --dry-run under --output-mode mirror reports the real mirrored
+    paths; a config asking for image detail "original" on a
+    Chat-Completions-routed model warns once about the silent downgrade
+    to "high"; dead capability fields (including the misleading
+    max_context_tokens) and the unused path-based image encoder are
+    removed; generate_line_ranges accepts the shared mode-override
+    flags; multiselect input "1 3" selects items 1 and 3 instead of 13;
+    slim_temp_jsonl fails per file on invalid UTF-8 and leaves
+    already-lean files untouched.
 - **v2.7.0** (31 July 2026) -- Bug-hunt release from the fifth full-repo
     maintenance sweep. CSV exports now open cleanly in Excel (UTF-8 BOM),
     keep integer columns integral in the presence of nulls, and render
