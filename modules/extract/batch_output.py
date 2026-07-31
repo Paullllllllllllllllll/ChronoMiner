@@ -145,7 +145,26 @@ def build_unified_batch_output(
                 entry.get("error"),
             )
             continue
-        records.append(_to_unified_record(entry, custom_id_map))
+        record = _to_unified_record(entry, custom_id_map)
+        # Mirror the synchronous empty-output guard: an entry whose text
+        # resolves to nothing (truncation, refusal, thinking-only stop) must
+        # not be persisted as a completed unit, or its custom_id enters the
+        # resume skip-set permanently and the unit surfaces only as silently
+        # missing rows downstream. Fold it into failed_chunks so resume
+        # retries it.
+        response_body = record.get("response") or {}
+        if not str(response_body.get("output_text") or "").strip():
+            idx = record.get("chunk_index")
+            if isinstance(idx, int):
+                failed_chunks.append(idx)
+            logger.warning(
+                "Batch request %s returned no usable text (possible "
+                "truncation or refusal); recording as failed so resume "
+                "retries it.",
+                entry.get("custom_id"),
+            )
+            continue
+        records.append(record)
 
     total_chunks = _infer_total_chunks(custom_id_map, records, failed_chunks)
     partial = (

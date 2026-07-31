@@ -21,8 +21,6 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from modules.infra.paths import ensure_path_safe
-
 logger = logging.getLogger(__name__)
 
 
@@ -96,10 +94,17 @@ def temp_jsonl_version(temp_jsonl_path: Path) -> int | None:
 def is_resumable_temp_jsonl(temp_jsonl_path: Path) -> bool:
     """Whether a temp JSONL may be safely resumed under the current format.
 
-    A missing file is resumable (nothing to conflict with); an existing file is
-    resumable only if it carries the current ``TEMP_JSONL_VERSION`` marker.
+    A missing or empty file is resumable (nothing to conflict with; an empty
+    file is a crash artifact from before the header flush); an existing
+    non-empty file is resumable only if it carries the current
+    ``TEMP_JSONL_VERSION`` marker.
     """
     if not temp_jsonl_path.exists():
+        return True
+    try:
+        if temp_jsonl_path.stat().st_size == 0:
+            return True
+    except OSError:
         return True
     return temp_jsonl_version(temp_jsonl_path) == TEMP_JSONL_VERSION
 
@@ -116,6 +121,7 @@ def build_extraction_metadata(
     failed_chunks: list[int] | None = None,
     image_provenance: dict[str, Any] | None = None,
     chunking_text_version: int | None = None,
+    document_total_chunks: int | None = None,
 ) -> dict[str, Any]:
     """Build a metadata dict to embed in extraction output JSON.
 
@@ -126,6 +132,11 @@ def build_extraction_metadata(
 
     ``chunking_text_version`` (text runs only) records which text-chunking
     behaviour produced the file; see :data:`CHUNKING_TEXT_VERSION`.
+
+    ``document_total_chunks`` (text runs only) records the pre-slice number
+    of chunks the whole document produced under the run's chunking settings.
+    Resume compares it against the current run's value and refuses to mix
+    records produced under different chunk boundaries.
     """
     meta: dict[str, Any] = {
         "schema_name": schema_name,
@@ -137,6 +148,8 @@ def build_extraction_metadata(
     }
     if chunking_text_version is not None:
         meta["chunking_text_version"] = chunking_text_version
+    if document_total_chunks is not None:
+        meta["document_total_chunks"] = document_total_chunks
     if chunk_slice_info:
         meta["chunk_slice"] = chunk_slice_info
     if partial:
@@ -246,15 +259,3 @@ def completed_indices_from_outputs(*output_paths: Path) -> set[int]:
             if match:
                 indices.add(int(match.group(1)))
     return indices
-
-
-def get_output_json_path(
-    file_path: Path,
-    paths_config: dict[str, Any],
-    schema_paths: dict[str, Any],
-) -> Path:
-    """Derive the output JSON path for a given input text file."""
-    if paths_config.get("general", {}).get("input_paths_is_output_path"):
-        return ensure_path_safe(file_path.parent / f"{file_path.stem}_output.json")
-    output_dir = schema_paths.get("output", "")
-    return ensure_path_safe(Path(output_dir) / f"{file_path.stem}_output.json")

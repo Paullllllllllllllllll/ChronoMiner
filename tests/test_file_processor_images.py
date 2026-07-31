@@ -24,9 +24,11 @@ class TestIsVisualInput:
         f.write_text("hello")
         assert FileProcessor._is_visual_input(f) is False
 
-    def test_directory_with_images_is_visual(self, tmp_path):
+    def test_directory_with_images_is_not_visual(self, tmp_path):
+        # Directories are rejected: the visual pipeline processes single
+        # files only; stream_page_payloads would crash on a directory.
         (tmp_path / "a.png").write_bytes(b"x")
-        assert FileProcessor._is_visual_input(tmp_path) is True
+        assert FileProcessor._is_visual_input(tmp_path) is False
 
     def test_directory_with_only_text_is_not_visual(self, tmp_path):
         (tmp_path / "a.txt").write_text("text")

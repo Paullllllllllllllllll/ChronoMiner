@@ -22,9 +22,9 @@ import random
 import re
 import time
 from abc import ABC, abstractmethod
-from collections.abc import AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator
 from pathlib import Path
-from typing import Any
+from typing import Any, cast
 
 from modules.batch.backends import (
     BatchHandle,
@@ -37,6 +37,7 @@ from modules.conversion.json_utils import strip_image_payloads
 from modules.extract.resume import build_temp_header
 from modules.images.page_stream import PageError
 from modules.infra.chunking import TextProcessor
+from modules.infra.jsonl import atomic_write_json
 from modules.infra.rate_limit import await_capacity, get_shared_rate_limiter
 from modules.infra.token_tracker import get_token_tracker
 from modules.llm.langchain_provider import ProviderConfig
@@ -100,6 +101,43 @@ def _partition_batch_requests(
     return parts or [[]]
 
 
+def _harvest_batch_tracking(temp_jsonl_path: Path) -> dict[str, Any]:
+    """Collect ``batch_tracking`` records from a stem's temp JSONL files.
+
+    Scans the base temp file and any ``_part{n}`` siblings for tracking
+    records of a prior batch submission and returns a mapping of
+    ``batch_id -> metadata``. Used to carry previously submitted (possibly
+    still-pending) batch ids into the recovery artifact before their temp
+    records are deleted by a resubmission.
+    """
+    tracking: dict[str, Any] = {}
+    candidates = [
+        temp_jsonl_path,
+        *temp_jsonl_path.parent.glob(f"{temp_jsonl_path.stem}_part*.jsonl"),
+    ]
+    for candidate in candidates:
+        if not candidate.exists():
+            continue
+        try:
+            with candidate.open(encoding="utf-8") as fh:
+                for line in fh:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(record, dict):
+                        continue
+                    bt = record.get("batch_tracking")
+                    if isinstance(bt, dict) and bt.get("batch_id"):
+                        tracking[str(bt["batch_id"])] = bt.get("metadata", {})
+        except OSError:
+            continue
+    return tracking
+
+
 def _budget_deferred(idx: int) -> dict[str, Any]:
     """Marker for a chunk/page skipped because the daily token budget was
     exhausted. Deferred units are never written to the temp JSONL, so the
@@ -116,6 +154,17 @@ _SERVER_ERROR_CODE_RE = re.compile(
     r"(?:status(?:[ _]?code)?|http|error[ _]?code|code)\s*[:=]?\s*5\d{2}\b"
     r"|\b5\d{2}\b\s*(?:internal server error|server error|bad gateway"
     r"|service unavailable|gateway timeout|origin)",
+    re.IGNORECASE,
+)
+
+# Same context-gating for 429: the former blanket ``"429" in msg`` matched any
+# stray substring (e.g. "you requested 132429 tokens" or "position 429"),
+# retrying a permanently failing request for ~10 minutes and throttling the
+# shared rate limiter for every concurrent chunk of that provider.
+_RATE_LIMIT_CODE_RE = re.compile(
+    r"(?:status(?:[ _]?code)?|http|error[ _]?code|code)\s*[:=]?\s*429\b"
+    r"|\b429\b\s*(?:too many requests|rate limit)"
+    r"|too many requests",
     re.IGNORECASE,
 )
 
@@ -141,7 +190,11 @@ def classify_transient_error(
         if not isinstance(status_code, int):
             status_code = None
 
-    is_429 = status_code == 429 or "429" in msg or "rate_limit" in msg
+    is_429 = (
+        status_code == 429
+        or "rate_limit" in msg
+        or bool(_RATE_LIMIT_CODE_RE.search(message))
+    )
     is_timeout = "timed out" in msg or "timeout" in msg
     is_server_error = (
         (status_code is not None and 500 <= status_code <= 599)
@@ -469,9 +522,15 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
             else PROMPTS_DIR / "text_extraction_prompt.txt"
         )
 
-        # Append only to an existing, current-format temp file; otherwise start
-        # fresh and stamp the format-version header as the first line.
-        resume_append = bool(skip_indices) and temp_jsonl_path.exists()
+        # Append only to an existing, non-empty, current-format temp file;
+        # otherwise start fresh and stamp the format-version header as the
+        # first line. A 0-byte temp (crash before the header flush) must be
+        # rewritten so it gets its header.
+        resume_append = (
+            bool(skip_indices)
+            and temp_jsonl_path.exists()
+            and temp_jsonl_path.stat().st_size > 0
+        )
         file_mode = "a" if resume_append else "w"
         async with open_extractor(
             api_key=api_key,
@@ -670,14 +729,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             # temp record, so the caller cannot recover the
                             # index from gather order otherwise.
                             return {"error": str(e), "chunk_index": idx}
-                    # If all retries exhausted without returning, return error
-                    return {
-                        "error": (
-                            f"Max retries ({retry_attempts}) exhausted "
-                            f"for {unit_label} {idx}"
-                        ),
-                        "chunk_index": idx,
-                    }
+                    # Unreachable: every iteration returns or continues, and
+                    # the final attempt (retry condition false) always returns.
+                    raise AssertionError("retry loop must return on its final attempt")
 
                 # Chunk-level token-budget gate. The tracker is a no-op when
                 # the daily limit is disabled (try_reserve returns 0); when
@@ -817,10 +871,18 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
 
         async def producer() -> None:
             try:
-                async for item in image_source:
-                    if exhausted.is_set():
-                        break
-                    await queue.put(item)
+                # aclosing: breaking out (budget exhaustion) abandons the
+                # async generator at its yield inside the PDF context manager;
+                # without an explicit aclose the document handle stays open
+                # until interpreter shutdown, accumulating one per re-pass.
+                # stream_page_payloads is an async generator, so aclose exists.
+                async with contextlib.aclosing(
+                    cast(AsyncGenerator[Any, None], image_source)
+                ) as source:
+                    async for item in source:
+                        if exhausted.is_set():
+                            break
+                        await queue.put(item)
             except Exception as e:  # Surface after workers drain the queue
                 producer_errors.append(e)
             finally:
@@ -1054,6 +1116,23 @@ class BatchProcessingStrategy(ProcessingStrategy):
         # base temp file) left by a prior submission of the same stem. Otherwise
         # check_batches groups those orphans with the fresh parts and wedges the
         # group forever; multi-part runs never rewrite the base file.
+        #
+        # Before deleting anything, harvest the batch_tracking records of any
+        # prior (possibly still-pending, already paid-for) submission and carry
+        # them into this run's recovery artifact. Without this, resubmitting a
+        # stem whose earlier batch is still in flight destroys every record of
+        # that batch (tracking lines deleted here, debug artifact overwritten
+        # below) and its results become unrecoverable.
+        prior_tracking = _harvest_batch_tracking(temp_jsonl_path)
+        if prior_tracking:
+            console_print(
+                f"[WARNING] Found {len(prior_tracking)} previously submitted "
+                "batch id(s) for this file whose temp records are being "
+                "replaced. Their ids are carried into the recovery artifact "
+                "so check_batches/repair_extractions can still retrieve them, "
+                "but consider running check_batches before resubmitting."
+            )
+
         for stale_part in temp_jsonl_path.parent.glob(
             f"{temp_jsonl_path.stem}_part*.jsonl"
         ):
@@ -1063,8 +1142,10 @@ class BatchProcessingStrategy(ProcessingStrategy):
             with contextlib.suppress(OSError):
                 temp_jsonl_path.unlink()
 
-        submitted_batch_ids: list[str] = []
-        batch_metadata: dict[str, Any] = {}
+        submitted_batch_ids: list[str] = list(prior_tracking)
+        batch_metadata: dict[str, Any] = {
+            bid: meta for bid, meta in prior_tracking.items()
+        }
         debug_path = (
             temp_jsonl_path.parent / f"{file_path.stem}_batch_submission_debug.json"
         )
@@ -1089,18 +1170,16 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 # part temp file is written: a crash between submit and the
                 # tracking write would otherwise orphan a paid-for batch with no
                 # record anywhere. The metadata mapping lets recovery restore
-                # each handle's metadata (e.g. Google's custom_id_map).
-                debug_path.write_text(
-                    json.dumps(
-                        {
-                            "batch_ids": submitted_batch_ids,
-                            "provider": provider,
-                            "batch_metadata": batch_metadata,
-                        },
-                        ensure_ascii=False,
-                        indent=2,
-                    ),
-                    encoding="utf-8",
+                # each handle's metadata (e.g. Google's custom_id_map). Written
+                # atomically: an in-place truncate could corrupt the artifact in
+                # exactly the crash scenario it exists for.
+                atomic_write_json(
+                    debug_path,
+                    {
+                        "batch_ids": submitted_batch_ids,
+                        "provider": provider,
+                        "batch_metadata": batch_metadata,
+                    },
                 )
 
                 tracking_record = {

@@ -28,6 +28,7 @@ from modules.extract.resume import (
     completed_indices_from_outputs,
     detect_extraction_status,
     is_resumable_temp_jsonl,
+    read_extraction_metadata,
 )
 from modules.extract.schema_handlers import get_schema_handler
 from modules.infra.chunking import (
@@ -90,16 +91,16 @@ def _completed_indices_from_temp(temp_jsonl_path: Path) -> set[int]:
 
 
 def is_visual_input(file_path: Path) -> bool:
-    """Check if the path is a visual input (image, PDF, or directory of images)."""
-    if file_path.is_file():
-        return file_path.suffix.lower() in SUPPORTED_VISUAL_EXTENSIONS
-    if file_path.is_dir():
-        return any(
-            f.suffix.lower() in SUPPORTED_VISUAL_EXTENSIONS
-            for f in file_path.rglob("*")
-            if f.is_file()
-        )
-    return False
+    """Check if the path is a visual input file (image or PDF).
+
+    Directories are rejected: the visual pipeline processes individual
+    files only (``stream_page_payloads`` treats any non-PDF path as a
+    single image), so a directory of images must be expanded to files by
+    the caller.
+    """
+    return (
+        file_path.is_file() and file_path.suffix.lower() in SUPPORTED_VISUAL_EXTENSIONS
+    )
 
 
 def _read_temp_records(temp_jsonl_path: Path) -> list[dict[str, Any]]:
@@ -397,6 +398,7 @@ class FileProcessor:
         # the absolute (document-space) chunk index of each retained chunk so
         # custom_ids and resume records are absolute rather than slice-relative
         # (mirrors the visual path's absolute page numbering).
+        document_total_chunks = len(chunks)
         if chunk_slice is not None and (
             chunk_slice.first_n is not None
             or chunk_slice.last_n is not None
@@ -428,6 +430,7 @@ class FileProcessor:
             context_image_enabled=context_image_enabled,
             chunk_indices=chunk_indices,
             chunk_ranges=ranges,
+            document_total_chunks=document_total_chunks,
             ui=ui,
             chunking_method=chunking_method,
         )
@@ -471,9 +474,20 @@ class FileProcessor:
         messenger.info(f"Processing visual file: {file_path.name}")
         logger.info(f"Starting visual processing for file: {file_path}")
 
-        # 1. Validate vision support
+        # 1. Resolve the provider (explicit config first, mirroring the text
+        # path in processing_strategy) and validate vision support. Passing
+        # the provider into detect_capabilities matters for custom endpoints,
+        # whose capability profile is only reachable with provider="custom".
+        from modules.llm.langchain_provider import ProviderConfig
+
         model_name = self.model_config["extraction_model"]["name"]
-        caps = detect_capabilities(model_name)
+        config_provider = self.model_config["extraction_model"].get("provider")
+        valid_providers = ("openai", "anthropic", "google", "openrouter", "custom")
+        if config_provider and config_provider in valid_providers:
+            provider = config_provider
+        else:
+            provider = ProviderConfig._detect_provider(model_name)
+        caps = detect_capabilities(model_name, provider=provider)
         if not caps.supports_image_input:
             messenger.error(
                 f"Model '{model_name}' does not support image inputs. "
@@ -482,11 +496,9 @@ class FileProcessor:
             )
             return "failed"
 
-        # 2. Determine provider and load image config
+        # 2. Load image config
         from modules.config.loader import get_config_loader
-        from modules.llm.langchain_provider import ProviderConfig
 
-        provider = ProviderConfig._detect_provider(model_name)
         image_config = get_config_loader().get_image_processing_config()
         img_cfg = resolve_image_section(image_config, provider, model_name)
 
@@ -677,8 +689,10 @@ class FileProcessor:
             image_provenance=file_provenance,
             # Batch mode materializes needed_indices into image_chunks; carry
             # those absolute page numbers so batch custom_ids match the sync
-            # (streaming) path's absolute page numbering.
-            chunk_indices=needed_indices if use_batch else None,
+            # (streaming) path's absolute page numbering. The sync path's
+            # placeholder chunks cover all sliced pages, so it carries the
+            # sliced indices (keeping resume counters in document space).
+            chunk_indices=needed_indices if use_batch else sliced_indices,
             ui=ui,
             chunking_method="pages",
         )
@@ -708,6 +722,7 @@ class FileProcessor:
         image_provenance: dict[str, Any] | None = None,
         chunk_indices: list[int] | None = None,
         chunk_ranges: list[tuple[int, int]] | None = None,
+        document_total_chunks: int | None = None,
         ui: Any = None,
         chunking_method: str = "unknown",
     ) -> str:
@@ -834,6 +849,43 @@ class FileProcessor:
             _, completed_chunk_indices = detect_extraction_status(
                 output_json_path, expected_chunks=len(chunks)
             )
+            # Chunking-consistency guard: the skip-set below is keyed only by
+            # numeric chunk indices, which are meaningless across different
+            # chunk boundaries. If the prior output was produced under a
+            # different chunking (different token size, edited line ranges, or
+            # an older text-chunking behaviour), refuse to resume rather than
+            # silently skipping or mixing records with overlapping/missing
+            # text coverage.
+            if completed_chunk_indices and document_total_chunks is not None:
+                prior_meta = read_extraction_metadata(output_json_path) or {}
+                prior_version = prior_meta.get("chunking_text_version")
+                prior_total = prior_meta.get("document_total_chunks")
+                version_mismatch = (
+                    prior_version is not None and prior_version != CHUNKING_TEXT_VERSION
+                )
+                total_mismatch = (
+                    prior_total is not None and prior_total != document_total_chunks
+                )
+                if version_mismatch or total_mismatch:
+                    messenger.error(
+                        f"Refusing to resume {file_path.name}: its existing "
+                        f"output was produced under different chunking "
+                        f"(recorded text-chunking v{prior_version}, "
+                        f"{prior_total if prior_total is not None else '?'} "
+                        f"document chunks; current v{CHUNKING_TEXT_VERSION}, "
+                        f"{document_total_chunks} chunks). Re-run with --force "
+                        "to start from scratch, or restore the original "
+                        "chunking settings."
+                    )
+                    return "failed"
+                if prior_total is None:
+                    messenger.warning(
+                        f"Resuming {file_path.name}: the existing output "
+                        "predates chunk-count stamping, so chunking "
+                        "consistency cannot be verified. Ensure chunking "
+                        "settings are unchanged, or re-run with --force if "
+                        "in doubt."
+                    )
             # Gate the skip on MEMBERSHIP, not cardinality. `completed` holds
             # absolute document indices from a prior run; on a sliced resume
             # len(completed) can meet or exceed len(chunks) (the sliced list)
@@ -857,6 +909,31 @@ class FileProcessor:
                     f" {len(completed_chunk_indices)}/{len(chunks)}"
                     f" {unit_label}s already done"
                 )
+
+        # A hard-crashed sync run can leave records only in the temp JSONL
+        # (never merged into an output). Batch submission rewrites the temp in
+        # "w" mode, so those records would be silently destroyed and re-billed.
+        # Refuse the sync-to-batch mode switch instead of losing them. Applies
+        # to both the text path and the visual (precomputed) path.
+        if (
+            resume
+            and use_batch
+            and temp_jsonl_path.exists()
+            and is_resumable_temp_jsonl(temp_jsonl_path)
+        ):
+            leftover = (
+                _completed_indices_from_temp(temp_jsonl_path) - completed_chunk_indices
+            )
+            if leftover:
+                messenger.error(
+                    f"Refusing batch resume for {file_path.name}: its temp "
+                    f"file holds {len(leftover)} completed unit(s) from an "
+                    "interrupted synchronous run that were never written to "
+                    "the output. Finish the file in synchronous resume mode "
+                    "first (which merges them), or re-run with --force to "
+                    "discard them."
+                )
+                return "failed"
 
         # Refuse to resume a temp JSONL written by an older, incompatible
         # format (its custom_ids may be slice-relative, which would corrupt the
@@ -1073,6 +1150,7 @@ class FileProcessor:
                                 merge_existing=merge_existing_flag,
                                 image_provenance=image_provenance,
                                 chunking_method=chunking_method,
+                                document_total_chunks=document_total_chunks,
                             )
                         )
                     elif processing_cancelled:
@@ -1216,6 +1294,7 @@ class FileProcessor:
         merge_existing: bool = False,
         image_provenance: dict[str, Any] | None = None,
         chunking_method: str = "unknown",
+        document_total_chunks: int | None = None,
     ) -> bool:
         """Generate final output files from temporary JSONL.
 
@@ -1276,6 +1355,9 @@ class FileProcessor:
                     # (image_provenance set) do not chunk text.
                     chunking_text_version=(
                         CHUNKING_TEXT_VERSION if image_provenance is None else None
+                    ),
+                    document_total_chunks=(
+                        document_total_chunks if image_provenance is None else None
                     ),
                 ),
                 "records": results,

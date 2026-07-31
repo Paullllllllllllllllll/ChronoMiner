@@ -153,31 +153,6 @@ class TestDetectExtractionStatus:
         assert completed == {1, 2, 3}
 
 
-class TestGetOutputJsonPath:
-    """Tests for get_output_json_path."""
-
-    def test_output_in_schema_dir(self, tmp_path: Path):
-        from modules.extract.resume import get_output_json_path
-
-        schema_paths = {"output": str(tmp_path / "output")}
-        paths_config = {"general": {"input_paths_is_output_path": False}}
-        result = get_output_json_path(
-            tmp_path / "myfile.txt", paths_config, schema_paths
-        )
-        assert result.name == "myfile_output.json"
-        assert "output" in str(result)
-
-    def test_output_in_input_dir(self, tmp_path: Path):
-        from modules.extract.resume import get_output_json_path
-
-        input_dir = tmp_path / "input"
-        input_dir.mkdir()
-        paths_config = {"general": {"input_paths_is_output_path": True}}
-        result = get_output_json_path(input_dir / "myfile.txt", paths_config, {})
-        assert result.name == "myfile_output.json"
-        assert str(input_dir) in str(result)
-
-
 class TestReadExtractionMetadata:
     """Tests for read_extraction_metadata."""
 
