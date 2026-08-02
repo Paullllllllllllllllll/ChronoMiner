@@ -2,15 +2,18 @@
 readjuster."""
 
 import json
+import logging
 from pathlib import Path
 from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
 
+from modules.config.context import NO_CONTEXT_HASH, compute_context_hash
 from modules.infra.jsonl import (
     build_jsonl_header,
     compute_ranges_fingerprint,
+    read_jsonl_header,
     read_jsonl_records,
 )
 from modules.infra.token_tracker import DailyTokenTracker
@@ -465,6 +468,177 @@ class TestReadjusterResume:
         # Temp JSONL should now have header + all 3 range records
         records = list(read_jsonl_records(temp_jsonl))
         assert len(records) == 4
+
+
+class TestReadjusterContextInvalidation:
+    """The resolved adjust-context is recorded and compared on resume."""
+
+    @staticmethod
+    def _write_inputs(tmp_path: Path, range_count: int) -> tuple[Path, Path]:
+        line_count = range_count * 10
+        text_file = tmp_path / "sample.txt"
+        text_file.write_text(
+            "\n".join(f"Line {i}" for i in range(1, line_count + 1)) + "\n",
+            encoding="utf-8",
+        )
+        lr_file = tmp_path / "sample_line_ranges.txt"
+        lr_file.write_text(
+            "".join(f"({s}, {s + 9})\n" for s in range(1, line_count + 1, 10)),
+            encoding="utf-8",
+        )
+        return text_file, lr_file
+
+    @staticmethod
+    def _write_partial_jsonl(
+        tmp_path: Path, lr_file: Path, *, header_extra: dict[str, Any]
+    ) -> Path:
+        """Header (with ranges 1 and 2 completed) matching readjuster defaults."""
+        temp_jsonl = tmp_path / "sample_line_ranges_adjust_temp.jsonl"
+        header_rec = build_jsonl_header(
+            ranges_fingerprint=compute_ranges_fingerprint(lr_file),
+            total_ranges=3,
+            boundary_type="TestSchema",
+            model_name="gpt-4o",
+            context_window=3,
+            matching_config={},
+            retry_config={},
+        )
+        header_rec["jsonl_header"].update(header_extra)
+        records = [
+            header_rec,
+            _fake_range_result(1, (1, 10), (3, 10)).to_jsonl_record(
+                "sample_line_ranges"
+            ),
+            _fake_range_result(2, (11, 20), (13, 20)).to_jsonl_record(
+                "sample_line_ranges"
+            ),
+        ]
+        temp_jsonl.write_text(
+            "\n".join(json.dumps(r) for r in records) + "\n", encoding="utf-8"
+        )
+        return temp_jsonl
+
+    @staticmethod
+    async def _run(
+        readjuster: LineRangeReadjuster,
+        text_file: Path,
+        lr_file: Path,
+        context: str | None,
+        processed: list[int],
+    ) -> None:
+        async def mock_process_range(**kwargs: Any) -> RangeResult:
+            idx = kwargs["range_index"]
+            processed.append(idx)
+            return _fake_range_result(
+                idx, kwargs["original_range"], kwargs["original_range"]
+            )
+
+        context_path = text_file.with_name("sample_adjust_context.txt")
+        with (
+            patch.object(
+                readjuster, "_process_single_range", side_effect=mock_process_range
+            ),
+            patch("modules.line_ranges.readjuster.ProviderConfig") as mock_provider,
+            patch(
+                "modules.line_ranges.readjuster.open_extractor",
+                new_callable=lambda: _async_noop_context,
+            ),
+            patch(
+                "modules.line_ranges.readjuster.resolve_context_for_readjustment",
+                return_value=(
+                    (context, context_path) if context is not None else (None, None)
+                ),
+            ),
+        ):
+            mock_provider._detect_provider.return_value = "openai"
+            mock_provider._get_api_key.return_value = "fake-key"
+            await readjuster.ensure_adjusted_line_ranges(
+                text_file=text_file,
+                line_ranges_file=lr_file,
+                boundary_type="TestSchema",
+            )
+
+    @pytest.mark.asyncio
+    async def test_fresh_run_records_context_hash(self, tmp_path: Path) -> None:
+        """A fresh run stores the digest of the resolved context string."""
+        text_file, lr_file = self._write_inputs(tmp_path, 2)
+        content = "Align boundaries on recipe titles, not chapter headings."
+        await self._run(_make_readjuster(), text_file, lr_file, content, [])
+
+        header = read_jsonl_header(tmp_path / "sample_line_ranges_adjust_temp.jsonl")
+        assert header is not None
+        assert header["context_hash"] == compute_context_hash(content)
+
+    @pytest.mark.asyncio
+    async def test_fresh_run_without_context_records_sentinel(
+        self, tmp_path: Path
+    ) -> None:
+        """No context anywhere is recorded as the explicit 'none' sentinel, so a
+        context added later is detectable."""
+        text_file, lr_file = self._write_inputs(tmp_path, 2)
+        await self._run(_make_readjuster(), text_file, lr_file, None, [])
+
+        header = read_jsonl_header(tmp_path / "sample_line_ranges_adjust_temp.jsonl")
+        assert header is not None
+        assert header["context_hash"] == NO_CONTEXT_HASH == "none"
+
+    @pytest.mark.asyncio
+    async def test_changed_context_discards_partial_artifact(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """A different context invalidates the partial JSONL: every range is
+        re-processed and the discard warning names the context change."""
+        text_file, lr_file = self._write_inputs(tmp_path, 3)
+        self._write_partial_jsonl(
+            tmp_path,
+            lr_file,
+            header_extra={"context_hash": compute_context_hash("context A")},
+        )
+
+        processed: list[int] = []
+        with caplog.at_level(logging.WARNING, logger="modules.line_ranges.readjuster"):
+            await self._run(
+                _make_readjuster(), text_file, lr_file, "context B", processed
+            )
+
+        assert processed == [1, 2, 3]
+        assert any(
+            "adjust-context changed" in rec.getMessage() for rec in caplog.records
+        )
+
+    @pytest.mark.asyncio
+    async def test_unchanged_context_resumes(self, tmp_path: Path) -> None:
+        """An identical context leaves the partial artifact valid."""
+        text_file, lr_file = self._write_inputs(tmp_path, 3)
+        content = "context A"
+        self._write_partial_jsonl(
+            tmp_path,
+            lr_file,
+            header_extra={"context_hash": compute_context_hash(content)},
+        )
+
+        processed: list[int] = []
+        await self._run(_make_readjuster(), text_file, lr_file, content, processed)
+        assert processed == [3]
+
+    @pytest.mark.asyncio
+    async def test_legacy_header_resumes_under_a_context(self, tmp_path: Path) -> None:
+        """A header written before context hashing existed keeps resuming even
+        though the current run resolves a context (wildcard policy)."""
+        text_file, lr_file = self._write_inputs(tmp_path, 3)
+        temp_jsonl = self._write_partial_jsonl(tmp_path, lr_file, header_extra={})
+        # Strip the field entirely: this is a pre-2.8.1 artifact.
+        lines = temp_jsonl.read_text(encoding="utf-8").splitlines()
+        first = json.loads(lines[0])
+        first["jsonl_header"].pop("context_hash", None)
+        lines[0] = json.dumps(first)
+        temp_jsonl.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+        processed: list[int] = []
+        await self._run(
+            _make_readjuster(), text_file, lr_file, "a brand new context", processed
+        )
+        assert processed == [3]
 
 
 class TestReadjusterForceFresh:

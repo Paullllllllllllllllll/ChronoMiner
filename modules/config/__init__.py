@@ -12,6 +12,8 @@ from modules.config.capabilities import (
     detect_provider,
 )
 from modules.config.context import (
+    NO_CONTEXT_HASH,
+    compute_context_hash,
     resolve_context_for_extraction,
     resolve_context_for_readjustment,
 )
@@ -38,4 +40,6 @@ __all__ = [
     "detect_provider",
     "resolve_context_for_extraction",
     "resolve_context_for_readjustment",
+    "compute_context_hash",
+    "NO_CONTEXT_HASH",
 ]

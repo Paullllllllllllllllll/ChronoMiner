@@ -24,7 +24,10 @@ from pathlib import Path
 from typing import Any
 
 from modules.config.capabilities import detect_capabilities
-from modules.config.context import resolve_context_for_readjustment
+from modules.config.context import (
+    compute_context_hash,
+    resolve_context_for_readjustment,
+)
 from modules.infra.chunking import TextProcessor, load_line_ranges
 from modules.infra.jsonl import (
     JsonlWriter,
@@ -424,6 +427,9 @@ class LineRangeReadjuster:
         # validation before the processing loop starts).
         current_fingerprint = compute_ranges_fingerprint(line_ranges_file)
         prompt_hash = self.prompt_hash
+        # Digest of the resolved context string (not its path), so a changed,
+        # added, or removed adjust-context invalidates the resume artifact.
+        context_hash = compute_context_hash(context)
 
         # Temp JSONL for per-range persistence and resume
         stem = line_ranges_file.stem
@@ -455,6 +461,7 @@ class LineRangeReadjuster:
                 matching_config=self.matching_config,
                 retry_config=self.retry_config,
                 prompt_hash=prompt_hash,
+                context_hash=context_hash,
             ):
                 completed_ids = extract_completed_ids(
                     temp_jsonl_path, id_pattern=_RANGE_ID_PATTERN
@@ -465,11 +472,12 @@ class LineRangeReadjuster:
                     len(completed_ids),
                 )
             else:
-                reason = (
-                    "no header (legacy JSONL)"
-                    if header is None
-                    else "fingerprint/settings mismatch"
-                )
+                if header is None:
+                    reason = "no header (legacy JSONL)"
+                elif header.get("context_hash") not in (None, context_hash):
+                    reason = "adjust-context changed"
+                else:
+                    reason = "fingerprint/settings mismatch"
                 logger.warning(
                     "Discarding stale JSONL (%s): %s", reason, temp_jsonl_path.name
                 )
@@ -507,6 +515,7 @@ class LineRangeReadjuster:
                             retry_config=self.retry_config,
                             prompt_hash=prompt_hash,
                             context_path=str(context_path) if context_path else None,
+                            context_hash=context_hash,
                         )
                     )
 

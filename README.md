@@ -1,4 +1,4 @@
-# ChronoMiner v2.8.0
+# ChronoMiner v2.8.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -805,6 +805,20 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.8.1** (2 August 2026) -- Line-range readjustment resume now tracks
+    the adjust-context. The temp JSONL header records a `context_hash` --
+    a digest of the resolved context string, not of its path -- and both
+    the resume validator and the already-adjusted skip check compare it,
+    so adding, editing, or removing a `_adjust_context.txt` invalidates
+    the partial or completed artifact with a warning instead of silently
+    reusing work produced under a different context. This mirrors the
+    existing ranges-fingerprint and prompt-hash contract. Because the
+    hash covers the resolved string, an edit to a folder-level or global
+    context invalidates every work resolving to it, while headers written
+    before this release carry no `context_hash` and keep resuming
+    unchanged (no forced re-runs). The extraction flow has the same gap
+    for `_extract_context.txt`; that is a known deferral and is not fixed
+    here.
 - **v2.8.0** (31 July 2026) -- Final round of the fifth full-repo
     maintenance sweep. Literal special-token strings in source text no
     longer crash chunking and token estimation; hand-edited line ranges

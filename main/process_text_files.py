@@ -41,6 +41,10 @@ from main.cli_args import (
     resolve_path,
 )
 from main.dual_mode import AsyncDualModeScript
+from modules.config.context import (
+    compute_context_hash,
+    resolve_context_for_readjustment,
+)
 from modules.config.manager import ConfigManager, ConfigValidationError
 from modules.extract.file_processor import FileProcessor, mirrored_output_subdir
 from modules.infra.chunking import ChunkSlice
@@ -154,6 +158,9 @@ async def _adjust_line_ranges_workflow(
         # (a completed adjustment JSONL exists), so re-running the workflow does
         # not re-issue LLM calls for unchanged inputs.
         model_name_for_check = model_config.get("extraction_model", {}).get("name", "")
+        context_hash = compute_context_hash(
+            resolve_context_for_readjustment(text_file=text_file)[0]
+        )
         if is_jsonl_adjustment_complete(
             line_ranges_file,
             boundary_type=selected_schema_name,
@@ -163,6 +170,7 @@ async def _adjust_line_ranges_workflow(
             retry_config=retry_config,
             ranges_fingerprint=compute_ranges_fingerprint(line_ranges_file),
             prompt_hash=readjuster.prompt_hash,
+            context_hash=context_hash,
         ):
             if ui:
                 ui.print_info(

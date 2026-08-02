@@ -140,6 +140,7 @@ def build_jsonl_header(
     retry_config: dict[str, Any] | None = None,
     prompt_hash: str | None = None,
     context_path: str | None = None,
+    context_hash: str | None = None,
 ) -> dict[str, Any]:
     """Construct a JSONL header record for a line-range adjustment run.
 
@@ -148,6 +149,11 @@ def build_jsonl_header(
     uses ``"jsonl_header"`` as its top-level key (instead of ``"custom_id"``)
     so existing functions like ``extract_completed_ids()`` and
     ``_rebuild_ranges_from_jsonl()`` naturally skip it.
+
+    ``context_path`` is informational only -- it changes whenever the campaign
+    directory moves, so it cannot serve as a staleness key. ``context_hash``
+    is the comparison key: an opaque digest of the resolved context string,
+    compared on resume the same way ``prompt_hash`` is.
     """
     return {
         "jsonl_header": {
@@ -161,6 +167,7 @@ def build_jsonl_header(
             "retry_config": retry_config,
             "prompt_hash": prompt_hash,
             "context_path": context_path,
+            "context_hash": context_hash,
             "created_at": datetime.datetime.now(datetime.UTC).isoformat(),
         }
     }
@@ -214,6 +221,14 @@ def _header_fields_match(
     return not (retry_config is not None and header.get("retry_config") != retry_config)
 
 
+def _optional_hash_matches(
+    header: dict[str, Any], key: str, expected: str | None
+) -> bool:
+    """Compare an optional hash field; absent on either side is a wildcard."""
+    stored = header.get(key)
+    return not (expected is not None and stored is not None and stored != expected)
+
+
 def validate_jsonl_header(
     header: dict[str, Any],
     *,
@@ -224,11 +239,15 @@ def validate_jsonl_header(
     matching_config: dict[str, Any] | None = None,
     retry_config: dict[str, Any] | None = None,
     prompt_hash: str | None = None,
+    context_hash: str | None = None,
 ) -> bool:
     """Check whether a JSONL header matches the current run settings.
 
-    Returns ``True`` only when all provided fields match. ``prompt_hash`` is
-    compared only when both the header and the caller supply a non-None value.
+    Returns ``True`` only when all provided fields match. ``prompt_hash`` and
+    ``context_hash`` are compared only when both the header and the caller
+    supply a non-None value; legacy headers written before context hashing
+    existed carry no ``context_hash`` and are accepted (wildcard), so they
+    keep resuming rather than being force-re-run.
     """
     if header.get("version") != _JSONL_HEADER_VERSION:
         return False
@@ -253,11 +272,9 @@ def validate_jsonl_header(
         retry_config=retry_config,
     ):
         return False
-    return not (
-        prompt_hash is not None
-        and header.get("prompt_hash") is not None
-        and header.get("prompt_hash") != prompt_hash
-    )
+    return _optional_hash_matches(
+        header, "prompt_hash", prompt_hash
+    ) and _optional_hash_matches(header, "context_hash", context_hash)
 
 
 def update_jsonl_header(path: Path, fields: dict[str, Any]) -> bool:
@@ -373,6 +390,7 @@ def is_jsonl_adjustment_complete(
     retry_config: dict[str, Any] | None = None,
     ranges_fingerprint: str | None = None,
     prompt_hash: str | None = None,
+    context_hash: str | None = None,
 ) -> bool:
     """Check whether a completed adjustment JSONL exists with matching settings.
 
@@ -387,7 +405,10 @@ def is_jsonl_adjustment_complete(
     a ranges file regenerated after the adjustment (e.g. with a different
     ``tokens_per_chunk``), which would otherwise be silently skipped. Headers
     without ``final_ranges_fingerprint`` (pre-fix runs) are treated as stale.
-    ``prompt_hash`` is compared when both sides supply one.
+    ``prompt_hash`` is compared when both sides supply one, and so is
+    ``context_hash`` -- a digest of the resolved adjust-context, so that adding,
+    editing, or removing that context re-adjusts the file instead of silently
+    skipping it. Legacy headers carrying no ``context_hash`` are accepted.
     """
     stem = line_ranges_file.stem
     jsonl_path = line_ranges_file.parent / f"{stem}_adjust_temp.jsonl"
@@ -407,11 +428,17 @@ def is_jsonl_adjustment_complete(
     ):
         return False
 
-    if (
-        prompt_hash is not None
-        and header.get("prompt_hash") is not None
-        and header.get("prompt_hash") != prompt_hash
-    ):
+    if not _optional_hash_matches(header, "prompt_hash", prompt_hash):
+        return False
+
+    if not _optional_hash_matches(header, "context_hash", context_hash):
+        logger.warning(
+            "Re-adjusting %s: the resolved adjust-context changed since the "
+            "completed run (header %s, current %s)",
+            jsonl_path.name,
+            header.get("context_hash"),
+            context_hash,
+        )
         return False
 
     return _header_fields_match(

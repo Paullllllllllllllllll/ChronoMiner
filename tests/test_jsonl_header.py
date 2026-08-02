@@ -8,6 +8,7 @@ from modules.infra.jsonl import (
     compute_ranges_fingerprint,
     compute_stats_from_jsonl,
     extract_completed_ids,
+    is_jsonl_adjustment_complete,
     read_jsonl_header,
     update_jsonl_header,
     validate_jsonl_header,
@@ -139,6 +140,43 @@ class TestBuildJsonlHeader:
             context_window=6,
         )
         assert "custom_id" not in header_rec
+
+    def test_context_hash_stored(self) -> None:
+        header_rec = build_jsonl_header(
+            ranges_fingerprint="x",
+            total_ranges=1,
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
+            context_path="/some/path.txt",
+            context_hash="ctx1",
+        )
+        assert header_rec["jsonl_header"]["context_hash"] == "ctx1"
+
+    def test_context_hash_defaults_to_none_but_key_present(self) -> None:
+        header_rec = build_jsonl_header(
+            ranges_fingerprint="x",
+            total_ranges=1,
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
+        )
+        h = header_rec["jsonl_header"]
+        assert "context_hash" in h
+        assert h["context_hash"] is None
+
+    def test_version_unchanged_with_context_hash(self) -> None:
+        """Adding context_hash must not bump the hard-equality header version:
+        a bump would invalidate every in-flight resume artifact."""
+        header_rec = build_jsonl_header(
+            ranges_fingerprint="x",
+            total_ranges=1,
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
+            context_hash="ctx1",
+        )
+        assert header_rec["jsonl_header"]["version"] == 2
 
 
 # ---------------------------------------------------------------------------
@@ -321,6 +359,47 @@ class TestValidateJsonlHeader:
             is True
         )
 
+    def _validate_with_context(self, header: dict, context_hash: str | None) -> bool:
+        return validate_jsonl_header(
+            header,
+            ranges_fingerprint="abc",
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
+            matching_config=_MATCHING_CONFIG,
+            retry_config=_RETRY_CONFIG,
+            prompt_hash="phash",
+            context_hash=context_hash,
+        )
+
+    def test_context_hash_match(self) -> None:
+        h = self._sample_header(context_hash="ctx1")
+        assert self._validate_with_context(h, "ctx1") is True
+
+    def test_context_hash_mismatch(self) -> None:
+        h = self._sample_header(context_hash="ctx1")
+        assert self._validate_with_context(h, "ctx2") is False
+
+    def test_legacy_header_without_context_hash_is_wildcard(self) -> None:
+        """Headers written before context hashing existed keep resuming."""
+        h = self._sample_header()
+        assert "context_hash" not in h
+        assert self._validate_with_context(h, "ctx1") is True
+
+    def test_context_added_after_first_run_invalidates(self) -> None:
+        """Header 'none' (no context then) vs a real hash now -> stale."""
+        h = self._sample_header(context_hash="none")
+        assert self._validate_with_context(h, "a" * 64) is False
+
+    def test_context_removed_after_first_run_invalidates(self) -> None:
+        """Header hash vs 'none' now (context deleted) -> stale."""
+        h = self._sample_header(context_hash="a" * 64)
+        assert self._validate_with_context(h, "none") is False
+
+    def test_context_hash_ignored_when_caller_none(self) -> None:
+        h = self._sample_header(context_hash="ctx1")
+        assert self._validate_with_context(h, None) is True
+
 
 # ---------------------------------------------------------------------------
 # compute_stats_from_jsonl
@@ -451,3 +530,85 @@ class TestExtractCompletedIdsSkipsHeader:
         pattern = re.compile(r"-range-(\d+)$")
         ids = extract_completed_ids(jsonl, id_pattern=pattern)
         assert ids == {1, 2}
+
+
+# ---------------------------------------------------------------------------
+# is_jsonl_adjustment_complete: context_hash clause
+# ---------------------------------------------------------------------------
+
+
+class TestAdjustmentCompleteContextHash:
+    """The completed-run skip check must invalidate on an adjust-context change.
+
+    Every fixture writes a header with ``completed_at`` and a matching
+    ``final_ranges_fingerprint`` so the context clause is the only variable.
+    """
+
+    _FINGERPRINT = "fp-final"
+
+    def _setup(self, tmp_path: Path, **header_overrides) -> Path:
+        lr_file = tmp_path / "doc_line_ranges.txt"
+        _write_line_ranges(lr_file, [(1, 100)])
+
+        header: dict = {
+            "version": 2,
+            "ranges_fingerprint": self._FINGERPRINT,
+            "final_ranges_fingerprint": self._FINGERPRINT,
+            "total_ranges": 1,
+            "boundary_type": "B",
+            "model_name": "m",
+            "context_window": 6,
+            "matching_config": _MATCHING_CONFIG,
+            "retry_config": _RETRY_CONFIG,
+            "prompt_hash": "phash",
+            "context_path": None,
+            "created_at": "2026-01-01T00:00:00Z",
+            "completed_at": "2026-01-01T01:00:00Z",
+        }
+        header.update(header_overrides)
+        _write_jsonl(
+            tmp_path / "doc_line_ranges_adjust_temp.jsonl", [{"jsonl_header": header}]
+        )
+        return lr_file
+
+    def _check(self, lr_file: Path, context_hash: str | None) -> bool:
+        return is_jsonl_adjustment_complete(
+            lr_file,
+            boundary_type="B",
+            context_window=6,
+            model_name="m",
+            matching_config=_MATCHING_CONFIG,
+            retry_config=_RETRY_CONFIG,
+            ranges_fingerprint=self._FINGERPRINT,
+            prompt_hash="phash",
+            context_hash=context_hash,
+        )
+
+    def test_full_match_including_context_hash(self, tmp_path: Path) -> None:
+        """No over-invalidation: an unchanged context still counts as complete."""
+        lr_file = self._setup(tmp_path, context_hash="ctx1")
+        assert self._check(lr_file, "ctx1") is True
+
+    def test_context_hash_mismatch(self, tmp_path: Path) -> None:
+        lr_file = self._setup(tmp_path, context_hash="ctx1")
+        assert self._check(lr_file, "ctx2") is False
+
+    def test_legacy_header_without_context_hash_is_wildcard(
+        self, tmp_path: Path
+    ) -> None:
+        lr_file = self._setup(tmp_path)
+        header = read_jsonl_header(tmp_path / "doc_line_ranges_adjust_temp.jsonl")
+        assert header is not None and "context_hash" not in header
+        assert self._check(lr_file, "ctx1") is True
+
+    def test_context_added_after_first_run_invalidates(self, tmp_path: Path) -> None:
+        lr_file = self._setup(tmp_path, context_hash="none")
+        assert self._check(lr_file, "a" * 64) is False
+
+    def test_context_removed_after_first_run_invalidates(self, tmp_path: Path) -> None:
+        lr_file = self._setup(tmp_path, context_hash="a" * 64)
+        assert self._check(lr_file, "none") is False
+
+    def test_context_hash_ignored_when_caller_none(self, tmp_path: Path) -> None:
+        lr_file = self._setup(tmp_path, context_hash="ctx1")
+        assert self._check(lr_file, None) is True

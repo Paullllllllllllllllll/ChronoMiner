@@ -32,6 +32,10 @@ from main.bootstrap import (
 )
 from main.cli_args import _positive_int, add_mode_override_arguments
 from main.mode_detector import detect_execution_mode
+from modules.config.context import (
+    compute_context_hash,
+    resolve_context_for_readjustment,
+)
 from modules.config.schema_manager import SchemaManager
 from modules.extract.config_builder import build_effective_model_config
 from modules.infra.jsonl import (
@@ -290,6 +294,9 @@ async def _adjust_files(
             continue
 
         ranges_fingerprint = compute_ranges_fingerprint(line_ranges_file)
+        context_hash = compute_context_hash(
+            resolve_context_for_readjustment(text_file=text_file)[0]
+        )
         if resume and is_jsonl_adjustment_complete(
             line_ranges_file,
             boundary_type=boundary_type,
@@ -299,6 +306,7 @@ async def _adjust_files(
             retry_config=retry_config or None,
             ranges_fingerprint=ranges_fingerprint,
             prompt_hash=readjuster.prompt_hash,
+            context_hash=context_hash,
         ):
             notifier(
                 f"Skipping {text_file.name}: line ranges already adjusted "

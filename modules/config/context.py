@@ -16,6 +16,7 @@ Suffixes per task type:
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from pathlib import Path
 from typing import Literal
@@ -252,3 +253,42 @@ def _read_and_validate_context(
     except (OSError, UnicodeDecodeError) as exc:
         logger.warning(f"Failed to read context file {context_path}: {exc}")
         return None
+
+
+# Sentinel recorded when a run resolved to no context at all. It is distinct
+# from a missing header field, which means "produced before context hashing
+# existed" and is treated as a wildcard by the resume checks.
+NO_CONTEXT_HASH = "none"
+
+
+def compute_context_hash(content: str | None) -> str:
+    """Return a stable fingerprint of a resolved context string.
+
+    Hashes the *resolved* context string -- the exact object injected into the
+    prompt -- rather than a file path or file bytes. Two consequences follow:
+
+    - All three resolution levels (file, folder, general fallback) are covered
+      automatically, and the hash is path-independent: the same content
+      promoted from a file-level to a folder-level context yields the same
+      hash, and moving a campaign directory does not invalidate artifacts.
+    - This is not a file-bytes fingerprint. Edits that cannot change the
+      prompt (trailing whitespace, a BOM, CRLF/LF line endings) do not change
+      the hash, so they do not force a re-run.
+
+    ``None`` (no context resolved anywhere) maps to the literal sentinel
+    ``"none"``, which distinguishes "resolved to no context" from a legacy
+    header that simply lacks the field.
+
+    Parameters
+    ----------
+    content : Optional[str]
+        The resolved, stripped context string, or ``None``.
+
+    Returns
+    -------
+    str
+        SHA-256 hex digest of the UTF-8 encoded content, or ``"none"``.
+    """
+    if content is None:
+        return NO_CONTEXT_HASH
+    return hashlib.sha256(content.encode("utf-8")).hexdigest()
