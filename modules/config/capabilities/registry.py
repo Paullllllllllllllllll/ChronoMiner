@@ -187,6 +187,13 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-5.6-terra",
         _OPENAI_REASONING_BASE,
         dict(
+            # Same as luna below: terra serves both routes, but only the
+            # Responses route accepts detail: "original". Verified 05.08.2026
+            # against the live API (Responses + flex + strict json_schema +
+            # reasoning high succeed; "original" bills 4,174 input tokens
+            # against 2,957 for "high" on the same image).
+            supports_chat_completions=False,
+            supports_original_detail=True,
             max_output_tokens=128000,
         ),
     ),
@@ -195,6 +202,16 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-5.6-luna",
         _OPENAI_REASONING_BASE,
         dict(
+            # Luna serves both routes, but only the Responses route accepts
+            # detail: "original", which page-image extraction depends on.
+            # Verified 05.08.2026 against the live API: Responses + flex tier +
+            # strict json_schema + reasoning high/xhigh + detail "original" all
+            # succeed, and "original" bills materially more input tokens than
+            # "high" on the same image (4,154 vs 2,937), so the distinction is
+            # real and not cosmetic. Pinning the Responses route here is what
+            # makes supports_original_detail effective.
+            supports_chat_completions=False,
+            supports_original_detail=True,
             max_output_tokens=128000,
         ),
     ),

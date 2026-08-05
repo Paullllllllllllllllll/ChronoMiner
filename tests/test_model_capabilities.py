@@ -391,7 +391,15 @@ class TestOriginalImageDetail:
     @pytest.mark.unit
     @pytest.mark.parametrize(
         "model",
-        ["gpt-5.6", "gpt-5.6-sol", "gpt-5.5-pro", "gpt-5.4", "gpt-5.4-pro"],
+        [
+            "gpt-5.6",
+            "gpt-5.6-sol",
+            "gpt-5.6-terra",
+            "gpt-5.6-luna",
+            "gpt-5.5-pro",
+            "gpt-5.4",
+            "gpt-5.4-pro",
+        ],
     )
     def test_responses_routed_models_allow_original(self, model):
         caps = detect_capabilities(model)
@@ -402,8 +410,6 @@ class TestOriginalImageDetail:
     @pytest.mark.parametrize(
         "model",
         [
-            "gpt-5.6-terra",
-            "gpt-5.6-luna",
             "gpt-5.5",
             "gpt-5.4-mini",
             "gpt-4o",

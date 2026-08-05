@@ -1,4 +1,4 @@
-# ChronoMiner v2.8.1
+# ChronoMiner v2.9.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -804,6 +804,21 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v2.9.0** (5 August 2026) -- The GPT-5.6 family now routes to the OpenAI
+    Responses API, which makes `llm_detail: original` effective for
+    `gpt-5.6-terra` and `gpt-5.6-luna`. Both models serve the Chat
+    Completions and Responses routes, but only Responses accepts
+    `detail: "original"`; because the capability registry keyed Responses
+    routing solely on models that *cannot* serve Chat Completions, the two
+    dual-route models silently fell back to `detail: "high"` while still
+    sending full-resolution pixels. Verified against the live API: Responses
+    with the flex service tier, a strict `json_schema` response format and
+    reasoning efforts `high`/`xhigh` all succeed, and `original` bills
+    materially more input tokens than `high` on the same image (4,174
+    against 2,957 for terra; 4,154 against 2,937 for luna), so the
+    distinction is real rather than cosmetic. Page-image extraction with
+    these models now gets the fidelity the configuration asks for.
 
 - **v2.8.1** (2 August 2026) -- Line-range readjustment resume now tracks
     the adjust-context. The temp JSONL header records a `context_hash` --

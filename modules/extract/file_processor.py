@@ -107,7 +107,10 @@ def is_visual_input(file_path: Path) -> bool:
 # Models whose requests are routed to the OpenAI Responses API (capabilities
 # with ``supports_chat_completions=False``), the only route that accepts
 # ``detail: "original"``. Quoted verbatim in the downgrade warning below.
-_ORIGINAL_DETAIL_MODELS = "gpt-5.6-sol, gpt-5.6, gpt-5.5-pro, gpt-5.4-pro, gpt-5.4"
+_ORIGINAL_DETAIL_MODELS = (
+    "gpt-5.6-sol, gpt-5.6-terra, gpt-5.6-luna, gpt-5.6, gpt-5.5-pro, "
+    "gpt-5.4-pro, gpt-5.4"
+)
 
 # Models already warned about in this process, so the notice is emitted once.
 _ORIGINAL_DETAIL_WARNED: set[str] = set()

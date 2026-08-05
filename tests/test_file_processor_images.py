@@ -84,23 +84,23 @@ class TestOriginalDetailDowngradeWarning:
     """``llm_detail: original`` is honored only on the Responses route."""
 
     def test_warns_for_chat_completions_model(self, caplog):
-        caps = detect_capabilities("gpt-5.6-luna", provider="openai")
+        caps = detect_capabilities("gpt-5.4-mini", provider="openai")
         with caplog.at_level(logging.WARNING, logger=fp_module.logger.name):
             emitted = warn_if_original_detail_downgraded(
-                "gpt-5.6-luna", "original", caps
+                "gpt-5.4-mini", "original", caps
             )
 
         assert emitted is True
         messages = [r.getMessage() for r in caplog.records]
-        assert any("gpt-5.6-luna" in m and "'high'" in m for m in messages)
+        assert any("gpt-5.4-mini" in m and "'high'" in m for m in messages)
         assert any("gpt-5.6-sol" in m for m in messages)
 
     def test_warns_only_once_per_process(self, caplog):
-        caps = detect_capabilities("gpt-5.6-luna", provider="openai")
+        caps = detect_capabilities("gpt-5.4-mini", provider="openai")
         with caplog.at_level(logging.WARNING, logger=fp_module.logger.name):
-            first = warn_if_original_detail_downgraded("gpt-5.6-luna", "original", caps)
+            first = warn_if_original_detail_downgraded("gpt-5.4-mini", "original", caps)
             second = warn_if_original_detail_downgraded(
-                "gpt-5.6-luna", "original", caps
+                "gpt-5.4-mini", "original", caps
             )
 
         assert (first, second) == (True, False)
