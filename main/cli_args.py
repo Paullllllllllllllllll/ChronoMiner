@@ -30,6 +30,31 @@ def _positive_int(value: str) -> int:
     return parsed
 
 
+def _bounded_float(value: str, low: float, high: float) -> float:
+    """Parse and validate a float constrained to the inclusive [low, high] range."""
+    try:
+        parsed = float(value)
+    except ValueError as exc:
+        raise argparse.ArgumentTypeError(f"Expected number, got: {value}") from exc
+
+    if not low <= parsed <= high:
+        raise argparse.ArgumentTypeError(
+            f"Value must be between {low} and {high}, got: {value}"
+        )
+
+    return parsed
+
+
+def _temperature(value: str) -> float:
+    """Parse ``--temperature`` (sampler temperature, 0.0-2.0)."""
+    return _bounded_float(value, 0.0, 2.0)
+
+
+def _top_p(value: str) -> float:
+    """Parse ``--top-p`` (nucleus sampling probability mass, 0.0-1.0)."""
+    return _bounded_float(value, 0.0, 1.0)
+
+
 InputType = Literal["text", "image", "pdf", "mixed"]
 
 # Text extensions collected as processable input by the extraction CLI.
@@ -257,13 +282,13 @@ Examples:
 
     parser.add_argument(
         "--temperature",
-        type=float,
+        type=_temperature,
         metavar="T",
         help="Override extraction_model.temperature for this run (0.0-2.0)",
     )
     parser.add_argument(
         "--top-p",
-        type=float,
+        type=_top_p,
         metavar="P",
         help="Override extraction_model.top_p for this run (0.0-1.0)",
     )

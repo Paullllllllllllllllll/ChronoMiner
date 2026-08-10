@@ -15,8 +15,10 @@ call or real LLM/batch-provider call is ever made.
 
 from __future__ import annotations
 
+import json
 from argparse import Namespace
 from pathlib import Path
+from typing import Any
 from unittest.mock import AsyncMock
 
 import pytest
@@ -181,6 +183,66 @@ async def test_readjuster_cli_mode_clean_run_does_not_exit(
 
     out = capsys.readouterr().out
     assert "Successful adjustments: 1" in out
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "path_key, schema, schemas_paths, valid_paths",
+    [
+        ("missing_path", "TestSchema", {"TestSchema": {"input": "."}}, True),
+        ("tmp", None, {"TestSchema": {"input": "."}}, True),
+        ("tmp", "NoSuchSchema", {"TestSchema": {"input": "."}}, True),
+        ("tmp", "TestSchema", {}, False),
+    ],
+    ids=["no-path", "no-schema", "unknown-schema", "schema-without-paths"],
+)
+async def test_readjuster_cli_usage_errors_exit_2(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    path_key: str,
+    schema: str | None,
+    schemas_paths: dict[str, object],
+    valid_paths: bool,
+) -> None:
+    """Usage/configuration errors follow the documented contract: exit 2."""
+    import main.line_range_readjuster as lrr
+
+    (tmp_path / "sample.txt").write_text("line one\n", encoding="utf-8")
+
+    monkeypatch.setattr(lrr, "validate_schema_paths", lambda *a, **kw: valid_paths)
+    monkeypatch.setattr(
+        lrr, "_adjust_files", AsyncMock(return_value=([], [], [], [], []))
+    )
+
+    args = Namespace(
+        path=None if path_key == "missing_path" else tmp_path,
+        schema=schema,
+        context_window=None,
+        prompt_path=None,
+        resume=False,
+        force=False,
+        first_n_chunks=None,
+        last_n_chunks=None,
+        model=None,
+        reasoning_effort=None,
+        max_output_tokens=None,
+        temperature=None,
+        top_p=None,
+    )
+
+    with pytest.raises(SystemExit) as exc:
+        await lrr._run_cli_mode(
+            args=args,
+            schema_manager=_FakeSchemaManager(),
+            schemas_paths=schemas_paths,
+            model_config={},
+            chunking_config={},
+            matching_config={},
+            retry_config={},
+            default_context_window=6,
+        )
+
+    assert exc.value.code == 2
 
 
 def test_readjuster_parser_accepts_input_alias(tmp_path: Path) -> None:
@@ -378,6 +440,166 @@ def test_default_excludes_cover_legacy_singular_sidecar(tmp_path: Path) -> None:
     assert (tmp_path / "a.txt") in files
     assert (tmp_path / "a_line_range.txt") not in files
     assert (tmp_path / "a_line_ranges.txt") not in files
+
+
+def test_generate_line_ranges_cli_uses_shared_exclusion_list(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """run_cli kept a local exclusion list that omitted the legacy singular
+    sidecar, so '*_line_range.txt' was re-ingested as an input file."""
+    from main.generate_line_ranges import GenerateLineRangesScript
+
+    (tmp_path / "doc.txt").write_text("hello\n", encoding="utf-8")
+    (tmp_path / "doc.md").write_text("hello\n", encoding="utf-8")
+    (tmp_path / "doc_line_range.txt").write_text("(1, 5)\n", encoding="utf-8")
+    (tmp_path / "doc_line_ranges.txt").write_text("(1, 5)\n", encoding="utf-8")
+
+    script = GenerateLineRangesScript()
+    script.model_config = {"extraction_model": {"name": "gpt-4o"}}
+    script.chunking_and_context_config = {"chunking": {"default_tokens_per_chunk": 100}}
+
+    seen_files: list[Path] = []
+
+    def _capture(files, *a, **kw):
+        seen_files.extend(files)
+        return (len(files), 0)
+
+    monkeypatch.setattr(script, "_process_files", _capture)
+
+    script.run_cli(
+        Namespace(
+            tokens=None,
+            input=str(tmp_path),
+            verbose=False,
+            first_n_chunks=None,
+            last_n_chunks=None,
+        )
+    )
+
+    names = {f.name for f in seen_files}
+    assert names == {"doc.txt", "doc.md"}
+
+
+# ---------------------------------------------------------------------------
+# process_text_files.py --json count semantics
+# ---------------------------------------------------------------------------
+
+
+async def _run_process_cli(
+    *,
+    per_file_status: dict[str, str],
+    tmp_path: Path,
+    config_loader: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> tuple[dict[str, Any], str, int | None]:
+    """Run the CLI path with a stubbed FileProcessor; no API calls are made."""
+    import main.process_text_files as ptf
+    from main.cli_args import create_process_parser
+
+    input_root = tmp_path / "input"
+    input_root.mkdir()
+    for stem in per_file_status:
+        (input_root / f"{stem}.txt").write_text("text\n", encoding="utf-8")
+    out_root = tmp_path / "out"
+    out_root.mkdir()
+
+    class _SchemaManager:
+        @staticmethod
+        def get_available_schemas() -> dict[str, dict[str, Any]]:
+            return {"TestSchema": {"type": "object"}}
+
+    monkeypatch.setattr(ptf, "load_schema_manager", lambda: _SchemaManager())
+    monkeypatch.setattr(ptf, "validate_schema_paths", lambda *a, **k: True)
+
+    async def _fake_process_file(self: Any, *, file_path: Path, **_kw: Any) -> str:
+        return per_file_status[file_path.stem]
+
+    monkeypatch.setattr(ptf.FileProcessor, "process_file", _fake_process_file)
+
+    args = create_process_parser().parse_args(
+        [
+            "--schema",
+            "TestSchema",
+            "--input",
+            str(input_root),
+            "--json",
+            "--non-interactive",
+        ]
+    )
+
+    exit_code: int | None = None
+    try:
+        await ptf._run_cli_mode(
+            args,
+            config_loader,
+            {"general": {"allow_relative_paths": True}},
+            {"extraction_model": {"name": "gpt-4o"}},
+            {"chunking": {"default_tokens_per_chunk": 10}, "context": {}},
+            {"TestSchema": {"output": str(out_root)}},
+        )
+    except SystemExit as exc:  # pragma: no cover - depends on the scenario
+        exit_code = int(exc.code or 0)
+
+    out = capsys.readouterr().out
+    payload = json.loads(out.strip().splitlines()[-1])
+    return payload, out, exit_code
+
+
+@pytest.mark.asyncio
+async def test_cli_json_counts_are_disjoint(
+    tmp_path: Path,
+    config_loader: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A skipped file was counted both as 'complete' and as 'skipped', so the
+    buckets overcounted the file total and the summary line claimed a
+    completion that never happened."""
+    payload, out, exit_code = await _run_process_cli(
+        per_file_status={"a": "complete", "b": "skipped", "c": "skipped"},
+        tmp_path=tmp_path,
+        config_loader=config_loader,
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    assert payload["files"] == 3
+    assert payload["complete"] == 1
+    assert payload["skipped"] == 2
+    assert payload["partial"] == 0
+    assert payload["failed"] == 0
+    assert (
+        payload["complete"]
+        + payload["partial"]
+        + payload["failed"]
+        + payload["skipped"]
+        == payload["files"]
+    )
+    assert "1 complete" in out
+    # Skips still count as success for the exit-code contract.
+    assert exit_code is None
+
+
+@pytest.mark.asyncio
+async def test_cli_exit_1_on_partial_with_disjoint_counts(
+    tmp_path: Path,
+    config_loader: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    payload, _out, exit_code = await _run_process_cli(
+        per_file_status={"a": "skipped", "b": "partial"},
+        tmp_path=tmp_path,
+        config_loader=config_loader,
+        monkeypatch=monkeypatch,
+        capsys=capsys,
+    )
+
+    assert payload["complete"] == 0
+    assert payload["skipped"] == 1
+    assert payload["partial"] == 1
+    assert exit_code == 1
 
 
 # ---------------------------------------------------------------------------
@@ -580,6 +802,69 @@ def test_cancel_batches_no_exit_when_all_cancelled(
 
     # Should complete without raising SystemExit.
     script.run_cli(args)
+
+
+def _cancel_script_with_unreadable_batch(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+):
+    """Build a script whose only tracked batch raises on status lookup."""
+    import main.cancel_batches as cancel_mod
+
+    script = cancel_mod.CancelBatchesScript()
+    monkeypatch.setattr(script, "_load_root_folders", lambda: None)
+    monkeypatch.setattr(
+        cancel_mod,
+        "_scan_for_batch_tracking",
+        lambda folders: [{"batch_id": "b1", "provider": "openai"}],
+    )
+
+    def _boom(_provider: str):
+        raise RuntimeError("no API key")
+
+    monkeypatch.setattr(cancel_mod, "get_batch_backend", _boom)
+    return script
+
+
+def test_cancel_batches_exits_1_when_all_status_lookups_fail(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A batch whose status cannot be read may still be running: reporting
+    'No batches require cancellation' and exiting 0 is a false all-clear."""
+    script = _cancel_script_with_unreadable_batch(monkeypatch, tmp_path)
+
+    with pytest.raises(SystemExit) as exc:
+        script.run_cli(Namespace(force=True, verbose=False))
+
+    assert exc.value.code == 1
+    out = capsys.readouterr().out
+    assert "No batches require cancellation" not in out
+    assert "Could not determine the status" in out
+
+
+def test_cancel_batches_interactive_warns_instead_of_all_clear(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    from unittest.mock import MagicMock
+
+    script = _cancel_script_with_unreadable_batch(monkeypatch, tmp_path)
+    script.ui = MagicMock()
+
+    script.run_interactive()
+
+    assert script.ui.print_warning.called
+    infos = [str(call.args[0]) for call in script.ui.print_info.call_args_list]
+    assert not any(msg.startswith("No batches require cancellation") for msg in infos)
+
+
+def test_cancel_batches_status_lookup_failures_reset_between_scans(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    script = _cancel_script_with_unreadable_batch(monkeypatch, tmp_path)
+
+    assert script._get_cancellable_batches() == []
+    assert script.status_lookup_failures == 1
+    assert script._get_cancellable_batches() == []
+    assert script.status_lookup_failures == 1
 
 
 if __name__ == "__main__":

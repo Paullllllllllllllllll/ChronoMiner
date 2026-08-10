@@ -100,6 +100,11 @@ class CancelBatchesScript(DualModeScript):
         super().__init__("cancel_batches")
         # No longer require any API key at init - backends handle their own keys
         self.root_folders: list[Path] = []
+        # Number of batches whose status could not be looked up in the most
+        # recent _get_cancellable_batches() call. A batch with an unknown
+        # status may well still be running, so an empty cancellable list is
+        # only an all-clear when this counter is zero.
+        self.status_lookup_failures: int = 0
 
     def create_argument_parser(self) -> ArgumentParser:
         """Create argument parser for CLI mode."""
@@ -140,10 +145,13 @@ class CancelBatchesScript(DualModeScript):
         """
         Get list of batches that can be cancelled with their current status.
 
-        Returns list of (tracking_record, status) tuples.
+        Returns list of (tracking_record, status) tuples. Batches whose status
+        lookup raised are counted in ``self.status_lookup_failures`` so callers
+        can tell "nothing to cancel" apart from "nothing could be checked".
         """
         tracking_records = _scan_for_batch_tracking(self.root_folders)
         cancellable: list[tuple[dict[str, Any], BatchStatus]] = []
+        self.status_lookup_failures = 0
 
         for tracking in tracking_records:
             batch_id = tracking.get("batch_id")
@@ -166,6 +174,7 @@ class CancelBatchesScript(DualModeScript):
                 if status_info.status not in TERMINAL_STATUSES:
                     cancellable.append((tracking, status_info.status))
             except Exception as e:
+                self.status_lookup_failures += 1
                 self.logger.warning(
                     f"Failed to get status for batch {batch_id} ({provider}): {e}"
                 )
@@ -185,6 +194,17 @@ class CancelBatchesScript(DualModeScript):
         cancellable_batches = self._get_cancellable_batches()
 
         if not cancellable_batches:
+            if self.status_lookup_failures:
+                self.ui.print_warning(
+                    f"Could not determine the status of "
+                    f"{self.status_lookup_failures} batch(es); they may still be "
+                    "running. Check the log and retry before assuming all clear."
+                )
+                self.logger.warning(
+                    "No batches cancelled; %d status lookup(s) failed.",
+                    self.status_lookup_failures,
+                )
+                return
             self.ui.print_info(
                 "No batches require cancellation. All batches are in "
                 "terminal states or no batches found."
@@ -249,6 +269,19 @@ class CancelBatchesScript(DualModeScript):
         cancellable_batches = self._get_cancellable_batches()
 
         if not cancellable_batches:
+            if self.status_lookup_failures:
+                # A batch whose status could not be read may still be running;
+                # reporting an all-clear here would be a false negative.
+                print(
+                    f"[ERROR] Could not determine the status of "
+                    f"{self.status_lookup_failures} batch(es); nothing was "
+                    "cancelled. See the log for details."
+                )
+                self.logger.error(
+                    "No batches cancelled; %d status lookup(s) failed.",
+                    self.status_lookup_failures,
+                )
+                sys.exit(1)
             print(
                 "[INFO] No batches require cancellation. All batches are in "
                 "terminal states or no batches found."
@@ -268,6 +301,11 @@ class CancelBatchesScript(DualModeScript):
         print(
             f"[INFO] Found {len(cancellable_batches)} batch(es) that can be cancelled"
         )
+        if self.status_lookup_failures:
+            print(
+                f"[WARNING] Status unknown for {self.status_lookup_failures} "
+                "further batch(es); they are not covered by this run."
+            )
 
         # Check for force flag
         if not args.force:
@@ -294,8 +332,9 @@ class CancelBatchesScript(DualModeScript):
         )
 
         # CLI agent contract: non-zero exit when any cancellation failed, so
-        # automation does not mistake a partial cancellation for success.
-        if failed_count > 0:
+        # automation does not mistake a partial cancellation for success. An
+        # unchecked batch with nothing cancelled is likewise not a success.
+        if failed_count > 0 or (self.status_lookup_failures and cancelled_count == 0):
             sys.exit(1)
 
     def _cancel_batches(

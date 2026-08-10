@@ -30,7 +30,12 @@ from main.bootstrap import (
     load_schema_manager,
     validate_schema_paths,
 )
-from main.cli_args import _positive_int, add_mode_override_arguments
+from main.cli_args import (
+    _positive_int,
+    _temperature,
+    _top_p,
+    add_mode_override_arguments,
+)
 from main.mode_detector import detect_execution_mode
 from modules.config.context import (
     compute_context_hash,
@@ -48,7 +53,10 @@ from modules.infra.token_tracker import (
     check_token_limit_enabled,
     get_token_tracker,
 )
-from modules.line_ranges.readjuster import LineRangeReadjuster
+from modules.line_ranges.readjuster import (
+    LineRangeReadjuster,
+    ReadjustmentInterrupted,
+)
 from modules.ui.core import UserInterface
 
 logger = setup_logger(__name__)
@@ -93,7 +101,8 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--context-window",
-        type=int,
+        type=_positive_int,
+        metavar="N",
         help=(
             "Number of surrounding lines to send to the model "
             "when searching for boundaries."
@@ -128,18 +137,21 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--max-output-tokens",
-        type=int,
+        type=_positive_int,
+        metavar="N",
         help="Override extraction_model.max_output_tokens",
     )
     parser.add_argument(
         "--temperature",
-        type=float,
-        help="Override extraction_model.temperature",
+        type=_temperature,
+        metavar="T",
+        help="Override extraction_model.temperature (0.0-2.0)",
     )
     parser.add_argument(
         "--top-p",
-        type=float,
-        help="Override extraction_model.top_p",
+        type=_top_p,
+        metavar="P",
+        help="Override extraction_model.top_p (0.0-1.0)",
     )
 
     chunk_slice_group = parser.add_mutually_exclusive_group()
@@ -386,6 +398,14 @@ async def _adjust_files(
                         f"{stats['tokens_used_today']:,}/{stats['daily_limit']:,} "
                         f"({stats['usage_percentage']:.1f}%)"
                     )
+            except ReadjustmentInterrupted as exc:
+                # Budget exhausted (or wait declined) mid-file: the ranges
+                # file was left unchanged for resume. Reporting this as a
+                # success would tell the user an unadjusted file is done.
+                logger.warning("Stopped adjusting %s: %s", text_file.name, exc)
+                notifier(f"Stopped adjusting {text_file.name}: {exc}", "warning")
+                stopped.append(text_file)
+                stop_requested = True
             except Exception as exc:  # pragma: no cover - defensive logging
                 logger.exception("Error adjusting %s", text_file)
                 notifier(f"Failed to adjust {text_file.name}: {exc}", "error")
@@ -684,7 +704,7 @@ async def _run_cli_mode(
     # Validate and resolve input path
     if not args.path:
         print("[ERROR] --path is required in CLI mode")
-        sys.exit(1)
+        sys.exit(2)
 
     target = args.path.expanduser().resolve()
     if not target.exists():
@@ -700,20 +720,20 @@ async def _run_cli_mode(
     # Get boundary type from --schema argument
     if not args.schema:
         print("[ERROR] Schema name is required when using --path in CLI mode.")
-        sys.exit(1)
+        sys.exit(2)
 
     available_schemas = schema_manager.get_available_schemas()
     if args.schema not in available_schemas:
         print(f"[ERROR] Schema '{args.schema}' not found.")
         print(f"[INFO] Available schemas: {list(available_schemas.keys())}")
-        sys.exit(1)
+        sys.exit(2)
 
     boundary_type = args.schema
 
     # Validate schema has paths configured
     if not validate_schema_paths(boundary_type, schemas_paths):
         logger.error(f"Exiting: No path configuration for schema '{boundary_type}'")
-        sys.exit(1)
+        sys.exit(2)
 
     print(f"[INFO] Using boundary type: {boundary_type}")
 

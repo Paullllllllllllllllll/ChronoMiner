@@ -576,7 +576,9 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         ) as extractor:
             with temp_jsonl_path.open(file_mode, encoding="utf-8") as tempf:
                 if file_mode == "w":
-                    tempf.write(json.dumps(build_temp_header()) + "\n")
+                    tempf.write(
+                        json.dumps(build_temp_header(), ensure_ascii=False) + "\n"
+                    )
                     tempf.flush()
                 # Serialize writes to the shared handle: concurrent coroutines
                 # otherwise interleave write+flush on one file object. Created
@@ -678,7 +680,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                             provenance = (img_data or {}).get("image_provenance")
                             if provenance:
                                 response_obj["image_provenance"] = provenance
-                            line = json.dumps(response_obj) + "\n"
+                            line = json.dumps(response_obj, ensure_ascii=False) + "\n"
                             # Serialize the append+flush under the lock, but run
                             # the blocking write off the event loop. The lock is
                             # held across the awaited to_thread call, so ordering
@@ -1270,8 +1272,8 @@ class BatchProcessingStrategy(ProcessingStrategy):
                                 "metadata": req.metadata,
                             }
                         }
-                        tempf.write(json.dumps(request_meta) + "\n")
-                    tempf.write(json.dumps(tracking_record) + "\n")
+                        tempf.write(json.dumps(request_meta, ensure_ascii=False) + "\n")
+                    tempf.write(json.dumps(tracking_record, ensure_ascii=False) + "\n")
 
                 console_print(
                     "[SUCCESS] Batch submitted successfully. "

@@ -21,6 +21,7 @@ from modules.line_ranges.readjuster import (
     BoundaryDecision,
     LineRangeReadjuster,
     RangeResult,
+    ReadjustmentInterrupted,
     clamp_ranges_to_length,
 )
 
@@ -819,11 +820,15 @@ class TestReadjusterBudgetGate:
         ):
             mock_provider._detect_provider.return_value = "openai"
             mock_provider._get_api_key.return_value = "fake-key"
-            await readjuster.ensure_adjusted_line_ranges(
-                text_file=text_file,
-                line_ranges_file=lr_file,
-                boundary_type="TestSchema",
-            )
+            # A partial run must be distinguishable from success: callers
+            # previously reported the untouched file as "successfully
+            # adjusted" and exited 0.
+            with pytest.raises(ReadjustmentInterrupted):
+                await readjuster.ensure_adjusted_line_ranges(
+                    text_file=text_file,
+                    line_ranges_file=lr_file,
+                    boundary_type="TestSchema",
+                )
 
         # Range 3 hit the exhausted budget; the cancelled wait stopped the run.
         assert processed == [1, 2]

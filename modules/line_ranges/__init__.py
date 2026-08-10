@@ -12,10 +12,14 @@ from modules.line_ranges.generator import (
     generate_line_ranges_for_file,
     write_line_ranges_file,
 )
-from modules.line_ranges.readjuster import LineRangeReadjuster
+from modules.line_ranges.readjuster import (
+    LineRangeReadjuster,
+    ReadjustmentInterrupted,
+)
 
 __all__ = [
     "LineRangeReadjuster",
+    "ReadjustmentInterrupted",
     "generate_line_ranges_for_file",
     "write_line_ranges_file",
 ]

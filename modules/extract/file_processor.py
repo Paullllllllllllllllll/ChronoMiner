@@ -436,8 +436,22 @@ class FileProcessor:
         )
 
         # Perform text chunking
+        line_ranges_file = file_path.with_name(f"{file_path.stem}_line_ranges.txt")
+        if chunking_method in {"line_ranges", "line_ranges.txt"} and (
+            not line_ranges_file.exists()
+        ):
+            # Silently falling back to automatic chunking here would report a
+            # "complete" run whose chunk boundaries are not the ones the user
+            # asked for. Fail the file instead.
+            messenger.error(
+                f"Chunking strategy 'line_ranges' was requested for "
+                f"{file_path.name}, but no line ranges file was found at "
+                f"{line_ranges_file.name}. Generate it with "
+                f"main/generate_line_ranges.py or choose another strategy."
+            )
+            return "failed"
+
         try:
-            line_ranges_file = file_path.with_name(f"{file_path.stem}_line_ranges.txt")
             chunks, ranges = self.chunking_service.chunk_text(
                 lines=normalized_lines,
                 strategy=chunking_method,

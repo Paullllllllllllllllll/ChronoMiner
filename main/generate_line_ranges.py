@@ -24,6 +24,7 @@ from typing import Any
 
 from main.bootstrap import validate_schema_paths
 from main.cli_args import (
+    DEFAULT_EXCLUDE_PATTERNS,
     create_generate_ranges_parser,
     get_files_from_path,
     resolve_path,
@@ -144,7 +145,7 @@ class GenerateLineRangesScript(DualModeScript):
 
         while True:
             file_input = self.ui.get_input(
-                "Enter the filename to process (with or without .txt extension)",
+                "Enter the filename to process (extension optional; defaults to .txt)",
                 allow_back=allow_back,
                 allow_quit=True,
             )
@@ -152,7 +153,9 @@ class GenerateLineRangesScript(DualModeScript):
             if not file_input:
                 return None
 
-            if not file_input.lower().endswith(".txt"):
+            # Only supply the default extension when none was typed; an
+            # explicit suffix (.md in particular) must be honored as given.
+            if not Path(file_input).suffix:
                 file_input += ".txt"
 
             try:
@@ -230,14 +233,16 @@ class GenerateLineRangesScript(DualModeScript):
         caller can re-prompt instead of aborting the run.
         """
         assert self.ui is not None
-        files = [
-            f
-            for f in raw_text_dir.rglob("*.txt")
-            if not any(f.name.endswith(suffix) for suffix in _AUXILIARY_SUFFIXES)
-        ]
+        seen: dict[Path, None] = {}
+        for pattern in ("*.txt", "*.md"):
+            for f in raw_text_dir.rglob(pattern):
+                if any(f.name.endswith(suffix) for suffix in _AUXILIARY_SUFFIXES):
+                    continue
+                seen[f] = None
+        files = sorted(seen)
 
         if not files:
-            self.ui.print_error(f"No .txt files found in {raw_text_dir}")
+            self.ui.print_error(f"No .txt or .md files found in {raw_text_dir}")
             self.ui.print_info(
                 "Please check the directory or go back to select a different option."
             )
@@ -419,11 +424,7 @@ class GenerateLineRangesScript(DualModeScript):
 
         # Get files. Collect both .txt and .md (excluding the tool's own
         # sidecar/report files), matching the other entry points.
-        exclude_patterns = [
-            "*_line_ranges.txt",
-            "*_context.txt",
-            "*_output.txt",
-        ]
+        exclude_patterns = list(DEFAULT_EXCLUDE_PATTERNS)
         if input_path.is_file():
             files = get_files_from_path(input_path, exclude_patterns=exclude_patterns)
         else:

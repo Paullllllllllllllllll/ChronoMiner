@@ -225,3 +225,78 @@ class TestProcessParserModelOverrides:
                     "0",
                 ]
             )
+
+
+class TestSamplerBounds:
+    """--temperature and --top-p document ranges (0.0-2.0 / 0.0-1.0) that were
+    not enforced: a bare ``float`` type let an out-of-range value through to
+    the provider, which rejects it only after the run has started."""
+
+    @staticmethod
+    def _process_args(*extra: str):
+        return create_process_parser().parse_args(
+            ["--schema", "Test", "--input", "data/", *extra]
+        )
+
+    def test_temperature_in_range_accepted(self):
+        args = self._process_args("--temperature", "1.5")
+        assert args.temperature == pytest.approx(1.5)
+
+    def test_temperature_above_range_rejected(self):
+        with pytest.raises(SystemExit):
+            self._process_args("--temperature", "2.5")
+
+    def test_temperature_negative_rejected(self):
+        with pytest.raises(SystemExit):
+            self._process_args("--temperature", "-0.1")
+
+    def test_temperature_non_numeric_rejected(self):
+        with pytest.raises(SystemExit):
+            self._process_args("--temperature", "warm")
+
+    def test_top_p_in_range_accepted(self):
+        args = self._process_args("--top-p", "0.9")
+        assert args.top_p == pytest.approx(0.9)
+
+    def test_top_p_above_one_rejected(self):
+        with pytest.raises(SystemExit):
+            self._process_args("--top-p", "1.5")
+
+
+class TestReadjusterNumericBounds:
+    """line_range_readjuster.py accepted 0/negative --context-window and
+    --max-output-tokens and unbounded sampler values; it must use the same
+    validators as the other entry points."""
+
+    @staticmethod
+    def _parse(argv: list[str]):
+        import sys as _sys
+
+        import main.line_range_readjuster as lrr
+
+        old_argv = _sys.argv
+        try:
+            _sys.argv = ["line_range_readjuster.py", *argv]
+            return lrr.parse_arguments()
+        finally:
+            _sys.argv = old_argv
+
+    def test_context_window_positive_accepted(self):
+        args = self._parse(["--context-window", "12"])
+        assert args.context_window == 12
+
+    def test_context_window_zero_rejected(self):
+        with pytest.raises(SystemExit):
+            self._parse(["--context-window", "0"])
+
+    def test_max_output_tokens_negative_rejected(self):
+        with pytest.raises(SystemExit):
+            self._parse(["--max-output-tokens", "-5"])
+
+    def test_temperature_out_of_range_rejected(self):
+        with pytest.raises(SystemExit):
+            self._parse(["--temperature", "3"])
+
+    def test_top_p_out_of_range_rejected(self):
+        with pytest.raises(SystemExit):
+            self._parse(["--top-p", "1.2"])

@@ -62,7 +62,10 @@ from modules.line_ranges.generator import (
     generate_line_ranges_for_file,
     write_line_ranges_file,
 )
-from modules.line_ranges.readjuster import LineRangeReadjuster
+from modules.line_ranges.readjuster import (
+    LineRangeReadjuster,
+    ReadjustmentInterrupted,
+)
 from modules.llm.prompt_utils import PROMPTS_DIR, load_prompt_template
 from modules.ui.core import UserInterface
 
@@ -193,6 +196,17 @@ async def _adjust_line_ranges_workflow(
             if ui:
                 ui.print_success(
                     f"Adjusted {len(adjusted_ranges)} range(s) for {text_file.name}"
+                )
+        except ReadjustmentInterrupted as e:
+            # Budget exhausted (or wait declined) mid-file: the ranges file
+            # was left unchanged for resume; not an adjustment failure.
+            logger.warning("Stopped adjusting %s: %s", text_file.name, e)
+            if ui:
+                ui.print_warning(f"Stopped adjusting {text_file.name}: {e}")
+            else:
+                print(
+                    f"[WARNING] Stopped adjusting {text_file.name}: {e}",
+                    file=sys.stderr,
                 )
         except Exception as e:
             logger.exception(f"Failed to adjust line ranges for {text_file}")
@@ -1236,7 +1250,9 @@ async def _run_cli_mode(
     get_token_tracker().flush()
 
     # Aggregate per-file statuses into a machine-readable summary + exit code.
-    complete = sum(1 for s in statuses if s in ("complete", "skipped"))
+    # Buckets are disjoint (they partition ``statuses``), matching the
+    # interactive path: a skipped file is reported as skipped only.
+    complete = sum(1 for s in statuses if s == "complete")
     partial = sum(1 for s in statuses if s == "partial")
     failed = sum(1 for s in statuses if s == "failed")
     skipped = sum(1 for s in statuses if s == "skipped")
@@ -1250,7 +1266,8 @@ async def _run_cli_mode(
         else:
             print(
                 f"[SUCCESS] Processed {len(files)} file(s): "
-                f"{complete} complete, {partial} partial, {failed} failed"
+                f"{complete} complete, {partial} partial, {failed} failed, "
+                f"{skipped} skipped"
             )
 
     # Final token usage statistics
@@ -1289,9 +1306,12 @@ async def _run_cli_mode(
         )
 
     # CLI agent contract exit codes: 0 = full success; 1 = any failure/partial.
+    # A skipped file (already complete) counts as success, so the success
+    # bucket is complete + skipped even though the reported counts are disjoint.
     # Batch submission has no per-file completion here; a failed submission
     # surfaces as status "failed".
-    if failed or partial:
+    success = complete + skipped
+    if success < len(statuses):
         sys.exit(1)
 
 

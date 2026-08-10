@@ -60,6 +60,18 @@ logger = logging.getLogger(__name__)
 # judging. Not part of the source text; never usable as a semantic marker.
 BOUNDARY_SENTINEL = "<<<CURRENT_CHUNK_START>>>"
 
+
+class ReadjustmentInterrupted(RuntimeError):
+    """A readjustment run stopped before covering every range.
+
+    Raised when the daily token budget ran out (or the user declined the
+    reset wait) mid-run. The line-ranges file is deliberately left
+    unchanged; the ranges completed so far are recorded in the temp JSONL
+    and a resume run continues from them. Distinguishing this from a normal
+    return keeps callers from reporting a partial run as a success.
+    """
+
+
 # Upper bound on the number of lines sent in a single no-content verification
 # call. Ranges are chunk-sized (a few hundred lines) in practice; pathological
 # longer ranges are scanned in consecutive full-coverage windows of this size
@@ -615,7 +627,11 @@ class LineRangeReadjuster:
                 "left unchanged. Re-run with resume to continue.",
                 text_file.name,
             )
-            return adjusted_ranges
+            raise ReadjustmentInterrupted(
+                f"stopped before completion (daily token budget or user "
+                f"cancel); {line_ranges_file.name} left unchanged -- re-run "
+                f"with resume to continue"
+            )
 
         # If we resumed, re-read the full temp JSONL to reconstruct
         # accurate adjusted_ranges (the placeholders above are stale).

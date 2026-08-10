@@ -481,3 +481,101 @@ def test_visual_batch_resume_skips_completed_pages(
     status = asyncio.run(_run())
     assert status == "skipped", "an already-completed page must not be re-submitted"
     assert called["strategy"] is False
+
+
+@pytest.mark.integration
+def test_requested_line_ranges_without_sidecar_fails(
+    tmp_path: Path, config_loader, monkeypatch, capsys
+):
+    """Explicitly requesting 'line_ranges' with no {stem}_line_ranges.txt used
+    to fall back to automatic chunking with only a log warning and report the
+    file as complete, silently returning chunks the user never asked for."""
+    from modules.extract.file_processor import FileProcessor
+
+    called = {"strategy": False}
+
+    def _strategy(use_batch, concurrency_config=None):
+        called["strategy"] = True
+        return DummyStrategy()
+
+    monkeypatch.setattr(
+        "modules.extract.file_processor.create_processing_strategy", _strategy
+    )
+    monkeypatch.setattr(
+        "modules.extract.file_processor.get_schema_handler",
+        lambda schema_name: DummyHandler(),
+    )
+
+    input_file = tmp_path / "input.txt"
+    input_file.write_text("hello\nworld\n", encoding="utf-8")
+
+    schema_paths = config_loader.get_schemas_paths()["TestSchema"]
+    fp = FileProcessor(
+        paths_config=config_loader.get_paths_config(),
+        model_config=config_loader.get_model_config(),
+        chunking_config={"chunking": {"default_tokens_per_chunk": 10}},
+        concurrency_config=config_loader.get_concurrency_config(),
+    )
+
+    async def _run():
+        return await fp.process_file(
+            file_path=input_file,
+            use_batch=False,
+            selected_schema={"schema": {"type": "object"}},
+            prompt_template="Schema={{TRANSCRIPTION_SCHEMA}}",
+            schema_name="TestSchema",
+            inject_schema=True,
+            schema_paths=schema_paths,
+            global_chunking_method="line_ranges",
+            ui=None,
+        )
+
+    status = asyncio.run(_run())
+
+    assert status == "failed"
+    assert called["strategy"] is False
+    assert "line ranges file" in capsys.readouterr().out.lower()
+
+
+@pytest.mark.integration
+def test_requested_line_ranges_with_sidecar_still_runs(
+    tmp_path: Path, config_loader, monkeypatch
+):
+    """The failure above must be scoped to the missing-sidecar case."""
+    from modules.extract.file_processor import FileProcessor
+
+    monkeypatch.setattr(
+        "modules.extract.file_processor.create_processing_strategy",
+        lambda use_batch, concurrency_config=None: DummyStrategy(),
+    )
+    monkeypatch.setattr(
+        "modules.extract.file_processor.get_schema_handler",
+        lambda schema_name: DummyHandler(),
+    )
+
+    input_file = tmp_path / "input.txt"
+    input_file.write_text("hello\nworld\n", encoding="utf-8")
+    (tmp_path / "input_line_ranges.txt").write_text("(1, 2)\n", encoding="utf-8")
+
+    schema_paths = config_loader.get_schemas_paths()["TestSchema"]
+    fp = FileProcessor(
+        paths_config=config_loader.get_paths_config(),
+        model_config=config_loader.get_model_config(),
+        chunking_config={"chunking": {"default_tokens_per_chunk": 10}},
+        concurrency_config=config_loader.get_concurrency_config(),
+    )
+
+    async def _run():
+        return await fp.process_file(
+            file_path=input_file,
+            use_batch=False,
+            selected_schema={"schema": {"type": "object"}},
+            prompt_template="Schema={{TRANSCRIPTION_SCHEMA}}",
+            schema_name="TestSchema",
+            inject_schema=True,
+            schema_paths=schema_paths,
+            global_chunking_method="line_ranges",
+            ui=None,
+        )
+
+    assert asyncio.run(_run()) == "complete"
