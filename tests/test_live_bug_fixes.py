@@ -796,7 +796,7 @@ class TestCM6SubmissionLocalFinalization:
             "_chronominer_metadata"
         ]
         assert meta["batch_tracking"]["fully_completed"] is False
-        assert not _is_group_already_finalized(final_json), (
+        assert not _is_group_already_finalized(final_json, [temp_file]), (
             "an output written while batches are pending must not satisfy "
             "the already-finalized skip"
         )

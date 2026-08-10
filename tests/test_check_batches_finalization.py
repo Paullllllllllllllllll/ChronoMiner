@@ -162,11 +162,16 @@ def _write_temp_file_indices(path, stem, indices, batch_ids, total=None):
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _write_final_output(path, stem, indices, *, fully_completed, partial):
+def _write_final_output(
+    path, stem, indices, *, fully_completed, partial, batch_ids=("b1",)
+):
     meta = {
         "schema_name": "TestSchema",
         "total_chunks": len(indices),
-        "batch_tracking": {"fully_completed": fully_completed},
+        "batch_tracking": {
+            "fully_completed": fully_completed,
+            "batch_ids": list(batch_ids),
+        },
     }
     if partial:
         meta["partial"] = True
@@ -227,6 +232,53 @@ class TestAlreadyFinalizedGroups:
         assert agg.get("failed", 0) == 0
         assert agg.get("pending", 0) == 0
         assert agg.get("finalized", 0) == 1
+
+    def test_resubmitted_group_with_new_batch_ids_is_not_skipped(self, tmp_path):
+        """A resubmission over a completed finalization must be polled.
+
+        ``--batch --resume`` after a completed ``--first-n-chunks`` run
+        rewrites the temp file with a NEW batch id; skipping on the stale
+        non-partial output would strand that paid batch unretrieved forever.
+        """
+        stem = "doc"
+        _write_temp_file(tmp_path / f"{stem}_temp.jsonl", stem, ["b2"])
+        _write_final_output(
+            tmp_path / f"{stem}_output.json",
+            stem,
+            [1, 2],
+            fully_completed=True,
+            partial=False,
+            batch_ids=("b1",),
+        )
+
+        backend = _mock_backend({"b2": BatchStatus.COMPLETED})
+        responses = [{"custom_id": f"{stem}-chunk-3", "response": '{"entries": []}'}]
+        agg: dict[str, int] = {}
+
+        with (
+            patch("main.check_batches.get_batch_backend", return_value=backend),
+            patch(
+                "main.check_batches.retrieve_responses_from_batch",
+                return_value=responses,
+            ),
+            patch("main.check_batches.get_schema_handler", return_value=MagicMock()),
+        ):
+            process_all_batches(
+                root_folder=tmp_path,
+                processing_settings={"retain_temporary_jsonl": True},
+                schema_name="TestSchema",
+                schema_config={},
+                ui=None,
+                agg=agg,
+            )
+
+        assert backend.get_status.call_count == 1, (
+            "the resubmitted batch must be polled, not skipped as finalized"
+        )
+        data = json.loads(
+            (tmp_path / f"{stem}_output.json").read_text(encoding="utf-8")
+        )
+        assert sorted(r["chunk_index"] for r in data["records"]) == [1, 2, 3]
 
     def test_partial_output_is_still_reprocessed(self, tmp_path):
         """A partial finalization must remain eligible for a top-up."""

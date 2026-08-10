@@ -142,8 +142,34 @@ def _bump(agg: dict[str, int] | None, key: str) -> None:
         agg[key] = agg.get(key, 0) + 1
 
 
-def _is_group_already_finalized(final_json_path: Path) -> bool:
-    """Whether a temp group's final output is already fully finalized.
+def _tracked_batch_ids(temp_file_group: list[Path]) -> set[str]:
+    """Collect the batch ids recorded in a temp group's tracking lines."""
+    ids: set[str] = set()
+    for temp_file in temp_file_group:
+        try:
+            with temp_file.open(encoding="utf-8") as fh:
+                for raw in fh:
+                    line = raw.strip()
+                    if not line:
+                        continue
+                    try:
+                        record = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue
+                    if not isinstance(record, dict):
+                        continue
+                    tracking = record.get("batch_tracking")
+                    if isinstance(tracking, dict) and tracking.get("batch_id"):
+                        ids.add(str(tracking["batch_id"]))
+        except OSError:
+            continue
+    return ids
+
+
+def _is_group_already_finalized(
+    final_json_path: Path, temp_file_group: list[Path]
+) -> bool:
+    """Whether a temp group's final output already covers this finalization.
 
     With ``retain_temporary_jsonl: true`` the temp JSONL files survive a
     successful finalization while the provider-side input/output/error files
@@ -151,7 +177,11 @@ def _is_group_already_finalized(final_json_path: Path) -> bool:
     group, see COMPLETED with an output file id stamped, fail the download
     (the remote file is gone), and count the group as failed forever. A group
     whose ``{stem}_output.json`` records a complete, non-partial batch
-    finalization is therefore skipped.
+    finalization is therefore skipped -- but only when the temp group's own
+    batch ids are covered by that finalization. A resubmission over the same
+    stem (e.g. ``--batch --resume`` after a completed ``--first-n-chunks``
+    run) rewrites the temp file with NEW batch ids; skipping on the stale
+    output alone would strand those paid batches unretrieved forever.
     """
     if not final_json_path.exists():
         return False
@@ -165,7 +195,15 @@ def _is_group_already_finalized(final_json_path: Path) -> bool:
     if not isinstance(meta, dict) or meta.get("partial"):
         return False
     tracking = meta.get("batch_tracking")
-    return isinstance(tracking, dict) and tracking.get("fully_completed") is True
+    if not (isinstance(tracking, dict) and tracking.get("fully_completed") is True):
+        return False
+    recorded_ids = {
+        str(batch_id) for batch_id in tracking.get("batch_ids") or [] if batch_id
+    }
+    current_ids = _tracked_batch_ids(temp_file_group)
+    # Id-less legacy temps keep the historic skip; any temp id outside the
+    # recorded finalization means an unretrieved submission.
+    return not current_ids or current_ids <= recorded_ids
 
 
 # A status poll that fails for transient reasons (network blip, provider 5xx)
@@ -340,7 +378,7 @@ def process_all_batches(
         # Retained temp files (retain_temporary_jsonl: true) outlive their
         # finalization; re-processing them would 404 on the already-deleted
         # remote provider files and mark the group failed on every later run.
-        if _is_group_already_finalized(final_json_path):
+        if _is_group_already_finalized(final_json_path, temp_file_group):
             _safe_print(
                 ui,
                 f"{final_identifier}: already finalized "
