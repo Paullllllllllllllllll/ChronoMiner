@@ -174,7 +174,6 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
             " replicate input hierarchy under output root."
         ),
     )
-    parser.add_argument("--verbose", action="store_true", help="Enable verbose output")
     parser.add_argument(
         "--quiet", action="store_true", help="Suppress non-essential output"
     )
@@ -422,8 +421,8 @@ Examples:
   python main/generate_line_ranges.py --input data/file.txt
   
   # Generate ranges for all files in a directory
-  python main/generate_line_ranges.py --input data/ --schema BibliographicEntries
-  
+  python main/generate_line_ranges.py --input data/
+
   # Use custom token limit
   python main/generate_line_ranges.py --input data/ --tokens 5000
 
@@ -432,14 +431,6 @@ Examples:
         """,
     )
 
-    parser.add_argument(
-        "--schema",
-        type=str,
-        help=(
-            "Schema name (used to determine input directory from config "
-            "if --input not provided)"
-        ),
-    )
     parser.add_argument(
         "--input", type=str, required=True, help="Input file or directory path"
     )
@@ -487,9 +478,6 @@ Examples:
         "--force",
         action="store_true",
         help="Skip confirmation prompt (use with caution)",
-    )
-    parser.add_argument(
-        "--verbose", action="store_true", help="Show detailed information"
     )
     add_mode_override_arguments(parser)
 
