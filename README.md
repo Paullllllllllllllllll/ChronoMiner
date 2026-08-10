@@ -1,4 +1,4 @@
-# ChronoMiner v2.10.0
+# ChronoMiner v2.11.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -805,6 +805,13 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.11.0** (10 August 2026) -- Boundary refactor of the line-range
+    generation workflow: the interactive file-selection helpers and the
+    per-file processing loop (with chunk-slice application) moved from
+    `main/generate_line_ranges.py` into `modules/line_ranges/generator.py`,
+    completing the extraction the package docstring anticipated. The package
+    now exports `process_files` and `select_input_files`; the entry script is
+    reduced to thin dual-mode CLI wiring. Behavior unchanged.
 - **v2.10.0** (10 August 2026) -- Maintenance sweep. Batch lifecycle: a
     resubmission over a stem with a completed prior finalization is now polled
     instead of being skipped forever, and prior batch ids carried only in the
