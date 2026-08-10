@@ -1,9 +1,9 @@
 """
-OpenAI SDK utilities for batch operations.
+OpenAI SDK object utilities.
 
-NOTE: These utilities are specific to OpenAI's Batch API and are used
-for batch job management (listing, retrieving, etc.). They are not used
-by the LangChain-based synchronous processing pipeline.
+Normalizes provider SDK response objects into plain dictionaries for the
+batch backends. Not used by the LangChain-based synchronous processing
+pipeline.
 
 For LangChain multi-provider support, see langchain_provider.py.
 """
@@ -52,64 +52,3 @@ def sdk_to_dict(obj: Any) -> dict[str, Any]:
             type(obj),
         )
     return data
-
-
-def list_all_batches(client: Any, limit: int = 100) -> list[dict[str, Any]]:
-    """List all batches with pagination, returning plain dictionaries."""
-    batches: list[dict[str, Any]] = []
-    after: str | None = None
-    page_index = 0
-
-    while True:
-        page_index += 1
-        page = (
-            client.batches.list(limit=limit, after=after)
-            if after
-            else client.batches.list(limit=limit)
-        )
-        data = getattr(page, "data", None) or page
-        page_items = [sdk_to_dict(item) for item in data]
-        batches.extend(page_items)
-
-        # A dict page needs explicit .get access: getattr(page, "has_more", ...)
-        # on a dict returns the default without raising, so the SDK-object
-        # branch would silently stop dict-shaped pages after page 1.
-        if isinstance(page, dict):
-            has_more = bool(page.get("has_more", False))
-            last_id = page.get("last_id")
-        else:
-            has_more = bool(getattr(page, "has_more", False))
-            last_id = getattr(page, "last_id", None)
-
-        logger.info(
-            "Retrieved batches page %s (%s item(s)); has_more=%s",
-            page_index,
-            len(page_items),
-            has_more,
-        )
-        # Stop on no more pages, a missing cursor, or a non-advancing cursor
-        # (last_id == after would otherwise loop forever on the same page).
-        if not has_more or not last_id or last_id == after:
-            break
-        after = last_id
-
-    return batches
-
-
-def coerce_file_id(candidate: Any) -> str | None:
-    """Coerce various response shapes into a file id string."""
-    if isinstance(candidate, str) and candidate:
-        return candidate
-    if isinstance(candidate, dict):
-        cid = candidate.get("id") or candidate.get("file_id")
-        if isinstance(cid, str) and cid:
-            return cid
-    if isinstance(candidate, list) and candidate:
-        first = candidate[0]
-        if isinstance(first, str) and first:
-            return first
-        if isinstance(first, dict):
-            cid = first.get("id") or first.get("file_id")
-            if isinstance(cid, str) and cid:
-                return cid
-    return None

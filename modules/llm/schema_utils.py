@@ -48,9 +48,3 @@ def build_structured_text_format(
         "schema": schema,
         "strict": strict,
     }
-
-
-# Backwards-compatibility alias retained for callers (notably the OpenAI batch
-# backend and the extraction payload builder) that still import the private
-# underscore name. New code should use ``build_structured_text_format``.
-_build_structured_text_format = build_structured_text_format

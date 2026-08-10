@@ -17,21 +17,21 @@ import pytest
 class TestBuildStructuredTextFormat:
     @pytest.mark.unit
     def test_none_returns_none(self):
-        from modules.llm.schema_utils import _build_structured_text_format
+        from modules.llm.schema_utils import build_structured_text_format
 
-        assert _build_structured_text_format(None) is None  # type: ignore[arg-type]
+        assert build_structured_text_format(None) is None  # type: ignore[arg-type]
 
     @pytest.mark.unit
     def test_empty_dict_returns_none(self):
-        from modules.llm.schema_utils import _build_structured_text_format
+        from modules.llm.schema_utils import build_structured_text_format
 
-        assert _build_structured_text_format({}) is None
+        assert build_structured_text_format({}) is None
 
     @pytest.mark.unit
     def test_wrapper_schema_object(self):
-        from modules.llm.schema_utils import _build_structured_text_format
+        from modules.llm.schema_utils import build_structured_text_format
 
-        result = _build_structured_text_format(
+        result = build_structured_text_format(
             {
                 "name": "MySchema",
                 "schema": {"type": "object", "properties": {}},
@@ -45,25 +45,25 @@ class TestBuildStructuredTextFormat:
 
     @pytest.mark.unit
     def test_bare_json_schema_uses_default_name(self):
-        from modules.llm.schema_utils import _build_structured_text_format
+        from modules.llm.schema_utils import build_structured_text_format
 
         bare = {"type": "object", "properties": {"a": {"type": "string"}}}
-        result = _build_structured_text_format(bare, default_name="FallbackName")
+        result = build_structured_text_format(bare, default_name="FallbackName")
         assert result is not None
         assert result["name"] == "FallbackName"
         assert result["schema"] == bare
 
     @pytest.mark.unit
     def test_wrapper_with_empty_schema_returns_none(self):
-        from modules.llm.schema_utils import _build_structured_text_format
+        from modules.llm.schema_utils import build_structured_text_format
 
-        assert _build_structured_text_format({"name": "X", "schema": {}}) is None
+        assert build_structured_text_format({"name": "X", "schema": {}}) is None
 
     @pytest.mark.unit
     def test_non_dict_returns_none(self):
-        from modules.llm.schema_utils import _build_structured_text_format
+        from modules.llm.schema_utils import build_structured_text_format
 
-        assert _build_structured_text_format("string") is None  # type: ignore[arg-type]
+        assert build_structured_text_format("string") is None  # type: ignore[arg-type]
 
 
 # ===========================================================================

@@ -183,6 +183,6 @@ class TestPDFProcessorInterface:
 
         with PDFProcessor(pdf_path) as pdf:
             assert pdf.get_page_count() == 1
-            images = pdf.extract_pages_as_images(dpi=72)
-        assert len(images) == 1
-        assert images[0].mode == "RGB"
+            img, effective_dpi = pdf.render_page_with_dpi(0, dpi=72)
+        assert img.mode == "RGB"
+        assert effective_dpi == 72

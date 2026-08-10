@@ -53,36 +53,29 @@ class TestPDFProcessorWithFixture:
         with PDFProcessor(minimal_pdf) as proc:
             assert proc.get_page_count() == 1
 
-    def test_render_page_to_pil(self, minimal_pdf):
+    def test_render_page_with_dpi(self, minimal_pdf):
         with PDFProcessor(minimal_pdf) as proc:
-            img = proc.render_page_to_pil(0, dpi=72)
+            img, effective_dpi = proc.render_page_with_dpi(0, dpi=72)
             assert img.mode == "RGB"
             assert img.size[0] > 0
             assert img.size[1] > 0
+            assert effective_dpi == 72
 
     def test_render_page_higher_dpi(self, minimal_pdf):
         with PDFProcessor(minimal_pdf) as proc:
-            img_72 = proc.render_page_to_pil(0, dpi=72)
-            img_300 = proc.render_page_to_pil(0, dpi=300)
+            img_72, _ = proc.render_page_with_dpi(0, dpi=72)
+            img_300, _ = proc.render_page_with_dpi(0, dpi=300)
             # Higher DPI should produce a larger image
             assert img_300.size[0] > img_72.size[0]
             assert img_300.size[1] > img_72.size[1]
 
-    def test_extract_pages_as_images_all(self, minimal_pdf):
+    def test_render_page_respects_max_pixels(self, minimal_pdf):
         with PDFProcessor(minimal_pdf) as proc:
-            images = proc.extract_pages_as_images(dpi=72)
-            assert len(images) == 1
-            assert images[0].mode == "RGB"
-
-    def test_extract_pages_with_indices(self, minimal_pdf):
-        with PDFProcessor(minimal_pdf) as proc:
-            images = proc.extract_pages_as_images(dpi=72, page_indices=[0])
-            assert len(images) == 1
-
-    def test_extract_pages_empty_indices(self, minimal_pdf):
-        with PDFProcessor(minimal_pdf) as proc:
-            images = proc.extract_pages_as_images(dpi=72, page_indices=[])
-            assert len(images) == 0
+            img, effective_dpi = proc.render_page_with_dpi(
+                0, dpi=300, max_pixels=10_000
+            )
+            assert effective_dpi < 300
+            assert img.size[0] * img.size[1] <= 10_000 * 1.1
 
 
 class TestPDFProcessorMultiPage:
@@ -103,12 +96,8 @@ class TestPDFProcessorMultiPage:
         with PDFProcessor(three_page_pdf) as proc:
             assert proc.get_page_count() == 3
 
-    def test_extract_all_pages(self, three_page_pdf):
+    def test_render_each_page(self, three_page_pdf):
         with PDFProcessor(three_page_pdf) as proc:
-            images = proc.extract_pages_as_images(dpi=72)
+            images = [proc.render_page_with_dpi(i, dpi=72)[0] for i in range(3)]
             assert len(images) == 3
-
-    def test_extract_subset(self, three_page_pdf):
-        with PDFProcessor(three_page_pdf) as proc:
-            images = proc.extract_pages_as_images(dpi=72, page_indices=[0, 2])
-            assert len(images) == 2
+            assert all(img.mode == "RGB" for img in images)

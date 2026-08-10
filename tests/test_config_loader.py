@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import patch
 
 import pytest
 import yaml
@@ -208,73 +207,6 @@ class TestConfigManagerValidatePaths:
         manager.validate_paths(paths_config, raise_on_error=False)
         errors = manager.get_validation_errors()
         assert len(errors) == 3  # logs_dir + input + output
-
-
-# ---------------------------------------------------------------------------
-# ConfigManager — load_developer_message
-# ---------------------------------------------------------------------------
-
-
-class TestConfigManagerLoadDeveloperMessage:
-    """Verify delegation to SchemaManager (project-root-anchored, not CWD-relative)."""
-
-    def _patched_manager(self, config_loader, dev_dir: Path):
-        """Create a ConfigManager whose load_developer_message points at dev_dir."""
-        from modules.config.schema_manager import SchemaManager
-
-        manager = ConfigManager(config_loader)
-        sm = SchemaManager(dev_messages_dir=dev_dir)
-        patcher = patch("modules.config.schema_manager.SchemaManager", return_value=sm)
-        patcher.start()
-        return manager, patcher
-
-    def test_file_not_found_raises(self, config_loader, tmp_path):
-        dev_dir = tmp_path / "developer_messages"
-        dev_dir.mkdir()
-        manager, patcher = self._patched_manager(config_loader, dev_dir)
-        try:
-            with pytest.raises(FileNotFoundError):
-                manager.load_developer_message(
-                    "nonexistent_schema", raise_on_error=True
-                )
-        finally:
-            patcher.stop()
-
-    def test_file_not_found_returns_none(self, config_loader, tmp_path):
-        dev_dir = tmp_path / "developer_messages"
-        dev_dir.mkdir()
-        manager, patcher = self._patched_manager(config_loader, dev_dir)
-        try:
-            result = manager.load_developer_message(
-                "nonexistent_schema", raise_on_error=False
-            )
-            assert result is None
-        finally:
-            patcher.stop()
-
-    def test_existing_file(self, config_loader, tmp_path):
-        dev_dir = tmp_path / "developer_messages"
-        dev_dir.mkdir()
-        (dev_dir / "TestSchema.txt").write_text("Test dev message", encoding="utf-8")
-        manager, patcher = self._patched_manager(config_loader, dev_dir)
-        try:
-            result = manager.load_developer_message("TestSchema")
-            assert result == "Test dev message"
-        finally:
-            patcher.stop()
-
-
-# ---------------------------------------------------------------------------
-# ConfigManager — get_schemas_paths
-# ---------------------------------------------------------------------------
-
-
-class TestConfigManagerGetSchemasPaths:
-    def test_returns_schemas_paths(self, config_loader):
-        manager = ConfigManager(config_loader)
-        paths = manager.get_schemas_paths()
-        assert isinstance(paths, dict)
-        assert "TestSchema" in paths
 
 
 # ---------------------------------------------------------------------------

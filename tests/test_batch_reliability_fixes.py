@@ -26,7 +26,6 @@ from modules.extract.processing_strategy import (
     BatchProcessingStrategy,
     _partition_batch_requests,
 )
-from modules.llm.openai_sdk_utils import list_all_batches
 
 
 def _make_backend(*, max_bytes: int = 3000, submit_side_effect=None) -> MagicMock:
@@ -392,42 +391,3 @@ def test_usage_propagated_from_backend_to_record():
         "input_tokens": 10,
         "output_tokens": 5,
     }
-
-
-# --- Item 15: list_all_batches dict-page pagination -----------------------
-
-
-@pytest.mark.unit
-def test_list_all_batches_paginates_dict_pages():
-    """Dict-shaped pages must advance past page 1 (getattr(dict, 'has_more')
-    would silently return the default and stop early)."""
-    mock_client = MagicMock()
-    page1 = {"data": [], "has_more": True, "last_id": "b1"}
-    page2 = {"data": [], "has_more": False, "last_id": None}
-    mock_client.batches.list.side_effect = [page1, page2]
-
-    list_all_batches(mock_client, limit=100)
-
-    assert mock_client.batches.list.call_count == 2
-    # The second call must advance the cursor to the first page's last_id.
-    assert mock_client.batches.list.call_args_list[1].kwargs.get("after") == "b1"
-
-
-@pytest.mark.unit
-def test_list_all_batches_breaks_on_non_advancing_cursor():
-    """A page whose last_id equals the current cursor must terminate the loop
-    instead of looping forever."""
-    mock_client = MagicMock()
-    page1 = MagicMock()
-    page1.data = []
-    page1.has_more = True
-    page1.last_id = "b1"
-    page2 = MagicMock()
-    page2.data = []
-    page2.has_more = True
-    page2.last_id = "b1"  # same cursor -> must break
-    mock_client.batches.list.side_effect = [page1, page2]
-
-    list_all_batches(mock_client, limit=100)
-
-    assert mock_client.batches.list.call_count == 2

@@ -12,7 +12,6 @@ Supports:
 
 from __future__ import annotations
 
-import asyncio
 import contextlib
 import inspect
 import json
@@ -1381,51 +1380,3 @@ class LangChainLLM:
             "_client",
         ):
             await _aclose_maybe(getattr(chat_model, attr, None))
-
-    def invoke_with_structured_output(
-        self,
-        messages: list[dict[str, Any]],
-        json_schema: dict[str, Any] | None = None,
-    ) -> dict[str, Any]:
-        """Synchronous wrapper for ainvoke_with_structured_output."""
-        try:
-            loop = asyncio.get_running_loop()
-        except RuntimeError:
-            loop = None
-        if loop and loop.is_running():
-            import concurrent.futures
-
-            with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
-                future = pool.submit(
-                    asyncio.run,
-                    self.ainvoke_with_structured_output(messages, json_schema),
-                )
-                return future.result()
-        return asyncio.run(self.ainvoke_with_structured_output(messages, json_schema))
-
-
-def get_default_provider() -> ProviderType:
-    """Get the default provider based on available (possibly remapped) keys."""
-    if resolve_api_key("openai"):
-        return "openai"
-    if resolve_api_key("anthropic"):
-        return "anthropic"
-    if resolve_api_key("google"):
-        return "google"
-    if resolve_api_key("openrouter"):
-        return "openrouter"
-    return "openai"  # Default fallback
-
-
-def list_available_providers() -> list[ProviderType]:
-    """List providers with configured (possibly remapped) API keys."""
-    available: list[ProviderType] = []
-    if resolve_api_key("openai"):
-        available.append("openai")
-    if resolve_api_key("anthropic"):
-        available.append("anthropic")
-    if resolve_api_key("google"):
-        available.append("google")
-    if resolve_api_key("openrouter"):
-        available.append("openrouter")
-    return available

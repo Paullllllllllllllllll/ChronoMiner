@@ -19,7 +19,6 @@ from __future__ import annotations
 import hashlib
 import logging
 from pathlib import Path
-from typing import Literal
 
 logger = logging.getLogger(__name__)
 
@@ -27,8 +26,6 @@ _PROJECT_ROOT = Path(__file__).resolve().parents[2]
 _CONTEXT_DIR = _PROJECT_ROOT / "context"
 
 DEFAULT_CONTEXT_SIZE_THRESHOLD = 5000
-
-ContextTask = Literal["extract_context", "adjust_context"]
 
 
 def _resolve_context(

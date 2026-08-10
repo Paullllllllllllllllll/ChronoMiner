@@ -58,31 +58,19 @@ class PDFProcessor:
         assert self.doc is not None
         return self.doc.page_count
 
-    def render_page_to_pil(
-        self, page_index: int, dpi: int = 300, max_pixels: int = 0
-    ) -> Image.Image:
-        """Render a single PDF page to a PIL Image.
-
-        Args:
-            page_index: Zero-based page index.
-            dpi: Target rendering resolution.
-            max_pixels: If > 0, reduce DPI so the rendered page stays within
-                this pixel budget. Set to 0 to disable dynamic scaling.
-
-        Returns:
-            PIL Image in RGB mode.
-        """
-        img, _ = self.render_page_with_dpi(page_index, dpi, max_pixels=max_pixels)
-        return img
-
     def render_page_with_dpi(
         self, page_index: int, dpi: int = 300, max_pixels: int = 0
     ) -> tuple[Image.Image, int]:
         """Render a single PDF page and report the DPI actually used.
 
-        Same as :meth:`render_page_to_pil`, but additionally returns the
-        effective DPI after any ``max_pixels`` reduction — needed for
-        provenance records in the streaming pipeline.
+        Args:
+            page_index: Zero-based page index.
+            dpi: Target rendering resolution.
+            max_pixels: If > 0, reduce DPI so the rendered page stays within
+                this pixel budget. Set to 0 to disable dynamic scaling. The
+                effective DPI after any reduction is returned alongside the
+                image — needed for provenance records in the streaming
+                pipeline.
 
         Returns:
             Tuple of (PIL Image in RGB mode, effective DPI).
@@ -114,43 +102,3 @@ class PDFProcessor:
         # only one full-resolution copy of the page stays alive.
         del pix
         return img, effective_dpi
-
-    def extract_pages_as_images(
-        self,
-        dpi: int = 300,
-        page_indices: list[int] | None = None,
-        max_pixels: int = 0,
-    ) -> list[Image.Image]:
-        """Render multiple PDF pages to PIL Images.
-
-        Args:
-            dpi: Target rendering resolution.
-            page_indices: Optional list of zero-based page indices.
-                         If None, all pages are rendered.
-            max_pixels: If > 0, reduce DPI per page to stay within this pixel
-                budget. Set to 0 to disable dynamic scaling.
-
-        Returns:
-            List of PIL Images in RGB mode.
-        """
-        if self.doc is None:
-            self.open_pdf()
-        assert self.doc is not None
-
-        indices = (
-            page_indices
-            if page_indices is not None
-            else list(range(self.doc.page_count))
-        )
-        images: list[Image.Image] = []
-        for idx in indices:
-            try:
-                images.append(self.render_page_to_pil(idx, dpi, max_pixels=max_pixels))
-            except Exception as e:
-                logger.error(
-                    "Error rendering page %d from %s: %s",
-                    idx + 1,
-                    self.pdf_path.name,
-                    e,
-                )
-        return images

@@ -28,7 +28,6 @@ from modules.llm.langchain_provider import (
     ProviderConfig,
     ProviderType,
 )
-from modules.llm.prompt_utils import prompt_path
 
 logger = setup_logger(__name__)
 
@@ -427,58 +426,3 @@ async def process_image_chunk(
         json_schema=structured_schema,
     )
     return _pack_result(result)
-
-
-async def process_text_chunk_with_provider(
-    text_chunk: str,
-    system_message: str,
-    json_schema: dict | None = None,
-    model: str | None = None,
-    provider: ProviderType | None = None,
-    model_config: dict[str, Any] | None = None,
-) -> dict[str, Any]:
-    """
-    Process a text chunk with explicit provider selection.
-
-    This is a convenience function for one-off calls without managing
-    an extractor context.
-
-    :param text_chunk: The text to process.
-    :param system_message: System message for the LLM.
-    :param json_schema: Optional JSON schema for response formatting.
-    :param model: Model name (uses config default if not specified).
-    :param provider: Provider type (auto-detected from model if not specified).
-    :param model_config: Optional model configuration dict.
-    :return: Dictionary containing the model output text and metadata.
-    """
-    # Load config if not provided (uses cached loader)
-    if model_config is None:
-        model_config = get_config_loader().get_model_config()
-
-    # Get model from config if not specified
-    if model is None:
-        model = model_config.get("extraction_model", {}).get("name", "")
-
-    if not model:
-        raise ValueError("Model must be specified either directly or in config")
-
-    # Get API key based on provider
-    detected_provider = provider or ProviderConfig._detect_provider(model)
-    api_key = ProviderConfig._get_api_key(detected_provider)
-
-    if not api_key:
-        raise ValueError(f"API key not found for provider {detected_provider}")
-
-    # Create extractor and process
-    async with open_extractor(
-        api_key=api_key,
-        prompt_path=prompt_path("text_extraction_prompt.txt"),
-        model=model,
-        provider=detected_provider,
-    ) as extractor:
-        return await process_text_chunk(
-            text_chunk=text_chunk,
-            extractor=extractor,
-            system_message=system_message,
-            json_schema=json_schema,
-        )
