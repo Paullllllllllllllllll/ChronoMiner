@@ -1,4 +1,4 @@
-# ChronoMiner v2.9.0
+# ChronoMiner v2.10.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -805,6 +805,27 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.10.0** (10 August 2026) -- Maintenance sweep. Batch lifecycle: a
+    resubmission over a stem with a completed prior finalization is now polled
+    instead of being skipped forever, and prior batch ids carried only in the
+    submission artifact are unioned back into tracking by both check_batches
+    and repair_extractions (excluding ids already finalized), so paid batches
+    stay reachable after any resubmission. Honest reporting: a
+    budget-interrupted line-range readjustment raises
+    ReadjustmentInterrupted and is tallied as stopped rather than reported as
+    a success; an explicitly requested line_ranges chunking with a missing
+    sidecar fails loudly instead of silently falling back; cancel_batches
+    exits 1 when every status lookup failed instead of printing an all-clear.
+    CLI contract: the readjuster's usage errors exit 2 as documented,
+    `--json` counts are disjoint, `--temperature`/`--top-p` and the
+    readjuster's token/window options are validated, the interactive
+    generate-line-ranges pickers accept `.md` files, and the CLI path uses
+    the shared sidecar-exclusion list. Refactors (surface unchanged or
+    strictly narrower): removed dead LLM/image/config helpers and back-compat
+    aliases, collapsed repeated CSV field-spec fragments, and dropped the
+    never-consumed `--verbose` (process, cancel_batches) and `--schema`
+    (generate_line_ranges) flags. Temp JSONL records are written with
+    `ensure_ascii=False` per the project's UTF-8 convention.
 - **v2.9.0** (5 August 2026) -- The GPT-5.6 family now routes to the OpenAI
     Responses API, which makes `llm_detail: original` effective for
     `gpt-5.6-terra` and `gpt-5.6-luna`. Both models serve the Chat
