@@ -25,6 +25,7 @@ from modules.batch import (
 )
 from modules.batch.diagnostics import extract_custom_id_mapping
 from modules.batch.ops import (
+    _finalized_batch_ids,
     _group_temp_files_by_base,
     _recover_missing_batch_ids,
     derive_submission_output_dir,
@@ -170,25 +171,36 @@ def _repair_temp_file(
         str(track.get("batch_id")) for track in tracking if track.get("batch_id")
     }
     recovered_ids: set[str] = set()
-    if not batch_ids:
-        # Every part shares one debug artifact; recover from the first part that
-        # yields ids and stop so tracking is not duplicated per part.
-        for temp_file in temp_files:
-            recovered_ids, recovered_provider, recovered_metadata = (
-                _recover_missing_batch_ids(temp_file, identifier, persist_recovered)
+    # Union the submission artifact's ids into the tracking set even when the
+    # temp files carry their own ids: a resubmission over a still-pending
+    # prior batch rewrites the temp file with only the new batch's tracking
+    # lines and carries the prior (paid) ids solely in the recovery artifact.
+    # Ids already tracked or covered by an existing finalization are excluded
+    # so they are neither duplicated nor re-polled after their remote files
+    # were deleted. Every part shares one debug artifact; recover from the
+    # first part that yields ids and stop so tracking is not duplicated per
+    # part.
+    already_covered = batch_ids | _finalized_batch_ids(
+        derive_submission_output_dir(representative) / f"{identifier}_output.json"
+    )
+    for temp_file in temp_files:
+        recovered_ids, recovered_provider, recovered_metadata = (
+            _recover_missing_batch_ids(
+                temp_file, identifier, persist_recovered, exclude=already_covered
             )
-            for bid in recovered_ids:
-                track_record: dict[str, Any] = {"batch_id": bid}
-                if recovered_provider:
-                    track_record["provider"] = recovered_provider
-                # Restore submitted metadata so backends correlate results
-                # (e.g. Google inline custom_id_map) instead of positional
-                # req-{i+1} relabeling onto the wrong chunks.
-                track_record["metadata"] = recovered_metadata.get(bid, {})
-                tracking.append(track_record)
-                batch_ids.add(bid)
-            if recovered_ids:
-                break
+        )
+        for bid in recovered_ids:
+            track_record: dict[str, Any] = {"batch_id": bid}
+            if recovered_provider:
+                track_record["provider"] = recovered_provider
+            # Restore submitted metadata so backends correlate results
+            # (e.g. Google inline custom_id_map) instead of positional
+            # req-{i+1} relabeling onto the wrong chunks.
+            track_record["metadata"] = recovered_metadata.get(bid, {})
+            tracking.append(track_record)
+            batch_ids.add(bid)
+        if recovered_ids:
+            break
 
     if not batch_ids:
         ui.print_warning("Unable to identify any batch IDs for this temp file.")

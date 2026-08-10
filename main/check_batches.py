@@ -39,6 +39,7 @@ from modules.batch import (
     get_batch_backend,
 )
 from modules.batch.ops import (
+    _finalized_batch_ids,
     _group_temp_files_by_base,
     _recover_missing_batch_ids,
     derive_submission_output_dir,
@@ -459,42 +460,51 @@ def process_all_batches(
                 if track.get("batch_id")
             }
             recovered_ids = set()
-            if not batch_ids:
-                # Try to recover from any of the temp files in the group. Break
-                # after the first file that recovers ids: every part shares one
-                # debug artifact, so continuing would re-append the same ids to
-                # tracking once per part and persist duplicate records.
-                for temp_file in temp_file_group:
-                    # Strip only the trailing _temp suffix (str.replace would
-                    # also mangle internal occurrences, e.g. oven_temperature);
-                    # the debug artifact is named after the source stem.
-                    temp_identifier = base_identifier.removesuffix("_temp")
-                    recovered, recovered_provider, recovered_metadata = (
-                        _recover_missing_batch_ids(
-                            temp_file, temp_identifier, persist_recovered
-                        )
+            # Union the submission artifact's ids into the tracking set even
+            # when the temp files carry their own ids: a resubmission over a
+            # still-pending prior batch rewrites the temp file with only the
+            # NEW batch's tracking lines and carries the prior (paid, possibly
+            # completed) ids solely in the recovery artifact. Ids already in
+            # the temp tracking or covered by an existing finalization are
+            # excluded so they are neither duplicated nor re-polled. Break
+            # after the first file that recovers ids: every part shares one
+            # debug artifact, so continuing would re-append the same ids to
+            # tracking once per part and persist duplicate records.
+            already_covered = batch_ids | _finalized_batch_ids(final_json_path)
+            for temp_file in temp_file_group:
+                # Strip only the trailing _temp suffix (str.replace would
+                # also mangle internal occurrences, e.g. oven_temperature);
+                # the debug artifact is named after the source stem.
+                temp_identifier = base_identifier.removesuffix("_temp")
+                recovered, recovered_provider, recovered_metadata = (
+                    _recover_missing_batch_ids(
+                        temp_file,
+                        temp_identifier,
+                        persist_recovered,
+                        exclude=already_covered,
                     )
-                    recovered_ids.update(recovered)
-                    # Carry the submitted schema name through recovery so schema
-                    # detection (and the model stamp, which rides in the restored
-                    # metadata) work for recovered batches too.
-                    recovered_schema = _recover_persisted_schema_name(
-                        temp_file, temp_identifier
-                    )
-                    for batch_id in recovered:
-                        track_record: dict[str, Any] = {"batch_id": batch_id}
-                        if recovered_provider:
-                            track_record["provider"] = recovered_provider
-                        # Restore the submitted handle metadata so backends can
-                        # correlate results (e.g. Google's inline custom_id_map)
-                        # instead of positional req-{i+1} relabeling.
-                        track_record["metadata"] = recovered_metadata.get(batch_id, {})
-                        if recovered_schema:
-                            track_record["schema_name"] = recovered_schema
-                        tracking.append(track_record)
-                        batch_ids.add(batch_id)
-                    if recovered:
-                        break
+                )
+                recovered_ids.update(recovered)
+                # Carry the submitted schema name through recovery so schema
+                # detection (and the model stamp, which rides in the restored
+                # metadata) work for recovered batches too.
+                recovered_schema = _recover_persisted_schema_name(
+                    temp_file, temp_identifier
+                )
+                for batch_id in recovered:
+                    track_record: dict[str, Any] = {"batch_id": batch_id}
+                    if recovered_provider:
+                        track_record["provider"] = recovered_provider
+                    # Restore the submitted handle metadata so backends can
+                    # correlate results (e.g. Google's inline custom_id_map)
+                    # instead of positional req-{i+1} relabeling.
+                    track_record["metadata"] = recovered_metadata.get(batch_id, {})
+                    if recovered_schema:
+                        track_record["schema_name"] = recovered_schema
+                    tracking.append(track_record)
+                    batch_ids.add(batch_id)
+                if recovered:
+                    break
 
             if not batch_ids:
                 _safe_print(

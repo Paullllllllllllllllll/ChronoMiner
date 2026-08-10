@@ -184,10 +184,36 @@ def _normalize_response_entry(entry: dict[str, Any]) -> dict[str, Any]:
     return normalized
 
 
+def _finalized_batch_ids(final_json_path: Path) -> set[str]:
+    """Batch ids already covered by an existing ``{stem}_output.json``.
+
+    Ids recorded in the output's ``batch_tracking.batch_ids`` were terminal
+    and accounted for when that output was written; recovering them again
+    from the submission artifact would re-poll batches whose remote files
+    are already deleted (404 -> failed forever).
+    """
+    if not final_json_path.exists():
+        return set()
+    try:
+        data = json.loads(final_json_path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return set()
+    if not isinstance(data, dict):
+        return set()
+    meta = data.get("_chronominer_metadata")
+    if not isinstance(meta, dict):
+        return set()
+    tracking = meta.get("batch_tracking")
+    if not isinstance(tracking, dict):
+        return set()
+    return {str(batch_id) for batch_id in tracking.get("batch_ids") or [] if batch_id}
+
+
 def _recover_missing_batch_ids(
     temp_file: Path,
     identifier: str,
     persist: bool,
+    exclude: set[str] | None = None,
 ) -> tuple[set[str], str | None, dict[str, dict[str, Any]]]:
     """Recover batch ids, provider, and per-batch metadata from the debug artifact.
 
@@ -199,6 +225,11 @@ def _recover_missing_batch_ids(
     Restoring the metadata matters for Google inline submissions: without the
     ``custom_id_map``, ``_iter_results`` falls back to positional ``req-{i+1}``
     custom_ids and a resumed sliced submission is relabeled to the wrong chunks.
+
+    ``exclude`` drops ids the caller already knows about (temp-file tracking
+    lines, ids covered by an existing finalization), so callers can union the
+    artifact's ids into a non-empty tracking set without duplicating or
+    re-polling already-retrieved batches.
     """
     recovered: set[str] = set()
     provider: str | None = None
@@ -224,8 +255,10 @@ def _recover_missing_batch_ids(
         logger.warning(
             "Failed to read batch debug artifact %s: %s", debug_artifact, exc
         )
+        recovered -= exclude or set()
         return recovered, provider, metadata_map
 
+    recovered -= exclude or set()
     if recovered and persist:
         try:
             # UTC, matching build_unified_batch_output's stamping style; a

@@ -319,6 +319,104 @@ class TestAlreadyFinalizedGroups:
         assert sorted(r["chunk_index"] for r in data["records"]) == [1, 2]
 
 
+def _write_debug_artifact(tmp_path, stem, batch_ids, provider="openai"):
+    (tmp_path / f"{stem}_batch_submission_debug.json").write_text(
+        json.dumps(
+            {
+                "batch_ids": list(batch_ids),
+                "provider": provider,
+                "batch_metadata": {},
+                "schema_name": "TestSchema",
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+
+
+@pytest.mark.unit
+class TestArtifactUnionRecovery:
+    """Prior batch ids carried only in the submission artifact stay reachable.
+
+    A resubmission over a still-pending prior batch rewrites the temp file
+    with only the new batch's tracking lines; the prior (paid) ids survive
+    solely in the debug artifact and must be unioned back in -- while ids
+    already covered by a completed finalization must NOT be re-polled.
+    """
+
+    def test_prior_pending_batch_from_artifact_defers_group(self, tmp_path):
+        stem = "doc"
+        _write_temp_file(tmp_path / f"{stem}_temp.jsonl", stem, ["b2"])
+        _write_debug_artifact(tmp_path, stem, ["b1", "b2"])
+
+        backend = _mock_backend(
+            {"b1": BatchStatus.IN_PROGRESS, "b2": BatchStatus.COMPLETED}
+        )
+        agg: dict[str, int] = {}
+
+        with (
+            patch("main.check_batches.get_batch_backend", return_value=backend),
+            patch(
+                "main.check_batches.retrieve_responses_from_batch",
+                return_value=[],
+            ),
+            patch("main.check_batches.get_schema_handler", return_value=MagicMock()),
+        ):
+            process_all_batches(
+                root_folder=tmp_path,
+                processing_settings={"retain_temporary_jsonl": True},
+                schema_name="TestSchema",
+                schema_config={},
+                ui=None,
+                agg=agg,
+            )
+
+        polled = {call.args[0].batch_id for call in backend.get_status.call_args_list}
+        assert polled == {"b1", "b2"}, (
+            "the artifact-only prior batch id must be polled alongside the "
+            "temp-tracked one"
+        )
+        assert agg.get("pending", 0) == 1
+
+    def test_finalized_ids_are_not_recovered_from_artifact(self, tmp_path):
+        stem = "doc"
+        _write_temp_file(tmp_path / f"{stem}_temp.jsonl", stem, ["b2"])
+        _write_debug_artifact(tmp_path, stem, ["b1", "b2"])
+        _write_final_output(
+            tmp_path / f"{stem}_output.json",
+            stem,
+            [1, 2],
+            fully_completed=True,
+            partial=False,
+            batch_ids=("b1",),
+        )
+
+        backend = _mock_backend({"b2": BatchStatus.COMPLETED})
+        responses = [{"custom_id": f"{stem}-chunk-3", "response": '{"entries": []}'}]
+
+        with (
+            patch("main.check_batches.get_batch_backend", return_value=backend),
+            patch(
+                "main.check_batches.retrieve_responses_from_batch",
+                return_value=responses,
+            ),
+            patch("main.check_batches.get_schema_handler", return_value=MagicMock()),
+        ):
+            process_all_batches(
+                root_folder=tmp_path,
+                processing_settings={"retain_temporary_jsonl": True},
+                schema_name="TestSchema",
+                schema_config={},
+                ui=None,
+                agg={},
+            )
+
+        polled = {call.args[0].batch_id for call in backend.get_status.call_args_list}
+        assert polled == {"b2"}, (
+            "ids covered by the completed finalization must not be re-polled"
+        )
+
+
 class _FlakyBackend:
     """Backend whose status poll fails ``failures`` times before succeeding."""
 
