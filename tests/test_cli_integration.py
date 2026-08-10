@@ -435,7 +435,7 @@ class TestGenerateLineRangesCLI:
 
     def test_generate_line_ranges_function(self, tmp_path: Path):
         """Test line range generation on actual file."""
-        from main.generate_line_ranges import generate_line_ranges_for_file
+        from modules.line_ranges import generate_line_ranges_for_file
 
         text_file = tmp_path / "test.txt"
         text_file.write_text(

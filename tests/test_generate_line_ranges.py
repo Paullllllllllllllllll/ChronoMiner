@@ -5,7 +5,9 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from main.generate_line_ranges import (
+from modules.line_ranges.generator import (
+    _select_folder_files,
+    _select_single_file,
     generate_line_ranges_for_file,
     write_line_ranges_file,
 )
@@ -51,8 +53,6 @@ def test_generate_line_ranges_reads_non_utf8_file(tmp_path: Path):
 @pytest.mark.unit
 def test_select_single_file_excludes_context_files(tmp_path: Path):
     """_select_single_file must not return context files as candidates."""
-    from main.generate_line_ranges import GenerateLineRangesScript
-
     raw = tmp_path / "input"
     raw.mkdir()
     (raw / "document.txt").write_text("content", encoding="utf-8")
@@ -61,12 +61,10 @@ def test_select_single_file_excludes_context_files(tmp_path: Path):
     (raw / "document_transcr_context.txt").write_text("ctx", encoding="utf-8")
     (raw / "document_line_ranges.txt").write_text("(1, 5)", encoding="utf-8")
 
-    script = GenerateLineRangesScript.__new__(GenerateLineRangesScript)
     mock_ui = MagicMock()
     mock_ui.get_input.return_value = "document.txt"
-    script.ui = mock_ui
 
-    result = script._select_single_file(raw)
+    result = _select_single_file(mock_ui, raw)
     assert result is not None
     assert len(result) == 1
     assert result[0].name == "document.txt"
@@ -76,18 +74,14 @@ def test_select_single_file_excludes_context_files(tmp_path: Path):
 def test_select_single_file_accepts_md_extension(tmp_path: Path):
     """Interactive selection force-appended '.txt' to any input, so an .md
     input file could never be picked even though the CLI path collects it."""
-    from main.generate_line_ranges import GenerateLineRangesScript
-
     raw = tmp_path / "input"
     raw.mkdir()
     (raw / "document.md").write_text("content", encoding="utf-8")
 
-    script = GenerateLineRangesScript.__new__(GenerateLineRangesScript)
     mock_ui = MagicMock()
     mock_ui.get_input.return_value = "document.md"
-    script.ui = mock_ui
 
-    result = script._select_single_file(raw)
+    result = _select_single_file(mock_ui, raw)
     assert result is not None
     assert [f.name for f in result] == ["document.md"]
 
@@ -95,18 +89,14 @@ def test_select_single_file_accepts_md_extension(tmp_path: Path):
 @pytest.mark.unit
 def test_select_single_file_still_defaults_to_txt(tmp_path: Path):
     """A bare name (no suffix) keeps defaulting to '.txt'."""
-    from main.generate_line_ranges import GenerateLineRangesScript
-
     raw = tmp_path / "input"
     raw.mkdir()
     (raw / "document.txt").write_text("content", encoding="utf-8")
 
-    script = GenerateLineRangesScript.__new__(GenerateLineRangesScript)
     mock_ui = MagicMock()
     mock_ui.get_input.return_value = "document"
-    script.ui = mock_ui
 
-    result = script._select_single_file(raw)
+    result = _select_single_file(mock_ui, raw)
     assert result is not None
     assert [f.name for f in result] == ["document.txt"]
 
@@ -115,8 +105,6 @@ def test_select_single_file_still_defaults_to_txt(tmp_path: Path):
 def test_select_folder_files_includes_md(tmp_path: Path):
     """Folder selection globbed only *.txt while the CLI path collects
     .txt and .md; sidecars stay excluded in both."""
-    from main.generate_line_ranges import GenerateLineRangesScript
-
     raw = tmp_path / "input"
     raw.mkdir()
     (raw / "a.txt").write_text("x", encoding="utf-8")
@@ -125,8 +113,5 @@ def test_select_folder_files_includes_md(tmp_path: Path):
     (raw / "a_line_range.txt").write_text("(1, 5)", encoding="utf-8")
     (raw / "a_output.txt").write_text("x", encoding="utf-8")
 
-    script = GenerateLineRangesScript.__new__(GenerateLineRangesScript)
-    script.ui = MagicMock()
-
-    files = script._select_folder_files(raw)
+    files = _select_folder_files(MagicMock(), raw)
     assert {f.name for f in files} == {"a.txt", "b.md"}

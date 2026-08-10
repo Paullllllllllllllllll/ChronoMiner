@@ -177,10 +177,11 @@ def test_discover_mixed_includes_text_and_visual(tmp_path: Path) -> None:
 @pytest.mark.unit
 def test_generate_line_ranges_page_range_slice(tmp_path: Path, monkeypatch) -> None:
     import main.generate_line_ranges as glr
+    import modules.line_ranges.generator as generator
 
     ranges = [(1, 10), (11, 20), (21, 30), (31, 40)]
     monkeypatch.setattr(
-        glr, "generate_line_ranges_for_file", lambda **_kw: list(ranges)
+        generator, "generate_line_ranges_for_file", lambda **_kw: list(ranges)
     )
     written: dict[str, Any] = {}
 
@@ -188,7 +189,7 @@ def test_generate_line_ranges_page_range_slice(tmp_path: Path, monkeypatch) -> N
         written["ranges"] = line_ranges
         return file_path.with_name(f"{file_path.stem}_line_ranges.txt")
 
-    monkeypatch.setattr(glr, "write_line_ranges_file", _fake_write)
+    monkeypatch.setattr(generator, "write_line_ranges_file", _fake_write)
 
     script = glr.GenerateLineRangesScript()
     script.tokens_per_chunk = 500

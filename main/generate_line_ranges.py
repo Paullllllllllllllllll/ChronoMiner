@@ -10,6 +10,10 @@ written to a '_line_ranges.txt' file.
 Supports two execution modes:
 1. Interactive Mode: User-friendly prompts
 2. CLI Mode: Command-line arguments for automation
+
+The generation workflow itself (file selection, chunking, sidecar
+writing) lives in :mod:`modules.line_ranges`; this script only wires it
+to the dual-mode CLI framework.
 """
 
 import sys
@@ -32,19 +36,7 @@ from main.cli_args import (
 from main.dual_mode import DualModeScript
 from modules.config.schema_manager import SchemaManager
 from modules.infra.chunking import ChunkSlice
-from modules.line_ranges.generator import (
-    generate_line_ranges_for_file,
-    write_line_ranges_file,
-)
-
-# Auxiliary sidecar files excluded from interactive discovery (mirrors
-# UserInterface._AUXILIARY_SUFFIXES).
-_AUXILIARY_SUFFIXES = (
-    "_line_ranges.txt",
-    "_line_range.txt",
-    "_context.txt",
-    "_output.txt",
-)
+from modules.line_ranges import process_files, select_input_files
 
 
 class GenerateLineRangesScript(DualModeScript):
@@ -93,245 +85,24 @@ class GenerateLineRangesScript(DualModeScript):
         # Assumes validation has been done beforehand
         return Path(self.schemas_paths[schema_name].get("input", ""))
 
-    def _select_files_interactive(
-        self, raw_text_dir: Path, allow_back: bool = False
-    ) -> list[Path] | None:
-        """Prompt user to select files for processing."""
-        assert self.ui is not None
-        self.ui.print_section_header("Input Selection")
-
-        mode_options = [
-            ("single", "Process a single file"),
-            ("folder", "Process all files in a folder"),
-        ]
-
-        mode = self.ui.select_option(
-            "Select how you would like to specify input:",
-            mode_options,
-            allow_back=allow_back,
-            allow_quit=True,
-        )
-
-        if mode is None:
-            return None
-
-        files: list[Path] | None = []
-
-        if mode == "single":
-            files = self._select_single_file(raw_text_dir, allow_back=allow_back)
-            if files is None:
-                return self._select_files_interactive(
-                    raw_text_dir, allow_back=allow_back
-                )
-        elif mode == "folder":
-            files = self._select_folder_files(raw_text_dir)
-            if not files:
-                # Nothing to process: return to input mode selection.
-                return self._select_files_interactive(
-                    raw_text_dir, allow_back=allow_back
-                )
-
-        return files
-
-    def _select_single_file(
-        self, raw_text_dir: Path, allow_back: bool = False
-    ) -> list[Path] | None:
-        """Select a single file for processing."""
-        assert self.ui is not None
-        # Containment base: the filename is handed to rglob as a glob pattern,
-        # so guard every match against escaping the configured input directory
-        # (e.g. via "../" or an absolute path).
-        resolved_base = raw_text_dir.resolve()
-
-        while True:
-            file_input = self.ui.get_input(
-                "Enter the filename to process (extension optional; defaults to .txt)",
-                allow_back=allow_back,
-                allow_quit=True,
-            )
-
-            if not file_input:
-                return None
-
-            # Only supply the default extension when none was typed; an
-            # explicit suffix (.md in particular) must be honored as given.
-            if not Path(file_input).suffix:
-                file_input += ".txt"
-
-            try:
-                file_candidates: list[Path] = [
-                    f
-                    for f in raw_text_dir.rglob(file_input)
-                    if f.resolve().is_relative_to(resolved_base)
-                    and not any(
-                        f.name.endswith(suffix) for suffix in _AUXILIARY_SUFFIXES
-                    )
-                ]
-            except (NotImplementedError, ValueError):
-                # Python raises NotImplementedError for non-relative (absolute)
-                # glob patterns and ValueError for malformed ones.
-                file_candidates = []
-
-            if not file_candidates:
-                if Path(file_input).is_absolute():
-                    self.ui.print_info(
-                        "Enter a name relative to the input directory,"
-                        " not an absolute path."
-                    )
-                self.ui.print_error(f"File '{file_input}' not found in {raw_text_dir}")
-                self.ui.print_info("Please try again or press 'b' to go back.")
-                continue
-
-            if len(file_candidates) == 1:
-                file_path: Path = file_candidates[0]
-                self.ui.print_success(f"Selected: {file_path.name}")
-                return [file_path]
-
-            result = self._select_from_multiple(
-                file_candidates, raw_text_dir, allow_back=allow_back
-            )
-            if result is not None:
-                return result
-            # User went back from the numbered list: ask for a filename again.
-
-    def _select_from_multiple(
-        self, candidates: list[Path], base_dir: Path, allow_back: bool = False
-    ) -> list[Path] | None:
-        """Handle selection when multiple matching files are found."""
-        assert self.ui is not None
-        self.ui.print_warning(f"Found {len(candidates)} matching files:")
-        self.ui.console_print(self.ui.HORIZONTAL_LINE)
-
-        for idx, f in enumerate(candidates, 1):
-            self.ui.console_print(f"  {idx}. {f.relative_to(base_dir)}")
-
-        while True:
-            selected_index = self.ui.get_input(
-                "Select file by number", allow_back=allow_back, allow_quit=True
-            )
-
-            if not selected_index:
-                return None
-
-            try:
-                idx = int(selected_index) - 1
-                if 0 <= idx < len(candidates):
-                    file_path = candidates[idx]
-                    self.ui.print_success(f"Selected: {file_path.name}")
-                    return [file_path]
-                else:
-                    self.ui.print_error(
-                        f"Please enter a number between 1 and {len(candidates)}."
-                    )
-            except ValueError:
-                self.ui.print_error("Invalid input. Please enter a number.")
-
-    def _select_folder_files(self, raw_text_dir: Path) -> list[Path]:
-        """Select all text files in a folder.
-
-        Returns an empty list when the folder holds no eligible files, so the
-        caller can re-prompt instead of aborting the run.
-        """
-        assert self.ui is not None
-        seen: dict[Path, None] = {}
-        for pattern in ("*.txt", "*.md"):
-            for f in raw_text_dir.rglob(pattern):
-                if any(f.name.endswith(suffix) for suffix in _AUXILIARY_SUFFIXES):
-                    continue
-                seen[f] = None
-        files = sorted(seen)
-
-        if not files:
-            self.ui.print_error(f"No .txt or .md files found in {raw_text_dir}")
-            self.ui.print_info(
-                "Please check the directory or go back to select a different option."
-            )
-            return []
-
-        self.ui.print_success(f"Found {len(files)} text files to process")
-        return files
-
     def _process_files(
         self,
         files: list[Path],
         verbose: bool = False,
         chunk_slice: ChunkSlice | None = None,
     ) -> tuple[int, int]:
-        """
-        Process files and generate line ranges.
-
-        Args:
-            files: List of files to process
-            verbose: Whether to show verbose output
-            chunk_slice: Optional slice to limit written ranges
-
-        Returns:
-            Tuple of (success_count, fail_count)
-        """
-        success_count = 0
-        fail_count = 0
-
-        for file_path in files:
-            try:
-                if verbose or self.ui:
-                    self.print_or_log(f"Processing {file_path.name}...")
-
-                self.logger.info(f"Generating line ranges for {file_path}")
-
-                assert self.tokens_per_chunk is not None
-                assert self.model_name is not None
-                line_ranges = generate_line_ranges_for_file(
-                    text_file=file_path,
-                    default_tokens_per_chunk=self.tokens_per_chunk,
-                    model_name=self.model_name,
-                )
-
-                # Apply chunk slice if requested
-                if chunk_slice is not None and (
-                    chunk_slice.first_n is not None
-                    or chunk_slice.last_n is not None
-                    or chunk_slice.page_range is not None
-                ):
-                    original_count = len(line_ranges)
-                    if chunk_slice.first_n is not None:
-                        n = min(chunk_slice.first_n, len(line_ranges))
-                        line_ranges = line_ranges[:n]
-                    elif chunk_slice.last_n is not None:
-                        n = min(chunk_slice.last_n, len(line_ranges))
-                        line_ranges = line_ranges[-n:]
-                    elif chunk_slice.page_range is not None:
-                        # page_range: 1-based inclusive selection over the
-                        # generated ranges, clamped to what exists.
-                        start, end = chunk_slice.page_range
-                        lo = max(start - 1, 0)
-                        hi = min(end, len(line_ranges))
-                        line_ranges = line_ranges[lo:hi] if lo < hi else []
-                    self.print_or_log(
-                        f"Chunk slice applied: writing "
-                        f"{len(line_ranges)}/{original_count} ranges"
-                    )
-
-                line_ranges_file = write_line_ranges_file(file_path, line_ranges)
-
-                if self.ui:
-                    self.ui.print_success(
-                        f"Line ranges written to {line_ranges_file.name}"
-                    )
-                elif verbose:
-                    print(f"[SUCCESS] Created {line_ranges_file.name}")
-
-                self.logger.info(f"Line ranges written to {line_ranges_file}")
-                success_count += 1
-
-            except Exception as e:
-                self.logger.exception(f"Error processing {file_path}")
-                if self.ui:
-                    self.ui.print_error(f"Failed to process {file_path.name}: {e}")
-                else:
-                    print(f"[ERROR] Failed to process {file_path.name}: {e}")
-                fail_count += 1
-
-        return success_count, fail_count
+        """Delegate per-file range generation to the line-ranges package."""
+        assert self.tokens_per_chunk is not None
+        assert self.model_name is not None
+        return process_files(
+            files,
+            tokens_per_chunk=self.tokens_per_chunk,
+            model_name=self.model_name,
+            logger=self.logger,
+            ui=self.ui,
+            verbose=verbose,
+            chunk_slice=chunk_slice,
+        )
 
     def run_interactive(self) -> None:
         """Run line range generation in interactive mode with back navigation."""
@@ -366,8 +137,8 @@ class GenerateLineRangesScript(DualModeScript):
                 current_step = "files"
 
             elif current_step == "files":
-                files = self._select_files_interactive(
-                    state["raw_text_dir"], allow_back=True
+                files = select_input_files(
+                    self.ui, state["raw_text_dir"], allow_back=True
                 )
                 if files is None:
                     current_step = "schema"

@@ -90,15 +90,11 @@ async def test_check_and_wait_propagates_cancellation():
 # ---------------------------------------------------------------------------
 
 
-def _script_with_ui(answers: list[str]) -> tuple[object, MagicMock]:
-    """Build a GenerateLineRangesScript wired to a scripted mock UI."""
-    from main.generate_line_ranges import GenerateLineRangesScript
-
-    script = GenerateLineRangesScript.__new__(GenerateLineRangesScript)
+def _scripted_ui(answers: list[str]) -> MagicMock:
+    """Build a scripted mock UI for the file-selection helpers."""
     mock_ui = MagicMock()
     mock_ui.get_input.side_effect = answers
-    script.ui = mock_ui  # type: ignore[attr-defined]
-    return script, mock_ui
+    return mock_ui
 
 
 @pytest.mark.unit
@@ -109,9 +105,11 @@ def test_single_file_absolute_path_does_not_crash(tmp_path: Path) -> None:
     raw.mkdir()
     (raw / "document.txt").write_text("content", encoding="utf-8")
 
+    from modules.line_ranges.generator import _select_single_file
+
     # Absolute path first, then a bare Enter to back out.
-    script, mock_ui = _script_with_ui([str(raw / "document.txt"), ""])
-    result = script._select_single_file(raw)  # type: ignore[attr-defined]
+    mock_ui = _scripted_ui([str(raw / "document.txt"), ""])
+    result = _select_single_file(mock_ui, raw)
 
     assert result is None
     infos = [str(call.args[0]) for call in mock_ui.print_info.call_args_list]
@@ -128,8 +126,10 @@ def test_single_file_cannot_escape_input_directory(tmp_path: Path) -> None:
     outside.mkdir()
     (outside / "secret.txt").write_text("classified", encoding="utf-8")
 
-    script, mock_ui = _script_with_ui(["../outside/secret.txt", ""])
-    result = script._select_single_file(raw)  # type: ignore[attr-defined]
+    from modules.line_ranges.generator import _select_single_file
+
+    mock_ui = _scripted_ui(["../outside/secret.txt", ""])
+    result = _select_single_file(mock_ui, raw)
 
     assert result is None
     assert mock_ui.print_error.called
@@ -141,8 +141,10 @@ def test_single_file_excludes_singular_line_range_sidecar(tmp_path: Path) -> Non
     raw.mkdir()
     (raw / "document_line_range.txt").write_text("(1, 5)", encoding="utf-8")
 
-    script, mock_ui = _script_with_ui(["document_line_range.txt", ""])
-    result = script._select_single_file(raw)  # type: ignore[attr-defined]
+    from modules.line_ranges.generator import _select_single_file
+
+    mock_ui = _scripted_ui(["document_line_range.txt", ""])
+    result = _select_single_file(mock_ui, raw)
 
     assert result is None
     assert mock_ui.print_error.called
@@ -154,9 +156,11 @@ def test_single_file_typo_reprompts_instead_of_exiting(tmp_path: Path) -> None:
     raw.mkdir()
     (raw / "document.txt").write_text("content", encoding="utf-8")
 
+    from modules.line_ranges.generator import _select_single_file
+
     # A typo, then the correct name: the second attempt must succeed.
-    script, _ui = _script_with_ui(["documnet.txt", "document.txt"])
-    result = script._select_single_file(raw)  # type: ignore[attr-defined]
+    mock_ui = _scripted_ui(["documnet.txt", "document.txt"])
+    result = _select_single_file(mock_ui, raw)
 
     assert result is not None
     assert [p.name for p in result] == ["document.txt"]
@@ -166,16 +170,14 @@ def test_single_file_typo_reprompts_instead_of_exiting(tmp_path: Path) -> None:
 def test_empty_folder_reprompts_instead_of_exiting(tmp_path: Path) -> None:
     """An empty input folder must not kill the process (select_input_source
     re-prompts in the same situation)."""
-    from main.generate_line_ranges import GenerateLineRangesScript
+    from modules.line_ranges.generator import _select_folder_files
 
     raw = tmp_path / "input"
     raw.mkdir()
 
-    script = GenerateLineRangesScript.__new__(GenerateLineRangesScript)
     mock_ui = MagicMock()
-    script.ui = mock_ui  # type: ignore[attr-defined]
 
-    files = script._select_folder_files(raw)  # type: ignore[attr-defined]
+    files = _select_folder_files(mock_ui, raw)
 
     assert files == []
     assert mock_ui.print_error.called
@@ -194,12 +196,9 @@ def test_folder_selection_excludes_all_auxiliary_sidecars(tmp_path: Path) -> Non
     ):
         (raw / sidecar).write_text("x", encoding="utf-8")
 
-    from main.generate_line_ranges import GenerateLineRangesScript
+    from modules.line_ranges.generator import _select_folder_files
 
-    script = GenerateLineRangesScript.__new__(GenerateLineRangesScript)
-    script.ui = MagicMock()  # type: ignore[attr-defined]
-
-    files = script._select_folder_files(raw)  # type: ignore[attr-defined]
+    files = _select_folder_files(MagicMock(), raw)
 
     assert [p.name for p in files] == ["document.txt"]
 
