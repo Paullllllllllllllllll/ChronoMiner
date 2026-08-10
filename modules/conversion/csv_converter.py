@@ -77,6 +77,33 @@ def _nested(entry: dict, key: str) -> dict:
     return value if isinstance(value, dict) else {}
 
 
+# ---------------------------------------------------------------------------
+# Shared field-spec fragments for the culinary v3.0 schemas. Column order is
+# the CSV contract, so these are spliced positionally into each schema's spec.
+# ---------------------------------------------------------------------------
+
+_TIMEFRAME_FIELDS: list[tuple] = [
+    ("timeframe_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
+    ("timeframe_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
+    ("timeframe_notation", lambda e: BaseConverter._extract_period(e)[2], None),
+]
+
+_GEOGRAPHY_FIELDS: list[tuple] = [
+    ("city_original", "geography.city_original", None),
+    ("city_modern", "geography.city_modern", None),
+    ("country_original", "geography.country_original", None),
+    ("country_modern", "geography.country_modern", None),
+]
+
+_ASSOCIATIONS_FIELDS: list[tuple] = [
+    (
+        "associations",
+        lambda e: BaseConverter._format_links(e.get("associations")),
+        None,
+    ),
+]
+
+
 class CSVConverter(BaseConverter):
     """
     Converts JSON-extracted data to CSV format.
@@ -260,91 +287,74 @@ class CSVConverter(BaseConverter):
 
     # CulinaryPersonsEntries (schema v3.0) — nested names/timeframe/lifespan/
     # geography plus the unified associations list.
-    _CULINARY_PERSONS_CSV_FIELDS: list[tuple] = [
-        ("name_original", "names.original", None),
-        ("name_modern_english", "names.modern_english", None),
-        ("short_notes", "short_notes", None),
-        ("historical_importance", "historical_importance", None),
-        ("gender", "gender", None),
-        ("roles", lambda e: _join_list(e, "roles"), None),
-        ("timeframe_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
-        ("timeframe_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
-        ("timeframe_notation", lambda e: BaseConverter._extract_period(e)[2], None),
-        ("birth_year", lambda e: _nested(e, "lifespan").get("birth_year"), None),
-        ("death_year", lambda e: _nested(e, "lifespan").get("death_year"), None),
-        ("city_original", "geography.city_original", None),
-        ("city_modern", "geography.city_modern", None),
-        ("country_original", "geography.country_original", None),
-        ("country_modern", "geography.country_modern", None),
-        (
-            "associations",
-            lambda e: BaseConverter._format_links(e.get("associations")),
-            None,
-        ),
-    ]
+    _CULINARY_PERSONS_CSV_FIELDS: list[tuple] = (
+        [
+            ("name_original", "names.original", None),
+            ("name_modern_english", "names.modern_english", None),
+            ("short_notes", "short_notes", None),
+            ("historical_importance", "historical_importance", None),
+            ("gender", "gender", None),
+            ("roles", lambda e: _join_list(e, "roles"), None),
+        ]
+        + _TIMEFRAME_FIELDS
+        + [
+            ("birth_year", lambda e: _nested(e, "lifespan").get("birth_year"), None),
+            ("death_year", lambda e: _nested(e, "lifespan").get("death_year"), None),
+        ]
+        + _GEOGRAPHY_FIELDS
+        + _ASSOCIATIONS_FIELDS
+    )
 
     # CulinaryPlacesEntries (schema v3.0).
-    _CULINARY_PLACES_CSV_FIELDS: list[tuple] = [
-        ("name_original", "names.original", None),
-        ("name_modern_english", "names.modern_english", None),
-        ("short_notes", "short_notes", None),
-        ("historical_importance", "historical_importance", None),
-        ("place_type", "place_type", None),
-        (
-            "roles_in_culinary_ecosystem",
-            lambda e: _join_list(e, "roles_in_culinary_ecosystem"),
-            None,
-        ),
-        ("timeframe_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
-        ("timeframe_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
-        ("timeframe_notation", lambda e: BaseConverter._extract_period(e)[2], None),
-        ("city_original", "geography.city_original", None),
-        ("city_modern", "geography.city_modern", None),
-        ("country_original", "geography.country_original", None),
-        ("country_modern", "geography.country_modern", None),
-        ("events", lambda e: _join_dicts(e, "events", _event_cell), None),
-        (
-            "associations",
-            lambda e: BaseConverter._format_links(e.get("associations")),
-            None,
-        ),
-    ]
+    _CULINARY_PLACES_CSV_FIELDS: list[tuple] = (
+        [
+            ("name_original", "names.original", None),
+            ("name_modern_english", "names.modern_english", None),
+            ("short_notes", "short_notes", None),
+            ("historical_importance", "historical_importance", None),
+            ("place_type", "place_type", None),
+            (
+                "roles_in_culinary_ecosystem",
+                lambda e: _join_list(e, "roles_in_culinary_ecosystem"),
+                None,
+            ),
+        ]
+        + _TIMEFRAME_FIELDS
+        + _GEOGRAPHY_FIELDS
+        + [("events", lambda e: _join_dicts(e, "events", _event_cell), None)]
+        + _ASSOCIATIONS_FIELDS
+    )
 
     # CulinaryWorksEntries (schema v3.0) — nested titles/timeframe/geography.
-    _CULINARY_WORKS_CSV_FIELDS: list[tuple] = [
-        ("title_original", "titles.original", None),
-        ("title_modern_english", "titles.modern_english", None),
-        ("title_short", "titles.short", None),
-        ("short_notes", "short_notes", None),
-        ("historical_importance", "historical_importance", None),
-        ("genre", "genre", None),
-        ("culinary_focus", lambda e: _join_list(e, "culinary_focus"), None),
-        ("languages", lambda e: _join_list(e, "languages"), None),
-        ("edition_years", lambda e: _join_list(e, "edition_years"), None),
-        ("timeframe_start_year", lambda e: BaseConverter._extract_period(e)[0], None),
-        ("timeframe_end_year", lambda e: BaseConverter._extract_period(e)[1], None),
-        ("timeframe_notation", lambda e: BaseConverter._extract_period(e)[2], None),
-        ("city_original", "geography.city_original", None),
-        ("city_modern", "geography.city_modern", None),
-        ("country_original", "geography.country_original", None),
-        ("country_modern", "geography.country_modern", None),
-        (
-            "contributors",
-            lambda e: _join_dicts(
-                e,
+    _CULINARY_WORKS_CSV_FIELDS: list[tuple] = (
+        [
+            ("title_original", "titles.original", None),
+            ("title_modern_english", "titles.modern_english", None),
+            ("title_short", "titles.short", None),
+            ("short_notes", "short_notes", None),
+            ("historical_importance", "historical_importance", None),
+            ("genre", "genre", None),
+            ("culinary_focus", lambda e: _join_list(e, "culinary_focus"), None),
+            ("languages", lambda e: _join_list(e, "languages"), None),
+            ("edition_years", lambda e: _join_list(e, "edition_years"), None),
+        ]
+        + _TIMEFRAME_FIELDS
+        + _GEOGRAPHY_FIELDS
+        + [
+            (
                 "contributors",
-                lambda c: _contributor_cell(
-                    c, ("name_original", "name_modern_english")
+                lambda e: _join_dicts(
+                    e,
+                    "contributors",
+                    lambda c: _contributor_cell(
+                        c, ("name_original", "name_modern_english")
+                    ),
                 ),
+                None,
             ),
-            None,
-        ),
-        (
-            "associations",
-            lambda e: BaseConverter._format_links(e.get("associations")),
-            None,
-        ),
-    ]
+        ]
+        + _ASSOCIATIONS_FIELDS
+    )
 
     # ------------------------------------------------------------------
     # Spec-driven converter wrappers
