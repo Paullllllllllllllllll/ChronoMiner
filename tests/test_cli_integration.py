@@ -101,7 +101,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_model_config_applies_overrides(self):
         """CLI model overrides should be merged into effective model config only."""
-        from main.process_text_files import _build_effective_model_config
+        from main.process_text_files import build_effective_model_config
 
         base = {
             "extraction_model": {
@@ -118,7 +118,7 @@ class TestProcessTextFilesCLI:
             verbosity="low",
         )
 
-        effective = _build_effective_model_config(base, args)
+        effective = build_effective_model_config(base, args)
 
         assert effective["extraction_model"]["name"] == "gpt-5-mini"
         assert effective["extraction_model"]["max_output_tokens"] == 20000
@@ -130,23 +130,23 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_paths_config_output_disables_input_as_output(self):
         """When --output is provided, output path mode should be enabled."""
-        from main.process_text_files import _build_effective_paths_config
+        from main.process_text_files import build_effective_paths_config
 
         base_paths = {"general": {"input_paths_is_output_path": True}}
         args = Namespace(output="C:/tmp/output")
 
-        effective = _build_effective_paths_config(base_paths, args)
+        effective = build_effective_paths_config(base_paths, args)
         assert effective["general"]["input_paths_is_output_path"] is False
         assert base_paths["general"]["input_paths_is_output_path"] is True
 
     def test_build_effective_chunking_config_applies_chunk_size_override(self):
         """CLI chunk-size should override per-run chunking config only."""
-        from main.process_text_files import _build_effective_chunking_config
+        from main.process_text_files import build_effective_chunking_config
 
         base = {"chunking": {"default_tokens_per_chunk": 10000, "other_setting": True}}
         args = Namespace(chunk_size=4200)
 
-        effective = _build_effective_chunking_config(base, args)
+        effective = build_effective_chunking_config(base, args)
 
         assert effective["chunking"]["default_tokens_per_chunk"] == 4200
         assert effective["chunking"]["other_setting"] is True
@@ -154,12 +154,12 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_chunking_config_keeps_default_when_no_override(self):
         """Without --chunk-size, effective chunking config should remain unchanged."""
-        from main.process_text_files import _build_effective_chunking_config
+        from main.process_text_files import build_effective_chunking_config
 
         base = {"chunking": {"default_tokens_per_chunk": 10000}}
         args = Namespace(chunk_size=None)
 
-        effective = _build_effective_chunking_config(base, args)
+        effective = build_effective_chunking_config(base, args)
 
         assert effective["chunking"]["default_tokens_per_chunk"] == 10000
         assert effective is not base
@@ -187,7 +187,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_model_config_temperature_override(self):
         """CLI --temperature should override config value without mutating original."""
-        from main.process_text_files import _build_effective_model_config
+        from main.process_text_files import build_effective_model_config
 
         base = {
             "extraction_model": {
@@ -205,7 +205,7 @@ class TestProcessTextFilesCLI:
             top_p=None,
         )
 
-        effective = _build_effective_model_config(base, args)
+        effective = build_effective_model_config(base, args)
 
         assert effective["extraction_model"]["temperature"] == 0.7
         assert effective["extraction_model"]["top_p"] == 1.0
@@ -213,7 +213,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_model_config_top_p_override(self):
         """CLI --top-p should override config value without mutating original."""
-        from main.process_text_files import _build_effective_model_config
+        from main.process_text_files import build_effective_model_config
 
         base = {
             "extraction_model": {
@@ -231,7 +231,7 @@ class TestProcessTextFilesCLI:
             top_p=0.85,
         )
 
-        effective = _build_effective_model_config(base, args)
+        effective = build_effective_model_config(base, args)
 
         assert effective["extraction_model"]["top_p"] == 0.85
         assert effective["extraction_model"]["temperature"] == 0.0
@@ -239,7 +239,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_model_config_no_override_preserves_defaults(self):
         """When no CLI flags are set, all config values should be preserved."""
-        from main.process_text_files import _build_effective_model_config
+        from main.process_text_files import build_effective_model_config
 
         base = {
             "extraction_model": {
@@ -260,7 +260,7 @@ class TestProcessTextFilesCLI:
             top_p=None,
         )
 
-        effective = _build_effective_model_config(base, args)
+        effective = build_effective_model_config(base, args)
 
         assert effective["extraction_model"]["name"] == "gpt-4o"
         assert effective["extraction_model"]["max_output_tokens"] == 4096
@@ -335,7 +335,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_concurrency_config_applies_overrides(self):
         """CLI concurrency flags should override config without mutating original."""
-        from main.process_text_files import _build_effective_concurrency_config
+        from main.process_text_files import build_effective_concurrency_config
 
         base = {
             "concurrency": {
@@ -348,7 +348,7 @@ class TestProcessTextFilesCLI:
         }
         args = Namespace(concurrency_limit=5, delay=1.5)
 
-        effective = _build_effective_concurrency_config(base, args)
+        effective = build_effective_concurrency_config(base, args)
 
         assert effective["concurrency"]["extraction"]["concurrency_limit"] == 5
         assert effective["concurrency"]["extraction"]["delay_between_tasks"] == 1.5
@@ -358,7 +358,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_concurrency_config_preserves_defaults(self):
         """Without CLI flags, concurrency config should be unchanged."""
-        from main.process_text_files import _build_effective_concurrency_config
+        from main.process_text_files import build_effective_concurrency_config
 
         base = {
             "concurrency": {
@@ -370,7 +370,7 @@ class TestProcessTextFilesCLI:
         }
         args = Namespace(concurrency_limit=None, delay=None)
 
-        effective = _build_effective_concurrency_config(base, args)
+        effective = build_effective_concurrency_config(base, args)
 
         assert effective["concurrency"]["extraction"]["concurrency_limit"] == 20
         assert effective["concurrency"]["extraction"]["delay_between_tasks"] == 0.0

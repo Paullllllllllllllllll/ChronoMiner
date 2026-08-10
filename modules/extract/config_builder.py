@@ -86,12 +86,3 @@ def build_effective_concurrency_config(
         extraction["delay_between_tasks"] = float(args.delay)
 
     return effective
-
-
-# Backwards-compatibility aliases: existing callers in main/process_text_files.py
-# use the underscore-prefixed names. Once that script is updated to use the
-# public names, these can be removed.
-_build_effective_model_config = build_effective_model_config
-_build_effective_paths_config = build_effective_paths_config
-_build_effective_chunking_config = build_effective_chunking_config
-_build_effective_concurrency_config = build_effective_concurrency_config

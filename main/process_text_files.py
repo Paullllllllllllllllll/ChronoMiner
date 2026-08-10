@@ -254,10 +254,10 @@ def _count_existing_outputs(
 
 # Effective-config builders moved to modules.extract.config_builder.
 from modules.extract.config_builder import (
-    _build_effective_chunking_config,
-    _build_effective_concurrency_config,
-    _build_effective_model_config,
-    _build_effective_paths_config,
+    build_effective_chunking_config,
+    build_effective_concurrency_config,
+    build_effective_model_config,
+    build_effective_paths_config,
 )
 from modules.extract.file_processor import is_visual_input
 
@@ -885,15 +885,13 @@ async def _run_cli_mode(
         sys.exit(1)
 
     # Load other configs
-    chunking_config = _build_effective_chunking_config(
-        chunking_and_context_config, args
-    )
-    concurrency_config = _build_effective_concurrency_config(
+    chunking_config = build_effective_chunking_config(chunking_and_context_config, args)
+    concurrency_config = build_effective_concurrency_config(
         config_loader.get_concurrency_config(), args
     )
 
-    effective_model_config = _build_effective_model_config(model_config, args)
-    effective_paths_config = _build_effective_paths_config(paths_config, args)
+    effective_model_config = build_effective_model_config(model_config, args)
+    effective_paths_config = build_effective_paths_config(paths_config, args)
 
     effective_model_name = effective_model_config.get("extraction_model", {}).get(
         "name", ""
