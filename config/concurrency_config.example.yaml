@@ -51,19 +51,59 @@ concurrency:
     # 'flex' is cheaper but synchronous-only; batch mode may need 'auto'.
     service_tier: flex
 
-    # Request-level timeout (seconds). Covers the full HTTP round-trip.
-    # Recommended: 900 (15 minutes), matching OpenAI's flex-tier guidance.
+    # Per-request HTTP timeouts (seconds) plus the per-chunk watchdog.
+    #
+    # 'total' is the READ-phase budget of a SINGLE attempt: how long one
+    # request may stay silent while waiting for the response. Recommended:
+    # 900 (15 minutes), matching OpenAI's flex-tier guidance.
+    #
+    # 'connect', 'write' and 'pool' bound the other phases (TCP/TLS setup,
+    # request upload, waiting for a free pooled connection). They exist so a
+    # long read budget does not also become a 900 s connect budget. These
+    # per-phase keys apply to the OpenAI-family clients only (openai,
+    # openrouter, custom endpoints); the Anthropic and Google wrappers require
+    # a plain float and keep the scalar 'total'.
+    #
+    # 'chunk_timeout' is a wall-clock ceiling for ONE chunk across ALL retry
+    # attempts combined (a backstop above the retry budget's own bound, so it
+    # also catches mixed pathologies: alternating timeouts, connection errors
+    # and 429 backoffs). Values:
+    #   auto      -> total x retry.timeout_attempts + 300 s of backoff
+    #                headroom; with the values shipped here 900 x 3 + 300 =
+    #                3000 s (50 minutes) worst case per chunk. This is the
+    #                default when the key is absent.
+    #   "off"     -> disabled. QUOTE it: a bare off is YAML boolean false,
+    #                which is also accepted as disabled. 0 disables it too.
+    #   <number>  -> explicit ceiling in seconds.
+    #
+    # Windows note: win32 has no TCP_USER_TIMEOUT (only SO_KEEPALIVE), so the
+    # kernel never reports a dead peer; the read timeout and the chunk_timeout
+    # watchdog are the ONLY stall detectors. Outside service_tier 'flex' keep
+    # 'total' tight (120-300). With 'flex', long silent server-side waits are
+    # by design — which is exactly when these knobs earn their keep.
     timeouts:
       total: 900
+      chunk_timeout: auto
+      connect: 10
+      write: 30
+      pool: 30
 
     # Retry policy for transient errors (HTTP 429 / 5xx / timeouts).
     # ChronoMiner's own retry loop is the single authority (the SDK's internal
     # retries are disabled): it applies exponential backoff between wait_min
     # and wait_max with random jitter. When a 429/503 response carries a
     # Retry-After header, the wait is raised to at least that value (capped at
-    # wait_max_seconds). All four knobs are user-tunable.
+    # wait_max_seconds). All knobs below are user-tunable.
+    #
+    # 'timeout_attempts' is a separate, smaller budget used for request-TIMEOUT
+    # failures only (capped at 'attempts'). A timed-out request is still billed
+    # server-side but returns no usage payload, so every timeout retry is
+    # untracked overshoot — few retries keep that overshoot bounded. Cheap
+    # connection failures (ConnectError, DNS) keep the full 'attempts' budget,
+    # as do 5xx responses whose body merely SAYS "gateway timeout".
     retry:
       attempts: 8
+      timeout_attempts: 3
       wait_min_seconds: 2.5
       wait_max_seconds: 120
       jitter_max_seconds: 15

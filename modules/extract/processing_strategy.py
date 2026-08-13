@@ -23,7 +23,7 @@ import random
 import re
 import time
 from abc import ABC, abstractmethod
-from collections.abc import AsyncGenerator, AsyncIterator
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable
 from pathlib import Path
 from typing import Any, cast
 
@@ -48,6 +48,11 @@ from modules.llm.openai_utils import (
     process_text_chunk,
 )
 from modules.llm.prompt_utils import PROMPTS_DIR
+from modules.llm.transient_errors import (
+    ChunkTimeoutError,
+    is_timeout_error,
+    resolve_chunk_timeout,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -229,7 +234,14 @@ def classify_transient_error(
         or "rate_limit" in msg
         or bool(_RATE_LIMIT_CODE_RE.search(message))
     )
-    is_timeout = "timed out" in msg or "timeout" in msg
+    # Type first, message second: a bare ``httpx.ReadTimeout`` stringifies to
+    # the empty string, so a message-only test silently classified the most
+    # common transport failure as non-retryable and gave up after one call.
+    is_timeout = (
+        (exc is not None and is_timeout_error(exc))
+        or "timed out" in msg
+        or "timeout" in msg
+    )
     is_server_error = (
         (status_code is not None and 500 <= status_code <= 599)
         or bool(_SERVER_ERROR_CODE_RE.search(message))
@@ -539,6 +551,21 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         wait_max_seconds = float(retry_cfg.get("wait_max_seconds", 120.0) or 120.0)
         jitter_max_seconds = float(retry_cfg.get("jitter_max_seconds", 0.0) or 0.0)
 
+        # Timeouts get their own, smaller budget inside the general attempt
+        # budget: every timed-out call has already burned a billed server-side
+        # generation whose usage payload never arrives, so eight of them cost
+        # eight full generations for one chunk.
+        try:
+            timeout_attempts = int(retry_cfg.get("timeout_attempts", 3))
+        except (ValueError, TypeError):
+            timeout_attempts = 3
+        timeout_attempts = max(1, min(timeout_attempts, retry_attempts))
+        # Wall-clock backstop over ALL attempts and backoff sleeps of one unit.
+        chunk_ceiling = resolve_chunk_timeout(
+            extraction_cfg.get("timeouts") or {},
+            timeout_attempts=timeout_attempts,
+        )
+
         # Per-provider shared rate limiter: throttles synchronous calls under
         # the configured windows BEFORE each API call (permissive defaults when
         # unconfigured). Batch submission never passes through here.
@@ -598,179 +625,291 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
                 ) -> dict[str, Any]:
                     """Run one unit through the retry loop and persist it."""
                     nonlocal units_done
-                    for attempt in range(retry_attempts):
-                        # Acquire rate-limit capacity off the event loop before
-                        # each API call so bursts stay under the provider caps.
-                        await await_capacity(rate_limiter)
+                    # Absolute wall-clock deadline covering every attempt and
+                    # every backoff sleep of this unit. Only the cancellable
+                    # waits run under it: cancelling the temp-JSONL write would
+                    # release write_lock while the worker thread is still
+                    # writing and interleave bytes in the resume file.
+                    deadline = (
+                        asyncio.get_running_loop().time() + chunk_ceiling
+                        if chunk_ceiling is not None
+                        else None
+                    )
+                    timeout_failures = 0
+
+                    async def bounded[T](awaitable: Awaitable[T]) -> T:
+                        """Await *awaitable* under this unit's wall-clock ceiling."""
+                        if deadline is None or chunk_ceiling is None:
+                            return await awaitable
+                        watchdog: asyncio.Timeout | None = None
                         try:
-                            # Route to image or text processing
-                            if img_data is not None:
-                                result = await process_image_chunk(
-                                    image_base64=img_data["base64"],
-                                    mime_type=img_data["mime_type"],
-                                    extractor=extractor,
-                                    system_message=dev_message,
-                                    json_schema=schema,
-                                    image_detail=img_data.get("detail"),
-                                    enable_cache_control=enable_cache,
-                                    context_image_data=context_image_data,
-                                )
-                            else:
-                                result = await process_text_chunk(
-                                    text_chunk=chunk,
-                                    extractor=extractor,
-                                    system_message=dev_message,
-                                    json_schema=schema,
-                                    enable_cache_control=enable_cache,
-                                    context_image_data=context_image_data,
-                                )
+                            async with asyncio.timeout_at(deadline) as watchdog:
+                                return await awaitable
+                        except TimeoutError:
+                            # asyncio.timeout_at converts only ITS OWN expiry
+                            # cancellation into TimeoutError, so anything else
+                            # here -- an SDK read timeout, an externally
+                            # delivered cancel -- keeps its own identity.
+                            if watchdog is None or not watchdog.expired():
+                                raise
+                            raise ChunkTimeoutError(
+                                f"{file_path.stem} {unit_label} {idx}",
+                                chunk_ceiling,
+                            ) from None
 
-                            # Drop base64 payloads from the persisted request
-                            # metadata; they grew temp files to ~1 GB on large
-                            # PDFs and pinned every page's image in RAM via
-                            # the results list.
-                            result = strip_image_payloads(result)
+                    try:
+                        for attempt in range(retry_attempts):
+                            # Acquire rate-limit capacity off the event loop
+                            # before each API call so bursts stay under the
+                            # provider caps.
+                            await bounded(await_capacity(rate_limiter))
+                            try:
+                                # Route to image or text processing
+                                if img_data is not None:
+                                    result = await bounded(
+                                        process_image_chunk(
+                                            image_base64=img_data["base64"],
+                                            mime_type=img_data["mime_type"],
+                                            extractor=extractor,
+                                            system_message=dev_message,
+                                            json_schema=schema,
+                                            image_detail=img_data.get("detail"),
+                                            enable_cache_control=enable_cache,
+                                            context_image_data=context_image_data,
+                                        )
+                                    )
+                                else:
+                                    result = await bounded(
+                                        process_text_chunk(
+                                            text_chunk=chunk,
+                                            extractor=extractor,
+                                            system_message=dev_message,
+                                            json_schema=schema,
+                                            enable_cache_control=enable_cache,
+                                            context_image_data=context_image_data,
+                                        )
+                                    )
 
-                            # A response with no usable text (truncation at
-                            # max_output_tokens, refusal, thinking-only stop)
-                            # must NOT be persisted as a completed unit: the
-                            # temp record would enter the resume skip-set and
-                            # the chunk would never be retried, surfacing only
-                            # as silently missing entries downstream. Route it
-                            # into the failed-chunk machinery instead.
-                            if not (result.get("output_text") or "").strip():
-                                logger.error(
-                                    "Empty model output for %s %s "
-                                    "(possible truncation or refusal); "
-                                    "recording as failed.",
-                                    unit_label,
-                                    idx,
-                                )
-                                console_print(
-                                    f"[ERROR] Empty model output for "
-                                    f"{unit_label} {idx} (possible truncation "
-                                    f"or refusal); it will be retried on "
-                                    f"resume."
-                                )
-                                return {
-                                    "error": (
-                                        "empty model output "
-                                        "(possible truncation/refusal)"
+                                # Drop base64 payloads from the persisted
+                                # request metadata; they grew temp files to
+                                # ~1 GB on large PDFs and pinned every page's
+                                # image in RAM via the results list.
+                                result = strip_image_payloads(result)
+
+                                # A response with no usable text (truncation at
+                                # max_output_tokens, refusal, thinking-only
+                                # stop) must NOT be persisted as a completed
+                                # unit: the temp record would enter the resume
+                                # skip-set and the chunk would never be
+                                # retried, surfacing only as silently missing
+                                # entries downstream. Route it into the
+                                # failed-chunk machinery instead.
+                                if not (result.get("output_text") or "").strip():
+                                    logger.error(
+                                        "Empty model output for %s %s "
+                                        "(possible truncation or refusal); "
+                                        "recording as failed.",
+                                        unit_label,
+                                        idx,
+                                    )
+                                    console_print(
+                                        f"[ERROR] Empty model output for "
+                                        f"{unit_label} {idx} (possible "
+                                        f"truncation or refusal); it will be "
+                                        f"retried on resume."
+                                    )
+                                    return {
+                                        "error": (
+                                            "empty model output "
+                                            "(possible truncation/refusal)"
+                                        ),
+                                        "chunk_index": idx,
+                                    }
+
+                                # chunk_index drives ordering in
+                                # _generate_output_files; without it the final
+                                # records sort by `None or 0` (all equal) and
+                                # land in completion order.
+                                # Same unit label and sanitizer as the batch
+                                # path: a visual run stamps "-page-N" there, so
+                                # stamping "-chunk-N" here made sync and batch
+                                # records for the same page disagree (and
+                                # collide on merge).
+                                response_obj: dict[str, Any] = {
+                                    "custom_id": build_custom_id(
+                                        file_path.stem, f"-{unit_label}-{idx}"
                                     ),
                                     "chunk_index": idx,
+                                    "response": {"body": result},
                                 }
-
-                            # chunk_index drives ordering in
-                            # _generate_output_files; without it the final
-                            # records sort by `None or 0` (all equal) and
-                            # land in completion order.
-                            # Same unit label and sanitizer as the batch path:
-                            # a visual run stamps "-page-N" there, so stamping
-                            # "-chunk-N" here made sync and batch records for
-                            # the same page disagree (and collide on merge).
-                            response_obj: dict[str, Any] = {
-                                "custom_id": build_custom_id(
-                                    file_path.stem, f"-{unit_label}-{idx}"
-                                ),
-                                "chunk_index": idx,
-                                "response": {"body": result},
-                            }
-                            if chunk_range is not None:
-                                response_obj["chunk_range"] = list(chunk_range)
-                            provenance = (img_data or {}).get("image_provenance")
-                            if provenance:
-                                response_obj["image_provenance"] = provenance
-                            line = json.dumps(response_obj, ensure_ascii=False) + "\n"
-                            # Serialize the append+flush under the lock, but run
-                            # the blocking write off the event loop. The lock is
-                            # held across the awaited to_thread call, so ordering
-                            # and non-interleaving are preserved.
-                            async with write_lock:
-                                await asyncio.to_thread(_append_jsonl_line, tempf, line)
-
-                            rate_limiter.report_success()
-                            units_done += 1
-                            # Counter over units processed THIS run; keep the
-                            # absolute document index visible. A prior version
-                            # printed idx/total_chunks, which read e.g.
-                            # "chunk 9/2" under a --last-n-chunks slice. The
-                            # file stem disambiguates concurrent multi-file runs.
-                            console_print(
-                                f"[INFO] {file_path.stem}: processed {unit_label} "
-                                f"{idx} ({units_done}/{pending_count} this run)"
-                            )
-                            return result
-                        except (
-                            Exception
-                        ) as e:  # Broad: LangChain/API errors are diverse
-                            is_429, is_timeout, is_server_error = (
-                                classify_transient_error(str(e), e)
-                            )
-                            is_retryable = is_429 or is_timeout or is_server_error
-
-                            # Feed the adaptive limiter (429/5xx tighten it) and
-                            # recover any usage the failed call still reported so
-                            # the daily budget stays honest.
-                            rate_limiter.report_error(
-                                is_rate_limit=is_429 or is_server_error
-                            )
-                            commit_tokens_from_exception(
-                                e,
-                                provider=provider,
-                                key_env=key_env,
-                                model=model_name,
-                            )
-
-                            if is_retryable and attempt < (retry_attempts - 1):
-                                base_wait = min(
-                                    wait_max_seconds,
-                                    wait_min_seconds * (2**attempt),
+                                if chunk_range is not None:
+                                    response_obj["chunk_range"] = list(chunk_range)
+                                provenance = (img_data or {}).get("image_provenance")
+                                if provenance:
+                                    response_obj["image_provenance"] = provenance
+                                line = (
+                                    json.dumps(response_obj, ensure_ascii=False) + "\n"
                                 )
-                                jitter = (
-                                    random.uniform(0.0, jitter_max_seconds)
-                                    if jitter_max_seconds > 0
-                                    else 0.0
-                                )
-                                wait_s = min(wait_max_seconds, base_wait + jitter)
-                                # Honor a server-provided Retry-After: never wait
-                                # less than it asks (still capped at wait_max).
-                                retry_after = parse_retry_after(e)
-                                if retry_after is not None:
-                                    wait_s = min(
-                                        wait_max_seconds, max(wait_s, retry_after)
+                                # Serialize the append+flush under the lock, but
+                                # run the blocking write off the event loop. The
+                                # lock is held across the awaited to_thread call,
+                                # so ordering and non-interleaving are preserved.
+                                # Never wrapped in a cancellable scope: a cancel
+                                # here would drop the lock mid-write.
+                                async with write_lock:
+                                    await asyncio.to_thread(
+                                        _append_jsonl_line, tempf, line
                                     )
-                                if is_429:
-                                    reason = "Rate-limited"
-                                elif is_timeout:
-                                    reason = "Timed out"
+
+                                rate_limiter.report_success()
+                                units_done += 1
+                                # Counter over units processed THIS run; keep the
+                                # absolute document index visible. A prior version
+                                # printed idx/total_chunks, which read e.g.
+                                # "chunk 9/2" under a --last-n-chunks slice. The
+                                # file stem disambiguates concurrent multi-file
+                                # runs.
+                                console_print(
+                                    f"[INFO] {file_path.stem}: processed "
+                                    f"{unit_label} {idx} "
+                                    f"({units_done}/{pending_count} this run)"
+                                )
+                                return result
+                            except ChunkTimeoutError:
+                                # Wall-clock overrun: not an API error, so it
+                                # must bypass the classify/retry machinery.
+                                raise
+                            except (
+                                Exception
+                            ) as e:  # Broad: LangChain/API errors are diverse
+                                is_429, is_timeout, is_server_error = (
+                                    classify_transient_error(str(e), e)
+                                )
+                                is_retryable = is_429 or is_timeout or is_server_error
+
+                                # Feed the adaptive limiter (429/5xx tighten it)
+                                # and recover any usage the failed call still
+                                # reported so the daily budget stays honest.
+                                rate_limiter.report_error(
+                                    is_rate_limit=is_429 or is_server_error
+                                )
+                                commit_tokens_from_exception(
+                                    e,
+                                    provider=provider,
+                                    key_env=key_env,
+                                    model=model_name,
+                                )
+
+                                # Only type-level timeouts charge the smaller
+                                # timeout budget. A 504 "Gateway Timeout" body
+                                # matches _SERVER_ERROR_CODE_RE and keeps the
+                                # full attempt budget; a genuine read timeout
+                                # has already burned a billed server-side
+                                # generation carrying no usage payload, so
+                                # repeating it is the expensive failure mode.
+                                if is_timeout_error(e) and not (
+                                    is_429 or is_server_error
+                                ):
+                                    timeout_failures += 1
+                                    timeout_budget_spent = (
+                                        timeout_failures >= timeout_attempts
+                                    )
                                 else:
-                                    reason = "Server error"
-                                logger.warning(
-                                    "%s on %s %s (attempt %s/%s). "
-                                    "Waiting %.1fs and retrying.",
-                                    reason,
+                                    timeout_budget_spent = False
+
+                                if (
+                                    is_retryable
+                                    and not timeout_budget_spent
+                                    and attempt < (retry_attempts - 1)
+                                ):
+                                    base_wait = min(
+                                        wait_max_seconds,
+                                        wait_min_seconds * (2**attempt),
+                                    )
+                                    jitter = (
+                                        random.uniform(0.0, jitter_max_seconds)
+                                        if jitter_max_seconds > 0
+                                        else 0.0
+                                    )
+                                    wait_s = min(wait_max_seconds, base_wait + jitter)
+                                    # Honor a server-provided Retry-After: never
+                                    # wait less than it asks (still capped at
+                                    # wait_max).
+                                    retry_after = parse_retry_after(e)
+                                    if retry_after is not None:
+                                        wait_s = min(
+                                            wait_max_seconds, max(wait_s, retry_after)
+                                        )
+                                    if is_429:
+                                        reason = "Rate-limited"
+                                    elif is_timeout:
+                                        reason = "Timed out"
+                                    else:
+                                        reason = "Server error"
+                                    logger.warning(
+                                        "%s on %s %s of %s (attempt %s/%s). "
+                                        "Waiting %.1fs and retrying.",
+                                        reason,
+                                        unit_label,
+                                        idx,
+                                        file_path.stem,
+                                        attempt + 1,
+                                        retry_attempts,
+                                        wait_s,
+                                    )
+                                    console_print(
+                                        f"[WARNING] {file_path.stem}: {reason} "
+                                        f"on {unit_label} {idx} (attempt "
+                                        f"{attempt + 1}/{retry_attempts}); "
+                                        f"retrying in {wait_s:.1f}s."
+                                    )
+                                    await bounded(asyncio.sleep(wait_s))
+                                    continue
+
+                                if timeout_budget_spent:
+                                    logger.error(
+                                        "%s: %s %s exhausted its timeout budget "
+                                        "of %s timed-out attempt(s); giving up "
+                                        "without spending the remaining "
+                                        "attempts.",
+                                        file_path.stem,
+                                        unit_label,
+                                        idx,
+                                        timeout_attempts,
+                                    )
+                                logger.error(
+                                    "Error processing %s %s of %s: %s",
                                     unit_label,
                                     idx,
-                                    attempt + 1,
-                                    retry_attempts,
-                                    wait_s,
+                                    file_path.stem,
+                                    e,
                                 )
-                                await asyncio.sleep(wait_s)
-                                continue
-
-                            logger.error(
-                                "Error processing %s %s: %s",
-                                unit_label,
-                                idx,
-                                e,
-                            )
-                            console_print(
-                                f"[ERROR] Failed to process {unit_label} {idx}: {e}"
-                            )
-                            # Carry chunk_index: failed chunks write no
-                            # temp record, so the caller cannot recover the
-                            # index from gather order otherwise.
-                            return {"error": str(e), "chunk_index": idx}
+                                console_print(
+                                    f"[ERROR] Failed to process {unit_label} {idx}: {e}"
+                                )
+                                # Carry chunk_index: failed chunks write no
+                                # temp record, so the caller cannot recover the
+                                # index from gather order otherwise.
+                                return {"error": str(e), "chunk_index": idx}
+                    except ChunkTimeoutError as exc:
+                        # The cancelled attempt's server-side usage is
+                        # unrecoverable (no response, so no usage payload), but
+                        # the adaptive limiter must not be left blind about a
+                        # unit that never completed: report it as a non-rate-
+                        # limit error.
+                        rate_limiter.report_error(is_rate_limit=False)
+                        logger.error(
+                            "%s: %s %s exceeded its %.0fs wall-clock ceiling "
+                            "across all retry attempts combined; giving up.",
+                            file_path.stem,
+                            unit_label,
+                            idx,
+                            chunk_ceiling if chunk_ceiling is not None else 0.0,
+                        )
+                        console_print(
+                            f"[ERROR] Failed to process {unit_label} {idx}: {exc}"
+                        )
+                        return {"error": str(exc), "chunk_index": idx}
                     # Unreachable: every iteration returns or continues, and
                     # the final attempt (retry condition false) always returns.
                     raise AssertionError("retry loop must return on its final attempt")

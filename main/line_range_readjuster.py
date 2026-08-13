@@ -263,6 +263,7 @@ async def _adjust_files(
         prompt_path=prompt_path,
         matching_config=matching_config,
         retry_config=retry_config,
+        concurrency_config=concurrency_config,
     )
 
     successes: list[tuple[Path, Path]] = []

@@ -252,13 +252,14 @@ wheels = [
 
 [[package]]
 name = "chronominer"
-version = "2.11.0"
+version = "2.12.0"
 source = { editable = "." }
 dependencies = [
     { name = "anthropic" },
     { name = "charset-normalizer" },
     { name = "colorama" },
     { name = "google-genai" },
+    { name = "httpx" },
     { name = "langchain-anthropic" },
     { name = "langchain-core" },
     { name = "langchain-google-genai" },
@@ -290,6 +291,7 @@ requires-dist = [
     { name = "colorama", specifier = ">=0.4.6" },
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.15" },
     { name = "google-genai", specifier = ">=2.12" },
+    { name = "httpx", specifier = ">=0.28" },
     { name = "langchain-anthropic", specifier = ">=1.4.8" },
     { name = "langchain-core", specifier = ">=1.4.9" },
     { name = "langchain-google-genai", specifier = ">=4.2.7" },

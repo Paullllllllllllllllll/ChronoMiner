@@ -10,11 +10,13 @@ Supports multiple LLM providers via LangChain:
 
 from __future__ import annotations
 
+import asyncio
 import contextlib
 import hashlib
 import json
 import logging
 import os
+import random
 import re
 import unicodedata
 import uuid
@@ -28,6 +30,7 @@ from modules.config.context import (
     compute_context_hash,
     resolve_context_for_readjustment,
 )
+from modules.config.loader import get_config_loader
 from modules.infra.chunking import TextProcessor, load_line_ranges
 from modules.infra.jsonl import (
     JsonlWriter,
@@ -51,6 +54,12 @@ from modules.llm.prompt_utils import (
     PROMPTS_DIR,
     load_prompt_template,
     render_prompt_with_schema,
+)
+from modules.llm.transient_errors import (
+    ChunkTimeoutError,
+    is_connection_error,
+    is_timeout_error,
+    resolve_chunk_timeout,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,6 +86,44 @@ class ReadjustmentInterrupted(RuntimeError):
 # longer ranges are scanned in consecutive full-coverage windows of this size
 # rather than sampled with gaps.
 MAX_VERIFY_WINDOW_LINES = 1000
+
+# Status codes that mark a provider failure as transient. Both patterns are
+# context-gated on purpose: a blanket ``\b429\b`` or ``\b5\d{2}\b`` matches
+# stray numbers in an error body ("position 429") and would retry a
+# permanently failing request. Type-based classification
+# (``is_timeout_error`` / ``is_connection_error``) covers the transport side;
+# this is only the status-code fallback for stringified provider errors.
+_TRANSIENT_STATUS_RE = re.compile(
+    r"(?:status(?:[ _]?code)?|http|error[ _]?code|code)\s*[:=]?\s*(?:429|5\d{2})\b"
+    r"|\b429\b\s*(?:too many requests|rate limit)"
+    r"|\b5\d{2}\b\s*(?:internal server error|server error|bad gateway"
+    r"|service unavailable|gateway timeout)"
+    r"|too many requests"
+    r"|rate_limit",
+    re.IGNORECASE,
+)
+
+
+def _is_retryable_message(message: str) -> bool:
+    """Return ``True`` when a stringified error looks like a 429 or 5xx."""
+    return bool(_TRANSIENT_STATUS_RE.search(message))
+
+
+def _unsure_payload() -> dict[str, Any]:
+    """Neutral boundary payload used when no usable model answer arrived.
+
+    Certainty 0 with every flag false is the safe direction everywhere it is
+    consumed: the boundary loop counts it as a low-certainty attempt (bounded
+    by ``max_low_certainty_retries``) and the deletion scan refuses to drop
+    the range.
+    """
+    return {
+        "contains_no_semantic_boundary": False,
+        "needs_more_context": False,
+        "boundary_already_on_target": False,
+        "certainty": 0,
+        "semantic_marker": "",
+    }
 
 
 def clamp_ranges_to_length(
@@ -239,6 +286,7 @@ class LineRangeReadjuster:
         prompt_path: Path | None = None,
         matching_config: dict[str, Any] | None = None,
         retry_config: dict[str, Any] | None = None,
+        concurrency_config: dict[str, Any] | None = None,
     ) -> None:
         transcription_cfg = model_config.get("extraction_model", {})
         model_name: str = transcription_cfg.get("name", "")
@@ -284,6 +332,13 @@ class LineRangeReadjuster:
         )
         self.min_substring_length = self.matching_config.get("min_substring_length", 8)
 
+        # Transport-level retry budget for the LLM call itself. Parsed from
+        # concurrency.extraction.retry, i.e. a DIFFERENT namespace from
+        # ``self.retry_config`` below, which governs semantic readjustment
+        # (certainty thresholds, marker-mismatch retries) and must never be
+        # read for HTTP retries.
+        self._configure_call_retries(concurrency_config)
+
         # Load retry configuration with defaults
         self.retry_config = retry_config or {}
         self.certainty_threshold = self.retry_config.get("certainty_threshold", 70)
@@ -327,6 +382,62 @@ class LineRangeReadjuster:
                     max_gap_setting,
                 )
                 self.max_gap_between_ranges = None
+
+    def _configure_call_retries(
+        self, concurrency_config: dict[str, Any] | None
+    ) -> None:
+        """Parse the transport-level retry budget for boundary LLM calls.
+
+        Reads ``concurrency.extraction`` so readjustment inherits the same
+        retry policy as extraction. When no config is passed the loader is
+        consulted; a failed load degrades to the built-in defaults rather
+        than to "no retries", since an unbounded, unretried call is exactly
+        the failure mode this budget exists to prevent.
+        """
+        if concurrency_config is None:
+            try:
+                concurrency_config = get_config_loader().get_concurrency_config()
+            except Exception as exc:  # pragma: no cover - defensive
+                logger.debug(
+                    "Could not load the concurrency config (%s);"
+                    " using default call-retry settings.",
+                    exc,
+                )
+                concurrency_config = {}
+
+        extraction_cfg = ((concurrency_config or {}).get("concurrency", {}) or {}).get(
+            "extraction", {}
+        ) or {}
+        retry_cfg = extraction_cfg.get("retry", {}) or {}
+
+        def _as_int(key: str, default: int) -> int:
+            try:
+                return int(retry_cfg.get(key, default))
+            except (TypeError, ValueError):
+                return default
+
+        def _as_float(key: str, default: float) -> float:
+            try:
+                return float(retry_cfg.get(key, default) or default)
+            except (TypeError, ValueError):
+                return default
+
+        self._call_retry_attempts = max(1, _as_int("attempts", 8))
+        self._call_retry_wait_min = _as_float("wait_min_seconds", 2.5)
+        self._call_retry_wait_max = _as_float("wait_max_seconds", 120.0)
+        try:
+            self._call_retry_jitter_max = float(
+                retry_cfg.get("jitter_max_seconds", 0.0) or 0.0
+            )
+        except (TypeError, ValueError):
+            self._call_retry_jitter_max = 0.0
+        self._call_timeout_attempts = max(
+            1, min(self._call_retry_attempts, _as_int("timeout_attempts", 3))
+        )
+        self._call_ceiling: float | None = resolve_chunk_timeout(
+            extraction_cfg.get("timeouts", {}) or {},
+            timeout_attempts=self._call_timeout_attempts,
+        )
 
     async def ensure_adjusted_line_ranges(
         self,
@@ -1362,13 +1473,16 @@ class LineRangeReadjuster:
         )
         system_prompt = system_prompt.replace("{{BOUNDARY_TYPE}}", boundary_type)
 
-        response_payload = await process_text_chunk(
-            text_chunk=chunk_text,
+        response_payload = await self._call_model_with_retries(
             extractor=extractor,
-            system_message=system_prompt,
-            json_schema=SEMANTIC_BOUNDARY_SCHEMA,
-            enable_cache_control=self._enable_cache_control,
+            chunk_text=chunk_text,
+            system_prompt=system_prompt,
+            window_index=window_index,
+            context_window=context_window,
+            boundary_type=boundary_type,
         )
+        if response_payload is None:
+            return _unsure_payload()
 
         raw_output = response_payload.get("output_text", "")
         parsed = self._coerce_json(raw_output)
@@ -1381,14 +1495,169 @@ class LineRangeReadjuster:
                 context_end,
                 raw_output,
             )
-            return {
-                "contains_no_semantic_boundary": False,
-                "needs_more_context": False,
-                "boundary_already_on_target": False,
-                "certainty": 0,
-                "semantic_marker": "",
-            }
+            return _unsure_payload()
         return parsed
+
+    async def _call_model_with_retries(
+        self,
+        *,
+        extractor: LLMExtractor,
+        chunk_text: str,
+        system_prompt: str,
+        window_index: int,
+        context_window: tuple[int, int],
+        boundary_type: str,
+    ) -> dict[str, Any] | None:
+        """Call the model with bounded retries and a wall-clock ceiling.
+
+        Returns the raw response payload, or ``None`` when the transient
+        retry budget or the ceiling was exhausted -- the caller then degrades
+        that one window to an unsure verdict instead of failing the whole
+        file. Non-transient errors (auth, schema, validation) propagate
+        untouched, as do :class:`ReadjustmentInterrupted` and cancellation.
+        """
+        ceiling = self._call_ceiling
+        deadline: float | None = None
+        if ceiling is not None:
+            deadline = asyncio.get_running_loop().time() + ceiling
+        label = (
+            f"window {window_index} ({context_window[0]}-{context_window[1]},"
+            f" {boundary_type})"
+        )
+        timeouts_left = self._call_timeout_attempts
+
+        try:
+            for attempt in range(self._call_retry_attempts):
+                watchdog: asyncio.Timeout | None = None
+                try:
+                    if deadline is None:
+                        return await process_text_chunk(
+                            text_chunk=chunk_text,
+                            extractor=extractor,
+                            system_message=system_prompt,
+                            json_schema=SEMANTIC_BOUNDARY_SCHEMA,
+                            enable_cache_control=self._enable_cache_control,
+                        )
+                    async with asyncio.timeout_at(deadline) as watchdog:
+                        return await process_text_chunk(
+                            text_chunk=chunk_text,
+                            extractor=extractor,
+                            system_message=system_prompt,
+                            json_schema=SEMANTIC_BOUNDARY_SCHEMA,
+                            enable_cache_control=self._enable_cache_control,
+                        )
+                except (asyncio.CancelledError, ReadjustmentInterrupted):
+                    raise
+                except Exception as exc:  # Broad: provider errors are diverse
+                    self._raise_if_ceiling_expired(exc, watchdog, label, ceiling)
+                    message = str(exc)
+                    status_transient = _is_retryable_message(message)
+                    timed_out = is_timeout_error(exc)
+                    if not (status_transient or timed_out or is_connection_error(exc)):
+                        raise
+                    # A status-classified error keeps the full general budget;
+                    # only a pure timeout is charged to the smaller timeout
+                    # budget, because it means a billed generation burned.
+                    if timed_out and not status_transient:
+                        timeouts_left -= 1
+                        if timeouts_left <= 0:
+                            logger.error(
+                                "Boundary call for %s timed out on all %d"
+                                " permitted timeout attempts; treating the"
+                                " window as unsure.",
+                                label,
+                                self._call_timeout_attempts,
+                            )
+                            print(
+                                f"[ERROR] Boundary call for {label} kept timing"
+                                f" out; treating the window as unsure."
+                            )
+                            return None
+                    if attempt >= self._call_retry_attempts - 1:
+                        logger.error(
+                            "Boundary call for %s failed on all %d attempts"
+                            " (%s); treating the window as unsure.",
+                            label,
+                            self._call_retry_attempts,
+                            exc,
+                        )
+                        print(
+                            f"[ERROR] Boundary call for {label} failed after"
+                            f" {self._call_retry_attempts} attempts: {exc}"
+                        )
+                        return None
+                    await self._backoff(attempt, deadline, label, ceiling)
+        except ChunkTimeoutError as exc:
+            logger.error(
+                "Boundary call for %s exceeded its %.0fs wall-clock ceiling"
+                " for all retry attempts combined; treating the window as"
+                " unsure.",
+                label,
+                exc.seconds,
+            )
+            print(
+                f"[ERROR] Boundary call for {label} exceeded its"
+                f" {exc.seconds:.0f}s ceiling for all retry attempts combined;"
+                f" treating the window as unsure."
+            )
+            return None
+        # Unreachable: every iteration returns, raises, or backs off.
+        return None
+
+    @staticmethod
+    def _raise_if_ceiling_expired(
+        exc: BaseException,
+        watchdog: asyncio.Timeout | None,
+        label: str,
+        ceiling: float | None,
+    ) -> None:
+        """Convert a watchdog-fired ``TimeoutError`` into ``ChunkTimeoutError``.
+
+        A ``TimeoutError`` raised while the watchdog did NOT fire is an SDK
+        request timeout and stays on the normal classification path.
+        """
+        if (
+            isinstance(exc, TimeoutError)
+            and watchdog is not None
+            and watchdog.expired()
+        ):
+            raise ChunkTimeoutError(label, ceiling or 0.0) from exc
+
+    async def _backoff(
+        self,
+        attempt: int,
+        deadline: float | None,
+        label: str,
+        ceiling: float | None,
+    ) -> None:
+        """Sleep between call attempts, still bounded by the ceiling."""
+        wait_s = min(
+            self._call_retry_wait_max,
+            self._call_retry_wait_min * (2**attempt),
+        )
+        if self._call_retry_jitter_max > 0:
+            wait_s = min(
+                self._call_retry_wait_max,
+                wait_s + random.uniform(0.0, self._call_retry_jitter_max),
+            )
+        logger.warning(
+            "Transient failure on boundary call for %s (attempt %d/%d);"
+            " waiting %.1fs and retrying.",
+            label,
+            attempt + 1,
+            self._call_retry_attempts,
+            wait_s,
+        )
+        if deadline is None:
+            await asyncio.sleep(wait_s)
+            return
+        try:
+            async with asyncio.timeout_at(deadline) as watchdog:
+                await asyncio.sleep(wait_s)
+        except TimeoutError as exc:
+            if watchdog.expired():
+                raise ChunkTimeoutError(label, ceiling or 0.0) from exc
+            raise
 
     def _validate_and_apply_decision(
         self,

@@ -14,6 +14,12 @@ from modules.config.capabilities import (
     detect_capabilities,
     detect_provider,
 )
+from modules.llm.http_timeouts import (
+    DEFAULT_CONNECT_TIMEOUT,
+    DEFAULT_POOL_TIMEOUT,
+    DEFAULT_WRITE_TIMEOUT,
+    build_httpx_timeout,
+)
 from modules.llm.langchain_provider import (
     LangChainLLM,
     ProviderConfig,
@@ -28,6 +34,12 @@ from modules.llm.prompt_utils import (
     render_prompt_with_schema,
 )
 from modules.llm.schema_utils import build_structured_text_format
+from modules.llm.transient_errors import (
+    ChunkTimeoutError,
+    is_connection_error,
+    is_timeout_error,
+    resolve_chunk_timeout,
+)
 
 __all__ = [
     "LangChainLLM",
@@ -41,4 +53,12 @@ __all__ = [
     "load_prompt_template",
     "render_prompt_with_schema",
     "build_structured_text_format",
+    "build_httpx_timeout",
+    "DEFAULT_CONNECT_TIMEOUT",
+    "DEFAULT_WRITE_TIMEOUT",
+    "DEFAULT_POOL_TIMEOUT",
+    "is_timeout_error",
+    "is_connection_error",
+    "ChunkTimeoutError",
+    "resolve_chunk_timeout",
 ]

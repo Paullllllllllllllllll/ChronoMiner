@@ -23,6 +23,12 @@ from typing import Any
 from modules.config.capabilities import detect_capabilities
 from modules.config.loader import get_config_loader
 from modules.infra.logger import setup_logger
+from modules.llm.http_timeouts import (
+    DEFAULT_CONNECT_TIMEOUT,
+    DEFAULT_POOL_TIMEOUT,
+    DEFAULT_WRITE_TIMEOUT,
+    coerce_positive_float,
+)
 from modules.llm.langchain_provider import (
     LangChainLLM,
     ProviderConfig,
@@ -142,12 +148,22 @@ class LLMExtractor:
         # The request timeout comes from concurrency.extraction.timeouts.total
         # (previously read only by the unused ProviderConfig.from_config, so
         # the configured value never reached live calls).
+        timeouts_cfg = extraction_cfg.get("timeouts", {}) or {}
         try:
-            timeout_total = float(
-                (extraction_cfg.get("timeouts", {}) or {}).get("total") or 600.0
-            )
+            timeout_total = float(timeouts_cfg.get("total") or 600.0)
         except (TypeError, ValueError):
             timeout_total = 600.0
+        # Per-phase overrides for the ChatOpenAI-family providers; unusable
+        # values degrade to the http_timeouts defaults.
+        connect_timeout = coerce_positive_float(
+            timeouts_cfg.get("connect"), DEFAULT_CONNECT_TIMEOUT
+        )
+        write_timeout = coerce_positive_float(
+            timeouts_cfg.get("write"), DEFAULT_WRITE_TIMEOUT
+        )
+        pool_timeout = coerce_positive_float(
+            timeouts_cfg.get("pool"), DEFAULT_POOL_TIMEOUT
+        )
         config = ProviderConfig(
             provider=self.provider,
             model=self.model,
@@ -159,6 +175,9 @@ class LLMExtractor:
             top_p=self.top_p if self.caps.supports_sampler_controls else 1.0,
             max_retries=0,
             timeout=timeout_total,
+            connect_timeout=connect_timeout,
+            write_timeout=write_timeout,
+            pool_timeout=pool_timeout,
             extra_params=extra_params,
         )
 

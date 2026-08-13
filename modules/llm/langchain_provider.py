@@ -27,6 +27,13 @@ from modules.config.loader import (
 )
 from modules.infra.logger import setup_logger
 from modules.infra.token_tracker import get_token_tracker
+from modules.llm.http_timeouts import (
+    DEFAULT_CONNECT_TIMEOUT,
+    DEFAULT_POOL_TIMEOUT,
+    DEFAULT_WRITE_TIMEOUT,
+    build_httpx_timeout,
+    coerce_positive_float,
+)
 
 logger = setup_logger(__name__)
 
@@ -252,7 +259,14 @@ class ProviderConfig:
     temperature: float = 0.0
     max_tokens: int = 4096
     top_p: float = 1.0
+    # ``timeout`` is the per-request budget. For the ChatOpenAI-family
+    # providers it becomes the *read* phase of an httpx.Timeout, with the
+    # three fields below pinning the remaining phases; Anthropic and Google
+    # keep receiving it as a plain float.
     timeout: float = 600.0
+    connect_timeout: float = DEFAULT_CONNECT_TIMEOUT
+    write_timeout: float = DEFAULT_WRITE_TIMEOUT
+    pool_timeout: float = DEFAULT_POOL_TIMEOUT
     max_retries: int = 5
     reasoning_effort: str | None = None
     extra_params: dict[str, Any] = field(default_factory=dict)
@@ -319,6 +333,15 @@ class ProviderConfig:
         # Get timeout from config
         timeouts_cfg = extraction_cfg.get("timeouts", {}) or {}
         timeout = float(timeouts_cfg.get("total", 600.0))
+        connect_timeout = coerce_positive_float(
+            timeouts_cfg.get("connect"), DEFAULT_CONNECT_TIMEOUT
+        )
+        write_timeout = coerce_positive_float(
+            timeouts_cfg.get("write"), DEFAULT_WRITE_TIMEOUT
+        )
+        pool_timeout = coerce_positive_float(
+            timeouts_cfg.get("pool"), DEFAULT_POOL_TIMEOUT
+        )
 
         # Get service_tier from concurrency config
         service_tier = extraction_cfg.get("service_tier")
@@ -355,6 +378,9 @@ class ProviderConfig:
             max_tokens=int(tm.get("max_output_tokens", 4096)),
             top_p=float(tm.get("top_p", 1.0)),
             timeout=timeout,
+            connect_timeout=connect_timeout,
+            write_timeout=write_timeout,
+            pool_timeout=pool_timeout,
             max_retries=max_retries,
             reasoning_effort=extra_params.get("reasoning_effort"),
             extra_params=extra_params,
@@ -562,7 +588,14 @@ class LangChainLLM:
             params: dict[str, Any] = {
                 "model": self.config.model,
                 "api_key": self.config.api_key,
-                "timeout": self.config.timeout,
+                # Per-phase timeout: a scalar would set connect to the full
+                # read budget too.
+                "timeout": build_httpx_timeout(
+                    self.config.timeout,
+                    connect=self.config.connect_timeout,
+                    write=self.config.write_timeout,
+                    pool=self.config.pool_timeout,
+                ),
                 "max_retries": self.config.max_retries,
                 **common_params,
             }
@@ -670,6 +703,8 @@ class LangChainLLM:
             return ChatAnthropic(
                 model=self.config.model,
                 api_key=self.config.api_key,
+                # Plain float: ChatAnthropic's wrapper compares its timeout
+                # with ``> 0``, which an httpx.Timeout does not support.
                 timeout=self.config.timeout,
                 max_retries=self.config.max_retries,
                 **anthropic_params,
@@ -724,6 +759,9 @@ class LangChainLLM:
             return ChatGoogleGenerativeAI(
                 model=self.config.model,
                 google_api_key=self.config.api_key,
+                # Plain float: ChatGoogleGenerativeAI computes
+                # ``int(timeout * 1000)``, which an httpx.Timeout does not
+                # support.
                 timeout=self.config.timeout,
                 max_retries=self.config.max_retries,
                 **google_params,
@@ -741,7 +779,14 @@ class LangChainLLM:
                 "model": model_name,
                 "api_key": self.config.api_key,
                 "base_url": self.config.base_url,
-                "timeout": self.config.timeout,
+                # Per-phase timeout: a scalar would set connect to the full
+                # read budget too.
+                "timeout": build_httpx_timeout(
+                    self.config.timeout,
+                    connect=self.config.connect_timeout,
+                    write=self.config.write_timeout,
+                    pool=self.config.pool_timeout,
+                ),
                 "max_retries": self.config.max_retries,
                 **common_params,
             }
@@ -805,7 +850,14 @@ class LangChainLLM:
                 "model": self.config.model,
                 "api_key": self.config.api_key,
                 "base_url": self.config.base_url,
-                "timeout": self.config.timeout,
+                # Per-phase timeout: a scalar would set connect to the full
+                # read budget too.
+                "timeout": build_httpx_timeout(
+                    self.config.timeout,
+                    connect=self.config.connect_timeout,
+                    write=self.config.write_timeout,
+                    pool=self.config.pool_timeout,
+                ),
                 "max_retries": self.config.max_retries,
                 **common_params,
             }

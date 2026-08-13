@@ -1,4 +1,4 @@
-# ChronoMiner v2.11.0
+# ChronoMiner v2.12.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -413,8 +413,15 @@ concurrency:
     concurrency_limit: 12
     max_concurrent_files: 1
     delay_between_tasks: 0.1
+    timeouts:
+      total: 900          # read-phase budget of a single attempt (seconds)
+      chunk_timeout: auto # wall-clock ceiling per chunk across all retries
+      connect: 10         # OpenAI-family only: TCP/TLS setup
+      write: 30           # OpenAI-family only: request upload
+      pool: 30            # OpenAI-family only: wait for a pooled connection
     retry:
       attempts: 8
+      timeout_attempts: 3 # smaller budget for request-timeout failures
 daily_token_limit:
   enabled: true
   daily_tokens: 9000000   # combined cap across tools (secondary guard)
@@ -438,6 +445,23 @@ daily token budgets (automatic reset at 00:01 UTC, one minute after
 OpenAI's 00:00 UTC free-tier reset).
 `max_concurrent_files` caps how many files run at once when the
 daily token limit is disabled (visual runs are clamped to 2).
+
+The per-phase HTTP timeouts apply to the OpenAI-family clients only
+(`openai`, `openrouter`, custom endpoints): `total` is the read budget of a
+single attempt, while `connect`, `write` and `pool` bound connection setup,
+request upload, and connection-pool waits (defaults 10/30/30 seconds). The
+Anthropic and Google wrappers require a plain float and keep the scalar
+`total`. `chunk_timeout` is a different kind of bound — a wall-clock ceiling
+for one chunk across all retry attempts combined; `auto` (the default)
+resolves to `total x timeout_attempts + 300` seconds of backoff headroom,
+3000 s under the values above, and `"off"` (quoted) or `0` disables it.
+`timeout_attempts` gives request timeouts their own, smaller retry budget,
+since a timed-out request is billed server-side but reports no usage.
+
+On Windows the kernel dead-peer detection that `TCP_USER_TIMEOUT` provides on
+Linux is unavailable, so the read timeout and the `chunk_timeout` watchdog are
+the only stall detectors. Keep `total` tight (120-300 seconds) unless you run
+`service_tier: flex`, where long silent server-side waits are expected.
 
 ### 6. API Key Mapping (`api_keys_config.yaml`, optional)
 
@@ -805,6 +829,24 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.12.0** (13 August 2026) -- Request-stall hardening. A configurable
+    per-chunk wall-clock watchdog (`timeouts.chunk_timeout`, default `auto`)
+    now bounds one chunk across all retry attempts and backoff sleeps
+    combined, so a single stalled request can no longer park a worker for
+    hours; request timeouts get their own smaller retry budget
+    (`retry.timeout_attempts`, default 3, classified by exception type with
+    cause-chain walking, so a bare `httpx.ReadTimeout` is retried at all),
+    while 429/5xx bodies -- including "gateway timeout" texts -- keep the
+    full attempt budget; the ChatOpenAI-family clients receive per-phase
+    HTTP timeouts (`timeouts.connect`/`write`/`pool`, defaults 10/30/30 s)
+    instead of a scalar that silently set the connect timeout to the full
+    read budget (Anthropic and Google keep the plain float their wrappers
+    require); the line-range readjuster's model calls gain the same bounded
+    retry-and-ceiling wrapper with graceful per-window degradation for
+    transient failures only; retry warnings now carry the file stem and are
+    echoed to the console. All new config keys default safely when absent;
+    a Windows dead-peer note documents why the read timeout and the
+    watchdog are the only stall detectors on win32.
 - **v2.11.0** (10 August 2026) -- Boundary refactor of the line-range
     generation workflow: the interactive file-selection helpers and the
     per-file processing loop (with chunk-slice application) moved from
