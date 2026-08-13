@@ -55,6 +55,7 @@ from modules.infra.token_tracker import (
 )
 from modules.line_ranges.readjuster import (
     LineRangeReadjuster,
+    ReadjustmentDegraded,
     ReadjustmentInterrupted,
 )
 from modules.ui.core import UserInterface
@@ -407,6 +408,17 @@ async def _adjust_files(
                 notifier(f"Stopped adjusting {text_file.name}: {exc}", "warning")
                 stopped.append(text_file)
                 stop_requested = True
+            except ReadjustmentDegraded as exc:
+                # Every model call for this file fell back to the neutral
+                # verdict, so its ranges are unchanged. Counting it as a
+                # success would hide a provider outage behind a clean run.
+                logger.error("Degraded adjustment for %s: %s", text_file.name, exc)
+                notifier(
+                    f"Failed to adjust {text_file.name}: every model call "
+                    f"degraded to the neutral fallback; ranges left unchanged.",
+                    "error",
+                )
+                failures.append((text_file, exc))
             except Exception as exc:  # pragma: no cover - defensive logging
                 logger.exception("Error adjusting %s", text_file)
                 notifier(f"Failed to adjust {text_file.name}: {exc}", "error")

@@ -9,13 +9,20 @@ from __future__ import annotations
 
 import asyncio
 import json
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import Any
+from unittest.mock import patch
 
 import httpx
 import pytest
 
 from modules.line_ranges import readjuster as readjuster_mod
-from modules.line_ranges.readjuster import LineRangeReadjuster
+from modules.line_ranges.readjuster import (
+    LineRangeReadjuster,
+    ReadjustmentDegraded,
+)
 
 pytestmark = pytest.mark.unit
 
@@ -225,3 +232,99 @@ async def test_constructor_without_concurrency_config_uses_loader(
 
     assert calls == 2
     _assert_unsure(payload)
+
+
+def _write_sample_files(tmp_path: Path) -> tuple[Path, Path]:
+    """Create a text file and a single-range line-ranges file."""
+    text_file = tmp_path / "sample.txt"
+    text_file.write_text(
+        "\n".join(f"Line {i}" for i in range(1, 41)) + "\n", encoding="utf-8"
+    )
+    lr_file = tmp_path / "sample_line_ranges.txt"
+    lr_file.write_text("(1, 20)\n", encoding="utf-8")
+    return text_file, lr_file
+
+
+@asynccontextmanager
+async def _noop_extractor(**_kwargs: Any) -> AsyncIterator[object]:
+    yield object()
+
+
+async def _adjust_file(adjuster: LineRangeReadjuster, tmp_path: Path) -> Any:
+    """Run a full per-file adjustment with the provider layer stubbed out."""
+    text_file, lr_file = _write_sample_files(tmp_path)
+    with (
+        patch("modules.line_ranges.readjuster.ProviderConfig") as mock_provider,
+        patch(
+            "modules.line_ranges.readjuster.open_extractor",
+            new_callable=lambda: _noop_extractor,
+        ),
+        patch(
+            "modules.line_ranges.readjuster.resolve_context_for_readjustment",
+            return_value=(None, None),
+        ),
+    ):
+        mock_provider._detect_provider.return_value = "openai"
+        mock_provider._get_api_key.return_value = "fake-key"
+        return await adjuster.ensure_adjusted_line_ranges(
+            text_file=text_file,
+            line_ranges_file=lr_file,
+            boundary_type="TestSchema",
+        )
+
+
+@pytest.mark.asyncio
+async def test_fully_degraded_file_raises(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A sustained outage must fail the file, not report untouched ranges as done."""
+
+    async def _stub(**_kwargs: Any) -> dict[str, Any]:
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(readjuster_mod, "process_text_chunk", _stub)
+    adjuster = _make_readjuster(concurrency_config=_concurrency_config(attempts=1))
+
+    with pytest.raises(ReadjustmentDegraded) as excinfo:
+        await _adjust_file(adjuster, tmp_path)
+
+    assert excinfo.value.file_name == "sample.txt"
+    assert excinfo.value.total > 0
+    assert excinfo.value.degraded == excinfo.value.total
+
+
+@pytest.mark.asyncio
+async def test_partial_degradation_warns_but_succeeds(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    """One degraded window among several is a warning, never a file failure."""
+    calls = 0
+
+    async def _stub(**_kwargs: Any) -> dict[str, Any]:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise httpx.ConnectError("connection refused")
+        return _ok_payload()
+
+    monkeypatch.setattr(readjuster_mod, "process_text_chunk", _stub)
+    adjuster = _make_readjuster(concurrency_config=_concurrency_config(attempts=1))
+
+    with caplog.at_level("WARNING", logger=readjuster_mod.__name__):
+        adjusted = await _adjust_file(adjuster, tmp_path)
+
+    assert adjusted == [(1, 20)]
+    assert calls == 2
+    assert any(
+        "degraded to the neutral fallback" in record.message
+        for record in caplog.records
+    )
+
+
+@pytest.mark.unit
+def test_clean_file_reports_nothing(caplog: pytest.LogCaptureFixture) -> None:
+    """No degraded call means no warning and no exception."""
+    counters = readjuster_mod._DegradationCounters(total=4, degraded=0)
+    with caplog.at_level("WARNING", logger=readjuster_mod.__name__):
+        LineRangeReadjuster._report_degradation(counters, Path("sample.txt"))
+    assert not caplog.records

@@ -4,6 +4,8 @@ import pytest
 from modules.llm.transient_errors import (
     ChunkTimeoutError,
     is_connection_error,
+    is_rate_limit_message,
+    is_server_error_message,
     is_timeout_error,
     resolve_chunk_timeout,
 )
@@ -171,3 +173,62 @@ def test_unsupported_type_disables_the_ceiling():
 @pytest.mark.unit
 def test_missing_config_uses_defaults():
     assert resolve_chunk_timeout(None, timeout_attempts=3) == 2100.0
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Error code: 429 - {'message': 'Rate limit reached'}",
+        "429 Too Many Requests",
+        "too many requests",
+        "{'code': 'rate_limit_exceeded'}",
+    ],
+)
+def test_rate_limit_messages_are_recognized(message):
+    assert is_rate_limit_message(message)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "message",
+    [
+        "you requested 132429 tokens",
+        "invalid character at position 429",
+        "Error code: 401 - invalid API key",
+        "hello",
+    ],
+)
+def test_non_rate_limit_messages_are_rejected(message):
+    assert not is_rate_limit_message(message)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "message",
+    [
+        "Error code: 502",
+        "503 Service Unavailable",
+        "upstream connect error",
+        "{'retryable': true}",
+        '{"retryable": true}',
+        "InternalServerError: something broke",
+        "Connection error.",
+        "connection reset by peer",
+    ],
+)
+def test_server_error_messages_are_recognized(message):
+    assert is_server_error_message(message)
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize(
+    "message",
+    [
+        "line 502 of file.py",
+        "hello",
+        "Error code: 401 - invalid API key",
+    ],
+)
+def test_non_server_error_messages_are_rejected(message):
+    assert not is_server_error_message(message)

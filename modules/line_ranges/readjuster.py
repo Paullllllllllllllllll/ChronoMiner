@@ -21,6 +21,7 @@ import re
 import unicodedata
 import uuid
 from collections.abc import Generator, Iterable, Sequence
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
@@ -58,6 +59,8 @@ from modules.llm.prompt_utils import (
 from modules.llm.transient_errors import (
     ChunkTimeoutError,
     is_connection_error,
+    is_rate_limit_message,
+    is_server_error_message,
     is_timeout_error,
     resolve_chunk_timeout,
 )
@@ -81,32 +84,48 @@ class ReadjustmentInterrupted(RuntimeError):
     """
 
 
+class ReadjustmentDegraded(RuntimeError):
+    """Every model call for a file fell back to the neutral verdict.
+
+    Under a sustained provider outage each window degrades on its own and
+    the file would otherwise finish "successfully" with untouched ranges.
+    Raised after the file completes so the caller records a failure instead
+    of reporting readjustment work that never happened. Partial degradation
+    is only a warning.
+    """
+
+    def __init__(self, file_name: str, degraded: int, total: int) -> None:
+        self.file_name = file_name
+        self.degraded = degraded
+        self.total = total
+        super().__init__(
+            f"all {total} model call(s) for {file_name} degraded to the neutral"
+            " fallback; the line ranges were left effectively unadjusted"
+        )
+
+
+@dataclass
+class _DegradationCounters:
+    """Per-file tally of model calls and neutral-fallback substitutions."""
+
+    total: int = 0
+    degraded: int = 0
+
+
+# Per-file scope for the counters above. A ContextVar rather than instance
+# state because one ``LineRangeReadjuster`` is shared across concurrently
+# processed files; each file runs in its own task and therefore its own
+# context copy. ``None`` means "not counting" (direct ``_run_model`` calls).
+_degradation_counters: ContextVar[_DegradationCounters | None] = ContextVar(
+    "readjuster_degradation_counters", default=None
+)
+
+
 # Upper bound on the number of lines sent in a single no-content verification
 # call. Ranges are chunk-sized (a few hundred lines) in practice; pathological
 # longer ranges are scanned in consecutive full-coverage windows of this size
 # rather than sampled with gaps.
 MAX_VERIFY_WINDOW_LINES = 1000
-
-# Status codes that mark a provider failure as transient. Both patterns are
-# context-gated on purpose: a blanket ``\b429\b`` or ``\b5\d{2}\b`` matches
-# stray numbers in an error body ("position 429") and would retry a
-# permanently failing request. Type-based classification
-# (``is_timeout_error`` / ``is_connection_error``) covers the transport side;
-# this is only the status-code fallback for stringified provider errors.
-_TRANSIENT_STATUS_RE = re.compile(
-    r"(?:status(?:[ _]?code)?|http|error[ _]?code|code)\s*[:=]?\s*(?:429|5\d{2})\b"
-    r"|\b429\b\s*(?:too many requests|rate limit)"
-    r"|\b5\d{2}\b\s*(?:internal server error|server error|bad gateway"
-    r"|service unavailable|gateway timeout)"
-    r"|too many requests"
-    r"|rate_limit",
-    re.IGNORECASE,
-)
-
-
-def _is_retryable_message(message: str) -> bool:
-    """Return ``True`` when a stringified error looks like a 429 or 5xx."""
-    return bool(_TRANSIENT_STATUS_RE.search(message))
 
 
 def _unsure_payload() -> dict[str, Any]:
@@ -451,7 +470,63 @@ class LineRangeReadjuster:
         first_n_chunks: int | None = None,
         last_n_chunks: int | None = None,
     ) -> list[tuple[int, int]]:
-        """Ensure the provided line ranges align with semantic boundaries."""
+        """Ensure the provided line ranges align with semantic boundaries.
+
+        Wraps the adjustment pass in a per-file degradation tally so that a
+        file whose every model call fell back to the neutral verdict is
+        reported as a failure rather than a silent no-op.
+        """
+        counters = _DegradationCounters()
+        token = _degradation_counters.set(counters)
+        try:
+            adjusted = await self._adjust_line_ranges(
+                text_file=text_file,
+                line_ranges_file=line_ranges_file,
+                dry_run=dry_run,
+                boundary_type=boundary_type,
+                retain_temp_jsonl=retain_temp_jsonl,
+                force_fresh=force_fresh,
+                first_n_chunks=first_n_chunks,
+                last_n_chunks=last_n_chunks,
+            )
+        finally:
+            _degradation_counters.reset(token)
+        self._report_degradation(counters, text_file)
+        return adjusted
+
+    @staticmethod
+    def _report_degradation(counters: _DegradationCounters, text_file: Path) -> None:
+        """Warn on partial degradation; raise when the whole file degraded."""
+        if counters.degraded <= 0:
+            return
+        logger.warning(
+            "%s: %d of %d model calls degraded to the neutral fallback",
+            text_file.name,
+            counters.degraded,
+            counters.total,
+        )
+        print(
+            f"[WARN] {text_file.name}: {counters.degraded} of {counters.total}"
+            f" model calls degraded to the neutral fallback"
+        )
+        if counters.degraded >= counters.total:
+            raise ReadjustmentDegraded(
+                text_file.name, counters.degraded, counters.total
+            )
+
+    async def _adjust_line_ranges(
+        self,
+        *,
+        text_file: Path,
+        line_ranges_file: Path | None = None,
+        dry_run: bool = False,
+        boundary_type: str | None = None,
+        retain_temp_jsonl: bool = True,
+        force_fresh: bool = False,
+        first_n_chunks: int | None = None,
+        last_n_chunks: int | None = None,
+    ) -> list[tuple[int, int]]:
+        """Run one adjustment pass over a file's line ranges."""
         text_file = text_file.resolve()
         if line_ranges_file is None:
             line_ranges_file = self._infer_line_ranges_file(text_file)
@@ -1481,6 +1556,11 @@ class LineRangeReadjuster:
             context_window=context_window,
             boundary_type=boundary_type,
         )
+        counters = _degradation_counters.get()
+        if counters is not None:
+            counters.total += 1
+            if response_payload is None:
+                counters.degraded += 1
         if response_payload is None:
             return _unsure_payload()
 
@@ -1551,7 +1631,9 @@ class LineRangeReadjuster:
                 except Exception as exc:  # Broad: provider errors are diverse
                     self._raise_if_ceiling_expired(exc, watchdog, label, ceiling)
                     message = str(exc)
-                    status_transient = _is_retryable_message(message)
+                    status_transient = is_rate_limit_message(
+                        message
+                    ) or is_server_error_message(message)
                     timed_out = is_timeout_error(exc)
                     if not (status_transient or timed_out or is_connection_error(exc)):
                         raise

@@ -50,6 +50,8 @@ from modules.llm.openai_utils import (
 from modules.llm.prompt_utils import PROMPTS_DIR
 from modules.llm.transient_errors import (
     ChunkTimeoutError,
+    is_rate_limit_message,
+    is_server_error_message,
     is_timeout_error,
     resolve_chunk_timeout,
 )
@@ -184,30 +186,6 @@ def _budget_deferred(idx: int) -> dict[str, Any]:
     return {"budget_deferred": True, "chunk_index": idx}
 
 
-# A 5xx status code counts as a transient server error, but ONLY when it
-# appears in a status/HTTP/error-code context or next to a canonical 5xx
-# reason phrase. The former blanket ``\b5\d{2}\b`` false-positived on any
-# stray number (e.g. "line 502 of file.py"), burning up to 25 retries on a
-# non-retryable error. Covers Cloudflare edge codes (520-526) too.
-_SERVER_ERROR_CODE_RE = re.compile(
-    r"(?:status(?:[ _]?code)?|http|error[ _]?code|code)\s*[:=]?\s*5\d{2}\b"
-    r"|\b5\d{2}\b\s*(?:internal server error|server error|bad gateway"
-    r"|service unavailable|gateway timeout|origin)",
-    re.IGNORECASE,
-)
-
-# Same context-gating for 429: the former blanket ``"429" in msg`` matched any
-# stray substring (e.g. "you requested 132429 tokens" or "position 429"),
-# retrying a permanently failing request for ~10 minutes and throttling the
-# shared rate limiter for every concurrent chunk of that provider.
-_RATE_LIMIT_CODE_RE = re.compile(
-    r"(?:status(?:[ _]?code)?|http|error[ _]?code|code)\s*[:=]?\s*429\b"
-    r"|\b429\b\s*(?:too many requests|rate limit)"
-    r"|too many requests",
-    re.IGNORECASE,
-)
-
-
 def classify_transient_error(
     message: str, exc: BaseException | None = None
 ) -> tuple[bool, bool, bool]:
@@ -229,11 +207,7 @@ def classify_transient_error(
         if not isinstance(status_code, int):
             status_code = None
 
-    is_429 = (
-        status_code == 429
-        or "rate_limit" in msg
-        or bool(_RATE_LIMIT_CODE_RE.search(message))
-    )
+    is_429 = status_code == 429 or is_rate_limit_message(message)
     # Type first, message second: a bare ``httpx.ReadTimeout`` stringifies to
     # the empty string, so a message-only test silently classified the most
     # common transport failure as non-retryable and gave up after one call.
@@ -243,21 +217,8 @@ def classify_transient_error(
         or "timeout" in msg
     )
     is_server_error = (
-        (status_code is not None and 500 <= status_code <= 599)
-        or bool(_SERVER_ERROR_CODE_RE.search(message))
-        or "internalservererror" in msg
-        or "upstream" in msg
-        # Cloudflare-style bodies self-declare retryability.
-        or "'retryable': true" in msg
-        or '"retryable": true' in msg
-        or ("connection" in msg and ("reset" in msg or "refused" in msg))
-        # openai SDK APIConnectionError stringifies to the bare message
-        # "Connection error." (transport-level failure, e.g. a stale
-        # keep-alive connection the server already closed). Always
-        # transient: a retry opens a fresh connection. Frequent under
-        # service_tier=flex, which closes connections after each response.
-        or "connection error" in msg
-    )
+        status_code is not None and 500 <= status_code <= 599
+    ) or is_server_error_message(message)
     return is_429, is_timeout, is_server_error
 
 

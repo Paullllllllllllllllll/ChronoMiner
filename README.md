@@ -1,4 +1,4 @@
-# ChronoMiner v2.12.0
+# ChronoMiner v2.13.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -829,6 +829,16 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.13.0** (13 August 2026) -- Retry-hardening follow-up. The 429/5xx
+    status-message classification is single-sourced in
+    `modules/llm/transient_errors.py` (`is_rate_limit_message` /
+    `is_server_error_message`), consumed by both the extraction strategy and
+    the line-range readjuster, so the two paths can no longer drift; the
+    readjuster now counts degraded windows per file, warns when some model
+    calls fell back to the neutral payload, and fails the file (new
+    `ReadjustmentDegraded`, routed to the CLI failure path with a non-zero
+    exit) when every call degraded, so a sustained provider outage can no
+    longer masquerade as a successful readjustment run.
 - **v2.12.0** (13 August 2026) -- Request-stall hardening. A configurable
     per-chunk wall-clock watchdog (`timeouts.chunk_timeout`, default `auto`)
     now bounds one chunk across all retry attempts and backoff sleeps
