@@ -52,8 +52,7 @@ logs/
 !/config/*.example.yaml
 
 # Environment variables
-.env
-.env.local
+.env*
 
 # Caches
 .mypy_cache/
@@ -68,3 +67,4 @@ logs/
 
 # Local scratch area (ad-hoc tests, backups)
 scratch/
+backup/

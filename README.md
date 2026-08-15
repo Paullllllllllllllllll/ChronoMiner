@@ -1,4 +1,4 @@
-# ChronoMiner v2.13.0
+# ChronoMiner v2.13.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -828,6 +828,14 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v2.13.1** (15 August 2026) -- Security patch and repository hygiene.
+  The lockfile now pins cryptography 50.0.0, closing CVE-2026-69247 in the
+  49.x series that the project picks up transitively, with no declared
+  constraint changed. The ignore rules collapse the separate `.env` and
+  `.env.local` entries into a single `.env*` glob so environment files for
+  any stage stay untracked, and add `backup/` alongside `scratch/` to keep
+  local archives out of the index. The full test suite passes unchanged.
 
 - **v2.13.0** (13 August 2026) -- Retry-hardening follow-up. The 429/5xx
     status-message classification is single-sourced in
