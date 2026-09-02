@@ -162,7 +162,7 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 7,
-                    "description": "Rate this piece of equipment on the culinary-historical spectrum, using the same reference frame as the recipe-level modernity_rating_1_7. 1 = equipment typical only of pre-modern kitchens (cauldron, spit, stone mortar); 4 = post-La Varenne era kitchen (c.1651+); 7 = equipment characteristic of the high classical professional kitchen (Escoffier era)."
+                    "description": "Position of this piece of equipment on the same fixed culinary-historical timeline as the recipe-level modernity_rating_1_7, judged from the equipment itself, never from the work's date: the same utensil receives the same score in every work. 1 = equipment typical only of pre-modern kitchens (cauldron, spit, stone mortar); 4 = post-La Varenne era kitchen (c.1651+: copper saucepans, bain-marie, sieves for stock work); 7 = equipment characteristic of the high classical professional kitchen (Escoffier era: ranges, salamanders, standardized moulds)."
                   }
                 },
                 "required": ["utensil_original", "utensil_modern_english", "utensil_specialization_rating_1_7", "utensil_modernity_rating_1_7"],
@@ -280,7 +280,7 @@
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "Position of the recipe on one fixed culinary-historical timeline shared by every work: 1 = archaic medieval; 2 = late medieval/early Renaissance; 3 = Renaissance cuisine; 4 = post-La Varenne transition (c.1651+); 5 = mature early modern; 6 = early classical (Careme era); 7 = high classical (Escoffier era). Use null if ambiguous or absent. Calibration: anchor on the work's date and style regime rather than defaulting to the middle of the scale — a routine recipe in a 19th-century professional or bourgeois cookbook normally sits at 5-6, a 16th-17th-century recipe with archaic markers at 2-3; reserve 4 for genuinely transitional evidence."
+                  "description": "TIME-INVARIANT position of the recipe on one fixed culinary-historical timeline, judged from the recipe's own technique, ingredient use, and structure, never from the work's date: the same recipe text receives the same score in a 1550 and an 1850 work. 1 = archaic medieval (pottage-and-spice register, bread thickening, verjuice and almond milk, no fat-based sauces); 2 = late medieval/early Renaissance; 3 = Renaissance cuisine (sugar-and-spice sweet-savory, egg and broth liaisons); 4 = post-La Varenne transition (butter and roux, stock-based sauces, bouquets of fresh herbs, reduced spicing); 5 = mature early modern (codified sauce families, ragouts, precise timings); 6 = early classical (Careme era: mother sauces, elaborate pastry architecture); 7 = high classical (Escoffier era: brigade-kitchen dishes, standardized garnish names). Use null when the text carries too little procedure to place it. Do not default to the middle of the scale."
                 },
                 "innovation_markers_observed": {
                   "type": "array",

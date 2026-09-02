@@ -219,3 +219,39 @@ class TestLoadPromptTemplate:
         result = load_prompt_template(prompt_file)
 
         assert result == "Line 1\n\nLine 2"
+
+
+def test_production_schema_rating_fields_are_time_invariant() -> None:
+    """Every 1-7 rating that spans the corpus timeline must be judged from the
+    entry itself, never from the work's date (v2.14.1 contract)."""
+    import json
+
+    schema_path = Path(__file__).resolve().parents[1] / "schemas"
+    schema = json.loads(
+        (schema_path / "historical_recipes_schema_production.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    entry = schema["schema"]["properties"]["entries"]["items"]["properties"]
+    descriptions = {
+        "modernity_rating_1_7": entry["culinary_style"]["properties"][
+            "modernity_rating_1_7"
+        ]["description"],
+        "utensil_modernity_rating_1_7": entry["utensils_equipment"]["items"][
+            "properties"
+        ]["utensil_modernity_rating_1_7"]["description"],
+        "ingredient_luxury_signal_rating_1_7": entry["ingredients"]["items"][
+            "properties"
+        ]["ingredient_luxury_signal_rating_1_7"]["description"],
+        "ingredient_trade_distance_rating_1_7": entry["ingredients"]["items"][
+            "properties"
+        ]["ingredient_trade_distance_rating_1_7"]["description"],
+        "ingredient_novelty_rating_1_7": entry["ingredients"]["items"]["properties"][
+            "ingredient_novelty_rating_1_7"
+        ]["description"],
+    }
+    for name, text in descriptions.items():
+        lowered = text.lower()
+        assert "work's" in lowered and ("date" in lowered or "period" in lowered), name
+        assert "normally sits" not in lowered, name
+        assert "anchor on the work" not in lowered, name

@@ -1,4 +1,4 @@
-# ChronoMiner v2.14.0
+# ChronoMiner v2.14.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -829,6 +829,7 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.14.1** (2 September 2026) -- Time-invariant modernity ratings. The production recipe schema's `modernity_rating_1_7` and `utensil_modernity_rating_1_7` descriptions are rewritten to be judged from the recipe's own technique, ingredient use, and structure (or the equipment itself), never from the work's date, with a marker example per epoch; the former calibration sentence that told the model where a recipe "normally sits" for a given publication century is removed, since it made the rating a transcription of the publication year (correlation 0.77 in the frozen WhatForDinner corpus). The two fields now follow the same TIME-INVARIANT contract as the luxury, trade-distance, and novelty ratings; schema name and shape are unchanged. A test guards the contract.
 - **v2.14.0** (2 September 2026) -- Prompt and schema cleanup for the
   GPT-5.6 family. The semantic-boundary prompt now names its unit as one
   entry defined in the rules block, labels that block "Rules for this corpus
