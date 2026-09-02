@@ -1,4 +1,4 @@
-# ChronoMiner v2.13.1
+# ChronoMiner v2.14.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -828,6 +828,19 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v2.14.0** (2 September 2026) -- Prompt and schema cleanup for the
+  GPT-5.6 family. The semantic-boundary prompt now names its unit as one
+  entry defined in the rules block, labels that block "Rules for this corpus
+  and work" instead of "Context", drops the "reason hard" phrasing, and
+  states the one-boolean rule once; the text-extraction prompt declares the
+  rules block binding. The context-section stripper in
+  `modules/llm/prompt_utils.py` accepts any one-line label before
+  `{{CONTEXT}}` so a renamed label never survives as an orphan. The
+  production recipe schema's recipe-level modernity anchors now use the same
+  seven-epoch timeline as the utensil modernity scale, removing a
+  contradiction with the corpus template. Tests cover the renamed label and
+  the shipped templates.
 
 - **v2.13.1** (15 August 2026) -- Security patch and repository hygiene.
   The lockfile now pins cryptography 50.0.0, closing CVE-2026-69247 in the

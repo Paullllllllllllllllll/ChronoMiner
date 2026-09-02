@@ -55,10 +55,10 @@ def render_prompt_with_schema(
             # Replace with actual context
             prompt_text = prompt_text.replace(context_placeholder, context.strip())
         else:
-            # Remove entire context section to save tokens
-            # Pattern: "Context:\n{{CONTEXT}}\n"
+            # Remove the whole context section (its one-line label ending in
+            # a colon plus the placeholder) so no orphaned header survives.
             prompt_text = re.sub(
-                r"Context:\s*\n\s*\{\{CONTEXT\}\}\s*\n?", "", prompt_text
+                r"(?m)^[^\n]*:[ \t]*\n\s*\{\{CONTEXT\}\}\s*\n?", "", prompt_text
             )
             # Fallback: just remove the placeholder
             prompt_text = prompt_text.replace(context_placeholder, "")

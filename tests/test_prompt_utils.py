@@ -94,6 +94,35 @@ class TestRenderPromptWithSchema:
         assert "More text" in rendered
 
     @pytest.mark.unit
+    def test_removes_renamed_context_label_when_empty(self):
+        """Any one-line label ending in a colon is dropped with the placeholder."""
+        prompt = "Prompt text\nRules for this corpus and work:\n{{CONTEXT}}\nMore text"
+        rendered = render_prompt_with_schema(
+            prompt, {}, inject_schema=False, context=None
+        )
+
+        assert "{{CONTEXT}}" not in rendered
+        assert "Rules for this corpus and work:" not in rendered
+        assert "More text" in rendered
+
+    @pytest.mark.unit
+    def test_shipped_templates_have_no_orphan_context_label(self):
+        """The bundled templates render without a dangling rules label."""
+        from modules.llm.prompt_utils import prompt_path
+
+        for name in ("text_extraction_prompt.txt", "semantic_boundary_prompt.txt"):
+            template = load_prompt_template(prompt_path(name))
+            rendered = render_prompt_with_schema(
+                template, {"type": "object"}, inject_schema=True, context=None
+            )
+            assert "{{CONTEXT}}" not in rendered
+            assert "Rules for this corpus and work:" not in rendered
+            rendered = render_prompt_with_schema(
+                template, {"type": "object"}, inject_schema=True, context="ctx"
+            )
+            assert "Rules for this corpus and work:\nctx" in rendered
+
+    @pytest.mark.unit
     def test_handles_empty_schema_name(self):
         """Test handling of empty schema name."""
         prompt = "Schema: {{SCHEMA_NAME}}"

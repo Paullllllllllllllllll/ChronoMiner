@@ -280,7 +280,7 @@
                   "type": ["integer", "null"],
                   "minimum": 1,
                   "maximum": 7,
-                  "description": "Position on the culinary-historical spectrum. 1 = late-medieval style; 4 = transitional; 7 = mature 18th/19th-c. haute cuisine. Use null if ambiguous or absent. Calibration: anchor on the work's date and style regime rather than defaulting to the middle of the scale — a routine recipe in a 19th-century professional or bourgeois cookbook normally sits at 5-6, a 16th-17th-century recipe with archaic markers at 2-3; reserve 4 for genuinely transitional evidence."
+                  "description": "Position of the recipe on one fixed culinary-historical timeline shared by every work: 1 = archaic medieval; 2 = late medieval/early Renaissance; 3 = Renaissance cuisine; 4 = post-La Varenne transition (c.1651+); 5 = mature early modern; 6 = early classical (Careme era); 7 = high classical (Escoffier era). Use null if ambiguous or absent. Calibration: anchor on the work's date and style regime rather than defaulting to the middle of the scale — a routine recipe in a 19th-century professional or bourgeois cookbook normally sits at 5-6, a 16th-17th-century recipe with archaic markers at 2-3; reserve 4 for genuinely transitional evidence."
                 },
                 "innovation_markers_observed": {
                   "type": "array",
