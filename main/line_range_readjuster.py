@@ -133,7 +133,7 @@ def parse_arguments() -> argparse.Namespace:
     )
     parser.add_argument(
         "--reasoning-effort",
-        choices=["low", "medium", "high", "xhigh", "none"],
+        choices=["low", "medium", "high", "xhigh", "max", "none"],
         help="Override extraction_model.reasoning.effort",
     )
     parser.add_argument(
@@ -321,6 +321,7 @@ async def _adjust_files(
             ranges_fingerprint=ranges_fingerprint,
             prompt_hash=readjuster.prompt_hash,
             context_hash=context_hash,
+            reasoning_effort=readjuster.reasoning_effort,
         ):
             notifier(
                 f"Skipping {text_file.name}: line ranges already adjusted "

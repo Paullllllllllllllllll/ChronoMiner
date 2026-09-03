@@ -1,4 +1,4 @@
-# ChronoMiner v2.14.1
+# ChronoMiner v2.14.2
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -256,7 +256,7 @@ python main/repair_extractions.py --schema BibliographicEntries
 --image-detail LEVEL       low | high | auto | original
 --input-type TYPE          Override auto-detection: text | image | pdf
 --model ID                 Override model
---reasoning-effort LEVEL   none | low | medium | high | xhigh
+--reasoning-effort LEVEL   none | low | medium | high | xhigh | max
 --chunk-size N             Override tokens per chunk
 --context MODE_OR_PATH     auto | none | /path/to/context.txt
 --context-image            Enable context image injection (see below)
@@ -829,6 +829,18 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.14.2** (3 September 2026) -- Readjuster resume safety and retry
+  economy. The temp JSONL header now records `reasoning_effort` (the effort
+  the run was made with, `None` for the model default) and the resume and
+  cost-trap checks compare it, so two runs of one model at different efforts
+  never resume from each other's artifact; headers written before this
+  release carry no field and keep resuming. A semantic marker that resolves
+  to real text PAST the range end is no longer treated as a mismatch: it
+  means the model found the next boundary and no boundary sits before the
+  end, so the readjuster advances to the next, wider window instead of
+  re-asking the same window up to `max_marker_mismatch_retries` times (the
+  audit trail records it as `marker_beyond_end`). `--reasoning-effort`
+  accepts `max` on both CLIs.
 - **v2.14.1** (2 September 2026) -- Time-invariant modernity ratings. The production recipe schema's `modernity_rating_1_7` and `utensil_modernity_rating_1_7` descriptions are rewritten to be judged from the recipe's own technique, ingredient use, and structure (or the equipment itself), never from the work's date, with a marker example per epoch; the former calibration sentence that told the model where a recipe "normally sits" for a given publication century is removed, since it made the rating a transcription of the publication year (correlation 0.77 in the frozen WhatForDinner corpus). The two fields now follow the same TIME-INVARIANT contract as the luxury, trade-distance, and novelty ratings; schema name and shape are unchanged. A test guards the contract.
 - **v2.14.0** (2 September 2026) -- Prompt and schema cleanup for the
   GPT-5.6 family. The semantic-boundary prompt now names its unit as one

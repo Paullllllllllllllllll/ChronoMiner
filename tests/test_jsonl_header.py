@@ -612,3 +612,104 @@ class TestAdjustmentCompleteContextHash:
     def test_context_hash_ignored_when_caller_none(self, tmp_path: Path) -> None:
         lr_file = self._setup(tmp_path, context_hash="ctx1")
         assert self._check(lr_file, None) is True
+
+
+# ---------------------------------------------------------------------------
+# reasoning_effort stamp
+# ---------------------------------------------------------------------------
+
+
+class TestReasoningEffortStamp:
+    """Two runs of one model at different efforts are different artifacts."""
+
+    @staticmethod
+    def _header(**overrides) -> dict:
+        h = {
+            "version": 2,
+            "ranges_fingerprint": "abc",
+            "total_ranges": 3,
+            "boundary_type": "B",
+            "model_name": "m",
+            "context_window": 6,
+            "prompt_hash": "phash",
+            "reasoning_effort": "high",
+        }
+        h.update(overrides)
+        return h
+
+    def _validate(self, header: dict, effort: str | None) -> bool:
+        return validate_jsonl_header(
+            header,
+            ranges_fingerprint="abc",
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
+            reasoning_effort=effort,
+        )
+
+    def test_build_stores_effort(self) -> None:
+        h = build_jsonl_header(
+            ranges_fingerprint="abc",
+            total_ranges=3,
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
+            reasoning_effort="medium",
+        )["jsonl_header"]
+        assert h["reasoning_effort"] == "medium"
+
+    def test_build_default_effort_is_none(self) -> None:
+        h = build_jsonl_header(
+            ranges_fingerprint="abc",
+            total_ranges=3,
+            boundary_type="B",
+            model_name="m",
+            context_window=6,
+        )["jsonl_header"]
+        assert "reasoning_effort" in h
+        assert h["reasoning_effort"] is None
+
+    def test_same_effort_matches(self) -> None:
+        assert self._validate(self._header(), "high") is True
+
+    def test_different_effort_rejected(self) -> None:
+        assert self._validate(self._header(), "medium") is False
+
+    def test_stored_effort_versus_default_rejected(self) -> None:
+        # A header written at "high" must not resume a default-effort run.
+        assert self._validate(self._header(), None) is False
+        # ... nor the other way round.
+        assert self._validate(self._header(reasoning_effort=None), "high") is False
+
+    def test_legacy_header_without_field_is_wildcard(self) -> None:
+        h = self._header()
+        del h["reasoning_effort"]
+        assert self._validate(h, "high") is True
+        assert self._validate(h, None) is True
+
+    def test_completion_check_honours_effort(self, tmp_path: Path) -> None:
+        lr = tmp_path / "w_line_ranges.txt"
+        _write_line_ranges(lr, [(1, 10), (11, 20)])
+        fp = compute_ranges_fingerprint(lr)
+        header = {
+            "jsonl_header": self._header(
+                ranges_fingerprint=fp,
+                final_ranges_fingerprint=fp,
+                completed_at="2026-09-03T00:00:00Z",
+            )
+        }
+        _write_jsonl(tmp_path / "w_line_ranges_adjust_temp.jsonl", [header])
+
+        def check(effort: str | None) -> bool:
+            return is_jsonl_adjustment_complete(
+                lr,
+                boundary_type="B",
+                context_window=6,
+                model_name="m",
+                ranges_fingerprint=fp,
+                reasoning_effort=effort,
+            )
+
+        assert check("high") is True
+        assert check("medium") is False
+        assert check(None) is False

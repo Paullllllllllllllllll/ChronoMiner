@@ -174,6 +174,7 @@ async def _adjust_line_ranges_workflow(
             ranges_fingerprint=compute_ranges_fingerprint(line_ranges_file),
             prompt_hash=readjuster.prompt_hash,
             context_hash=context_hash,
+            reasoning_effort=readjuster.reasoning_effort,
         ):
             if ui:
                 ui.print_info(

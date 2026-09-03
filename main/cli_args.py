@@ -248,10 +248,10 @@ Examples:
     parser.add_argument(
         "--reasoning-effort",
         type=str,
-        choices=["low", "medium", "high", "xhigh", "none"],
+        choices=["low", "medium", "high", "xhigh", "max", "none"],
         help=(
             "Override model_config.extraction_model.reasoning.effort for this run "
-            "(low|medium|high|xhigh|none)"
+            "(low|medium|high|xhigh|max|none)"
         ),
     )
     parser.add_argument(

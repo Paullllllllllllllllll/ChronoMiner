@@ -316,6 +316,12 @@ class LineRangeReadjuster:
 
         self.model_name = model_name
         self._model_config = model_config
+        # Effort level of this run, stamped into the temp JSONL header so two
+        # runs of the same model at different efforts never resume from each
+        # other. None means the model ran at its default.
+        reasoning_cfg = transcription_cfg.get("reasoning") or {}
+        effort = reasoning_cfg.get("effort") if isinstance(reasoning_cfg, dict) else ""
+        self.reasoning_effort: str | None = str(effort).strip() if effort else None
         # Provider: explicit config first (required for custom endpoints,
         # whose names are not auto-detectable), auto-detection as fallback.
         # Mirrors the extraction path in processing_strategy.
@@ -660,6 +666,7 @@ class LineRangeReadjuster:
                 retry_config=self.retry_config,
                 prompt_hash=prompt_hash,
                 context_hash=context_hash,
+                reasoning_effort=self.reasoning_effort,
             ):
                 completed_ids = extract_completed_ids(
                     temp_jsonl_path, id_pattern=_RANGE_ID_PATTERN
@@ -714,6 +721,7 @@ class LineRangeReadjuster:
                             prompt_hash=prompt_hash,
                             context_path=str(context_path) if context_path else None,
                             context_hash=context_hash,
+                            reasoning_effort=self.reasoning_effort,
                         )
                     )
 
@@ -1238,14 +1246,44 @@ class LineRangeReadjuster:
                 # ROUTE 3: Success -> Marker found with high certainty, validate and
                 # apply
                 else:
-                    candidate_range = self._validate_and_apply_decision(
+                    matched_line = self._resolve_marker_line(
                         decision=decision,
                         raw_lines=raw_lines,
                         context_window=window,
                         fallback_range=original_range,
                     )
-                    if candidate_range:
-                        adjusted_range = candidate_range
+                    if matched_line is not None and matched_line > original_range[1]:
+                        # The marker is real text but lies past the range end:
+                        # the model found the NEXT boundary, so no boundary
+                        # sits between this window's start and the range end.
+                        # Re-asking the same window (the mismatch path) only
+                        # burns the whole retry budget on the same answer;
+                        # advance to the next, wider window instead so the
+                        # search reaches further back.
+                        attempts.append(
+                            {
+                                "window": list(window),
+                                "window_index": window_idx,
+                                "decision_type": "marker_beyond_end",
+                                "certainty": decision.certainty,
+                                "semantic_marker": decision.semantic_marker,
+                                "marker_matched": False,
+                                "matched_line": matched_line,
+                            }
+                        )
+                        logger.info(
+                            "[Range %d, Window %d] Semantic marker '%s' lies at"
+                            " line %d, beyond the range end %d; no boundary"
+                            " before the end, trying next window",
+                            range_index,
+                            window_idx,
+                            decision.semantic_marker,
+                            matched_line,
+                            original_range[1],
+                        )
+                        break  # Move to next (larger) window
+                    if matched_line is not None:
+                        adjusted_range = (matched_line, original_range[1])
                         attempts.append(
                             {
                                 "window": list(window),
@@ -1741,6 +1779,32 @@ class LineRangeReadjuster:
                 raise ChunkTimeoutError(label, ceiling or 0.0) from exc
             raise
 
+    def _resolve_marker_line(
+        self,
+        *,
+        decision: BoundaryDecision,
+        raw_lines: Sequence[str],
+        context_window: tuple[int, int],
+        fallback_range: tuple[int, int],
+    ) -> int | None:
+        """Locate the decision's marker inside the window; ``None`` if absent.
+
+        Returns the matched line number without applying it: the caller
+        decides whether a match past the range end is a next-window signal
+        or (for :meth:`_validate_and_apply_decision`) a rejection.
+        """
+        if decision.semantic_marker is None or not decision.semantic_marker.strip():
+            return None
+
+        context_start, context_end = context_window
+        return self._match_boundary_text(
+            marker=decision.semantic_marker,
+            raw_lines=raw_lines,
+            search_start=context_start,
+            search_end=context_end,
+            nearest_to=fallback_range[0],
+        )
+
     def _validate_and_apply_decision(
         self,
         *,
@@ -1749,23 +1813,17 @@ class LineRangeReadjuster:
         context_window: tuple[int, int],
         fallback_range: tuple[int, int],
     ) -> tuple[int, int] | None:
-        if decision.semantic_marker is None or not decision.semantic_marker.strip():
-            return None
-
-        context_start, context_end = context_window
-        matched_line = self._match_boundary_text(
-            marker=decision.semantic_marker,
+        matched_line = self._resolve_marker_line(
+            decision=decision,
             raw_lines=raw_lines,
-            search_start=context_start,
-            search_end=context_end,
-            nearest_to=fallback_range[0],
+            context_window=context_window,
+            fallback_range=fallback_range,
         )
         if matched_line is None:
             return None
 
         # Only the start boundary is adjusted; the original end is kept. A
-        # match beyond the end would invert the range, so reject it and let
-        # the mismatch-retry loop request another marker.
+        # match beyond the end would invert the range, so reject it.
         new_start = matched_line
         new_end = fallback_range[1]
         if new_start > new_end:

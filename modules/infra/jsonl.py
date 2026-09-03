@@ -141,6 +141,7 @@ def build_jsonl_header(
     prompt_hash: str | None = None,
     context_path: str | None = None,
     context_hash: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> dict[str, Any]:
     """Construct a JSONL header record for a line-range adjustment run.
 
@@ -153,7 +154,10 @@ def build_jsonl_header(
     ``context_path`` is informational only -- it changes whenever the campaign
     directory moves, so it cannot serve as a staleness key. ``context_hash``
     is the comparison key: an opaque digest of the resolved context string,
-    compared on resume the same way ``prompt_hash`` is.
+    compared on resume the same way ``prompt_hash`` is. ``reasoning_effort``
+    is the effort level the run was made with (``None`` when the model ran at
+    its default); two runs of the same model at different efforts are
+    different artifacts and must not resume from each other.
     """
     return {
         "jsonl_header": {
@@ -162,6 +166,7 @@ def build_jsonl_header(
             "total_ranges": total_ranges,
             "boundary_type": boundary_type,
             "model_name": model_name,
+            "reasoning_effort": reasoning_effort,
             "context_window": context_window,
             "matching_config": matching_config,
             "retry_config": retry_config,
@@ -204,17 +209,26 @@ def _header_fields_match(
     context_window: int,
     matching_config: dict[str, Any] | None = None,
     retry_config: dict[str, Any] | None = None,
+    reasoning_effort: str | None = None,
 ) -> bool:
     """Compare the config fields shared by both JSONL header checks.
 
     ``matching_config`` and ``retry_config`` are compared only when the caller
-    supplies a non-None value.
+    supplies a non-None value. ``reasoning_effort`` is compared strictly
+    (``None`` meaning "model default") whenever the header carries the field;
+    legacy headers written before it existed carry no such field and are
+    accepted as a wildcard.
     """
     if header.get("boundary_type") != boundary_type:
         return False
     if header.get("model_name") != model_name:
         return False
     if header.get("context_window") != context_window:
+        return False
+    if (
+        "reasoning_effort" in header
+        and header.get("reasoning_effort") != reasoning_effort
+    ):
         return False
     if matching_config is not None and header.get("matching_config") != matching_config:
         return False
@@ -240,6 +254,7 @@ def validate_jsonl_header(
     retry_config: dict[str, Any] | None = None,
     prompt_hash: str | None = None,
     context_hash: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> bool:
     """Check whether a JSONL header matches the current run settings.
 
@@ -247,7 +262,8 @@ def validate_jsonl_header(
     ``context_hash`` are compared only when both the header and the caller
     supply a non-None value; legacy headers written before context hashing
     existed carry no ``context_hash`` and are accepted (wildcard), so they
-    keep resuming rather than being force-re-run.
+    keep resuming rather than being force-re-run. ``reasoning_effort`` follows
+    the same legacy rule (see :func:`_header_fields_match`).
     """
     if header.get("version") != _JSONL_HEADER_VERSION:
         return False
@@ -270,6 +286,7 @@ def validate_jsonl_header(
         context_window=context_window,
         matching_config=matching_config,
         retry_config=retry_config,
+        reasoning_effort=reasoning_effort,
     ):
         return False
     return _optional_hash_matches(
@@ -391,6 +408,7 @@ def is_jsonl_adjustment_complete(
     ranges_fingerprint: str | None = None,
     prompt_hash: str | None = None,
     context_hash: str | None = None,
+    reasoning_effort: str | None = None,
 ) -> bool:
     """Check whether a completed adjustment JSONL exists with matching settings.
 
@@ -448,6 +466,7 @@ def is_jsonl_adjustment_complete(
         context_window=context_window,
         matching_config=matching_config,
         retry_config=retry_config,
+        reasoning_effort=reasoning_effort,
     )
 
 
