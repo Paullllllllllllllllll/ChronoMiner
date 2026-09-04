@@ -49,7 +49,7 @@ from modules.infra.token_tracker import (
     check_and_wait_for_token_limit,
     get_token_tracker,
 )
-from modules.llm.langchain_provider import ProviderConfig
+from modules.llm.langchain_provider import ProviderConfig, ProviderType
 from modules.llm.openai_utils import LLMExtractor, open_extractor, process_text_chunk
 from modules.llm.prompt_utils import (
     PROMPTS_DIR,
@@ -610,12 +610,13 @@ class LineRangeReadjuster:
         # Provider resolved at construction (explicit config first); get the
         # matching API key.
         provider = self.provider
-        api_key = ProviderConfig._get_api_key(provider)
-        if not api_key:
+        resolved_key = ProviderConfig._get_api_key(provider)
+        if not resolved_key:
             raise RuntimeError(
                 f"API key not found for provider {provider}."
                 " Set the appropriate environment variable."
             )
+        api_key: str = resolved_key
 
         # Resolve unified context using hierarchical resolution
         context, context_path = resolve_context_for_readjustment(
@@ -698,14 +699,25 @@ class LineRangeReadjuster:
         # the line-ranges file is left untouched for a later resume.
         tracker = get_token_tracker()
         budget_cancelled = False
+        # The serving key's env-var NAME (never the secret), so reservations
+        # land in the same per-key pool bucket the extractor's add_tokens()
+        # stamps and the per-key caps gate this run, not only the combined
+        # cap. Re-resolved after every budget wait: a key switched mid-wait
+        # (auto key switch or a manual remap) must rebuild the extractor,
+        # which otherwise keeps billing the exhausted key.
+        key_env = self._resolve_key_env(provider)
 
-        async with open_extractor(
-            api_key=api_key,
-            prompt_path=self.prompt_path,
-            model=self.model_name,
-            provider=provider,
-            model_config_override=self._model_config,
-        ) as extractor:
+        def _open() -> Any:
+            return open_extractor(
+                api_key=api_key,
+                prompt_path=self.prompt_path,
+                model=self.model_name,
+                provider=provider,
+                model_config_override=self._model_config,
+            )
+
+        async with contextlib.AsyncExitStack() as stack:
+            extractor = await stack.enter_async_context(_open())
             with JsonlWriter(temp_jsonl_path, mode=file_mode) as writer:
                 # Write header as first record on fresh start
                 if file_mode == "w":
@@ -746,19 +758,41 @@ class LineRangeReadjuster:
                     # exhausted, wait for the 00:01 UTC reset and retry the same
                     # range. Ranges run sequentially, so no cross-range
                     # coordination is needed. No-op when the limit is disabled.
-                    reserved = tracker.try_reserve()
+                    reserved = tracker.try_reserve(
+                        provider=provider, key_env=key_env, model=self.model_name
+                    )
                     while reserved is None:
-                        if not tracker.is_limit_reached():
-                            # Remaining budget is positive but below the
-                            # per-range estimate; waiting cannot help until the
-                            # 00:01 UTC reset and the estimate may exceed this
-                            # range's actual cost, so proceed (overshoot <= one
-                            # range).
-                            break
-                        if not await check_and_wait_for_token_limit(logger=logger):
+                        # Reservation-aware wait (as on the extraction path):
+                        # a per-key pool block first tries the next key in the
+                        # chain and otherwise waits for the 00:01 UTC reset,
+                        # instead of overshooting the cap by one range.
+                        if not await check_and_wait_for_token_limit(
+                            logger=logger, reservation_aware=True
+                        ):
                             budget_cancelled = True
                             break
-                        reserved = tracker.try_reserve()
+                        new_key_env = self._resolve_key_env(provider)
+                        if new_key_env != key_env:
+                            logger.info(
+                                "Active %s key changed (%s -> %s); rebuilding"
+                                " the extractor on the new key",
+                                provider,
+                                key_env,
+                                new_key_env,
+                            )
+                            key_env = new_key_env
+                            new_api_key = ProviderConfig._get_api_key(provider)
+                            if not new_api_key:
+                                raise RuntimeError(
+                                    f"API key not found for provider {provider}"
+                                    f" after switching to {new_key_env}."
+                                )
+                            api_key = new_api_key
+                            await stack.aclose()
+                            extractor = await stack.enter_async_context(_open())
+                        reserved = tracker.try_reserve(
+                            provider=provider, key_env=key_env, model=self.model_name
+                        )
                     if budget_cancelled:
                         break
 
@@ -772,7 +806,12 @@ class LineRangeReadjuster:
                             context=context,
                         )
                     finally:
-                        tracker.release(reserved or 0)
+                        tracker.release(
+                            reserved or 0,
+                            provider=provider,
+                            key_env=key_env,
+                            model=self.model_name,
+                        )
                     total_llm_calls += result.total_llm_calls
 
                     # Persist to temp JSONL immediately
@@ -927,6 +966,19 @@ class LineRangeReadjuster:
                 logger.info("Removed temp JSONL: %s", temp_jsonl_path)
 
         return adjusted_ranges
+
+    @staticmethod
+    def _resolve_key_env(provider: ProviderType) -> str | None:
+        """Env-var NAME of the provider's active key, or ``None``.
+
+        Best-effort: a resolution failure (or a non-string result) degrades
+        to unattributed accounting, exactly as on the extraction path.
+        """
+        try:
+            key_env = ProviderConfig.resolve_key_env_var(provider)
+        except Exception:
+            return None
+        return key_env if isinstance(key_env, str) and key_env else None
 
     @staticmethod
     def _rebuild_ranges_from_jsonl(

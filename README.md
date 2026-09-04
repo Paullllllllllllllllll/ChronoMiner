@@ -1,4 +1,4 @@
-# ChronoMiner v2.14.2
+# ChronoMiner v2.14.3
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -829,6 +829,14 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.14.3** (4 September 2026) -- Readjuster per-key budget accounting.
+  Range reservations, releases, and usage are now stamped with provider,
+  key env-var name, and model, so the per-key pool caps gate a readjustment
+  run instead of only the combined daily cap. The budget wait is
+  reservation-aware, matching the extraction path, and the active key is
+  re-resolved after every wait: when it changed, the extractor is rebuilt on
+  the new key rather than continuing on the exhausted one. Covered by
+  `tests/test_readjuster_key_switch.py`.
 - **v2.14.2** (3 September 2026) -- Readjuster resume safety and retry
   economy. The temp JSONL header now records `reasoning_effort` (the effort
   the run was made with, `None` for the model default) and the resume and
