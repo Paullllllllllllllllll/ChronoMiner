@@ -1,4 +1,4 @@
-# ChronoMiner v2.14.3
+# ChronoMiner v2.14.4
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -829,6 +829,14 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.14.4** (4 September 2026) -- Readjuster overlap resolver merges
+  ranges that resolve to the same start. A continuation chunk of a long entry
+  snaps back onto the open entry's title, so two consecutive ranges end up
+  with the same start; the resolver used to trim the first to a one-line
+  title stub and shift the second forward, leaving a headless body (about
+  1 % of ranges on the September GT legs). Such pairs are one entry and are
+  now merged into a single range. Plain overlaps are still resolved by
+  trimming the previous end. Covered by `tests/test_readjuster_overlap_merge.py`.
 - **v2.14.3** (4 September 2026) -- Readjuster per-key budget accounting.
   Range reservations, releases, and usage are now stamped with provider,
   key env-var name, and model, so the per-key pool caps gate a readjustment

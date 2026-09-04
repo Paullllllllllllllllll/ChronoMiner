@@ -2125,6 +2125,9 @@ class LineRangeReadjuster:
 
         This preserves the semantic start boundaries identified by the LLM
         while ensuring no overlaps exist. Gaps are acceptable and expected.
+        Two ranges that resolve to the same start (or a later range that
+        starts before the previous one) are one entry and are merged into a
+        single range rather than trimmed to a one-line stub.
 
         Args:
             ranges: List of (start, end) tuples, assumed to be in sequential order
@@ -2170,6 +2173,29 @@ class LineRangeReadjuster:
 
             if processed:
                 previous = processed[-1]
+
+                if current_start <= previous["start"]:
+                    # Both ranges resolved to the same entry start (a
+                    # continuation chunk snapped back onto the open entry's
+                    # title). Trimming would leave a one-line title stub and a
+                    # headless body; the ranges are one entry, so merge them.
+                    merged_end = max(previous["end"], current_end)
+                    logger.info(
+                        "Merged range (%d, %d) into preceding range (%d, %d):"
+                        " both start at line %d; combined range (%d, %d)",
+                        original_start,
+                        original_end,
+                        previous["original_start"],
+                        previous["original_end"],
+                        previous["start"],
+                        previous["start"],
+                        merged_end,
+                    )
+                    previous["end"] = merged_end
+                    previous["original_end"] = max(
+                        previous["original_end"], original_end
+                    )
+                    continue
 
                 if previous["end"] >= current_start:
                     trimmed_prev_end = min(
