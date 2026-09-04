@@ -338,7 +338,7 @@ class TestCM8SlicedResumeFingerprintChain:
             )
         assert processed == [1, 2]
         # The sliced run rewrote the file in place with adjusted ranges 1-2.
-        assert lr_file.read_text(encoding="utf-8") == "(3, 10)\n(13, 20)\n(21, 30)\n"
+        assert lr_file.read_text(encoding="utf-8") == "(1, 10)\n(13, 20)\n(21, 30)\n"
 
         with (
             self._run_patches(readjuster, mock_process),
@@ -361,7 +361,7 @@ class TestCM8SlicedResumeFingerprintChain:
         ]
         assert drift_warnings == []
         # The final file keeps the sliced adjustments and adds range 3's.
-        assert lr_file.read_text(encoding="utf-8") == "(3, 10)\n(13, 20)\n(23, 30)\n"
+        assert lr_file.read_text(encoding="utf-8") == "(1, 10)\n(13, 20)\n(23, 30)\n"
         # The now-complete artifact is finalized.
         header = read_jsonl_header(tmp_path / "sample_line_ranges_adjust_temp.jsonl")
         assert header is not None

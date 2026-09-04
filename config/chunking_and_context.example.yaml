@@ -56,6 +56,12 @@ retry:
   max_gap_between_ranges: 2        # Maximum unassigned lines allowed between ranges
                                    # Set to 0 for flush ranges; increase for looser
                                    # alignment. Never re-covers deleted no-content ranges.
+  min_range_lines: 3               # After overlap trimming, a range this short or shorter
+                                   # (a title cut off from its body) is merged with its
+                                   # neighbour instead of being kept as a stub; 0 disables
+  anchor_first_range_to_file_start: true  # Pull the first surviving range back to line 1
+                                   # unless the model deleted the first range, so a
+                                   # forward snap on range 1 cannot drop the file head
   # scan_range_multiplier is deprecated and ignored: no-content verification
   # now scans the whole range interior, and window expansion is derived from
   # the retry budgets above.

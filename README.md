@@ -1,4 +1,4 @@
-# ChronoMiner v2.14.5
+# ChronoMiner v2.14.6
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -829,6 +829,10 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.14.6** (4 September 2026) -- Follow-up to v2.14.5: update the sliced-resume
+  fingerprint tests to the anchored first range, which v2.14.5 had left failing,
+  and document `min_range_lines` and `anchor_first_range_to_file_start` in the
+  example chunking config.
 - **v2.14.5** (4 September 2026) -- Three readjuster post-processing guards,
   found by the QC of the first full-corpus luna run. A range that overlap
   trimming would cut down to `min_range_lines` (default 3) or fewer, a title
