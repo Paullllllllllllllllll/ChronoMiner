@@ -394,6 +394,13 @@ class LineRangeReadjuster:
             "max_marker_mismatch_retries", 2
         )
 
+        # Post-processing guards (see _remove_overlaps / _anchor_first_range):
+        # a trimmed range shorter than min_range_lines is merged into its
+        # neighbour, and the first surviving range is anchored to line 1.
+        self.min_range_lines = max(0, int(self.retry_config.get("min_range_lines", 3)))
+        self.anchor_first_range_to_file_start = bool(
+            self.retry_config.get("anchor_first_range_to_file_start", True)
+        )
         max_gap_setting = self.retry_config.get("max_gap_between_ranges")
         if max_gap_setting is None:
             self.max_gap_between_ranges: int | None = None
@@ -906,10 +913,17 @@ class LineRangeReadjuster:
         # silently undone for every interior deleted range.
         deleted_spans = [ranges[i] for i in ranges_to_delete if 0 <= i < len(ranges)]
 
-        adjusted_ranges = self._remove_overlaps(adjusted_ranges)
+        adjusted_ranges = self._remove_overlaps(
+            adjusted_ranges, min_range_lines=self.min_range_lines
+        )
 
         if self.max_gap_between_ranges is not None:
             adjusted_ranges = self._enforce_max_gap(adjusted_ranges, deleted_spans)
+
+        if self.anchor_first_range_to_file_start:
+            adjusted_ranges = self._anchor_first_range(
+                adjusted_ranges, ranges, ranges_to_delete
+            )
 
         if ranges_to_delete:
             logger.info(
@@ -2116,7 +2130,38 @@ class LineRangeReadjuster:
                 tmp_path.unlink(missing_ok=True)
 
     @staticmethod
-    def _remove_overlaps(ranges: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    def _anchor_first_range(
+        ranges: list[tuple[int, int]],
+        original_ranges: Sequence[tuple[int, int]],
+        deleted_indices: Sequence[int],
+    ) -> list[tuple[int, int]]:
+        """Pull the first surviving range back to the file start.
+
+        A forward snap on the first range has no preceding range to absorb
+        the lines above the new start, so they would drop out of every
+        chunk. Unless the model deleted the first mechanical range (no entry
+        content at all), the first kept range starts at line 1; the extra
+        head is either non-entry matter the extractor ignores or the headless
+        opening of an entry that would otherwise be lost.
+        """
+        if not ranges or not original_ranges or 0 in set(deleted_indices):
+            return ranges
+        first_start = original_ranges[0][0]
+        start, end = ranges[0]
+        if start > first_start:
+            logger.info(
+                "Anchored first range (%d, %d) to the file start %d",
+                start,
+                end,
+                first_start,
+            )
+            return [(first_start, end)] + ranges[1:]
+        return ranges
+
+    @staticmethod
+    def _remove_overlaps(
+        ranges: list[tuple[int, int]], min_range_lines: int = 0
+    ) -> list[tuple[int, int]]:
         """
         Remove overlaps from a list of line ranges by adjusting end boundaries.
 
@@ -2127,7 +2172,10 @@ class LineRangeReadjuster:
         while ensuring no overlaps exist. Gaps are acceptable and expected.
         Two ranges that resolve to the same start (or a later range that
         starts before the previous one) are one entry and are merged into a
-        single range rather than trimmed to a one-line stub.
+        single range rather than trimmed to a one-line stub; the same holds
+        when trimming would leave the previous range with at most
+        ``min_range_lines`` lines (a title stub cut off from its body). A
+        range enclosed by its predecessor inherits the predecessor's end.
 
         Args:
             ranges: List of (start, end) tuples, assumed to be in sequential order
@@ -2174,7 +2222,27 @@ class LineRangeReadjuster:
             if processed:
                 previous = processed[-1]
 
-                if current_start <= previous["start"]:
+                # A later range that snapped far back can lie entirely inside
+                # the previous one; the previous range's tail must not be lost
+                # when its end is trimmed, so the enclosed range takes it over.
+                if previous["end"] > current_end:
+                    logger.info(
+                        "Range (%d, %d) enclosed by preceding range (%d, %d);"
+                        " extending its end to %d",
+                        original_start,
+                        original_end,
+                        previous["original_start"],
+                        previous["original_end"],
+                        previous["end"],
+                    )
+                    current_end = previous["end"]
+
+                would_stub = (
+                    min_range_lines > 0
+                    and previous["end"] >= current_start
+                    and current_start - previous["start"] <= min_range_lines
+                )
+                if current_start <= previous["start"] or would_stub:
                     # Both ranges resolved to the same entry start (a
                     # continuation chunk snapped back onto the open entry's
                     # title). Trimming would leave a one-line title stub and a

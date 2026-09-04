@@ -1,4 +1,4 @@
-# ChronoMiner v2.14.4
+# ChronoMiner v2.14.5
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -829,6 +829,15 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.14.5** (4 September 2026) -- Three readjuster post-processing guards,
+  found by the QC of the first full-corpus luna run. A range that overlap
+  trimming would cut down to `min_range_lines` (default 3) or fewer, a title
+  stub cut off from its body, is merged with its neighbour; a range that
+  snapped back inside its predecessor inherits the predecessor's end instead
+  of dropping the enclosed tail; and the first surviving range is anchored to
+  line 1 (`anchor_first_range_to_file_start`) unless the model deleted the
+  first range, so a forward snap on range 1 cannot drop the file head. Both
+  knobs live under `retry:` in `chunking_and_context.yaml`.
 - **v2.14.4** (4 September 2026) -- Readjuster overlap resolver merges
   ranges that resolve to the same start. A continuation chunk of a long entry
   snaps back onto the open entry's title, so two consecutive ranges end up
