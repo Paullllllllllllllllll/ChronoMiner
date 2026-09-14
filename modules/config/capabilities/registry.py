@@ -352,6 +352,15 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
     # temperature/top_p/top_k and thinking budget_tokens (HTTP 400); adaptive
     # thinking + effort replace them, so supports_sampler_controls=False.
     (
+        ("claude-opus-5",),
+        "claude-opus-5",
+        _ANTHROPIC_BASE,
+        dict(
+            max_output_tokens=128000,
+            supports_sampler_controls=False,
+        ),
+    ),
+    (
         ("claude-fable-5",),
         "claude-fable-5",
         _ANTHROPIC_BASE,
@@ -518,6 +527,24 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
     # Gemini 3.5 Flash (GA 2026-07-09): vision + PDF, media_resolution
     # low/medium/high/ultra_high, thinking_level minimal..high. The 2.5 family
     # below retires 2026-10-16; entries retained until then.
+    (
+        ("gemini-3.7-flash",),
+        "gemini-3.7-flash",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            supports_sampler_controls=False,
+        ),
+    ),
+    (
+        ("gemini-3.6-flash",),
+        "gemini-3.6-flash",
+        _GOOGLE_BASE,
+        dict(
+            is_reasoning_model=True,
+            supports_sampler_controls=False,
+        ),
+    ),
     (
         ("gemini-3.5-flash",),
         "gemini-3.5-flash",

@@ -737,6 +737,7 @@ class LangChainLLM:
                         "medium": "medium",
                         "high": "high",
                         "xhigh": "high",
+                        "max": "high",
                     }
                     level = level_map.get(effort.lower().strip(), "medium")
                     google_params["thinking_level"] = level

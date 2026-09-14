@@ -1,4 +1,4 @@
-# ChronoMiner v2.14.6
+# ChronoMiner v2.15.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -829,6 +829,11 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v2.15.0** (14 September 2026) -- Register `claude-opus-5`,
+  `gemini-3.7-flash`, and `gemini-3.6-flash` in the capability registry
+  with sampler controls disabled, so they no longer fall through to the
+  bare provider defaults; map the `max` reasoning-effort level to the
+  Gemini `high` thinking level in the LangChain provider.
 - **v2.14.6** (4 September 2026) -- Follow-up to v2.14.5: update the sliced-resume
   fingerprint tests to the anchored first range, which v2.14.5 had left failing,
   and document `min_range_lines` and `anchor_first_range_to_file_start` in the
