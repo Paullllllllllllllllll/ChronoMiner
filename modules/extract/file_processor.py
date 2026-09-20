@@ -155,7 +155,7 @@ def mirrored_output_subdir(file_path: Path, input_root: Path | None) -> Path:
 
     Pure path arithmetic (no filesystem access), shared by the real output
     setup in :meth:`FileProcessor._setup_output_paths` and by the ``--dry-run``
-    planner in ``main/process_text_files.py`` so both report the same layout.
+    planner in ``main/extract.py`` so both report the same layout.
     Files outside *input_root* (or with no root at all) mirror to the output
     root itself.
     """

@@ -1,6 +1,6 @@
 """Build per-run effective configs from base YAML config plus CLI overrides.
 
-Extracted from ``main/process_text_files.py``. These helpers compose the
+Extracted from ``main/extract.py``. These helpers compose the
 runtime configuration for a single extraction run: they deep-copy the loaded
 YAML and overlay any CLI-argument overrides (``--model``,
 ``--max-output-tokens``, ``--reasoning-effort``, ``--verbosity``,

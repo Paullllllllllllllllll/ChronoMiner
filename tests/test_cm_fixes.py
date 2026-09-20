@@ -668,7 +668,7 @@ class TestCM9ResumeBackNavigation:
         """At least one select_option call is made with allow_back=True."""
         import ast
 
-        from main.process_text_files import _run_interactive_mode
+        from main.extract import _run_interactive_mode
 
         tree = self._source_ast(_run_interactive_mode)
         found = False
@@ -700,7 +700,7 @@ class TestCM9ResumeBackNavigation:
         """Back navigation assigns current_step to the string 'batch'."""
         import ast
 
-        from main.process_text_files import _run_interactive_mode
+        from main.extract import _run_interactive_mode
 
         tree = self._source_ast(_run_interactive_mode)
         found = False
@@ -727,7 +727,7 @@ class TestCM10ExistingOutputPreCheck:
     @pytest.mark.unit
     def test_count_zero_when_no_outputs_exist(self, tmp_path):
         """Returns 0 when no output files exist."""
-        from main.process_text_files import _count_existing_outputs
+        from main.extract import _count_existing_outputs
 
         files = [tmp_path / "a.txt", tmp_path / "b.txt"]
         paths_config = {"general": {"input_paths_is_output_path": True}}
@@ -737,7 +737,7 @@ class TestCM10ExistingOutputPreCheck:
     @pytest.mark.unit
     def test_count_correct_when_some_outputs_exist(self, tmp_path):
         """Returns correct count when some output files exist."""
-        from main.process_text_files import _count_existing_outputs
+        from main.extract import _count_existing_outputs
 
         f1 = tmp_path / "doc1.txt"
         f2 = tmp_path / "doc2.txt"
@@ -752,7 +752,7 @@ class TestCM10ExistingOutputPreCheck:
     @pytest.mark.unit
     def test_count_with_separate_output_dir(self, tmp_path):
         """Returns correct count when output is in a separate directory."""
-        from main.process_text_files import _count_existing_outputs
+        from main.extract import _count_existing_outputs
 
         out_dir = tmp_path / "output"
         out_dir.mkdir()
@@ -832,7 +832,7 @@ class TestCM11GatherReturnExceptions:
     @pytest.mark.unit
     def test_gather_return_exceptions_true(self):
         """_run_interactive_mode calls asyncio.gather(return_exceptions=True)."""
-        from main.process_text_files import _run_interactive_mode
+        from main.extract import _run_interactive_mode
 
         assert self._gather_has_return_exceptions_true(_run_interactive_mode), (
             "_run_interactive_mode must call asyncio.gather with return_exceptions=True"
@@ -841,7 +841,7 @@ class TestCM11GatherReturnExceptions:
     @pytest.mark.unit
     def test_cli_gather_return_exceptions_true(self):
         """_run_cli_mode calls asyncio.gather(return_exceptions=True)."""
-        from main.process_text_files import _run_cli_mode
+        from main.extract import _run_cli_mode
 
         assert self._gather_has_return_exceptions_true(_run_cli_mode), (
             "_run_cli_mode must call asyncio.gather with return_exceptions=True"
@@ -859,9 +859,9 @@ class TestCM11GatherReturnExceptions:
         import ast
         import inspect
 
-        from main import process_text_files
+        from main import extract
 
-        tree = ast.parse(inspect.getsource(process_text_files).lstrip())
+        tree = ast.parse(inspect.getsource(extract).lstrip())
         found = False
         for node in ast.walk(tree):
             if not (
@@ -878,7 +878,7 @@ class TestCM11GatherReturnExceptions:
                 found = True
                 break
         assert found, (
-            "process_text_files must type-check gather results against "
+            "extract must type-check gather results against "
             "Exception to log rather than silently drop failures"
         )
 

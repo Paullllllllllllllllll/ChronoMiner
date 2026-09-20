@@ -10,7 +10,7 @@ Covers offline hardening fixes:
 * ``generate_line_ranges``' interactive file selection survives absolute-path
   and ``../`` input, excludes every auxiliary sidecar, and re-prompts instead
   of killing the process on a typo or an empty folder.
-* ``line_range_readjuster._prompt_int`` warns instead of silently clamping a
+* ``adjust_line_ranges._prompt_int`` warns instead of silently clamping a
   non-positive value.
 """
 
@@ -204,13 +204,13 @@ def test_folder_selection_excludes_all_auxiliary_sidecars(tmp_path: Path) -> Non
 
 
 # ---------------------------------------------------------------------------
-# line_range_readjuster: non-positive input is reported, not silently clamped
+# adjust_line_ranges: non-positive input is reported, not silently clamped
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
 def test_prompt_int_warns_when_clamping_ui_path() -> None:
-    from main.line_range_readjuster import _prompt_int
+    from main.adjust_line_ranges import _prompt_int
 
     ui = MagicMock()
     ui.get_input.return_value = "0"
@@ -222,7 +222,7 @@ def test_prompt_int_warns_when_clamping_ui_path() -> None:
 
 @pytest.mark.unit
 def test_prompt_int_accepts_positive_without_warning() -> None:
-    from main.line_range_readjuster import _prompt_int
+    from main.adjust_line_ranges import _prompt_int
 
     ui = MagicMock()
     ui.get_input.return_value = "7"
@@ -233,7 +233,7 @@ def test_prompt_int_accepts_positive_without_warning() -> None:
 
 @pytest.mark.unit
 def test_prompt_int_warns_when_clamping_stdin_path(capsys) -> None:
-    from main.line_range_readjuster import _prompt_int
+    from main.adjust_line_ranges import _prompt_int
 
     with patch("builtins.input", return_value="-5"):
         assert _prompt_int(None, "How many?", 5) == 1
@@ -241,14 +241,14 @@ def test_prompt_int_warns_when_clamping_stdin_path(capsys) -> None:
 
 
 # ---------------------------------------------------------------------------
-# repair_extractions: the shared parser validates bounds at parse time
+# repair: the shared parser validates bounds at parse time
 # ---------------------------------------------------------------------------
 
 
 def _repair_script_with_selection(monkeypatch, selection: str, candidate_count: int):
-    import main.repair_extractions as repair
+    import main.repair as repair
 
-    script = repair.RepairExtractionsScript.__new__(repair.RepairExtractionsScript)
+    script = repair.RepairScript.__new__(repair.RepairScript)
     mock_ui = MagicMock()
     mock_ui.get_input.return_value = selection
     mock_ui.confirm.return_value = False  # never proceed to real repairs

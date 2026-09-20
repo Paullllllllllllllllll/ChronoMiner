@@ -2,7 +2,7 @@
 
 Covers converter registry-key coverage, StructuredSummaries / Bibliographic
 schema-key alignment, converter crash-surface hardening, P-mode transparency
-flattening, the Responses-API capability flag, the line_range_readjuster CLI
+flattening, the Responses-API capability flag, the adjust_line_ranges CLI
 contract, schema_manager guarding, prompt schema-marker replacement, and
 provider detection for the Google-native "models/gemini-..." form.
 """
@@ -283,15 +283,15 @@ def test_gpt4o_does_not_set_use_responses_api() -> None:
 
 
 # ---------------------------------------------------------------------------
-# FIX 6 — line_range_readjuster accepts the mode-override flags
+# FIX 6 — adjust_line_ranges accepts the mode-override flags
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.unit
 def test_readjuster_parse_arguments_accepts_non_interactive() -> None:
-    import main.line_range_readjuster as lrr
+    import main.adjust_line_ranges as lrr
 
-    argv = ["line_range_readjuster.py", "--path", "data/", "--non-interactive"]
+    argv = ["adjust_line_ranges.py", "--path", "data/", "--non-interactive"]
     with patch.object(sys, "argv", argv):
         args = lrr.parse_arguments()
 
@@ -301,9 +301,9 @@ def test_readjuster_parse_arguments_accepts_non_interactive() -> None:
 
 @pytest.mark.unit
 def test_readjuster_parse_arguments_accepts_interactive() -> None:
-    import main.line_range_readjuster as lrr
+    import main.adjust_line_ranges as lrr
 
-    with patch.object(sys, "argv", ["line_range_readjuster.py", "--interactive"]):
+    with patch.object(sys, "argv", ["adjust_line_ranges.py", "--interactive"]):
         args = lrr.parse_arguments()
 
     assert args.interactive is True

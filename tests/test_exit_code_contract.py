@@ -1,10 +1,10 @@
 """Regression tests for the CLI exit-code contract (0/1/2/130).
 
 Covers fixes 1-5 from the exit-code audit:
-    1. line_range_readjuster._run_cli_mode exits 1 on failures/stopped files.
+    1. adjust_line_ranges._run_cli_mode exits 1 on failures/stopped files.
     2. check_batches.run_cli exits 2 on schema/input/config configuration errors.
     3. generate_line_ranges.run_cli exits 1 when any file fails to process.
-    4. repair_extractions.run_cli exits 2 when a filter matches nothing.
+    4. repair.run_cli exits 2 when a filter matches nothing.
     5. cancel_batches.run_cli exits 1 on a failed cancellation and exits 2
        when --force is not supplied.
 
@@ -24,7 +24,7 @@ from unittest.mock import AsyncMock
 import pytest
 
 # ---------------------------------------------------------------------------
-# Fix 1: line_range_readjuster.py
+# Fix 1: adjust_line_ranges.py
 # ---------------------------------------------------------------------------
 
 
@@ -37,7 +37,7 @@ class _FakeSchemaManager:
 async def test_readjuster_cli_mode_exits_1_on_failures(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    import main.line_range_readjuster as lrr
+    import main.adjust_line_ranges as lrr
 
     text_file = tmp_path / "sample.txt"
     text_file.write_text("line one\nline two\n", encoding="utf-8")
@@ -93,7 +93,7 @@ async def test_readjuster_cli_mode_exits_1_on_stopped_only(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     """A user-declined token-limit wait counts as partial completion (exit 1)."""
-    import main.line_range_readjuster as lrr
+    import main.adjust_line_ranges as lrr
 
     text_file = tmp_path / "sample.txt"
     text_file.write_text("line one\nline two\n", encoding="utf-8")
@@ -141,7 +141,7 @@ async def test_readjuster_cli_mode_clean_run_does_not_exit(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """A run with only successes/skips must not raise SystemExit at all."""
-    import main.line_range_readjuster as lrr
+    import main.adjust_line_ranges as lrr
 
     text_file = tmp_path / "sample.txt"
     text_file.write_text("line one\nline two\n", encoding="utf-8")
@@ -205,7 +205,7 @@ async def test_readjuster_cli_usage_errors_exit_2(
     valid_paths: bool,
 ) -> None:
     """Usage/configuration errors follow the documented contract: exit 2."""
-    import main.line_range_readjuster as lrr
+    import main.adjust_line_ranges as lrr
 
     (tmp_path / "sample.txt").write_text("line one\n", encoding="utf-8")
 
@@ -249,11 +249,11 @@ def test_readjuster_parser_accepts_input_alias(tmp_path: Path) -> None:
     """--input is an accepted alias of --path (README examples use --input)."""
     import sys as _sys
 
-    import main.line_range_readjuster as lrr
+    import main.adjust_line_ranges as lrr
 
     old_argv = _sys.argv
     try:
-        _sys.argv = ["line_range_readjuster.py", "--input", str(tmp_path)]
+        _sys.argv = ["adjust_line_ranges.py", "--input", str(tmp_path)]
         args = lrr.parse_arguments()
     finally:
         _sys.argv = old_argv
@@ -264,7 +264,7 @@ def test_readjuster_parser_accepts_input_alias(tmp_path: Path) -> None:
 def test_readjuster_keyboard_interrupt_exits_130(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
-    import main.line_range_readjuster as lrr
+    import main.adjust_line_ranges as lrr
 
     def _raise_keyboard_interrupt(coro: object) -> None:
         coro.close()  # type: ignore[attr-defined]
@@ -481,7 +481,7 @@ def test_generate_line_ranges_cli_uses_shared_exclusion_list(
 
 
 # ---------------------------------------------------------------------------
-# process_text_files.py --json count semantics
+# extract.py --json count semantics
 # ---------------------------------------------------------------------------
 
 
@@ -494,7 +494,7 @@ async def _run_process_cli(
     capsys: pytest.CaptureFixture[str],
 ) -> tuple[dict[str, Any], str, int | None]:
     """Run the CLI path with a stubbed FileProcessor; no API calls are made."""
-    import main.process_text_files as ptf
+    import main.extract as ptf
     from main.cli_args import create_process_parser
 
     input_root = tmp_path / "input"
@@ -603,15 +603,15 @@ async def test_cli_exit_1_on_partial_with_disjoint_counts(
 
 
 # ---------------------------------------------------------------------------
-# Fix 4: repair_extractions.py
+# Fix 4: repair.py
 # ---------------------------------------------------------------------------
 
 
 def _make_repair_script(monkeypatch: pytest.MonkeyPatch, candidates):
-    import main.repair_extractions as repair_mod
-    from main.repair_extractions import RepairExtractionsScript
+    import main.repair as repair_mod
+    from main.repair import RepairScript
 
-    script = RepairExtractionsScript()
+    script = RepairScript()
     monkeypatch.setattr(script, "_load_repair_config", lambda: None)
     monkeypatch.setattr(
         repair_mod, "_discover_candidate_temp_files", lambda *a, **kw: candidates
@@ -621,7 +621,7 @@ def _make_repair_script(monkeypatch: pytest.MonkeyPatch, candidates):
     return script
 
 
-def test_repair_extractions_exits_2_when_schema_filter_matches_nothing(
+def test_repair_exits_2_when_schema_filter_matches_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     candidates = [
@@ -650,7 +650,7 @@ def test_repair_extractions_exits_2_when_schema_filter_matches_nothing(
     assert exc.value.code == 2
 
 
-def test_repair_extractions_exits_2_when_files_filter_matches_nothing(
+def test_repair_exits_2_when_files_filter_matches_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     candidates = [
@@ -685,7 +685,7 @@ def test_repair_temp_file_reports_status_based_counts(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     """Fix 6: an early-bail repair must be counted as 'skipped', not a success."""
-    import main.repair_extractions as repair_mod
+    import main.repair as repair_mod
 
     class _Ui:
         def print_subsection_header(self, *a: object, **kw: object) -> None:

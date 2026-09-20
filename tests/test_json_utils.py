@@ -212,7 +212,7 @@ def test_extract_entries_skips_no_content_responses(tmp_path):
 
 
 # ---------------------------------------------------------------------------
-# Records format tests (from process_text_files.py / _generate_output_files)
+# Records format tests (from extract.py / _generate_output_files)
 # ---------------------------------------------------------------------------
 
 

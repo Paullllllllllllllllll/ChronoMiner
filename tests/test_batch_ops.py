@@ -2,7 +2,7 @@
 
 Covers the shared helpers that were extracted from ``main/check_batches.py``
 in Phase D. These helpers are consumed by all three batch scripts
-(``check_batches``, ``cancel_batches``, ``repair_extractions``) plus
+(``check_batches``, ``cancel_batches``, ``repair``) plus
 ``modules.batch`` itself, so they need reliable interface-level coverage.
 """
 

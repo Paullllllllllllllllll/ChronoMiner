@@ -766,7 +766,7 @@ def process_all_batches(
 
             # Remote files are deleted only on a fully successful finalization,
             # and only now that the final output JSON is durably on disk. A
-            # partial finalization keeps its remote outputs so repair_extractions
+            # partial finalization keeps its remote outputs so repair
             # can retrieve the missing pieces and top up the output later.
             if all_finished:
                 for backend_obj, handle_obj in completed_handles:

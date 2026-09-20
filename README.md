@@ -1,4 +1,4 @@
-# ChronoMiner v2.15.0
+# ChronoMiner v3.0.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -191,7 +191,7 @@ are tracked.
 **Interactive mode** (recommended for new users):
 
 ```bash
-python main/process_text_files.py
+python main/extract.py
 ```
 
 The wizard guides you through schema selection, chunking strategy,
@@ -202,15 +202,15 @@ quit at any time.
 
 ```bash
 # Extract from a single text file
-python main/process_text_files.py --schema BibliographicEntries \
+python main/extract.py --schema BibliographicEntries \
     --input data/file.txt
 
 # Batch process an entire directory (50% cheaper)
-python main/process_text_files.py --schema BibliographicEntries \
+python main/extract.py --schema BibliographicEntries \
     --input data/ --batch
 
 # Extract from images or PDFs
-python main/process_text_files.py --schema HistoricalRecipesEntries \
+python main/extract.py --schema HistoricalRecipesEntries \
     --input path/to/images/ --image-detail high
 ```
 
@@ -220,7 +220,7 @@ python main/process_text_files.py --schema HistoricalRecipesEntries \
 
 ```bash
 # Submit
-python main/process_text_files.py --schema BibliographicEntries \
+python main/extract.py --schema BibliographicEntries \
     --input data/ --batch
 # Monitor (run periodically; auto-downloads on completion)
 python main/check_batches.py
@@ -232,17 +232,17 @@ python main/check_batches.py
 # Generate token-based line ranges
 python main/generate_line_ranges.py --input data/file.txt
 # Adjust boundaries to semantic sections
-python main/line_range_readjuster.py --input data/file.txt \
+python main/adjust_line_ranges.py --input data/file.txt \
     --schema BibliographicEntries
 # Extract using adjusted ranges
-python main/process_text_files.py --schema BibliographicEntries \
+python main/extract.py --schema BibliographicEntries \
     --input data/file.txt --chunking line_ranges
 ```
 
 **Repair failed extractions:**
 
 ```bash
-python main/repair_extractions.py --schema BibliographicEntries
+python main/repair.py --schema BibliographicEntries
 ```
 
 ### CLI Reference
@@ -273,7 +273,7 @@ python main/repair_extractions.py --schema BibliographicEntries
 --json                     Emit a one-line JSON run summary on stdout
 ```
 
-Run `python main/process_text_files.py --help` for the full list.
+Run `python main/extract.py --help` for the full list.
 
 Both `.txt` and `.md` files are collected in CLI mode; the tool's own report
 files (`*_output.txt`, `*_line_ranges.txt`, `*_context.txt`) are excluded so a
@@ -605,10 +605,10 @@ Each decision is persisted to a JSONL sidecar for range-level
 resume:
 
 ```bash
-python main/line_range_readjuster.py --input data/file.txt \
+python main/adjust_line_ranges.py --input data/file.txt \
     --schema BibliographicEntries
 # Resume after interruption
-python main/line_range_readjuster.py --input data/ \
+python main/adjust_line_ranges.py --input data/ \
     --schema BibliographicEntries --resume
 ```
 
@@ -621,7 +621,7 @@ threshold is met or retries are exhausted.
 Recover partial results from incomplete batch jobs:
 
 ```bash
-python main/repair_extractions.py --schema BibliographicEntries
+python main/repair.py --schema BibliographicEntries
 ```
 
 Discovers incomplete jobs, groups multi-part (`_part{n}`) submissions of the
@@ -718,12 +718,12 @@ modules/
 +-- ui/            Interactive prompts and console UI
 
 main/
-+-- process_text_files.py       Primary entry point
++-- extract.py                  Primary entry point
 +-- generate_line_ranges.py     Token-based chunking
-+-- line_range_readjuster.py    Semantic boundary optimization
++-- adjust_line_ranges.py       Semantic boundary optimization
 +-- check_batches.py            Monitor and finalize batch jobs
 +-- cancel_batches.py           Cancel non-terminal batch jobs
-+-- repair_extractions.py       Recover incomplete extractions
++-- repair.py                   Recover incomplete extractions
 ```
 
 **Dependency graph** (strictly acyclic, arrows point downward):
@@ -771,7 +771,7 @@ Edit `config/model_config.yaml` and set the appropriate environment
 variable. Provider can also be auto-detected from the model name.
 
 **What happens when extraction fails?**
-Failed chunks are logged. Use `repair_extractions.py` to recover
+Failed chunks are logged. Use `repair.py` to recover
 partial results from batch jobs. For synchronous jobs, re-run with
 `--resume` to skip already-processed chunks.
 
@@ -829,6 +829,16 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v3.0.0** (20 September 2026) -- Renamed the three CLI entry points for
+  clarity: `main/process_text_files.py` to `main/extract.py`,
+  `main/line_range_readjuster.py` to `main/adjust_line_ranges.py`, and
+  `main/repair_extractions.py` to `main/repair.py`. The old names are
+  removed with no compatibility shims; update scripts, aliases, and
+  scheduled jobs that invoke them by path. Also re-synced the vendored
+  shared token ledger module (`modules/infra/shared_ledger.py`) to
+  upstream version 2.1.3, which hardens `_coerce_int` against NaN,
+  Infinity, and bool inputs; the pinned content hash in
+  `tests/test_shared_ledger.py` now matches the sibling repos.
 - **v2.15.0** (14 September 2026) -- Register `claude-opus-5`,
   `gemini-3.7-flash`, and `gemini-3.6-flash` in the capability registry
   with sampler controls disabled, so they no longer fall through to the

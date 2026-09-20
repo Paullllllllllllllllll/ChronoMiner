@@ -3,7 +3,7 @@
 """Regression tests for batch finalization/repair output merging.
 
 Covers the data-loss bug where a ``--batch --resume`` finalization (or a
-later ``repair_extractions`` run) rebuilt ``{stem}_output.json`` only from the
+later ``repair`` run) rebuilt ``{stem}_output.json`` only from the
 newly-retrieved responses and overwrote records completed on earlier runs.
 ``merge_existing_batch_output`` restores the sync-path merge semantics.
 """

@@ -21,7 +21,7 @@ concurrency:
   # Extraction (chunk-level concurrency)
   # -------------------------------------------------------------------------
   # Governs how many LLM API calls run simultaneously during schema-based
-  # extraction (main/process_text_files.py). Each text chunk or image page
+  # extraction (main/extract.py). Each text chunk or image page
   # is one API call; this limit caps how many are in flight at once.
   #
   # Used by: modules/extract/processing_strategy.py, modules/llm/langchain_provider.py
@@ -125,11 +125,11 @@ concurrency:
   # Line-Range Readjustment (file-level concurrency)
   # -------------------------------------------------------------------------
   # Governs how many files are readjusted in parallel during
-  # main/line_range_readjuster.py runs. Each file opens its own LLM
+  # main/adjust_line_ranges.py runs. Each file opens its own LLM
   # connection and processes its ranges sequentially, so there is no
   # cross-file dependency. Increasing this value speeds up large batches.
   #
-  # Used by: main/line_range_readjuster.py
+  # Used by: main/adjust_line_ranges.py
   readjustment:
     # How many files to readjust at the same time.
     # 1 = sequential (safe default). 10-20 is a good range for bulk runs.

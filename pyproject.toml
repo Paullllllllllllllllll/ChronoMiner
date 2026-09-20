@@ -1,6 +1,6 @@
 [project]
 name = "chronominer"
-version = "2.15.0"
+version = "3.0.0"
 description = "Structured data extraction from text, images, and PDFs using schema-based LLM processing"
 requires-python = ">=3.12"
 license = "MIT"
@@ -55,12 +55,12 @@ select = ["E", "F", "I", "B", "UP", "SIM"]
 ignore = []
 
 [tool.ruff.lint.per-file-ignores]
+"main/adjust_line_ranges.py" = ["E402"]
 "main/cancel_batches.py" = ["E402"]
 "main/check_batches.py" = ["E402"]
+"main/extract.py" = ["E402"]
 "main/generate_line_ranges.py" = ["E402"]
-"main/line_range_readjuster.py" = ["E402"]
-"main/process_text_files.py" = ["E402"]
-"main/repair_extractions.py" = ["E402"]
+"main/repair.py" = ["E402"]
 "main/slim_temp_jsonl.py" = ["E402"]
 "eval/*.py" = ["E402"]
 "eval/*.ipynb" = ["E402"]

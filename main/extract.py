@@ -1,4 +1,4 @@
-# main/process_text_files.py
+# main/extract.py
 
 """
 Main script for processing text files with schema-based structured data extraction.
@@ -1314,11 +1314,11 @@ async def _run_cli_mode(
         sys.exit(1)
 
 
-class ProcessTextFilesScript(AsyncDualModeScript):
+class ExtractScript(AsyncDualModeScript):
     """Main script for processing text files with schema-based extraction."""
 
     def __init__(self) -> None:
-        super().__init__("process_text_files")
+        super().__init__("extract")
 
     def create_argument_parser(self) -> ArgumentParser:
         """Create argument parser for CLI mode."""
@@ -1348,7 +1348,7 @@ class ProcessTextFilesScript(AsyncDualModeScript):
 
 def main() -> None:
     """Main entry point."""
-    ProcessTextFilesScript().execute()
+    ExtractScript().execute()
 
 
 if __name__ == "__main__":

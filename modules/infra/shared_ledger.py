@@ -68,7 +68,7 @@ from typing import IO, Any, NamedTuple
 logger = logging.getLogger(__name__)
 
 LEDGER_SCHEMA_VERSION = 2
-LEDGER_MODULE_VERSION = "2.1.2"
+LEDGER_MODULE_VERSION = "2.1.3"
 
 # One-minute safety buffer past OpenAI's 00:00 UTC free-tier reset, so the
 # ledger never frees its budget before the upstream quota has actually reset.
@@ -309,9 +309,16 @@ def _coerce_int(value: Any) -> int:
     """Coerce a stored numeric field to int; anything else becomes 0.
 
     A hand-edited or corrupt ledger value must not crash the extraction
-    call path (never-crash contract).
+    call path (never-crash contract). NaN and +/-Infinity pass the
+    isinstance check (``json.loads`` accepts them by default) but blow up
+    ``int()``; they coerce to 0 like any other corrupt value.
     """
-    return int(value) if isinstance(value, (int, float)) else 0
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0
+    try:
+        return int(value)
+    except (ValueError, OverflowError):
+        return 0
 
 
 def _parse_usage_rows(data: Mapping[str, Any]) -> dict[tuple[str, BucketKey], int]:
@@ -471,7 +478,7 @@ class SharedTokenLedger:
         if not isinstance(tools, dict):
             return {}
         return {
-            str(name): int(value)
+            str(name): _coerce_int(value)
             for name, value in tools.items()
             if isinstance(value, (int, float))
         }
@@ -721,9 +728,7 @@ class SharedTokenLedger:
         tools = data.get("tools")
         if not isinstance(tools, dict):
             return 0
-        return sum(
-            int(value) for value in tools.values() if isinstance(value, (int, float))
-        )
+        return sum(_coerce_int(value) for value in tools.values())
 
     def _warn_degraded(self, reason: str) -> None:
         if not self._warned_degraded:

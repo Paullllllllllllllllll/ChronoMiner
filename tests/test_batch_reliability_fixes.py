@@ -14,7 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from main.check_batches import process_all_batches
-from main.repair_extractions import _discover_candidate_temp_files
+from main.repair import _discover_candidate_temp_files
 from modules.batch.backends import BatchHandle, BatchStatus, BatchStatusInfo
 from modules.batch.backends.base import BatchResultItem
 from modules.batch.ops import (

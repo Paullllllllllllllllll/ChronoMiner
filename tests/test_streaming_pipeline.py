@@ -685,7 +685,7 @@ async def test_streaming_retries_cloudflare_520(
 
 
 def test_file_concurrency_limit(tmp_path: Path) -> None:
-    from main.process_text_files import _file_concurrency_limit
+    from main.extract import _file_concurrency_limit
 
     text_file = tmp_path / "a.txt"
     text_file.write_text("x", encoding="utf-8")

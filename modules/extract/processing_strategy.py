@@ -1271,7 +1271,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 f"[WARNING] Found {len(prior_tracking)} previously submitted "
                 "batch id(s) for this file whose temp records are being "
                 "replaced. Their ids are carried into the recovery artifact "
-                "so check_batches/repair_extractions can still retrieve them, "
+                "so check_batches/repair can still retrieve them, "
                 "but consider running check_batches before resubmitting."
             )
 

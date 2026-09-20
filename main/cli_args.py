@@ -195,21 +195,21 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
 
 
 def create_process_parser() -> argparse.ArgumentParser:
-    """Create argument parser for process_text_files.py"""
+    """Create argument parser for extract.py"""
     parser = argparse.ArgumentParser(
         description="Process text files with structured data extraction",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Process a single file with default settings
-  python main/process_text_files.py --schema BibliographicEntries --input data/file.txt
-  
+  python main/extract.py --schema BibliographicEntries --input data/file.txt
+
   # Process a directory with specific chunking
-  python main/process_text_files.py --schema BibliographicEntries --input data/ \
+  python main/extract.py --schema BibliographicEntries --input data/ \
     --chunking auto
 
   # Use batch processing
-  python main/process_text_files.py --schema BibliographicEntries --input data/ --batch
+  python main/extract.py --schema BibliographicEntries --input data/ --batch
         """,
     )
 
@@ -485,20 +485,20 @@ Examples:
 
 
 def create_repair_parser() -> argparse.ArgumentParser:
-    """Create argument parser for repair_extractions.py"""
+    """Create argument parser for repair.py"""
     parser = argparse.ArgumentParser(
         description="Repair incomplete batch extractions",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
   # Repair all pending extractions
-  python main/repair_extractions.py
-  
+  python main/repair.py
+
   # Repair extractions for a specific schema
-  python main/repair_extractions.py --schema BibliographicEntries
-  
+  python main/repair.py --schema BibliographicEntries
+
   # Repair specific files
-  python main/repair_extractions.py --files file1_temp.jsonl file2_temp.jsonl
+  python main/repair.py --files file1_temp.jsonl file2_temp.jsonl
         """,
     )
 

@@ -9,6 +9,7 @@ The evaluation computes **precision**, **recall**, and **F1 scores** at both ent
 ### Chunk-Level Evaluation
 
 Metrics are computed **chunk-by-chunk** using the temporary JSONL files produced by the extractor. This approach:
+
 - **Eliminates formatting penalties** from whitespace differences in final JSON output
 - **Enables accurate per-chunk error attribution** for debugging
 - **Isolates extraction quality** from post-processing effects
@@ -92,18 +93,21 @@ This ensures the extraction evaluation starts from flawless transcriptions, isol
 Use the helper script to extract and edit ground truth:
 
 1. **Run extraction** using a high-quality model (e.g., GPT-5.1 with high reasoning):
+
    ```bash
    cd ..
-   python main/process_text_files.py --input eval/test_data/input/bibliography \
+   python main/extract.py --input eval/test_data/input/bibliography \
        --schema BibliographicEntries --chunking auto \
        --output eval/test_data/output/bibliography/gpt_5.1_medium
    ```
 
 2. **Extract** chunk-level extractions to editable text format:
+
    ```bash
    python eval/prepare_ground_truth.py --extract \
        --input eval/test_data/output/bibliography/gpt_5.1_medium
    ```
+
    This creates `*_editable.txt` files with chunk markers like `=== chunk 001 ===`.
 
 3. **Edit** the generated text files to correct extraction errors:
@@ -113,13 +117,16 @@ Use the helper script to extract and edit ground truth:
    - Fix any missing or incorrect field values
 
 4. **Apply** corrections to create ground truth JSONL:
+
    ```bash
    python eval/prepare_ground_truth.py --apply \
        --input eval/test_data/output/bibliography/gpt_5.1_medium
    ```
+
    This creates JSONL files in `test_data/ground_truth/{category}/`.
 
 5. **Check** ground truth status:
+
    ```bash
    python eval/prepare_ground_truth.py --status
    ```
@@ -130,7 +137,7 @@ For each model, run extractions and save to the appropriate output directory:
 
 ```bash
 # Example for Gemini 2.5 Flash
-python main/process_text_files.py --input eval/test_data/input/bibliography \
+python main/extract.py --input eval/test_data/input/bibliography \
     --schema BibliographicEntries --model gemini-2.5-flash \
     --output eval/test_data/output/bibliography/gemini_2.5_flash
 ```
@@ -147,6 +154,7 @@ jupyter notebook extraction_eval.ipynb
 ```
 
 The notebook will:
+
 - Discover available outputs and ground truth JSONL files
 - Compute precision, recall, and F1 **chunk-by-chunk** for each model/category combination
 - Generate summary tables and per-page rankings
@@ -173,6 +181,7 @@ Measures extraction accuracy for individual fields within matched entries:
 - **Field F1** = Harmonic mean per field
 
 Aggregation methods:
+
 - **Micro-averaged**: Sum all TP/FP/FN across fields, then compute metrics
 - **Macro-averaged**: Compute per-field metrics, then average
 
@@ -259,6 +268,7 @@ Together, they provide end-to-end pipeline quality assessment using the same tes
 ## Dependencies
 
 Uses standard ChronoMiner dependencies plus:
+
 - `pyyaml` - Configuration loading
 - `matplotlib` (optional) - Visualization
 

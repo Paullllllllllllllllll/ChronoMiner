@@ -27,6 +27,6 @@ Each input set maps to a specific JSON extraction schema:
 
 Pre-generated outputs are provided in `example_outputs/` in four formats per
 input file: JSON, CSV, DOCX, and TXT. These were produced with `gpt-5-mini`
-using default settings (`main/process_text_files.py`).
+using default settings (`main/extract.py`).
 
 We recommend experimenting with these files before adding custom schemas.

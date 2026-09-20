@@ -290,7 +290,7 @@ class _FakeStdin:
 
 
 def _install_common_patches(monkeypatch, status_map: dict[str, str]) -> None:
-    import main.process_text_files as ptf
+    import main.extract as ptf
 
     monkeypatch.setattr(ptf.sys, "stdin", _FakeStdin())
     monkeypatch.setattr(ptf, "check_token_limit_enabled", lambda: False)
@@ -318,7 +318,7 @@ def _install_common_patches(monkeypatch, status_map: dict[str, str]) -> None:
 def _run(monkeypatch, ui: _ScriptedUI, tmp_path: Path) -> None:
     import asyncio
 
-    import main.process_text_files as ptf
+    import main.extract as ptf
 
     monkeypatch.setattr(ptf, "UserInterface", lambda *_a, **_k: ui)
 

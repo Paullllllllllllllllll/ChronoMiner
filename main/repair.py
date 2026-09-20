@@ -1,4 +1,4 @@
-# main/repair_extractions.py
+# main/repair.py
 """Interactive helper for repairing incomplete batch extractions.
 
 Supports two execution modes:
@@ -372,11 +372,11 @@ def _repair_temp_file(
     return "repaired"
 
 
-class RepairExtractionsScript(DualModeScript):
+class RepairScript(DualModeScript):
     """Script to repair incomplete batch extractions."""
 
     def __init__(self) -> None:
-        super().__init__("repair_extractions")
+        super().__init__("repair")
         # No provider key is required at construction: each batch's status and
         # results are fetched through the provider-agnostic backend, which
         # resolves its own key lazily only when actually used.
@@ -626,7 +626,7 @@ def main() -> None:
     internally and exits 130 per the CLI agent contract, so no additional
     handling is needed here.
     """
-    script = RepairExtractionsScript()
+    script = RepairScript()
     script.execute()
 
 

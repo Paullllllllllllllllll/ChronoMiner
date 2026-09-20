@@ -77,7 +77,7 @@ general:
 #   - modules/ui/core.py (path resolution)
 #   - modules/extract/file_processor.py (output generation)
 #   - main/check_batches.py (batch result processing)
-#   - main/repair_extractions.py (extraction repair)
+#   - main/repair.py (extraction repair)
 # =============================================================================
 
 schemas_paths:

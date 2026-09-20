@@ -264,7 +264,7 @@ class TestSamplerBounds:
 
 
 class TestReadjusterNumericBounds:
-    """line_range_readjuster.py accepted 0/negative --context-window and
+    """adjust_line_ranges.py accepted 0/negative --context-window and
     --max-output-tokens and unbounded sampler values; it must use the same
     validators as the other entry points."""
 
@@ -272,11 +272,11 @@ class TestReadjusterNumericBounds:
     def _parse(argv: list[str]):
         import sys as _sys
 
-        import main.line_range_readjuster as lrr
+        import main.adjust_line_ranges as lrr
 
         old_argv = _sys.argv
         try:
-            _sys.argv = ["line_range_readjuster.py", *argv]
+            _sys.argv = ["adjust_line_ranges.py", *argv]
             return lrr.parse_arguments()
         finally:
             _sys.argv = old_argv

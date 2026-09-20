@@ -15,7 +15,7 @@ import pytest
 
 @pytest.mark.integration
 class TestProcessTextFilesCLI:
-    """Integration tests for process_text_files.py CLI."""
+    """Integration tests for extract.py CLI."""
 
     def test_cli_args_parser_basic(self):
         """Test basic CLI argument parsing."""
@@ -70,7 +70,7 @@ class TestProcessTextFilesCLI:
         assert args.chunking == "line_ranges"
 
     def test_cli_args_parser_model_override_options(self):
-        """Test model override arguments in process_text_files parser."""
+        """Test model override arguments in extract parser."""
         from main.cli_args import create_process_parser
 
         parser = create_process_parser()
@@ -101,7 +101,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_model_config_applies_overrides(self):
         """CLI model overrides should be merged into effective model config only."""
-        from main.process_text_files import build_effective_model_config
+        from main.extract import build_effective_model_config
 
         base = {
             "extraction_model": {
@@ -130,7 +130,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_paths_config_output_disables_input_as_output(self):
         """When --output is provided, output path mode should be enabled."""
-        from main.process_text_files import build_effective_paths_config
+        from main.extract import build_effective_paths_config
 
         base_paths = {"general": {"input_paths_is_output_path": True}}
         args = Namespace(output="C:/tmp/output")
@@ -141,7 +141,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_chunking_config_applies_chunk_size_override(self):
         """CLI chunk-size should override per-run chunking config only."""
-        from main.process_text_files import build_effective_chunking_config
+        from main.extract import build_effective_chunking_config
 
         base = {"chunking": {"default_tokens_per_chunk": 10000, "other_setting": True}}
         args = Namespace(chunk_size=4200)
@@ -154,7 +154,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_chunking_config_keeps_default_when_no_override(self):
         """Without --chunk-size, effective chunking config should remain unchanged."""
-        from main.process_text_files import build_effective_chunking_config
+        from main.extract import build_effective_chunking_config
 
         base = {"chunking": {"default_tokens_per_chunk": 10000}}
         args = Namespace(chunk_size=None)
@@ -187,7 +187,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_model_config_temperature_override(self):
         """CLI --temperature should override config value without mutating original."""
-        from main.process_text_files import build_effective_model_config
+        from main.extract import build_effective_model_config
 
         base = {
             "extraction_model": {
@@ -213,7 +213,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_model_config_top_p_override(self):
         """CLI --top-p should override config value without mutating original."""
-        from main.process_text_files import build_effective_model_config
+        from main.extract import build_effective_model_config
 
         base = {
             "extraction_model": {
@@ -239,7 +239,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_model_config_no_override_preserves_defaults(self):
         """When no CLI flags are set, all config values should be preserved."""
-        from main.process_text_files import build_effective_model_config
+        from main.extract import build_effective_model_config
 
         base = {
             "extraction_model": {
@@ -335,7 +335,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_concurrency_config_applies_overrides(self):
         """CLI concurrency flags should override config without mutating original."""
-        from main.process_text_files import build_effective_concurrency_config
+        from main.extract import build_effective_concurrency_config
 
         base = {
             "concurrency": {
@@ -358,7 +358,7 @@ class TestProcessTextFilesCLI:
 
     def test_build_effective_concurrency_config_preserves_defaults(self):
         """Without CLI flags, concurrency config should be unchanged."""
-        from main.process_text_files import build_effective_concurrency_config
+        from main.extract import build_effective_concurrency_config
 
         base = {
             "concurrency": {
@@ -378,15 +378,13 @@ class TestProcessTextFilesCLI:
 
     @pytest.mark.asyncio
     async def test_process_script_run_cli_forwards_parsed_args(self):
-        """ProcessTextFilesScript.run_cli should forward framework-parsed args."""
-        from main.process_text_files import ProcessTextFilesScript
+        """ExtractScript.run_cli should forward framework-parsed args."""
+        from main.extract import ExtractScript
 
-        script = ProcessTextFilesScript()
+        script = ExtractScript()
         cli_args = Namespace(schema="TestSchema", input="test_input.txt")
 
-        with patch(
-            "main.process_text_files._run_cli_mode", new_callable=AsyncMock
-        ) as mock_run:
+        with patch("main.extract._run_cli_mode", new_callable=AsyncMock) as mock_run:
             await script.run_cli(cli_args)
 
         assert mock_run.await_count == 1
@@ -508,10 +506,10 @@ class TestCancelBatchesCLI:
 
 @pytest.mark.integration
 class TestRepairExtractionsCLI:
-    """Integration tests for repair_extractions.py CLI."""
+    """Integration tests for repair.py CLI."""
 
     def test_cli_args_parser(self):
-        """Test CLI argument parsing for repair_extractions."""
+        """Test CLI argument parsing for repair."""
         from main.cli_args import create_repair_parser
 
         parser = create_repair_parser()
@@ -586,13 +584,13 @@ class TestPageRangeValidation:
     as a ValueError traceback out of ChunkSlice."""
 
     def test_valid_range_parsed(self):
-        from main.process_text_files import _parse_page_range
+        from main.extract import _parse_page_range
 
         assert _parse_page_range("70-337") == (70, 337)
         assert _parse_page_range(" 5 - 9 ") == (5, 9)
 
     def test_zero_start_exits_2(self, capsys):
-        from main.process_text_files import _parse_page_range
+        from main.extract import _parse_page_range
 
         with pytest.raises(SystemExit) as exc:
             _parse_page_range("0-5")
@@ -600,7 +598,7 @@ class TestPageRangeValidation:
         assert "Invalid --page-range '0-5'" in capsys.readouterr().out
 
     def test_reversed_bounds_exit_2(self, capsys):
-        from main.process_text_files import _parse_page_range
+        from main.extract import _parse_page_range
 
         with pytest.raises(SystemExit) as exc:
             _parse_page_range("7-3")
@@ -608,7 +606,7 @@ class TestPageRangeValidation:
         assert "Invalid --page-range '7-3'" in capsys.readouterr().out
 
     def test_malformed_value_still_exits_2(self):
-        from main.process_text_files import _parse_page_range
+        from main.extract import _parse_page_range
 
         with pytest.raises(SystemExit) as exc:
             _parse_page_range("abc")
@@ -623,7 +621,7 @@ class TestInputTypeConflictWarning:
     def test_warns_when_override_contradicts_extension(
         self, tmp_path: Path, capsys
     ) -> None:
-        from main.process_text_files import _warn_input_type_conflict
+        from main.extract import _warn_input_type_conflict
 
         f = tmp_path / "document.txt"
         f.write_text("content", encoding="utf-8")
@@ -636,7 +634,7 @@ class TestInputTypeConflictWarning:
         assert "'text'" in err
 
     def test_silent_when_override_matches(self, tmp_path: Path, capsys) -> None:
-        from main.process_text_files import _warn_input_type_conflict
+        from main.extract import _warn_input_type_conflict
 
         f = tmp_path / "scan.png"
         f.write_bytes(b"x")
@@ -648,7 +646,7 @@ class TestInputTypeConflictWarning:
     def test_silent_for_directories(self, tmp_path: Path, capsys) -> None:
         """A directory override is a legitimate filter (e.g. a stray image in
         a text folder), not a contradiction."""
-        from main.process_text_files import _warn_input_type_conflict
+        from main.extract import _warn_input_type_conflict
 
         _warn_input_type_conflict(tmp_path, "mixed", "text")
 

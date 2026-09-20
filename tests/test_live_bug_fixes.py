@@ -7,9 +7,9 @@ CM-1: Gemini 3.x reasoning control must use a supported constructor
       parameter (thinking_level / thinking_budget, not thinking_config).
 CM-3: Anthropic structured output must degrade gracefully when the schema
       exceeds Anthropic's union-type parameter limit.
-CM-5: check_batches / cancel_batches / repair_extractions must accept the
+CM-5: check_batches / cancel_batches / repair must accept the
       shared --interactive/--non-interactive mode-override flags.
-CM-6: batch finalization (check_batches / repair_extractions) must write the
+CM-6: batch finalization (check_batches / repair) must write the
       final output next to the submission (parent of temp_jsonl/), not into
       the schema's configured default output directory.
 """
@@ -468,7 +468,7 @@ class TestCM3AnthropicUnionLimitFallback:
 
 
 class TestCM5ModeOverrideFlags:
-    """check_batches, cancel_batches, and repair_extractions must accept the
+    """check_batches, cancel_batches, and repair must accept the
     shared --interactive/--non-interactive flags."""
 
     @staticmethod
@@ -604,7 +604,7 @@ class TestCM6SubmissionLocalFinalization:
     def test_partial_finalization_keeps_remote_files(self, tmp_path):
         """A partial finalization (one batch completed, one missing) writes a
         partial output but must NOT delete remote result files, so
-        repair_extractions can still retrieve the missing pieces."""
+        repair can still retrieve the missing pieces."""
         from main.check_batches import process_all_batches
         from modules.batch import BatchHandle, BatchStatus, BatchStatusInfo
 
@@ -698,9 +698,9 @@ class TestCM6SubmissionLocalFinalization:
 
     @pytest.mark.unit
     def test_repair_writes_output_next_to_submission(self, tmp_path):
-        """repair_extractions regenerates the final output in the submission
+        """repair regenerates the final output in the submission
         directory (parent of temp_jsonl/), not inside temp_jsonl/."""
-        from main.repair_extractions import _repair_temp_file
+        from main.repair import _repair_temp_file
         from modules.batch import BatchStatus, BatchStatusInfo
 
         submission, temp_file = self._write_submission(tmp_path)
@@ -719,17 +719,17 @@ class TestCM6SubmissionLocalFinalization:
         }
 
         with (
-            patch("main.repair_extractions.get_batch_backend", return_value=backend),
+            patch("main.repair.get_batch_backend", return_value=backend),
             patch(
-                "main.repair_extractions.retrieve_responses_from_batch",
+                "main.repair.retrieve_responses_from_batch",
                 return_value=[{"custom_id": "req-0", "response": {"ok": True}}],
             ),
             patch(
-                "main.repair_extractions.build_unified_batch_output",
+                "main.repair.build_unified_batch_output",
                 return_value={"records": [{"ok": True}]},
             ),
             patch(
-                "main.repair_extractions.get_schema_handler",
+                "main.repair.get_schema_handler",
                 return_value=MagicMock(),
             ),
         ):
@@ -749,7 +749,7 @@ class TestCM6SubmissionLocalFinalization:
         check_batches' already-finalized skip and silently drop the pending
         batches' results forever."""
         from main.check_batches import _is_group_already_finalized
-        from main.repair_extractions import _repair_temp_file
+        from main.repair import _repair_temp_file
         from modules.batch import BatchStatus, BatchStatusInfo
 
         submission, temp_file = self._write_submission(tmp_path)
@@ -777,13 +777,13 @@ class TestCM6SubmissionLocalFinalization:
         }
 
         with (
-            patch("main.repair_extractions.get_batch_backend", return_value=backend),
+            patch("main.repair.get_batch_backend", return_value=backend),
             patch(
-                "main.repair_extractions.retrieve_responses_from_batch",
+                "main.repair.retrieve_responses_from_batch",
                 return_value=[{"custom_id": "doc-chunk-1", "response": {"ok": True}}],
             ),
             patch(
-                "main.repair_extractions.get_schema_handler",
+                "main.repair.get_schema_handler",
                 return_value=MagicMock(),
             ),
         ):

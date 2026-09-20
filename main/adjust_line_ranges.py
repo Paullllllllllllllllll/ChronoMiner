@@ -1,4 +1,4 @@
-# main/line_range_readjuster.py
+# main/adjust_line_ranges.py
 
 """
 Utility script to refine `_line_ranges.txt` files by aligning chunk boundaries
@@ -882,7 +882,7 @@ def main() -> None:
         print("\n[STOPPED] Operation cancelled by user.")
         sys.exit(130)
     except Exception as exc:
-        logger.exception("Unexpected error in line_range_readjuster")
+        logger.exception("Unexpected error in adjust_line_ranges")
         print(f"\n[ERROR] Unexpected error: {exc}")
         sys.exit(1)
 

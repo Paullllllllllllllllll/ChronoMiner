@@ -213,7 +213,7 @@ async def _dry_run_plan(
     extra_args: list[str],
 ) -> list[dict[str, str]]:
     """Run ``--dry-run`` through the CLI path and return the planned entries."""
-    import main.process_text_files as ptf
+    import main.extract as ptf
     from main.cli_args import create_process_parser
 
     class _SchemaManager:
