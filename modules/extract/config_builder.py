@@ -5,13 +5,17 @@ runtime configuration for a single extraction run: they deep-copy the loaded
 YAML and overlay any CLI-argument overrides (``--model``,
 ``--max-output-tokens``, ``--reasoning-effort``, ``--verbosity``,
 ``--temperature``, ``--top-p``, ``--chunk-size``, ``--concurrency-limit``,
-``--delay``, ``--output``).
+``--delay``, ``--service-tier``, ``--output``).
 """
 
 from __future__ import annotations
 
 from copy import deepcopy
 from typing import Any
+
+from modules.infra.logger import setup_logger
+
+logger = setup_logger(__name__)
 
 
 def build_effective_model_config(
@@ -73,7 +77,7 @@ def build_effective_chunking_config(
 
 
 def build_effective_concurrency_config(
-    concurrency_config: dict[str, Any], args: Any
+    concurrency_config: dict[str, Any] | None, args: Any
 ) -> dict[str, Any]:
     """Build a per-run concurrency config with CLI overrides applied."""
     effective = deepcopy(concurrency_config or {})
@@ -84,5 +88,10 @@ def build_effective_concurrency_config(
 
     if getattr(args, "delay", None) is not None:
         extraction["delay_between_tasks"] = float(args.delay)
+
+    service_tier = getattr(args, "service_tier", None)
+    if service_tier:
+        extraction["service_tier"] = service_tier
+        logger.info("CLI override: service_tier=%s for this run.", service_tier)
 
     return effective

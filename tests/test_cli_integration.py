@@ -376,6 +376,33 @@ class TestProcessTextFilesCLI:
         assert effective["concurrency"]["extraction"]["delay_between_tasks"] == 0.0
         assert effective is not base
 
+    def test_build_effective_concurrency_config_service_tier_overrides_config(self):
+        """--service-tier should win over a differently configured value."""
+        from main.extract import build_effective_concurrency_config
+
+        base = {
+            "concurrency": {"extraction": {"service_tier": "default"}},
+        }
+        args = Namespace(concurrency_limit=None, delay=None, service_tier="priority")
+
+        effective = build_effective_concurrency_config(base, args)
+
+        assert effective["concurrency"]["extraction"]["service_tier"] == "priority"
+        assert base["concurrency"]["extraction"]["service_tier"] == "default"
+
+    def test_build_effective_concurrency_config_service_tier_absent_unchanged(self):
+        """Without --service-tier, the configured value passes through untouched."""
+        from main.extract import build_effective_concurrency_config
+
+        base = {
+            "concurrency": {"extraction": {"service_tier": "flex"}},
+        }
+        args = Namespace(concurrency_limit=None, delay=None, service_tier=None)
+
+        effective = build_effective_concurrency_config(base, args)
+
+        assert effective["concurrency"]["extraction"]["service_tier"] == "flex"
+
     @pytest.mark.asyncio
     async def test_process_script_run_cli_forwards_parsed_args(self):
         """ExtractScript.run_cli should forward framework-parsed args."""

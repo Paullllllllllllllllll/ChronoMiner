@@ -226,6 +226,35 @@ class TestProcessParserModelOverrides:
                 ]
             )
 
+    def test_process_parser_service_tier_override(self):
+        parser = create_process_parser()
+        args = parser.parse_args(
+            [
+                "--schema",
+                "Test",
+                "--input",
+                "data/",
+                "--service-tier",
+                "priority",
+            ]
+        )
+
+        assert args.service_tier == "priority"
+
+    def test_process_parser_service_tier_invalid_rejected(self):
+        parser = create_process_parser()
+        with pytest.raises(SystemExit):
+            parser.parse_args(
+                [
+                    "--schema",
+                    "Test",
+                    "--input",
+                    "data/",
+                    "--service-tier",
+                    "bogus",
+                ]
+            )
+
 
 class TestSamplerBounds:
     """--temperature and --top-p document ranges (0.0-2.0 / 0.0-1.0) that were
@@ -300,3 +329,11 @@ class TestReadjusterNumericBounds:
     def test_top_p_out_of_range_rejected(self):
         with pytest.raises(SystemExit):
             self._parse(["--top-p", "1.2"])
+
+    def test_service_tier_valid_accepted(self):
+        args = self._parse(["--service-tier", "flex"])
+        assert args.service_tier == "flex"
+
+    def test_service_tier_invalid_rejected(self):
+        with pytest.raises(SystemExit):
+            self._parse(["--service-tier", "bogus"])

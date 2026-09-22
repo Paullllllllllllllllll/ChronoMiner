@@ -57,6 +57,10 @@ def _top_p(value: str) -> float:
 
 InputType = Literal["text", "image", "pdf", "mixed"]
 
+# Valid OpenAI ``service_tier`` values, shared by every entry point that
+# exposes a ``--service-tier`` override (extract.py, adjust_line_ranges.py).
+SERVICE_TIER_CHOICES = ("auto", "default", "flex", "priority")
+
 # Text extensions collected as processable input by the extraction CLI.
 SUPPORTED_TEXT_EXTENSIONS = frozenset({".txt", ".md"})
 
@@ -320,6 +324,16 @@ Examples:
         type=_positive_int,
         metavar="N",
         help="Override concurrency.extraction.concurrency_limit for this run",
+    )
+    parser.add_argument(
+        "--service-tier",
+        type=str,
+        choices=SERVICE_TIER_CHOICES,
+        help=(
+            "Override concurrency.extraction.service_tier for this run "
+            "(auto|default|flex|priority). Applies to both synchronous and "
+            "batch requests."
+        ),
     )
     parser.add_argument(
         "--delay",

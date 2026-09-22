@@ -1,4 +1,4 @@
-# ChronoMiner v3.0.0
+# ChronoMiner v3.1.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -258,6 +258,8 @@ python main/repair.py --schema BibliographicEntries
 --model ID                 Override model
 --reasoning-effort LEVEL   none | low | medium | high | xhigh | max
 --chunk-size N             Override tokens per chunk
+--service-tier TIER        Override concurrency.extraction.service_tier:
+                           auto | default | flex | priority
 --context MODE_OR_PATH     auto | none | /path/to/context.txt
 --context-image            Enable context image injection (see below)
 --first-n-chunks N         Process only the first N chunks/pages
@@ -829,6 +831,13 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v3.1.0** (22 September 2026) -- A new `--service-tier
+  {auto,default,flex,priority}` flag on `extract.py` and
+  `adjust_line_ranges.py` overrides the configured OpenAI service tier for
+  one run, without editing `concurrency_config.yaml`. Line-range
+  readjustment now receives the effective concurrency settings, so the
+  override also reaches its model calls; batch submissions map `flex` to
+  `auto`.
 - **v3.0.0** (20 September 2026) -- Renamed the three CLI entry points for
   clarity: `main/process_text_files.py` to `main/extract.py`,
   `main/line_range_readjuster.py` to `main/adjust_line_ranges.py`, and

@@ -31,6 +31,7 @@ from main.bootstrap import (
     validate_schema_paths,
 )
 from main.cli_args import (
+    SERVICE_TIER_CHOICES,
     _positive_int,
     _temperature,
     _top_p,
@@ -42,7 +43,10 @@ from modules.config.context import (
     resolve_context_for_readjustment,
 )
 from modules.config.schema_manager import SchemaManager
-from modules.extract.config_builder import build_effective_model_config
+from modules.extract.config_builder import (
+    build_effective_concurrency_config,
+    build_effective_model_config,
+)
 from modules.infra.jsonl import (
     compute_ranges_fingerprint,
     is_jsonl_adjustment_complete,
@@ -153,6 +157,15 @@ def parse_arguments() -> argparse.Namespace:
         type=_top_p,
         metavar="P",
         help="Override extraction_model.top_p (0.0-1.0)",
+    )
+    parser.add_argument(
+        "--service-tier",
+        type=str,
+        choices=SERVICE_TIER_CHOICES,
+        help=(
+            "Override concurrency.extraction.service_tier for this run "
+            "(auto|default|flex|priority)"
+        ),
     )
 
     chunk_slice_group = parser.add_mutually_exclusive_group()
@@ -714,6 +727,7 @@ async def _run_cli_mode(
     logger.info("Starting line range readjustment (CLI Mode)")
 
     model_config = build_effective_model_config(model_config, args)
+    concurrency_config = build_effective_concurrency_config(concurrency_config, args)
 
     # Validate and resolve input path
     if not args.path:

@@ -357,6 +357,10 @@ class LineRangeReadjuster:
         )
         self.min_substring_length = self.matching_config.get("min_substring_length", 8)
 
+        # Kept for the extractor's ``concurrency_config_override`` (e.g.
+        # service_tier), separately from the retry budget parsed below.
+        self._concurrency_config = concurrency_config
+
         # Transport-level retry budget for the LLM call itself. Parsed from
         # concurrency.extraction.retry, i.e. a DIFFERENT namespace from
         # ``self.retry_config`` below, which governs semantic readjustment
@@ -721,6 +725,7 @@ class LineRangeReadjuster:
                 model=self.model_name,
                 provider=provider,
                 model_config_override=self._model_config,
+                concurrency_config_override=self._concurrency_config,
             )
 
         async with contextlib.AsyncExitStack() as stack:
