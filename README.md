@@ -1,4 +1,4 @@
-# ChronoMiner v3.1.0
+# ChronoMiner v3.2.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -831,6 +831,13 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v3.2.0** (23 September 2026) -- Register `gpt-6-sol`, `gpt-6-luna`
+  and `claude-opus-5-5`. Both GPT-6 models are pinned to the Responses
+  route, the only route that accepts detail `original`, and are listed in
+  the downgrade warning. The Opus 5.5 entry sits before the
+  `claude-opus-5` prefix, which would otherwise capture it, and uses
+  adaptive thinking. The shared ledger (module version 2.1.4) adds
+  `gpt-6-sol` to the large default pool and `gpt-6-luna` to the small one.
 - **v3.1.0** (22 September 2026) -- A new `--service-tier
   {auto,default,flex,priority}` flag on `extract.py` and
   `adjust_line_ranges.py` overrides the configured OpenAI service tier for

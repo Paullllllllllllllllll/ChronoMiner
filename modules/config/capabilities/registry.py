@@ -165,6 +165,32 @@ _CUSTOM_BASE: dict = dict(
 # ---------------------------------------------------------------------------
 
 _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
+    # --- OpenAI GPT-6 family (sol/luna GA 2026-09-22) ---
+    # 1.05M context, 128K max output, vision with image detail including
+    # "original", strict structured outputs, reasoning efforts none..max.
+    # Both serve Chat Completions too, but only the Responses route accepts
+    # detail "original" (verified 23.09.2026 against the live API), so the
+    # Responses route is pinned as for GPT-5.6.
+    (
+        ("gpt-6-sol",),
+        "gpt-6-sol",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            supports_original_detail=True,
+            max_output_tokens=128000,
+        ),
+    ),
+    (
+        ("gpt-6-luna",),
+        "gpt-6-luna",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            supports_original_detail=True,
+            max_output_tokens=128000,
+        ),
+    ),
     # --- OpenAI GPT-5.6 family (GA 2026-07-09) ---
     # All three share: 1.05M context, 128K max output, full vision with image
     # detail (low/high/original/auto; original/auto = full input resolution,
@@ -351,6 +377,16 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
     # Adaptive-thinking models (Fable 5, Sonnet 5, Opus 4.7/4.8) reject
     # temperature/top_p/top_k and thinking budget_tokens (HTTP 400); adaptive
     # thinking + effort replace them, so supports_sampler_controls=False.
+    # Opus 5.5 MUST precede the bare "claude-opus-5" prefix.
+    (
+        ("claude-opus-5-5", "claude-opus-5.5"),
+        "claude-opus-5.5",
+        _ANTHROPIC_BASE,
+        dict(
+            max_output_tokens=128000,
+            supports_sampler_controls=False,
+        ),
+    ),
     (
         ("claude-opus-5",),
         "claude-opus-5",

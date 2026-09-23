@@ -68,7 +68,7 @@ from typing import IO, Any, NamedTuple
 logger = logging.getLogger(__name__)
 
 LEDGER_SCHEMA_VERSION = 2
-LEDGER_MODULE_VERSION = "2.1.3"
+LEDGER_MODULE_VERSION = "2.1.4"
 
 # One-minute safety buffer past OpenAI's 00:00 UTC free-tier reset, so the
 # ledger never frees its budget before the upstream quota has actually reset.
@@ -98,6 +98,7 @@ POOL_SMALL = "small"
 # lands in gpt-4o's pool. Models with no match derive pool ``None``
 # (uncapped bucket).
 _LARGE_POOL_MODELS: tuple[str, ...] = (
+    "gpt-6-sol",
     "gpt-5.6-sol",
     "gpt-5.5",
     "gpt-5.4",
@@ -115,6 +116,7 @@ _LARGE_POOL_MODELS: tuple[str, ...] = (
     "o1",
 )
 _SMALL_POOL_MODELS: tuple[str, ...] = (
+    "gpt-6-luna",
     "gpt-5.6-terra",
     "gpt-5.6-luna",
     "gpt-5.4-mini",
