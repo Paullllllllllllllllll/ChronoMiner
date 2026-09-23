@@ -1,4 +1,4 @@
-# ChronoMiner v3.2.0
+# ChronoMiner v3.3.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -104,7 +104,7 @@ auto-detect from the model name.
 
 | Provider | Notable model families | Env variable | Batch |
 |----------|----------------------|--------------|-------|
-| OpenAI | GPT-6 (Sol, Luna), GPT-5.6 (Sol, Terra, Luna), GPT-5.5, GPT-5.4, GPT-5.3, GPT-5.2, GPT-5.1, GPT-5, o-series, GPT-4.1, GPT-4o | `OPENAI_API_KEY` | Yes |
+| OpenAI | GPT-6 (Astra, Sol, Luna), GPT-5.6 (Sol, Terra, Luna), GPT-5.5, GPT-5.4, GPT-5.3, GPT-5.2, GPT-5.1, GPT-5, o-series, GPT-4.1, GPT-4o | `OPENAI_API_KEY` | Yes |
 | Anthropic | Claude Opus 5.5/5/4.8/4.7/4.6/4.5/4.1/4, Fable 5, Sonnet 5/4.6/4.5/4, Haiku 4.5 | `ANTHROPIC_API_KEY` | Yes |
 | Google | Gemini 3, 2.5, 2.0, 1.5 (Pro, Flash variants) | `GOOGLE_API_KEY` | Yes |
 | OpenRouter | 100+ models via unified API | `OPENROUTER_API_KEY` | No |
@@ -831,6 +831,9 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v3.3.0** (23 September 2026) -- Register `gpt-6-astra` with the same
+  profile as the other GPT-6 models: pinned to the Responses route for
+  detail `original`, 128K output, and listed in the downgrade warning.
 - **v3.2.0** (23 September 2026) -- Register `gpt-6-sol`, `gpt-6-luna`
   and `claude-opus-5-5`. Both GPT-6 models are pinned to the Responses
   route, the only route that accepts detail `original`, and are listed in

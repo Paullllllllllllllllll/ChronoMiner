@@ -165,12 +165,23 @@ _CUSTOM_BASE: dict = dict(
 # ---------------------------------------------------------------------------
 
 _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
-    # --- OpenAI GPT-6 family (sol/luna GA 2026-09-22) ---
+    # --- OpenAI GPT-6 family (astra; sol/luna GA 2026-09-22) ---
     # 1.05M context, 128K max output, vision with image detail including
-    # "original", strict structured outputs, reasoning efforts none..max.
-    # Both serve Chat Completions too, but only the Responses route accepts
-    # detail "original" (verified 23.09.2026 against the live API), so the
-    # Responses route is pinned as for GPT-5.6.
+    # "original", strict structured outputs. Reasoning efforts: astra
+    # low..max; sol/luna none..max. All three serve Chat Completions too,
+    # but only the Responses route accepts detail "original" (verified
+    # 23.09.2026 against the live API for sol/luna), so the Responses route
+    # is pinned as for GPT-5.6.
+    (
+        ("gpt-6-astra",),
+        "gpt-6-astra",
+        _OPENAI_REASONING_BASE,
+        dict(
+            supports_chat_completions=False,
+            supports_original_detail=True,
+            max_output_tokens=128000,
+        ),
+    ),
     (
         ("gpt-6-sol",),
         "gpt-6-sol",
