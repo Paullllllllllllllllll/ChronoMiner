@@ -104,14 +104,14 @@ auto-detect from the model name.
 
 | Provider | Notable model families | Env variable | Batch |
 |----------|----------------------|--------------|-------|
-| OpenAI | GPT-5.4, GPT-5.3, GPT-5.2, GPT-5.1, GPT-5, o-series, GPT-4.1, GPT-4o | `OPENAI_API_KEY` | Yes |
-| Anthropic | Claude Opus 4.6/4.5/4.1/4, Sonnet 4.6/4.5/4, Haiku 4.5 | `ANTHROPIC_API_KEY` | Yes |
+| OpenAI | GPT-6 (Sol, Luna), GPT-5.6 (Sol, Terra, Luna), GPT-5.5, GPT-5.4, GPT-5.3, GPT-5.2, GPT-5.1, GPT-5, o-series, GPT-4.1, GPT-4o | `OPENAI_API_KEY` | Yes |
+| Anthropic | Claude Opus 5.5/5/4.8/4.7/4.6/4.5/4.1/4, Fable 5, Sonnet 5/4.6/4.5/4, Haiku 4.5 | `ANTHROPIC_API_KEY` | Yes |
 | Google | Gemini 3, 2.5, 2.0, 1.5 (Pro, Flash variants) | `GOOGLE_API_KEY` | Yes |
 | OpenRouter | 100+ models via unified API | `OPENROUTER_API_KEY` | No |
 | Custom | Any OpenAI-compatible endpoint | User-configured | No |
 
 **Model capabilities** are detected automatically. Reasoning models
-(GPT-5.x, o-series, Gemini 2.5+, Claude 4.x) have temperature/top_p
+(GPT-6, GPT-5.x, o-series, Gemini 2.5+, Claude 4.x and 5.x) have temperature/top_p
 disabled and reasoning effort configurable via the cross-provider
 `reasoning.effort` parameter. Standard models retain full sampler
 control.
