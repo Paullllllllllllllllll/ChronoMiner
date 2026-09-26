@@ -1,4 +1,4 @@
-# ChronoMiner v3.3.0
+# ChronoMiner v3.4.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -830,6 +830,22 @@ a single baseline commit at v1.0.0 on 25 April 2026; version numbers before
 v1.0.0 do not exist.
 
 ## Changelog
+
+- **v3.4.0** (26 September 2026) -- `MichelinGuidesLight` schema
+  v3.5-light: the schema records what each guide edition prints and leaves
+  harmonization across editions to post-processing. `awards.bib_gourmand`
+  becomes the `value_marker` enum (bib_gourmand / predecessor / none),
+  `pleasant_marker` becomes `pleasant`, and `hotel_class` /
+  `restaurant_class` become `hotel_category_rank` / `restaurant_category_rank`
+  (1 = the edition's highest tier, below-scale tiers included); new fields
+  are `person_name`, `awards.price_mark`, `awards.rising_star`,
+  `credit_cards` (replacing the boolean `accepts_credit_cards`),
+  `cuisine.meal_service`, `cuisine.style_descriptors` and
+  `unobservable_fields`. `cuisine_origin` and `culinary_style` are now arrays
+  of `{value, basis, evidence}` items. Null means the edition prints no such
+  mark or it cannot be determined; false or none means the mark is absent.
+  The DOCX, TXT and CSV converters render the new fields, with the cuisine
+  values and their basis in parallel CSV columns.
 
 - **v3.3.0** (23 September 2026) -- Register `gpt-6-astra` with the same
   profile as the other GPT-6 models: pinned to the Responses route for

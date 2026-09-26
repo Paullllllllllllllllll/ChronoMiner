@@ -41,6 +41,47 @@ def _star_count(value: Any) -> int:
     return max(stars, 0)
 
 
+def _format_cuisine_items(items: Any) -> str:
+    """Render v3.5-light cuisine items as 'value (basis: "evidence")'.
+
+    Each item is ``{value, basis, evidence}``. Non-dict elements and items
+    without a value are dropped instead of emitting empty separators.
+    """
+    if not isinstance(items, list):
+        return ""
+    parts: list[str] = []
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        value = item.get("value")
+        if not value:
+            continue
+        basis = item.get("basis")
+        evidence = item.get("evidence")
+        detail = ": ".join(
+            bit for bit in (basis, f'"{evidence}"' if evidence else None) if bit
+        )
+        parts.append(f"{value} ({detail})" if detail else str(value))
+    return "; ".join(parts)
+
+
+# Award marks whose null (not printed by the edition, or not determinable)
+# must not read like a confirmed absence (false / "none" / 0).
+_MICHELIN_MARKS = (
+    ("stars", "Stars"),
+    ("value_marker", "Value Marker"),
+    ("price_mark", "Price Mark"),
+    ("michelin_plate", "Michelin Plate"),
+    ("pleasant", "Pleasant"),
+    ("rising_star", "Rising Star"),
+)
+
+
+def _null_marks(awards: dict) -> str:
+    """List the award marks that are null, for an explicit 'null' line."""
+    return ", ".join(label for key, label in _MICHELIN_MARKS if awards.get(key) is None)
+
+
 def _format_geography(geography: Any) -> str:
     """Format a v3.0 geography object as 'city, country' (modern preferred)."""
     geo = _as_dict(geography)
@@ -1203,12 +1244,12 @@ class DocumentConverter(BaseConverter):
             lines.append("\n" + "=" * 40 + "\n")
         return lines
 
-    # --- Michelin Guides Light Converters (schema 3.4-light) ---
+    # --- Michelin Guides Light Converters (schema 3.5-light) ---
 
     def _convert_michelin_guides_light_to_docx(
         self, entries: list[Any], document: _DocxDocument
     ) -> None:
-        """Convert MichelinGuidesLight entries to DOCX format (schema 3.4-light)."""
+        """Convert MichelinGuidesLight entries to DOCX format (schema 3.5-light)."""
         entries = self._normalize_entries(entries)
         for entry in entries:
             if not isinstance(entry, dict):
@@ -1219,6 +1260,10 @@ class DocumentConverter(BaseConverter):
             stars = _star_count(awards.get("stars"))
             star_display = "⭐" * stars if stars else ""
             document.add_heading(f"{name} {star_display}".strip(), level=1)
+
+            person_name = entry.get("person_name")
+            if person_name:
+                document.add_paragraph(f"Person: {person_name}")
 
             location = entry.get("location", {}) or {}
             address = entry.get("address", {}) or {}
@@ -1245,24 +1290,52 @@ class DocumentConverter(BaseConverter):
                 document.add_paragraph(f"Address: {' '.join(address_parts)}")
 
             award_bits: list[str] = []
-            if awards.get("bib_gourmand"):
-                award_bits.append("Bib Gourmand")
+            value_marker = awards.get("value_marker")
+            if value_marker and value_marker != "none":
+                award_bits.append(str(value_marker).replace("_", " ").title())
+            if awards.get("price_mark"):
+                award_bits.append("Price Mark")
             if awards.get("michelin_plate"):
                 award_bits.append("Michelin Plate")
-            if awards.get("pleasant_marker"):
+            if awards.get("pleasant"):
                 award_bits.append("Pleasant")
-            if awards.get("hotel_class"):
-                award_bits.append(f"Hotel class {awards.get('hotel_class')}")
-            if awards.get("restaurant_class"):
-                award_bits.append(f"Restaurant class {awards.get('restaurant_class')}")
+            if awards.get("rising_star"):
+                award_bits.append("Rising Star")
+            if awards.get("hotel_category_rank"):
+                award_bits.append(f"Hotel category {awards.get('hotel_category_rank')}")
+            if awards.get("restaurant_category_rank"):
+                award_bits.append(
+                    f"Restaurant category {awards.get('restaurant_category_rank')}"
+                )
             if award_bits:
                 document.add_paragraph(f"Awards: {', '.join(award_bits)}")
+            null_marks = _null_marks(awards)
+            if null_marks:
+                document.add_paragraph(f"Not printed or not determinable: {null_marks}")
+
+            credit_cards = entry.get("credit_cards")
+            document.add_paragraph(
+                "Credit Cards: "
+                + (
+                    str(credit_cards).replace("_", " ")
+                    if credit_cards
+                    else "not printed or not determinable"
+                )
+            )
 
             cuisine = entry.get("cuisine", {}) or {}
-            origin = self.join_list(cuisine.get("cuisine_origin"))
+            meal_service = cuisine.get("meal_service")
+            if meal_service:
+                document.add_paragraph(
+                    f"Meal Service: {str(meal_service).replace('_', ' ')}"
+                )
+            origin = _format_cuisine_items(cuisine.get("cuisine_origin"))
             if origin:
                 document.add_paragraph(f"Cuisine: {origin}")
-            style = self.join_list(cuisine.get("culinary_style"))
+            descriptors = self.join_list(cuisine.get("style_descriptors"))
+            if descriptors:
+                document.add_paragraph(f"Style Descriptors: {descriptors}")
+            style = _format_cuisine_items(cuisine.get("culinary_style"))
             if style:
                 document.add_paragraph(f"Style: {style}")
             specialties = self.join_list(cuisine.get("specialties"))
@@ -1283,15 +1356,36 @@ class DocumentConverter(BaseConverter):
                 document.add_paragraph(
                     f"À la carte: {currency} {alc_min or '?'} - {alc_max or '?'}"
                 )
+            lunch_price = pricing.get("lunch_menu_price")
+            if lunch_price:
+                document.add_paragraph(f"Lunch Menu: {currency} {lunch_price}")
+
+            rooms = entry.get("rooms", {}) or {}
+            room_count = rooms.get("room_count")
+            room_min = rooms.get("room_price_min")
+            room_max = rooms.get("room_price_max")
+            if room_count or room_min or room_max:
+                room_bits = []
+                if room_count:
+                    room_bits.append(f"{room_count} rooms")
+                if room_min or room_max:
+                    room_bits.append(
+                        f"{currency} {room_min or '?'} - {room_max or '?'}"
+                    )
+                document.add_paragraph(f"Rooms: {', '.join(room_bits)}")
 
             note = entry.get("inspector_note")
             if note:
                 document.add_paragraph(f"Inspector Note: {note}")
 
+            unobservable = self.join_list(entry.get("unobservable_fields"))
+            if unobservable:
+                document.add_paragraph(f"Unobservable Fields: {unobservable}")
+
             document.add_page_break()
 
     def _convert_michelin_guides_light_to_txt(self, entries: list[Any]) -> list[str]:
-        """Convert MichelinGuidesLight entries to TXT format (schema 3.4-light)."""
+        """Convert MichelinGuidesLight entries to TXT format (schema 3.5-light)."""
         entries = self._normalize_entries(entries)
         lines: list[str] = []
         for entry in entries:
@@ -1301,12 +1395,19 @@ class DocumentConverter(BaseConverter):
             name = entry.get("establishment_name", "Unknown Establishment")
             awards = entry.get("awards", {}) or {}
             stars = _star_count(awards.get("stars"))
-            star_display = "*" * stars if stars else "No stars"
+            if awards.get("stars") is None:
+                star_display = "not printed or not determinable"
+            else:
+                star_display = "*" * stars if stars else "No stars"
 
             lines.append(f"{'=' * 60}")
             lines.append(f"{name}")
             lines.append(f"Stars: {star_display}")
             lines.append(f"{'=' * 60}")
+
+            person_name = entry.get("person_name")
+            if person_name:
+                lines.append(f"Person: {person_name}")
 
             location = entry.get("location", {}) or {}
             address = entry.get("address", {}) or {}
@@ -1333,24 +1434,50 @@ class DocumentConverter(BaseConverter):
                 lines.append(f"Address: {' '.join(addr_parts)}")
 
             award_bits: list[str] = []
-            if awards.get("bib_gourmand"):
-                award_bits.append("Bib Gourmand")
+            value_marker = awards.get("value_marker")
+            if value_marker and value_marker != "none":
+                award_bits.append(str(value_marker).replace("_", " ").title())
+            if awards.get("price_mark"):
+                award_bits.append("Price Mark")
             if awards.get("michelin_plate"):
                 award_bits.append("Michelin Plate")
-            if awards.get("pleasant_marker"):
+            if awards.get("pleasant"):
                 award_bits.append("Pleasant")
-            if awards.get("hotel_class"):
-                award_bits.append(f"Hotel class {awards.get('hotel_class')}")
-            if awards.get("restaurant_class"):
-                award_bits.append(f"Restaurant class {awards.get('restaurant_class')}")
+            if awards.get("rising_star"):
+                award_bits.append("Rising Star")
+            if awards.get("hotel_category_rank"):
+                award_bits.append(f"Hotel category {awards.get('hotel_category_rank')}")
+            if awards.get("restaurant_category_rank"):
+                award_bits.append(
+                    f"Restaurant category {awards.get('restaurant_category_rank')}"
+                )
             if award_bits:
                 lines.append(f"Awards: {', '.join(award_bits)}")
+            null_marks = _null_marks(awards)
+            if null_marks:
+                lines.append(f"Not printed or not determinable: {null_marks}")
+
+            credit_cards = entry.get("credit_cards")
+            lines.append(
+                "Credit Cards: "
+                + (
+                    str(credit_cards).replace("_", " ")
+                    if credit_cards
+                    else "not printed or not determinable"
+                )
+            )
 
             cuisine = entry.get("cuisine", {}) or {}
-            origin = self.join_list(cuisine.get("cuisine_origin"))
+            meal_service = cuisine.get("meal_service")
+            if meal_service:
+                lines.append(f"Meal Service: {str(meal_service).replace('_', ' ')}")
+            origin = _format_cuisine_items(cuisine.get("cuisine_origin"))
             if origin:
                 lines.append(f"Cuisine: {origin}")
-            style = self.join_list(cuisine.get("culinary_style"))
+            descriptors = self.join_list(cuisine.get("style_descriptors"))
+            if descriptors:
+                lines.append(f"Style Descriptors: {descriptors}")
+            style = _format_cuisine_items(cuisine.get("culinary_style"))
             if style:
                 lines.append(f"Style: {style}")
             specialties = self.join_list(cuisine.get("specialties"))
@@ -1369,10 +1496,31 @@ class DocumentConverter(BaseConverter):
                 lines.append(
                     f"À la carte: {currency} {alc_min or '?'} - {alc_max or '?'}"
                 )
+            lunch_price = pricing.get("lunch_menu_price")
+            if lunch_price:
+                lines.append(f"Lunch Menu: {currency} {lunch_price}")
+
+            rooms = entry.get("rooms", {}) or {}
+            room_count = rooms.get("room_count")
+            room_min = rooms.get("room_price_min")
+            room_max = rooms.get("room_price_max")
+            if room_count or room_min or room_max:
+                room_bits = []
+                if room_count:
+                    room_bits.append(f"{room_count} rooms")
+                if room_min or room_max:
+                    room_bits.append(
+                        f"{currency} {room_min or '?'} - {room_max or '?'}"
+                    )
+                lines.append(f"Rooms: {', '.join(room_bits)}")
 
             note = entry.get("inspector_note")
             if note:
                 lines.append(f"Inspector Note: {note}")
+
+            unobservable = self.join_list(entry.get("unobservable_fields"))
+            if unobservable:
+                lines.append(f"Unobservable Fields: {unobservable}")
 
             lines.append("")
 

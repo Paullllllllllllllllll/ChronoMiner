@@ -42,6 +42,21 @@ def _join_dicts(entry: dict, key: str, fmt: Callable, sep: str = "; ") -> str:
     return sep.join(cell for cell in cells if cell)
 
 
+def _cuisine_column(cuisine: dict, key: str, part: str, sep: str = "; ") -> str:
+    """Join one part (value, basis or evidence) of the cuisine items in *key*.
+
+    Schema 3.5-light items are ``{value, basis, evidence}``. Every item keeps
+    its position, with an empty placeholder for a missing part, so the value,
+    basis and evidence columns stay aligned item by item. Evidence columns use
+    " | " because verbatim guide text may contain semicolons.
+    """
+    items = cuisine.get(key) or []
+    if not isinstance(items, list):
+        return ""
+    cells = [str(item.get(part) or "") for item in items if isinstance(item, dict)]
+    return sep.join(cells) if any(cells) else ""
+
+
 def _event_cell(event: dict) -> str:
     """Render a v3.0 place event, omitting empty parentheses and colons."""
     event_type = event.get("event_type") or ""
@@ -584,15 +599,17 @@ class CSVConverter(BaseConverter):
         return df
 
     # ------------------------------------------------------------------
-    # MichelinGuidesLight (schema 3.4-light)
+    # MichelinGuidesLight (schema 3.5-light)
     # ------------------------------------------------------------------
 
     def _convert_michelin_guides_light_to_df(self, entries: list[Any]) -> pd.DataFrame:
-        """Convert MichelinGuidesLight entries to DataFrame (schema 3.4-light).
+        """Convert MichelinGuidesLight entries to DataFrame (schema 3.5-light).
 
-        Reads the current Light schema shape (location, address, awards with
-        hotel/restaurant class, cuisine_origin/culinary_style arrays, pricing,
-        rooms, inspector_note, entry_is_fragment).
+        Reads the Light schema shape (location, address, awards with the
+        value/price/plate/pleasant/rising-star marks and hotel/restaurant
+        category ranks, credit_cards, cuisine_origin/culinary_style as
+        value+basis pairs in parallel columns, pricing, rooms,
+        inspector_note, entry_is_fragment, unobservable_fields).
         """
         entries = self._normalize_entries(entries)
         rows: list[dict[str, Any]] = []
@@ -611,19 +628,43 @@ class CSVConverter(BaseConverter):
             rows.append(
                 {
                     "establishment_name": entry.get("establishment_name"),
+                    "person_name": entry.get("person_name"),
                     "city_or_town": location.get("city_or_town"),
                     "neighbourhood_or_area": location.get("neighbourhood_or_area"),
                     "street": address.get("street"),
                     "house_number": address.get("house_number"),
                     "postal_code": address.get("postal_code"),
                     "stars": awards.get("stars"),
-                    "bib_gourmand": awards.get("bib_gourmand"),
+                    "value_marker": awards.get("value_marker"),
+                    "price_mark": awards.get("price_mark"),
                     "michelin_plate": awards.get("michelin_plate"),
-                    "pleasant_marker": awards.get("pleasant_marker"),
-                    "hotel_class": awards.get("hotel_class"),
-                    "restaurant_class": awards.get("restaurant_class"),
-                    "cuisine_origin": self.join_list(cuisine.get("cuisine_origin")),
-                    "culinary_style": self.join_list(cuisine.get("culinary_style")),
+                    "pleasant": awards.get("pleasant"),
+                    "rising_star": awards.get("rising_star"),
+                    "hotel_category_rank": awards.get("hotel_category_rank"),
+                    "restaurant_category_rank": awards.get("restaurant_category_rank"),
+                    "credit_cards": entry.get("credit_cards"),
+                    "meal_service": cuisine.get("meal_service"),
+                    "cuisine_origin": _cuisine_column(
+                        cuisine, "cuisine_origin", "value"
+                    ),
+                    "cuisine_origin_basis": _cuisine_column(
+                        cuisine, "cuisine_origin", "basis"
+                    ),
+                    "cuisine_origin_evidence": _cuisine_column(
+                        cuisine, "cuisine_origin", "evidence", sep=" | "
+                    ),
+                    "style_descriptors": self.join_list(
+                        cuisine.get("style_descriptors")
+                    ),
+                    "culinary_style": _cuisine_column(
+                        cuisine, "culinary_style", "value"
+                    ),
+                    "culinary_style_basis": _cuisine_column(
+                        cuisine, "culinary_style", "basis"
+                    ),
+                    "culinary_style_evidence": _cuisine_column(
+                        cuisine, "culinary_style", "evidence", sep=" | "
+                    ),
                     "specialties": self.join_list(cuisine.get("specialties")),
                     "currency": pricing.get("currency"),
                     "menu_price_min": pricing.get("menu_price_min"),
@@ -634,9 +675,11 @@ class CSVConverter(BaseConverter):
                     "room_count": rooms.get("room_count"),
                     "room_price_min": rooms.get("room_price_min"),
                     "room_price_max": rooms.get("room_price_max"),
-                    "accepts_credit_cards": entry.get("accepts_credit_cards"),
                     "inspector_note": entry.get("inspector_note"),
                     "entry_is_fragment": entry.get("entry_is_fragment"),
+                    "unobservable_fields": self.join_list(
+                        entry.get("unobservable_fields")
+                    ),
                 }
             )
 

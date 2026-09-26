@@ -859,6 +859,109 @@ def test_michelin_light_tolerates_string_star_counts(tmp_path: Path) -> None:
     assert docx_out.exists()
 
 
+@pytest.mark.unit
+def test_michelin_light_v35_fields_render(tmp_path: Path) -> None:
+    """DOCX/TXT render the v3.5-light fields: person_name, the renamed and new
+    award fields, credit_cards, meal_service, cuisine value+basis pairs,
+    rooms, and unobservable_fields."""
+    entry = {
+        "establishment_name": "Chez Passédat",
+        "person_name": "Gérald Passédat",
+        "location": {"city_or_town": "Marseille"},
+        "awards": {
+            "stars": 3,
+            "value_marker": "predecessor",
+            "price_mark": True,
+            "michelin_plate": True,
+            "pleasant": True,
+            "rising_star": False,
+            "hotel_category_rank": None,
+            "restaurant_category_rank": 1,
+        },
+        "credit_cards": "symbols_shown",
+        "cuisine": {
+            "meal_service": "serves_meals",
+            "cuisine_origin": [
+                {
+                    "value": "mediterranean",
+                    "basis": "stated",
+                    "evidence": "cuisine méditerranéenne",
+                }
+            ],
+            "style_descriptors": ["CUISINE MODERNE"],
+            "culinary_style": [
+                {
+                    "value": "bistronomy",
+                    "basis": "specialties",
+                    "evidence": "bistrot moderne",
+                }
+            ],
+            "specialties": ["bouillabaisse"],
+        },
+        "rooms": {"room_count": 5, "room_price_min": 200, "room_price_max": 400},
+        "unobservable_fields": ["hotel_category_rank"],
+    }
+    json_file = _entries_file(tmp_path / "in.json", [entry])
+
+    txt_out = tmp_path / "out.txt"
+    DocumentConverter("MichelinGuidesLight").convert_to_txt(json_file, txt_out)
+    text = txt_out.read_text(encoding="utf-8")
+    assert "Person: Gérald Passédat" in text
+    assert "Predecessor" in text
+    assert "Price Mark" in text
+    assert "Michelin Plate" in text
+    assert "Pleasant" in text
+    assert "Restaurant category 1" in text
+    assert "Credit Cards: symbols shown" in text
+    assert "Meal Service: serves meals" in text
+    assert 'mediterranean (stated: "cuisine méditerranéenne")' in text
+    assert "Style Descriptors: CUISINE MODERNE" in text
+    assert 'bistronomy (specialties: "bistrot moderne")' in text
+    assert "Rooms: 5 rooms" in text
+    assert "Unobservable Fields: hotel_category_rank" in text
+    assert "Not printed or not determinable" not in text
+
+    docx_out = tmp_path / "out.docx"
+    DocumentConverter("MichelinGuidesLight").convert_to_docx(json_file, docx_out)
+    assert docx_out.exists()
+
+
+def test_michelin_light_v35_null_marks_differ_from_absent(tmp_path: Path) -> None:
+    """A null mark (not printed or not determinable) must not render like an
+    absent one (false / 'none' / 0)."""
+    marks = ("value_marker", "price_mark", "michelin_plate", "pleasant")
+    absent = {
+        "stars": 0,
+        "value_marker": "none",
+        "price_mark": False,
+        "michelin_plate": False,
+        "pleasant": False,
+        "rising_star": False,
+    }
+    null = {**absent, "stars": None, **dict.fromkeys(marks), "rising_star": None}
+    outputs = []
+    for i, awards in enumerate((absent, null)):
+        entry = {
+            "establishment_name": "Hôtel X",
+            "awards": awards,
+            "credit_cards": None if i else "none_shown",
+        }
+        txt_out = tmp_path / f"out{i}.txt"
+        DocumentConverter("MichelinGuidesLight").convert_to_txt(
+            _entries_file(tmp_path / f"in{i}.json", [entry]), txt_out
+        )
+        outputs.append(txt_out.read_text(encoding="utf-8"))
+    assert "Stars: No stars" in outputs[0]
+    assert "Not printed or not determinable" not in outputs[0]
+    assert "Stars: not printed or not determinable" in outputs[1]
+    assert (
+        "Not printed or not determinable: Stars, Value Marker, Price Mark, "
+        "Michelin Plate, Pleasant, Rising Star"
+    ) in outputs[1]
+    assert "Credit Cards: none shown" in outputs[0]
+    assert "Credit Cards: not printed or not determinable" in outputs[1]
+
+
 # ---------------------------------------------------------------------------
 # FIX 1 (base helpers) — timeframe default key and association labels
 # ---------------------------------------------------------------------------

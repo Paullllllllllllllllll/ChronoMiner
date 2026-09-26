@@ -1,6 +1,6 @@
 {
   "name": "MichelinGuidesLight",
-  "schema_version": "3.4-light",
+  "schema_version": "3.5-light",
   "type": "json_schema",
   "strict": true,
   "schema": {
@@ -8,201 +8,386 @@
     "properties": {
       "contains_no_content_of_requested_type": {
         "type": "boolean",
-        "description": "True if the page contains no restaurant or hotel entries (maps, legends, index, ads). False if at least one entry is present."
+        "description": "True if the page has no hotel or restaurant entry (maps, key pages, indexes, advertisements, town introductions without entries)."
       },
       "active_city_or_town": {
-        "type": ["string", "null"],
-        "description": "Last bold all-caps town heading visible on this page. Null only if no heading appears (e.g. pure map page)."
+        "type": [
+          "string",
+          "null"
+        ],
+        "description": "The last locality heading printed on this page, as printed, not counting cross-reference headings that only point to another locality ('voir', 'siehe', 'see', 'vedere', 'ver', 'SEXTEN = Sesto'); if the page prints no locality heading, the locality named in the running head (e.g. 'PARIS p. 39' gives 'PARIS') or, failing that, in a town-plan title on the page. Null only if none of these is printed."
       },
       "entries": {
         "type": "array",
-        "description": "Michelin Guide establishments extracted from this page. NULL SEMANTICS: For COMPLETE entries (entry_is_fragment = false), every boolean field MUST be true or false, never null. awards.stars MUST be 0 (not null) if no star glyph is visible. For FRAGMENT entries (entry_is_fragment = true), fields not visible on this page may be null.",
+        "description": "Every hotel and restaurant entry on the page, in page order, including fragments that continue from or onto another page. Not entries: garages and car dealers, sights, town-plan legends, cross-reference lines under a hotel that point to a separately listed restaurant, advertisements. Record what this edition prints, in its own terms, using the key and notes in the context; do not convert to the conventions of other editions. NULL CONVENTION for awards.* and credit_cards: a value asserts what is printed, and absence (0, false, 'none', 'none_shown') may be asserted only where the part of the entry that would carry the mark is legible, including its colour where colour carries the meaning. If that part is on the page but unreadable, the field is null and listed in unobservable_fields. A field that does not apply (a hotel rank for a restaurant, a mark this edition does not use, a part of a fragment that is on another page) is null and not listed.",
         "items": {
           "type": "object",
-          "description": "One establishment entry from a Michelin Guide page.",
           "properties": {
             "establishment_name": {
-              "type": "string",
-              "description": "Restaurant name exactly as printed."
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The name as printed, usually in bold, keeping printed spellings and abbreviations ('H.', 'Rest.', 'Aub.'); a name in light (non-bold) type marks an establishment that supplied no prices and is still an entry. Without the words that follow it ('avec ch', 'garni', 'sans rest.', 'con cam', 'with rm'), without a person name in parentheses, hotel-group abbreviations or town-plan locator letters. Null when the name is unreadable or lies outside this page's fragment; never reconstruct it."
+            },
+            "person_name": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Personal name(s) printed in parentheses directly after the establishment name, verbatim without the parentheses ('Gérald Passédat', 'Roux', 'Filippo Saporito e Alessandro Rossi'), a personal name printed in light type directly after the bold name without parentheses ('Turners Richard Turner'), or the name on a labelled 'Chef:' / 'Cheffe:' line under the name. If both occur, keep both in reading order, separated by a semicolon. Transcribe the name only; do not add a role. Null if none. Not a person name: an alternative establishment name, a hotel-group name or abbreviation ('T.H.F.'; see the context), a descriptive addition ('mit Gästehaus'), a price or number in parentheses."
             },
             "location": {
               "type": "object",
-              "description": "Locality from the guide heading.",
               "properties": {
                 "city_or_town": {
-                  "type": ["string", "null"],
-                  "description": "City or town name."
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "The locality heading under which the entry is listed, as printed; for entries before the first heading on the page, the locality in the running head or, failing that, in a town-plan title above them. A heading that only groups several localities (an island or district, e.g. 'ARRAN (Isle of)' above 'Lochranza' and 'Whiting Bay') is not the locality: use the town heading. A heading printed in two languages is kept whole ('RATHNEW RÁTH NAOI', 'OIARTZUN o OYARZUN'). Null if no heading, running head or town-plan title on the page names the locality (a running head that names only an island does not)."
                 },
                 "neighbourhood_or_area": {
-                  "type": ["string", "null"],
-                  "description": "Neighbourhood or area within the city."
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "A sub-locality heading under the town heading (district, quarter, arrondissement, outlying village with its own heading), as printed but without a leading preposition, a lowercase article after it or a generic district word ('à Juzaine' gives 'Juzaine', 'In Leipzig-Connewitz' gives 'Leipzig-Connewitz', 'en la carretera N 122' gives 'carretera N 122', 'Im Stadtteil Idar' gives 'Idar'; a capitalized article belongs to the name: 'en El Sardinero' gives 'El Sardinero') and without distance notes; null if none."
                 }
               },
-              "required": ["city_or_town", "neighbourhood_or_area"],
+              "required": [
+                "city_or_town",
+                "neighbourhood_or_area"
+              ],
               "additionalProperties": false
             },
             "address": {
               "type": "object",
-              "description": "Postal address details if printed.",
               "properties": {
                 "street": {
-                  "type": ["string", "null"],
-                  "description": "Street name."
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Street as printed, without house number and without distance or direction notes ('2 km by N 7', 'Nord : 3 km'). Null if no street is printed."
                 },
                 "house_number": {
-                  "type": ["string", "null"],
-                  "description": "House or building number."
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "House number as printed, or null."
                 },
                 "postal_code": {
-                  "type": ["string", "null"],
-                  "description": "Postal or ZIP code."
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "Postal code only when printed in the entry itself; null otherwise (a code printed only in the town heading is not copied)."
                 }
               },
-              "required": ["street", "house_number", "postal_code"],
+              "required": [
+                "street",
+                "house_number",
+                "postal_code"
+              ],
               "additionalProperties": false
             },
             "awards": {
               "type": "object",
-              "description": "Distinctions exactly as printed.",
+              "description": "Distinctions and categories as this edition prints them, read with the key and notes in the context. A distinction belongs to the entry whose own glyph column, name line or price line carries it, including outlets described within the entry; a distinction repeated on a line that refers to a separately listed restaurant belongs to that restaurant's entry. Stars, a value marker, a price mark and the Plate are recorded independently: one does not exclude another.",
               "properties": {
                 "stars": {
-                  "type": ["integer", "null"],
-                  "description": "Michelin Stars (0-3). Flower-shaped red rosettes on the name line (category 1 in context image). Count visible rosettes; 0 if none on a complete entry.",
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 0,
-                  "maximum": 3
+                  "maximum": 3,
+                  "description": "Number of Michelin stars (rosettes), 0-3, wherever the edition prints them (margin column, name line, after a meal price); colour varies by edition. Not stars: sight-rating stars, the green star (the same rosette printed green, a sustainability award), grape-bunch wine-list signs, the four-pointed plat-du-jour price sign, the one- and two-person pictograms before room prices, anniversary laurels or medallions ('50', '100'), a rosette on a line that refers to a separately listed restaurant."
                 },
-                "bib_gourmand": {
-                  "type": ["boolean", "null"],
-                  "description": "Bib Gourmand. Round smiling Bibendum face on name line (category 4 in context image). Introduced 1997; false for earlier editions."
+                "value_marker": {
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "enum": [
+                    "bib_gourmand",
+                    "predecessor",
+                    "none",
+                    null
+                  ],
+                  "description": "The edition's good-value distinction as its key defines it (see the context). 'bib_gourmand': the Bibendum face. 'predecessor': the earlier mark the key defines as a good or carefully prepared meal at a moderate price, in the form the context describes: a red word or letter on the price line (red «M», red R or 'Repas', red 'Karte' or 'Menu', red 'Comida' or 'Refeição', red 'Pasto') or a typographic distinction (a bold set-meal price, a red underline under the price or the meal word); where ordinary entries print the same word in black, only the red form counts, and a bold room count alone does not count. 'none': no such mark. Not a value marker: the Bib Hotel (a blue face on a pillow, often faint; where the context says so, a blue room word or room count identifies it), also when it sits under a restaurant glyph; a pure price-threshold mark (see price_mark); the red word 'Rest' / 'Rist' that also accompanies stars. Do not record a face whose colour or shape cannot be told apart from the Bib Hotel as 'bib_gourmand'."
+                },
+                "price_mark": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
+                  "description": "True if the entry carries the edition's pure price-threshold mark, which the key defines by a price ceiling alone without a quality claim (diamond on a bar 'menu simple à moins de ...', two linked coins, the Swiss plat-du-jour mark, the Italian budget lozenge). False if this edition has such a mark and the entry lacks it; null if this edition has none (see the context). Record it independently of stars and value_marker."
                 },
                 "michelin_plate": {
-                  "type": ["boolean", "null"],
-                  "description": "Michelin Plate (2016-2021) or Selected Restaurant (2022+). Plate-and-cutlery icon on name line. false outside active years."
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
+                  "description": "True if the entry carries the Michelin Plate (fork and knife beside a plate or circle: 'L'Assiette', 'The Plate', 'Il piatto', 'Der Teller'). Not the Plate: facility icons among the entry's amenity symbols, such as restaurant service in a hotel (knife and fork beside a plate) or vegetarian menus (fork beside a circled V); the Bib Hotel. Null if this edition has no Plate (see the context)."
                 },
-                "pleasant_marker": {
-                  "type": ["boolean", "null"],
-                  "description": "Pleasant establishment marker. Stylized decorative mark (flower, bird, or small red symbol) on the name line."
+                "pleasant": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
+                  "description": "True if the entry is marked as particularly pleasant by the convention the context gives for this edition: the category glyph printed in red, or also the name where the context says so. False only when that evidence is legible and shows the ordinary colour (black, grey or gold). Null when the edition has no such convention or the entry lacks the evidence (e.g. no category glyph). Never pleasant: a red name in editions that define red names as rising stars, the rocking chair, red guillemets, red squares or red descriptive text about the setting, view arrows, red map letters, a red rule under the glyph, a red Plate."
                 },
-                "hotel_class": {
-                  "type": ["integer", "null"],
-                  "description": "Hotel comfort class (1-5). Count of hotel-pavilion glyphs — house/building icons of increasing complexity (category 2 in context image). Null if not a hotel.",
+                "rising_star": {
+                  "type": [
+                    "boolean",
+                    "null"
+                  ],
+                  "description": "True if the entry's name is printed in red and the edition defines red names as candidates for a first or further star ('Rising Star', 'Hoffnungsträger', 'promessa', 'promesa', 'espoir'). False otherwise in such editions; null if this edition has no such convention (see the context)."
+                },
+                "hotel_category_rank": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1,
-                  "maximum": 5
+                  "maximum": 7,
+                  "description": "Rank of the entry's hotel category glyph in the complete ranked list of hotel tiers the context gives for this edition, including tiers that an abbreviated key shows only as a range: 1 = highest tier, whatever numbering the guide prints. Tiers below the standard scale (simple comfort, guesthouse, rural lodging, goblet, hut) have their own ranks in that list. Identify the tier by matching the glyph's shape; do not count peaks or houses. Null if the entry has no ranked hotel glyph; facility icons and unranked hotel symbols (e.g. a uniform bed glyph) are not ranks."
                 },
-                "restaurant_class": {
-                  "type": ["integer", "null"],
-                  "description": "Restaurant comfort class (1-5). Count of crossed fork-and-spoon glyphs (category 3 in context image). Comfort rating, not food quality. Null if not a restaurant.",
+                "restaurant_category_rank": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
                   "minimum": 1,
-                  "maximum": 5
+                  "maximum": 6,
+                  "description": "Rank of the entry's restaurant category glyph in the complete ranked list of restaurant tiers the context gives for this edition: 1 = the most fork-and-spoon pairs, then one pair fewer per rank; a pub or tapas-bar glyph takes the rank the list gives it. Null if the entry has no ranked restaurant glyph; facility icons (e.g. 'restaurant with rooms', 'hotel with restaurant') are not ranks."
                 }
               },
               "required": [
                 "stars",
-                "bib_gourmand",
+                "value_marker",
+                "price_mark",
                 "michelin_plate",
-                "pleasant_marker",
-                "hotel_class",
-                "restaurant_class"
+                "pleasant",
+                "rising_star",
+                "hotel_category_rank",
+                "restaurant_category_rank"
               ],
               "additionalProperties": false
             },
+            "credit_cards": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "symbols_shown",
+                "not_accepted_symbol",
+                "none_shown",
+                null
+              ],
+              "description": "Card information printed in the entry. 'symbols_shown': one or more card brand symbols; 'not_accepted_symbol': the crossed-out card ('cards not accepted'); 'none_shown': neither is visible where this edition prints card information (see the context), which may be the name line or the end of the facilities; it records what is visible and does not mean cards are accepted or refused. Null if this edition prints no card information."
+            },
             "cuisine": {
               "type": "object",
-              "description": "Culinary origin, style, and specialty information. Derive cuisine_origin and culinary_style ONLY from what this guide page states about the entry (printed cuisine descriptors, e.g. 'Cuisine italienne', 'Italian', and specialty dish mentions). If the page gives no cuisine information for the entry, set both to null -- do not guess from the establishment's location or name.",
+              "description": "Cuisine information from evidence printed in the entry itself. For every entry that serves meals, classify the cooking whenever the entry offers evidence: a printed cuisine descriptor, printed dishes, or the establishment's printed name or type when these support a specific tradition; quote that evidence. If the entry offers none, use null. Never classify from the guide's country, the town, the language of the edition, or a person's apparent origin.",
               "properties": {
+                "meal_service": {
+                  "type": "string",
+                  "enum": [
+                    "serves_meals",
+                    "no_meals",
+                    "unknown"
+                  ],
+                  "description": "'serves_meals': restaurant entries and hotels with meal prices or a restaurant. 'no_meals': printed as without restaurant ('sans rest.', 'garni', 'senza rist.', 'without rest.', 'sin rest.', 'sem rest.') or with the edition's glyph for that; where the context says that the absence of a restaurant-service icon means no restaurant, use 'no_meals' only if the place where that icon would be printed is fully legible. 'unknown': otherwise."
+                },
                 "cuisine_origin": {
-                  "type": ["array", "null"],
-                  "description": "National or geographic culinary tradition(s) of the cooking, as stated on the page (cuisine text descriptors or clearly attributable specialties). Null if the page gives no cuisine information.",
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "description": "National or geographic culinary tradition(s) of the cooking, each with its basis and the verbatim printed words it rests on. Null if the entry offers no evidence, and always if meal_service is 'no_meals'. A descriptor of local or regional cooking ('cucina regionale', 'spécialités régionales') counts as stated evidence for the cooking of the entry's own locality when that locality is printed on the page. Use 'international' or 'mediterranean' only with printed culinary evidence for them; Greek and other Mediterranean national cooking without its own value is 'mediterranean'.",
                   "items": {
-                    "type": "string",
-                    "enum": [
-                      "french",
-                      "italian",
-                      "german_austrian_swiss",
-                      "iberian",
-                      "british",
-                      "nordic_scandinavian",
-                      "belgian_dutch",
-                      "mediterranean",
-                      "japanese",
-                      "chinese",
-                      "south_asian",
-                      "southeast_asian",
-                      "middle_eastern",
-                      "north_african",
-                      "african",
-                      "mexican",
-                      "south_american",
-                      "american",
-                      "international",
-                      "other"
-                    ]
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "enum": [
+                          "french",
+                          "italian",
+                          "german_austrian_swiss",
+                          "iberian",
+                          "british",
+                          "nordic_scandinavian",
+                          "belgian_dutch",
+                          "mediterranean",
+                          "japanese",
+                          "chinese",
+                          "south_asian",
+                          "southeast_asian",
+                          "middle_eastern",
+                          "north_african",
+                          "african",
+                          "mexican",
+                          "south_american",
+                          "american",
+                          "international",
+                          "other"
+                        ]
+                      },
+                      "basis": {
+                        "type": "string",
+                        "enum": [
+                          "stated",
+                          "specialties",
+                          "name_or_type"
+                        ],
+                        "description": "'stated': a printed cuisine descriptor; 'specialties': printed dishes clearly of this tradition; 'name_or_type': the establishment's name or type, or the type of its restaurant outlet, when it is tied to a culinary tradition (trattoria, osteria, pizzeria, Gasthof, Weinstube, brasserie, mesón, tapas bar, pub, a Chinese or Indian name), recorded alongside any printed cuisine; generic lodging words ('Inn', 'Auberge', 'Hostellerie', 'Locanda', 'Posada', 'Hotel'), 'bistro' / 'bistrot' and bistro-style decor are not evidence."
+                      },
+                      "evidence": {
+                        "type": "string",
+                        "description": "The printed words the value rests on, verbatim."
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "basis",
+                      "evidence"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "style_descriptors": {
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "description": "Printed words that describe the cooking, verbatim, one item per descriptor (e.g. from the keyword line 'CUISINE MODERNE', 'CLASSIQUE'; 'cuisine traditionnelle', 'creative'). Not setting or ambience words ('ÉLÉGANT', 'RUSTIQUE', 'cosy'). Null if none.",
+                  "items": {
+                    "type": "string"
                   }
                 },
                 "culinary_style": {
-                  "type": ["array", "null"],
-                  "description": "Stylistic register(s) of the cooking (named movement or school, e.g. haute cuisine classique, nouvelle cuisine, bistronomy), as stated on the page. Independent of geographic origin: an entry may carry both an origin and a style, either one, or neither. Null if the page gives no stylistic information.",
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "description": "Named culinary movement or register, only when printed descriptors or distinctive dishes on the entry support it; generic words such as 'modern', 'creative' or 'classique' alone do not establish a specific movement, nor do dish types such as grilled dishes or pizza. 'haute_cuisine_classique' needs 'classic' and 'French' printed together ('FRENCH CLASSIC', 'klassische französische Kulinarik') or classical cuisine named as such ('classicisme culinaire'); 'cuisine_du_terroir' needs the printed word 'terroir' or 'territorio' (regional cooking alone is a cuisine_origin); 'farm_to_table' needs produce from the house's own garden, farm or estate or a stated sourcing philosophy ('local produce' alone is not enough); 'plant_forward' only when the cooking itself is vegetarian or vegan, not when vegetarian dishes or menus are offered alongside others. Null otherwise.",
                   "items": {
-                    "type": "string",
-                    "enum": [
-                      "haute_cuisine_classique",
-                      "nouvelle_cuisine",
-                      "farm_to_table",
-                      "neue_deutsche_kueche",
-                      "cuisine_du_terroir",
-                      "nueva_cocina_vasca",
-                      "cucina_italiana_moderna",
-                      "fusion",
-                      "molecular_gastronomy",
-                      "plant_forward",
-                      "live_fire",
-                      "modern_british",
-                      "avant_garde",
-                      "bistronomy",
-                      "new_nordic",
-                      "zero_waste",
-                      "other"
-                    ]
+                    "type": "object",
+                    "properties": {
+                      "value": {
+                        "type": "string",
+                        "enum": [
+                          "haute_cuisine_classique",
+                          "nouvelle_cuisine",
+                          "farm_to_table",
+                          "neue_deutsche_kueche",
+                          "cuisine_du_terroir",
+                          "nueva_cocina_vasca",
+                          "cucina_italiana_moderna",
+                          "fusion",
+                          "molecular_gastronomy",
+                          "plant_forward",
+                          "live_fire",
+                          "modern_british",
+                          "avant_garde",
+                          "bistronomy",
+                          "new_nordic",
+                          "zero_waste",
+                          "other"
+                        ]
+                      },
+                      "basis": {
+                        "type": "string",
+                        "enum": [
+                          "stated",
+                          "specialties",
+                          "name_or_type"
+                        ],
+                        "description": "As for cuisine_origin."
+                      },
+                      "evidence": {
+                        "type": "string",
+                        "description": "The printed words the value rests on, verbatim."
+                      }
+                    },
+                    "required": [
+                      "value",
+                      "basis",
+                      "evidence"
+                    ],
+                    "additionalProperties": false
                   }
                 },
                 "specialties": {
-                  "type": ["array", "null"],
-                  "description": "Signature dishes or specialties mentioned in the guide.",
+                  "type": [
+                    "array",
+                    "null"
+                  ],
+                  "description": "Dishes printed as the entry's specialties ('Spéc.', 'Specialities', 'Spez.', 'Specialità'), verbatim, one dish per item. No wines or wine lines. Null if none.",
                   "items": {
                     "type": "string"
                   }
                 }
               },
-              "required": ["cuisine_origin", "culinary_style", "specialties"],
+              "required": [
+                "meal_service",
+                "cuisine_origin",
+                "style_descriptors",
+                "culinary_style",
+                "specialties"
+              ],
               "additionalProperties": false
             },
             "pricing": {
               "type": "object",
-              "description": "Menu and a-la-carte price ranges.",
+              "description": "Meal prices as printed, as numbers without currency signs or thousands separators. Numbers after the conference or seminar symbol are room capacities, not prices; children's menus, breakfast, drinks and 'Tapa' / 'Ración' prices are not meal prices; a price after a carafe, bottle or wine-glass symbol is the house-wine price, so 'a la carte' followed only by such a price prints no à la carte range. A single set-menu price sets both menu bounds; a single à la carte price sets both à la carte bounds. Prices printed only as a symbolic band ('€€€€') leave the numeric fields null.",
               "properties": {
                 "currency": {
-                  "type": ["string", "null"],
-                  "description": "ISO 4217 currency code (e.g. 'EUR', 'GBP', 'CHF', 'FRF', 'DEM')."
+                  "type": [
+                    "string",
+                    "null"
+                  ],
+                  "description": "ISO 4217 code of the printed prices ('FRF', 'EUR', 'GBP', 'DEM', 'CHF', 'ITL', 'ESP', 'PTE', 'BEF', 'NLG', 'LUF'); null if no price is printed."
                 },
                 "menu_price_min": {
-                  "type": ["number", "null"],
-                  "description": "Minimum set menu price."
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Lowest set-menu price printed ('Menu', 'Repas', 'Meals', 'M', 'Formule', a set-meal price range), including a lunch-only or weekday menu. A price after the meal label without 'a la carte' / 'carte' is a set-menu price, also when marked 'approx.'. A plat-du-jour or dish-of-the-day price (e.g. the Swiss figure in italics or in parentheses before the menus) is a single dish, not a set menu."
                 },
                 "menu_price_max": {
-                  "type": ["number", "null"],
-                  "description": "Maximum set menu price."
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Highest set-menu price printed."
                 },
                 "a_la_carte_price_min": {
-                  "type": ["number", "null"],
-                  "description": "Minimum a la carte price."
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Lower bound of the à la carte range ('carte', 'a la carte', 'Karte')."
                 },
                 "a_la_carte_price_max": {
-                  "type": ["number", "null"],
-                  "description": "Maximum a la carte price."
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Upper bound of the à la carte range."
                 },
                 "lunch_menu_price": {
-                  "type": ["number", "null"],
-                  "description": "Fixed lunch menu price if specified separately."
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Price of a set menu printed as lunch-only or weekday-lunch ('déj.', 'lunch', 'mittags'), the lowest if there are several; it is also counted in menu_price_min. A meal-time note before the prices ('(bar lunch)', '(buffet lunch)', '(dinner only)') restricts service and does not make the price a lunch price. Only a lunch word printed in the entry itself makes a lunch price; a convention of the key alone (an italic price in parentheses, a lunch/dinner pair) does not. Null if none."
                 }
               },
               "required": [
@@ -217,48 +402,80 @@
             },
             "rooms": {
               "type": "object",
-              "description": "Room details if establishment has letting rooms.",
+              "description": "Letting rooms as printed.",
               "properties": {
                 "room_count": {
-                  "type": ["integer", "null"],
-                  "description": "Number of guest rooms."
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "Number of rooms as printed ('ch', 'rm', 'Zim', 'cam', 'hab', 'qto', 'k'); suites printed separately are not added."
                 },
                 "room_price_min": {
-                  "type": ["number", "null"],
-                  "description": "Minimum room price per night."
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Lowest price per room per night as printed, usually the single rate. Leave out suite prices, breakfast prices, half board (½ P), full pension (P) and packages; do not subtract anything from a printed rate. Null if rooms are priced only as a symbolic band or are let only with half board or full pension ('nur ½ Pens.', 'solo pens.', '(dinner included)')."
                 },
                 "room_price_max": {
-                  "type": ["number", "null"],
-                  "description": "Maximum room price per night."
+                  "type": [
+                    "number",
+                    "null"
+                  ],
+                  "description": "Highest price per room per night, usually the double rate, with the same exclusions."
                 }
               },
-              "required": ["room_count", "room_price_min", "room_price_max"],
+              "required": [
+                "room_count",
+                "room_price_min",
+                "room_price_max"
+              ],
               "additionalProperties": false
             },
-            "accepts_credit_cards": {
-              "type": ["boolean", "null"],
-              "description": "Any credit card payment symbols visible near the entry."
-            },
             "inspector_note": {
-              "type": ["string", "null"],
-              "description": "Verbatim inspector prose note (2-3 lines, introduced 2003). Null for pre-2003 editions."
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "The descriptive paragraph printed with the entry (often after a diamond bullet or in italics), verbatim; if it is printed in two languages, both in printed order, separated by a line break. In editions without such paragraphs, the phrase printed in guillemets that describes an attractive feature (« Parc fleuri »), verbatim without the guillemets. Null if none. Not the specialties line."
             },
             "entry_is_fragment": {
               "type": "boolean",
-              "description": "True if entry is incomplete because it spans a page boundary."
+              "description": "True if the entry continues from the previous page or onto the next."
+            },
+            "unobservable_fields": {
+              "type": "array",
+              "description": "Only the award, category and credit-card fields enumerated here whose evidence is on the page but unreadable (see the null convention); empty if none.",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "stars",
+                  "value_marker",
+                  "price_mark",
+                  "michelin_plate",
+                  "pleasant",
+                  "rising_star",
+                  "hotel_category_rank",
+                  "restaurant_category_rank",
+                  "credit_cards"
+                ]
+              }
             }
           },
           "required": [
             "establishment_name",
+            "person_name",
             "location",
             "address",
             "awards",
+            "credit_cards",
             "cuisine",
             "pricing",
             "rooms",
-            "accepts_credit_cards",
             "inspector_note",
-            "entry_is_fragment"
+            "entry_is_fragment",
+            "unobservable_fields"
           ],
           "additionalProperties": false
         }

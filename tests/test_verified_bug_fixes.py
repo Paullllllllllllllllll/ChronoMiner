@@ -9,6 +9,7 @@ provider detection for the Google-native "models/gemini-..." form.
 
 from __future__ import annotations
 
+import csv
 import json
 import sys
 from pathlib import Path
@@ -59,10 +60,15 @@ def test_michelin_light_key_reaches_dedicated_converter(tmp_path: Path) -> None:
     entry = {
         "establishment_name": "Chez Test",
         "location": {"city_or_town": "Lyon", "neighbourhood_or_area": None},
-        "awards": {"stars": 2, "restaurant_class": 3},
+        "awards": {"stars": 2, "restaurant_category_rank": 3},
         "cuisine": {
-            "cuisine_origin": ["french"],
-            "culinary_style": ["bistronomy"],
+            "meal_service": "serves_meals",
+            "cuisine_origin": [
+                {"value": "french", "basis": "stated", "evidence": "cuisine française"}
+            ],
+            "culinary_style": [
+                {"value": "bistronomy", "basis": "stated", "evidence": "bistronomie"}
+            ],
             "specialties": ["quenelle"],
         },
     }
@@ -73,7 +79,8 @@ def test_michelin_light_key_reaches_dedicated_converter(tmp_path: Path) -> None:
     text = out.read_text(encoding="utf-8-sig")
     header = text.splitlines()[0]
     assert "cuisine_origin" in header
-    assert "restaurant_class" in header
+    assert "cuisine_origin_basis" in header
+    assert "restaurant_category_rank" in header
     assert "Chez Test" in text
     assert "french" in text
 
@@ -213,15 +220,46 @@ def test_michelin_light_tolerates_none_elements_in_list_fields(tmp_path: Path) -
     """The live Light CSV converter tolerates None elements in list fields."""
     entry = {
         "establishment_name": "Chez Null",
-        "cuisine": {"cuisine_origin": ["French", None], "specialties": [None, "Duck"]},
+        "cuisine": {
+            "cuisine_origin": [
+                {"value": "french", "basis": "stated", "evidence": "française"},
+                None,
+            ],
+            "specialties": [None, "Duck"],
+        },
     }
     json_file = _write_json(tmp_path / "in.json", [entry])
     out = tmp_path / "out.csv"
     CSVConverter("MichelinGuidesLight").convert_to_csv(json_file, out)
 
     text = out.read_text(encoding="utf-8-sig")
-    assert "French" in text
+    assert "french" in text
     assert "Duck" in text
+
+
+@pytest.mark.unit
+def test_michelin_light_cuisine_columns_stay_aligned(tmp_path: Path) -> None:
+    """Value, basis and evidence columns keep one position per cuisine item,
+    also when an item lacks a part."""
+    entry = {
+        "establishment_name": "Chez Align",
+        "cuisine": {
+            "cuisine_origin": [
+                {"value": "french", "basis": None, "evidence": "française"},
+                {"value": "italian", "basis": "stated", "evidence": None},
+                {"value": "iberian", "basis": "name_or_type", "evidence": "tapas"},
+            ],
+        },
+    }
+    out = tmp_path / "out.csv"
+    CSVConverter("MichelinGuidesLight").convert_to_csv(
+        _write_json(tmp_path / "in.json", [entry]), out
+    )
+    with out.open(encoding="utf-8-sig", newline="") as fh:
+        row = next(csv.DictReader(fh))
+    assert row["cuisine_origin"] == "french; italian; iberian"
+    assert row["cuisine_origin_basis"] == "; stated; name_or_type"
+    assert row["cuisine_origin_evidence"] == "française |  | tapas"
 
 
 @pytest.mark.unit
