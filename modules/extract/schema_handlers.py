@@ -61,5 +61,6 @@ for schema in [
     "CookbookMetadataEntries",
     "HistoricalPriceEntries",
     "InequalityBenchmarks",
+    "RecipeBoxEntriesV1",
 ]:
     register_schema_handler(schema, BaseSchemaHandler)

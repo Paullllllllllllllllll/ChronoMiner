@@ -1,4 +1,4 @@
-# ChronoMiner v3.4.0
+# ChronoMiner v3.5.0
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -831,6 +831,14 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v3.5.0** (28 September 2026) -- Add the `RecipeBoxEntriesV1` schema for
+  modern cooking-video bundles (metadata, description, linked recipe page, and
+  transcript per input file). It shares field names and the `recipe_type` enum
+  with `HistoricalRecipesEntriesProductionV3`, drops the historical rating layer,
+  and adds recommendation fields: a generic dish name, main-ingredient flags,
+  total time, difficulty, diet-relevant ingredient flags, cuisine, occasion,
+  season, and the sources each entry draws on. Registered with the default
+  handler and listed in `paths_config.example.yaml`.
 - **v3.4.0** (26 September 2026) -- `MichelinGuidesLight` schema
   v3.5-light: the schema records what each guide edition prints and leaves
   harmonization across editions to post-processing. `awards.bib_gourmand`

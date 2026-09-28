@@ -1,0 +1,197 @@
+{
+  "name": "RecipeBoxEntriesV1",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "True only if the input presents no specific dish together with any of its ingredients or method: equipment, butchery or technique videos without a finished dish, vlogs, product or software videos, and compilations that only name dishes. A video that names a dish and gives its ingredients (even without method) or its method (even without quantities) is NOT empty. Otherwise false."
+      },
+      "entries": {
+        "type": "array",
+        "description": "Recipes presented in this video; empty array if none. The input bundles one video: metadata, description, optionally a structured recipe from a page the creator linked, and a transcript. SEGMENTATION: one entry per dish that can be served on its own. A sauce, dressing, spice mix, or garnish made for a dish stays inside that dish's entry; it is its own entry only when the video teaches it as a standalone recipe (a video on five sauces yields five entries). Multi-dish videos ('5 dinners', 'three one-pot meals') yield one entry per dish. A meal-prep bowl built from components is one entry. Create an entry whenever a specific dish comes with its ingredients or its method, even partially (an ingredient list in the description with no written method, or narration of the steps without quantities): fill the missing part from standard practice for that dish, mark reconstructed quantities '(approx.)', and add a cooking_tips line stating what was reconstructed. Dishes only named or shown, with neither ingredients nor method in the input, are not entries. SOURCE PRIORITY: ingredient names and quantities come first from the linked recipe, then the description, then the transcript; technique detail (heat, timing, doneness cues, order of steps) comes from the transcript where it adds to the written sources. Transcripts are often unpunctuated automatic speech recognition: correct obvious misrecognitions of ingredient and dish names silently.",
+        "items": {
+          "type": "object",
+          "properties": {
+            "title_original": {
+              "type": ["string", "null"],
+              "description": "Dish title as the video presents it, in its original language (from the video title, description, or narration). Null if the dish is never named."
+            },
+            "title_modern_english": {
+              "type": ["string", "null"],
+              "description": "English rendering of title_original without hashtags, emojis, or clickbait phrasing ('The BEST Gazpacho' -> 'Gazpacho'). Null only if title_original is null and no name can be inferred."
+            },
+            "dish_name_generic": {
+              "type": "string",
+              "description": "The conventional English dish name a cookbook index would use, lowercase, without creator, brand, or diet qualifiers: 'tarte tatin', 'chicken biryani', 'pasta e fagioli', 'white bean stew'. Used to find historical counterparts, so prefer the established name of the dish family over a descriptive invention."
+            },
+            "recipe_type": {
+              "type": "string",
+              "enum": ["Main Dish", "Side Dish", "Soup", "Sauce", "Dessert", "Pastry", "Bread", "Beverage", "Preserve", "Condiment", "Confection", "Salad", "Appetizer", "Dairy Production", "Brewing", "Winemaking", "Distillation", "Vinegar/Oil/Essence", "Household Recipe", "Preparation Technique", "Other", "Unknown"],
+              "description": "Primary category of the dish. Ferments of vegetables are 'Preserve'; fermented drinks (tepache, kombucha, mead) are 'Brewing'; stocks, doughs, and demi-glace are 'Preparation Technique'."
+            },
+            "cuisine": {
+              "type": ["string", "null"],
+              "description": "Cuisine or regional tradition in English ('Lebanese', 'Northern Italian', 'Sichuan', 'Korean-Mexican fusion'), as stated or clearly implied by the dish. Null for dishes without a recognizable tradition."
+            },
+            "recipe_text_modern_english": {
+              "type": "string",
+              "description": "A complete recipe in English that someone could cook from: first 'Ingredients:' as one line per ingredient with quantity, then 'Method:' as numbered steps with heat levels, times, and doneness cues. Where no source gives a quantity, write 'to taste' or give the amount shown or implied and mark it '(approx.)'. No creator banter, sponsorships, or calls to subscribe."
+            },
+            "ingredients": {
+              "type": "array",
+              "description": "Every ingredient of this dish, including those of its internal sauces and garnishes.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name_original": {
+                    "type": "string",
+                    "description": "Ingredient name as written or spoken in the source, original language."
+                  },
+                  "name_modern_english": {
+                    "type": "string",
+                    "description": "Generic English ingredient name, lowercase singular, without brand or preparation ('chickpea', 'gochujang', 'parmesan', 'plant-based butter'). Used for ingredient-on-hand search."
+                  },
+                  "quantity_original": {
+                    "type": ["string", "null"],
+                    "description": "Quantity as given in the source ('200 g', '1 tbsp', 'a handful'). Null if unstated."
+                  },
+                  "is_main_ingredient": {
+                    "type": "boolean",
+                    "description": "True for the ingredients that define the dish or make up most of its volume (typically two to five per dish). False for seasonings, oils, garnishes, and minor aromatics."
+                  }
+                },
+                "required": ["name_original", "name_modern_english", "quantity_original", "is_main_ingredient"],
+                "additionalProperties": false
+              }
+            },
+            "cooking_methods": {
+              "type": "array",
+              "description": "Cooking techniques used (braising, stir-frying, pressure cooking, fermenting). Empty if none.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "method_modern_english": {
+                    "type": "string",
+                    "description": "Technique in plain English, lowercase gerund ('braising')."
+                  }
+                },
+                "required": ["method_modern_english"],
+                "additionalProperties": false
+              }
+            },
+            "utensils_equipment": {
+              "type": "array",
+              "description": "Equipment beyond a standard stove, oven, pot, pan, knife, and board: e.g. pressure cooker, blender, stand mixer, air fryer, cast-iron skillet, tart tin, thermometer. Empty if none.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "utensil_modern_english": {
+                    "type": "string",
+                    "description": "Equipment in plain English, lowercase."
+                  }
+                },
+                "required": ["utensil_modern_english"],
+                "additionalProperties": false
+              }
+            },
+            "timing_yield": {
+              "type": "object",
+              "description": "Yield and times as stated in the sources; null for unstated fields.",
+              "properties": {
+                "yield_original": {
+                  "type": ["string", "null"],
+                  "description": "Yield as stated ('serves 4', '12 cookies', '5 meal-prep portions')."
+                },
+                "preparation_time_original": {
+                  "type": ["string", "null"],
+                  "description": "Preparation time as stated."
+                },
+                "cooking_time_original": {
+                  "type": ["string", "null"],
+                  "description": "Cooking time as stated."
+                }
+              },
+              "required": ["yield_original", "preparation_time_original", "cooking_time_original"],
+              "additionalProperties": false
+            },
+            "total_time_minutes": {
+              "type": ["integer", "null"],
+              "description": "Estimated minutes from start to serving, active plus passive, excluding any single wait longer than 2 hours (soaking, marinating, proofing, fermenting), which is flagged in requires_advance_prep. Use stated times where given, otherwise estimate from the steps. Null only if no estimate is possible."
+            },
+            "requires_advance_prep": {
+              "type": "boolean",
+              "description": "True if the recipe needs a wait longer than 2 hours or prior-day preparation (overnight soaking, marinating, proofing, fermenting)."
+            },
+            "difficulty_1_3": {
+              "type": "integer",
+              "minimum": 1,
+              "maximum": 3,
+              "description": "1 = easy (basic techniques, forgiving); 2 = moderate (several components or timing-sensitive steps); 3 = demanding (advanced technique such as laminated or spun-sugar work, precise temperatures, or long multi-stage preparation)."
+            },
+            "ingredient_categories": {
+              "type": "object",
+              "description": "Boolean ingredient flags. Plant-based substitutes (vegan butter, oat milk, vegan cheese, egg replacer, plant-based mince) never set the animal-product flags.",
+              "properties": {
+                "contains_meat": {"type": "boolean", "description": "Red meat from mammals (beef, pork, lamb, veal, game), including stocks and cured meats. Excludes poultry and fish."},
+                "contains_poultry": {"type": "boolean", "description": "Chicken, duck, turkey, or other birds, including chicken stock."},
+                "contains_fish_seafood": {"type": "boolean", "description": "Fish, shellfish, or seafood, including fish sauce, anchovy, and dashi from bonito."},
+                "contains_dairy": {"type": "boolean", "description": "Milk, cream, cheese, yogurt, or other dairy. Butter has its own flag."},
+                "contains_eggs": {"type": "boolean", "description": "Eggs in any form."},
+                "contains_butter": {"type": "boolean", "description": "Dairy butter or ghee."},
+                "contains_olive_oil": {"type": "boolean", "description": "Olive oil specifically."},
+                "contains_lard_animal_fat": {"type": "boolean", "description": "Lard, tallow, duck fat, bacon fat, or other animal fat that is not butter."},
+                "contains_alcohol": {"type": "boolean", "description": "Wine, beer, spirits, mirin, or other alcoholic ingredient."},
+                "contains_refined_sugar": {"type": "boolean", "description": "White or brown refined sugar."},
+                "contains_honey": {"type": "boolean", "description": "Honey."},
+                "contains_other_sweeteners": {"type": "boolean", "description": "Maple syrup, agave, molasses, date syrup, or dried fruit used as sweetener."},
+                "contains_foreign_spices": {"type": "boolean", "description": "Spices of long-distance trade origin (pepper, cinnamon, cloves, nutmeg, ginger, saffron, cardamom, cumin, chili). Excludes local herbs."},
+                "contains_luxury_ingredients": {"type": "boolean", "description": "Costly ingredients such as truffle, caviar, saffron in quantity, wagyu, lobster, or premium aged cheese."},
+                "contains_gluten": {"type": "boolean", "description": "Wheat, barley, rye, spelt, or products made from them (flour, bread, pasta, soy sauce unless tamari, seitan)."},
+                "protein_rich": {"type": "boolean", "description": "True if the dish supplies roughly 20 g protein or more per serving, or the video presents it as high-protein."}
+              },
+              "required": ["contains_meat", "contains_poultry", "contains_fish_seafood", "contains_dairy", "contains_eggs", "contains_butter", "contains_olive_oil", "contains_lard_animal_fat", "contains_alcohol", "contains_refined_sugar", "contains_honey", "contains_other_sweeteners", "contains_foreign_spices", "contains_luxury_ingredients", "contains_gluten", "protein_rich"],
+              "additionalProperties": false
+            },
+            "occasion": {
+              "type": "array",
+              "description": "Occasions the dish suits, as presented or clearly implied. Empty if unclear.",
+              "items": {
+                "type": "string",
+                "enum": ["Weeknight", "Meal prep", "Weekend project", "Breakfast or brunch", "Packed lunch", "Snack", "Entertaining", "Festive or holiday"]
+              }
+            },
+            "season": {
+              "type": "array",
+              "description": "Seasons the dish suits, by its produce or framing ('cozy winter stew', 'summer salad'). ['All year'] if not seasonal.",
+              "items": {
+                "type": "string",
+                "enum": ["Spring", "Summer", "Autumn", "Winter", "All year"]
+              }
+            },
+            "sources_used": {
+              "type": "array",
+              "description": "Which parts of the input this entry draws on.",
+              "items": {
+                "type": "string",
+                "enum": ["linked_recipe", "description", "transcript"]
+              }
+            },
+            "cooking_tips": {
+              "type": "array",
+              "description": "Practical tips given in the video beyond the steps (substitutions, make-ahead, storage, common mistakes), one short English sentence each. Empty if none.",
+              "items": {"type": "string"}
+            }
+          },
+          "required": ["title_original", "title_modern_english", "dish_name_generic", "recipe_type", "cuisine", "recipe_text_modern_english", "ingredients", "cooking_methods", "utensils_equipment", "timing_yield", "total_time_minutes", "requires_advance_prep", "difficulty_1_3", "ingredient_categories", "occasion", "season", "sources_used", "cooking_tips"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}
