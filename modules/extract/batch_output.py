@@ -281,7 +281,18 @@ def merge_existing_batch_output(
     if provenance:
         from modules.extract.resume import verify_image_settings
 
-        verify_image_settings(existing_output_path, provenance)
+        # Resume submissions were already checked against the recorded
+        # settings, so a mismatch here means a forced rerun: the new records
+        # replace the old output instead of mixing with it.
+        try:
+            verify_image_settings(existing_output_path, provenance)
+        except ValueError:
+            logger.warning(
+                "Existing output %s used other image settings; replacing it "
+                "with the new batch records.",
+                existing_output_path,
+            )
+            return built
     try:
         data = json.loads(existing_output_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:

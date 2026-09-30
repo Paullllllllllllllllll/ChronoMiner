@@ -43,6 +43,30 @@ def file_provenance(path: Path, **overrides: Any) -> dict[str, Any]:
     )
 
 
+def test_forced_batch_finalization_replaces_changed_output(tmp_path: Path) -> None:
+    from modules.extract.batch_output import merge_existing_batch_output
+
+    source = tmp_path / "source.png"
+    Image.new("L", (100, 150), 128).save(source)
+    old = file_provenance(source)
+    new = file_provenance(source, payload_format="png")
+    existing = tmp_path / "source_output.json"
+    existing.write_text(
+        json.dumps(
+            {
+                METADATA_KEY: {"image_provenance": old},
+                "records": [{"custom_id": "old-page-1", "chunk_index": 1}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    built = {
+        METADATA_KEY: {"image_provenance": new},
+        "records": [{"custom_id": "new-page-1", "chunk_index": 1}],
+    }
+    assert merge_existing_batch_output(built, existing) is built
+
+
 @pytest.mark.parametrize("suffix", [".json", ".jsonl"])
 def test_fingerprint_rejects_changed_settings(
     tmp_path: Path, caplog: pytest.LogCaptureFixture, suffix: str

@@ -158,10 +158,6 @@ def _repair_temp_file(
     ui.print_subsection_header(f"Repairing: {group_label}")
     logger.info(f"Repairing {group_label} for schema '{schema_name}'")
 
-    if not tracking:
-        ui.print_warning("No tracking entries found; cannot repair this file.")
-        return "skipped"
-
     # custom_id/order maps are pre-aggregated across all parts in discovery.
     custom_id_map = candidate.get("custom_id_map")
     order_map = candidate.get("order_map")
@@ -201,6 +197,13 @@ def _repair_temp_file(
             batch_ids.add(bid)
         if recovered_ids:
             break
+
+    # Checked after artifact recovery: a crash between the submission artifact
+    # and the tracking lines leaves a header-only temp file whose batch ids
+    # live only in the recovery artifact.
+    if not tracking:
+        ui.print_warning("No tracking entries found; cannot repair this file.")
+        return "skipped"
 
     if not batch_ids:
         ui.print_warning("Unable to identify any batch IDs for this temp file.")
