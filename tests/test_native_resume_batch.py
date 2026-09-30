@@ -43,6 +43,56 @@ def file_provenance(path: Path, **overrides: Any) -> dict[str, Any]:
     )
 
 
+@pytest.mark.asyncio
+async def test_resubmission_keeps_artifact_only_batch_ids(tmp_path: Path) -> None:
+    source = tmp_path / "scan.png"
+    Image.new("L", (100, 150), 128).save(source)
+    temp = tmp_path / "scan_temp.jsonl"
+    # Crash state: the header was written and the recovery artifact names a
+    # paid batch, but its tracking line never reached the temp file.
+    temp.write_text(json.dumps({"batch_request": {}}) + "\n", encoding="utf-8")
+    artifact = tmp_path / "scan_batch_submission_debug.json"
+    artifact.write_text(
+        json.dumps(
+            {
+                "batch_ids": ["batch-paid-1"],
+                "provider": "openai",
+                "batch_metadata": {"batch-paid-1": {"model": "gpt-6-astra"}},
+            }
+        ),
+        encoding="utf-8",
+    )
+    backend = MagicMock(max_batch_size=50000, max_batch_bytes=10000000)
+    backend.submit_batch.return_value = BatchHandle(
+        provider="openai", batch_id="batch-paid-2"
+    )
+    with patch.object(ps, "get_batch_backend", return_value=backend):
+        await ps.BatchProcessingStrategy().process_chunks(
+            chunks=[""],
+            handler=MagicMock(schema_name="TestSchema"),
+            dev_message="Extract.",
+            model_config={
+                "extraction_model": {"provider": "openai", "name": "gpt-6-astra"}
+            },
+            schema={},
+            file_path=source,
+            temp_jsonl_path=temp,
+            console_print=lambda *_: None,
+            image_provenance=file_provenance(source),
+            image_chunks=[
+                {
+                    "base64": "fixture",
+                    "mime_type": "image/jpeg",
+                    "detail": "original",
+                    "image_provenance": {"image_sha256": "fixture"},
+                }
+            ],
+        )
+    recorded = json.loads(artifact.read_text(encoding="utf-8"))
+    assert recorded["batch_ids"] == ["batch-paid-1", "batch-paid-2"]
+    assert recorded["batch_metadata"]["batch-paid-1"] == {"model": "gpt-6-astra"}
+
+
 def test_forced_batch_finalization_replaces_changed_output(tmp_path: Path) -> None:
     from modules.extract.batch_output import merge_existing_batch_output
 

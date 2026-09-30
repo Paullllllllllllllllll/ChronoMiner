@@ -35,6 +35,11 @@ from modules.batch.backends import (
     get_batch_backend,
     supports_batch,
 )
+from modules.batch.ops import (
+    _finalized_batch_ids,
+    _recover_missing_batch_ids,
+    derive_submission_output_dir,
+)
 from modules.config.capabilities import detect_capabilities
 from modules.conversion.json_utils import strip_image_payloads
 from modules.extract.resume import build_temp_header
@@ -1274,6 +1279,29 @@ class BatchProcessingStrategy(ProcessingStrategy):
         # that batch (tracking lines deleted here, debug artifact overwritten
         # below) and its results become unrecoverable.
         prior_tracking = _harvest_batch_tracking(temp_jsonl_path)
+        # A crash between the recovery-artifact write and the tracking lines
+        # leaves submitted ids only in the artifact; carry those too, except
+        # ids an existing output already finalized.
+        finalized = _finalized_batch_ids(
+            derive_submission_output_dir(temp_jsonl_path)
+            / f"{file_path.stem}_output.json"
+        )
+        artifact_ids, artifact_provider, artifact_metadata = _recover_missing_batch_ids(
+            temp_jsonl_path,
+            file_path.stem,
+            False,
+            exclude=set(prior_tracking) | finalized,
+        )
+        if artifact_ids and artifact_provider not in (None, provider):
+            console_print(
+                f"[WARNING] Recovery artifact lists {len(artifact_ids)} "
+                f"{artifact_provider} batch id(s) without tracking records "
+                f"({', '.join(sorted(artifact_ids))}); they are not carried into "
+                f"this {provider} submission. Retrieve them before resubmitting."
+            )
+        else:
+            for batch_id in sorted(artifact_ids):
+                prior_tracking[batch_id] = artifact_metadata.get(batch_id, {})
         if prior_tracking:
             console_print(
                 f"[WARNING] Found {len(prior_tracking)} previously submitted "

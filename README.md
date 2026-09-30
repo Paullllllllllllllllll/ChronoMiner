@@ -1,4 +1,4 @@
-# ChronoMiner v3.6.0
+# ChronoMiner v3.6.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -858,6 +858,11 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v3.6.1** (30 September 2026) -- A batch resubmission now carries into
+  the new recovery artifact the batch ids that the old artifact lists but
+  no tracking line records (a crash between the two writes), except ids an
+  existing output already finalized. Before, the resubmission overwrote the
+  artifact and the earlier, already paid batch could no longer be retrieved.
 - **v3.6.0** (30 September 2026) -- Native scan resolution and model image caps:
   `target_dpi: native` renders each scanned PDF page at its own density, bounded
   by the active model's edge and patch limits. Optional lossless PNG, a base64
