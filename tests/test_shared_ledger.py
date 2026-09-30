@@ -26,7 +26,7 @@ import pytest
 # Content hash of shared_ledger.py with newlines normalized to LF.
 # Update ONLY when intentionally releasing a new ledger module version,
 # then re-copy module + tests to all sibling repos.
-EXPECTED_SHA256 = "1c7872f9d789709f92a1b2c53e4c79d3106c2dea86d01fc0117a4f58a229780a"
+EXPECTED_SHA256 = "54628933554267985b3014252673681870eff99ba87d2eafb8d92fae689d2001"
 
 _SKIP_DIRS = {".venv", ".git", "scratch", "backup", "node_modules", ".mypy_cache"}
 
@@ -321,6 +321,7 @@ class TestMultiprocessStress:
 
 class TestPoolDerivation:
     def test_exact_matches(self) -> None:
+        assert sl.derive_pool("openai", "gpt-6-astra") == sl.POOL_LARGE
         assert sl.derive_pool("openai", "gpt-5.6-sol") == sl.POOL_LARGE
         assert sl.derive_pool("openai", "gpt-5.6-terra") == sl.POOL_SMALL
         assert sl.derive_pool("openai", "gpt-5-mini") == sl.POOL_SMALL
@@ -595,7 +596,7 @@ class TestModuleDrift:
         )
 
     def test_module_version_matches(self) -> None:
-        assert sl.LEDGER_MODULE_VERSION == "2.1.4"
+        assert sl.LEDGER_MODULE_VERSION == "2.1.5"
 
 
 class TestResetBoundary:

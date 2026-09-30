@@ -1,4 +1,4 @@
-# ChronoMiner v3.5.0
+# ChronoMiner v3.5.1
 
 A Python-based structured data extraction tool for researchers,
 archivists, and digital humanities projects. ChronoMiner transforms
@@ -831,6 +831,9 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v3.5.1** (30 September 2026) -- The shared ledger (module version 2.1.5)
+  adds `gpt-6-astra` to the large default pool; before, its usage was
+  recorded without a pool and escaped the per-key pool caps.
 - **v3.5.0** (28 September 2026) -- Add the `RecipeBoxEntriesV1` schema for
   modern cooking-video bundles (metadata, description, linked recipe page, and
   transcript per input file). It shares field names and the `recipe_type` enum
