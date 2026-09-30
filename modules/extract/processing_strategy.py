@@ -19,6 +19,7 @@ import contextlib
 import hashlib
 import json
 import logging
+import os
 import random
 import re
 import time
@@ -26,6 +27,7 @@ from abc import ABC, abstractmethod
 from collections.abc import AsyncGenerator, AsyncIterator, Awaitable
 from pathlib import Path
 from typing import Any, cast
+from uuid import uuid4
 
 from modules.batch.backends import (
     BatchHandle,
@@ -413,6 +415,7 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
         image_chunks: list[dict[str, Any]] | None = None,
         context_image_data: dict[str, Any] | None = None,
         image_source: AsyncIterator[Any] | None = None,
+        image_provenance: dict[str, Any] | None = None,
         chunk_indices: list[int] | None = None,
         chunk_ranges: list[tuple[int, int]] | None = None,
     ) -> list[dict[str, Any]]:
@@ -565,7 +568,10 @@ class SynchronousProcessingStrategy(ProcessingStrategy):
             with temp_jsonl_path.open(file_mode, encoding="utf-8") as tempf:
                 if file_mode == "w":
                     tempf.write(
-                        json.dumps(build_temp_header(), ensure_ascii=False) + "\n"
+                        json.dumps(
+                            build_temp_header(image_provenance), ensure_ascii=False
+                        )
+                        + "\n"
                     )
                     tempf.flush()
                 # Serialize writes to the shared handle: concurrent coroutines
@@ -1115,6 +1121,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
         completed_chunk_indices: set | None = None,
         image_chunks: list[dict[str, Any]] | None = None,
         context_image_data: dict[str, Any] | None = None,
+        image_provenance: dict[str, Any] | None = None,
         chunk_indices: list[int] | None = None,
         chunk_ranges: list[tuple[int, int]] | None = None,
     ) -> list[dict[str, Any]]:
@@ -1169,6 +1176,7 @@ class BatchProcessingStrategy(ProcessingStrategy):
                             "file_path": str(file_path),
                             "page_index": idx,
                             "total_pages": len(image_chunks),
+                            "image_provenance": img.get("image_provenance"),
                         },
                     )
                 )
@@ -1308,6 +1316,57 @@ class BatchProcessingStrategy(ProcessingStrategy):
         )
         try:
             for part_no, part_requests in enumerate(parts, 1):
+                part_temp_path = (
+                    temp_jsonl_path
+                    if not multi_part
+                    else temp_jsonl_path.with_name(
+                        f"{temp_jsonl_path.stem}_part{part_no}.jsonl"
+                    )
+                )
+                manifest_path = None
+                if is_visual_batch:
+                    # Persist provenance before the backend can submit anything.
+                    manifest_path = temp_jsonl_path.parent / (
+                        f"{file_path.stem}_batch_request_manifest_{uuid4().hex}.json"
+                    )
+                    atomic_write_json(
+                        manifest_path,
+                        {
+                            "version": 1,
+                            "image_provenance": image_provenance,
+                            "image_settings_fingerprint": (
+                                image_provenance.get("image_settings_fingerprint")
+                                if image_provenance
+                                else None
+                            ),
+                            "requests": [
+                                {
+                                    "custom_id": req.custom_id,
+                                    "order_index": req.order_index,
+                                    "metadata": req.metadata,
+                                }
+                                for req in part_requests
+                            ],
+                        },
+                    )
+                    with manifest_path.open("r+b") as manifest_handle:
+                        os.fsync(manifest_handle.fileno())
+                    # Leave a discoverable batch temp before submission. A crash
+                    # after the recovery-artifact write can then be finalized
+                    # even when the tracking line was never appended.
+                    with part_temp_path.open("w", encoding="utf-8") as headerf:
+                        header = {
+                            "batch_request": {},
+                            "image_provenance": image_provenance,
+                            "image_settings_fingerprint": (
+                                image_provenance.get("image_settings_fingerprint")
+                                if image_provenance
+                                else None
+                            ),
+                        }
+                        headerf.write(json.dumps(header, ensure_ascii=False) + "\n")
+                        headerf.flush()
+                        os.fsync(headerf.fileno())
                 console_print(
                     f"[INFO] Submitting batch to {provider}"
                     f"{f' (part {part_no}/{len(parts)})' if multi_part else ''}..."
@@ -1322,6 +1381,8 @@ class BatchProcessingStrategy(ProcessingStrategy):
                 )
                 submitted_batch_ids.append(handle.batch_id)
                 tracking_metadata = _tracking_metadata(handle.metadata)
+                if manifest_path is not None:
+                    tracking_metadata["request_manifest"] = str(manifest_path)
                 batch_metadata[handle.batch_id] = tracking_metadata
 
                 # Rewrite the batch-ID recovery artifact cumulatively BEFORE the
@@ -1355,15 +1416,11 @@ class BatchProcessingStrategy(ProcessingStrategy):
                     }
                 }
 
-                part_temp_path = (
-                    temp_jsonl_path
-                    if not multi_part
-                    else temp_jsonl_path.with_name(
-                        f"{temp_jsonl_path.stem}_part{part_no}.jsonl"
-                    )
-                )
                 # Write request metadata lines first, tracking record last.
-                with part_temp_path.open("w", encoding="utf-8", newline="\n") as tempf:
+                file_mode = "a" if is_visual_batch else "w"
+                with part_temp_path.open(
+                    file_mode, encoding="utf-8", newline="\n"
+                ) as tempf:
                     for req in part_requests:
                         request_meta = {
                             "batch_request": {

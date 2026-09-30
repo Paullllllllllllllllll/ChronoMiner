@@ -337,8 +337,8 @@ async def test_direct_matches_supersample_when_within_caps(tmp_path: Path) -> No
                 page_indices=[1],
                 image_config=cfg,
                 provider="openai",
-                model_name="gpt-5-mini",
-                image_detail="high",
+                model_name="gpt-5.4",
+                image_detail="original",
             )
         ]
         assert isinstance(payloads[0], PagePayload)
@@ -371,8 +371,8 @@ async def test_direct_reduces_dpi_for_oversized_page(tmp_path: Path) -> None:
             page_indices=[1],
             image_config=cfg,
             provider="openai",
-            model_name="gpt-5-mini",
-            image_detail="high",
+            model_name="gpt-5.4",
+            image_detail="original",
         )
     ]
     payload = payloads[0]

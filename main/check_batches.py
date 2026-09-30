@@ -437,20 +437,6 @@ def process_all_batches(
             custom_id_map = combined_custom_id_map if combined_custom_id_map else None  # type: ignore[assignment]
             order_map = combined_order_map if combined_order_map else None  # type: ignore[assignment]
 
-            if not tracking:
-                _safe_print(
-                    ui,
-                    f"Tracking information missing for {base_identifier}. "
-                    f"Skipping final output.",
-                    "warning",
-                )
-                logger.warning(
-                    f"Tracking information missing for {base_identifier}. "
-                    f"Skipping final output."
-                )
-                _bump(agg, "failed")
-                continue
-
             persist_recovered = processing_settings.get(
                 "persist_recovered_batch_ids", True
             )
@@ -505,6 +491,20 @@ def process_all_batches(
                     batch_ids.add(batch_id)
                 if recovered:
                     break
+
+            if not tracking:
+                _safe_print(
+                    ui,
+                    f"Tracking information missing for {base_identifier}. "
+                    f"Skipping final output.",
+                    "warning",
+                )
+                logger.warning(
+                    f"Tracking information missing for {base_identifier}. "
+                    f"Skipping final output."
+                )
+                _bump(agg, "failed")
+                continue
 
             if not batch_ids:
                 _safe_print(

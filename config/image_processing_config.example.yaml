@@ -1,102 +1,84 @@
-# =============================================================================
-# Image Processing Configuration for LLM Vision
-# =============================================================================
-# Controls image preprocessing for different LLM providers when sending
-# images to vision-capable models for structured data extraction.
-#
-# Used by:
-#   - modules/images/llm_preprocess.py (image preprocessing)
-#   - modules/images/pdf_utils.py (PDF page rendering DPI)
-# =============================================================================
-
-# PDF rendering resolution
-target_dpi: 300
-
-# Render strategy for PDF pages:
-#   direct      - rasterize each page straight at the size the active resize
-#                 profile targets (never above target_dpi), skipping the wasted
-#                 work of rendering high then downscaling. Providers downscale
-#                 server-side above their caps anyway, so pixels beyond the cap
-#                 are discarded. Payload is byte-identical to supersample
-#                 whenever the target_dpi render already fits the profile caps.
-#   supersample - always render at target_dpi, then LANCZOS-downscale in the
-#                 resize step (legacy behavior).
+# Image processing defaults. Copy this example to customize a local config.
+# Numeric runs: direct renders to the profile; supersample resizes afterward.
+# Native runs always render directly to the resolved model cap or profile.
 render_strategy: direct
-
-# Maximum pixel count per rendered page before automatic DPI reduction.
-# When a page would exceed this budget at target_dpi, DPI is scaled down just
-# enough to stay within the limit. Set to 0 to disable.
-# 24 MP bounds a worst-case raw page to ~72 MB RAM while staying 2.3x above
-# the 10.24 MP OpenAI 'original' send cap (headroom for supersampled
-# LANCZOS downscaling on oversized pages such as fold-outs).
+# Numeric rendering only; 0 disables the memory guard.
 max_pixels_per_page: 24000000
 
-# =============================================================================
-# 1. OpenAI API Image Processing
-# =============================================================================
+# Registry caps apply in numeric and native modes. Optional original_max_side_px,
+# original_max_pixels (OpenAI), and high_max_side_px (Anthropic) only tighten caps.
+# OpenAI original: 30,000 patches of 32 px for GPT-5.6/GPT-6, otherwise
+# 10,000 patches and a 6,000 px edge. Anthropic: 2,576 px / 4,784 patches
+# of 28 px for high-resolution models; 1,568 px / 1,568 patches otherwise.
+
 api_image_processing:
+  # Positive render DPI or native (density of the largest page-spanning scan).
+  target_dpi: native
+  # Used by native mode for pages without a usable scan image.
+  native_fallback_dpi: 300
+  # jpeg or lossless png; oversized PNG falls back to JPEG with a warning.
+  payload_format: jpeg
+  # Base64 bytes per image; 0 disables the guard. Oversized JPEG is a page error.
+  max_image_bytes: 50000000
   grayscale_conversion: false
   handle_transparency: true
   jpeg_quality: 95
-  # resize_profile is only a gate here: "none" skips resizing entirely; any
-  # other value enables it and the actual size cap comes from the effective
-  # detail level, which is read from llm_detail in this section (OpenAI and
-  # custom endpoints), from media_resolution in the Google section, and from
-  # resize_profile itself in the Anthropic section.
-  resize_profile: original
-  # Recommended: original (full-resolution input) for best results.
-  # Accepted: low (low_max_side_px cap), high/auto (high_target_box fit and
-  # white pad), original (original_max_side_px / original_max_pixels cap).
   llm_detail: original
+  # auto selects the detail profile; none disables only optional profile sizing.
+  resize_profile: high
   low_max_side_px: 512
   high_target_box: [768, 1536]
-  original_max_side_px: 6000
-  original_max_pixels: 10240000
 
-# =============================================================================
-# 2. Anthropic Claude API Image Processing
-# =============================================================================
 anthropic_image_processing:
+  # Positive render DPI or native (density of the largest page-spanning scan).
+  target_dpi: native
+  # Used by native mode for pages without a usable scan image.
+  native_fallback_dpi: 300
+  # jpeg or lossless png; oversized PNG falls back to JPEG with a warning.
+  payload_format: jpeg
+  # Base64 bytes per image; 0 disables the guard. Oversized JPEG is a page error.
+  max_image_bytes: 10000000
   grayscale_conversion: true
   handle_transparency: true
   jpeg_quality: 95
-  # Anthropic reads its detail level straight from resize_profile: "none"
-  # skips resizing, "low" caps the longest side at low_max_side_px, and every
-  # other value (auto, high, ...) caps it at high_max_side_px.
+  # auto selects the detail profile; none disables only optional profile sizing.
   resize_profile: auto
-  # High-res tier models only (Claude Opus 4.7+/Sonnet 5): ~3x image-token
-  # cost vs 1568. Older Claude models are server-side downscaled to 1568
-  # anyway, so raising this above 1568 only pays off on the newer models.
-  high_max_side_px: 2576
   low_max_side_px: 512
-
-# =============================================================================
-# 3. Google Gemini API Image Processing
-# =============================================================================
-google_image_processing:
-  grayscale_conversion: true
-  handle_transparency: true
-  jpeg_quality: 95
-  resize_profile: auto
-  media_resolution: high
   high_target_box: [768, 1536]
-  low_max_side_px: 512
 
-# =============================================================================
-# 4. Custom Endpoint Image Processing
-# =============================================================================
-# Aggressive preprocessing for self-hosted models with small context windows
-# (e.g., 8,192 tokens). Produces compact images to stay within token budget.
-# Adjust these values based on your endpoint's context window size.
+google_image_processing:
+  # Positive render DPI or native (density of the largest page-spanning scan).
+  target_dpi: 300
+  # Used by native mode for pages without a usable scan image.
+  native_fallback_dpi: 300
+  # jpeg or lossless png; oversized PNG falls back to JPEG with a warning.
+  payload_format: jpeg
+  # Base64 bytes per image; 0 disables the guard. Oversized JPEG is a page error.
+  max_image_bytes: 20000000
+  grayscale_conversion: true
+  handle_transparency: true
+  jpeg_quality: 95
+  # Server-side image resolution budget; no documented pixel maximum.
+  media_resolution: high
+  # auto selects the detail profile; none disables only optional profile sizing.
+  resize_profile: high
+  low_max_side_px: 512
+  high_target_box: [768, 1536]
+
 custom_image_processing:
+  # Positive render DPI or native (density of the largest page-spanning scan).
   target_dpi: 150
+  # Used by native mode for pages without a usable scan image.
+  native_fallback_dpi: 300
+  # jpeg or lossless png; oversized PNG falls back to JPEG with a warning.
+  payload_format: jpeg
+  # Base64 bytes per image; 0 disables the guard. Oversized JPEG is a page error.
+  max_image_bytes: 0
   grayscale_conversion: true
   handle_transparency: true
   jpeg_quality: 85
-  # Custom endpoints take their detail from llm_detail (unset below, so
-  # "high"), which fits and pads into high_target_box. resize_profile only
-  # decides here whether resizing runs at all ("none" turns it off), and
-  # low_max_side_px applies only if llm_detail is set to "low".
+  llm_detail: high
+  # auto selects the detail profile; none disables only optional profile sizing.
   resize_profile: low
   low_max_side_px: 768
   high_target_box: [512, 1024]

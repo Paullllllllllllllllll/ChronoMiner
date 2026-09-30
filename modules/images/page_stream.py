@@ -1,7 +1,7 @@
 """Streaming page producer for visual extraction.
 
 Renders and preprocesses document pages one at a time, yielding compact
-base64 JPEG payloads with provenance fingerprints. Replaces the former
+base64 image payloads with provenance fingerprints. Replaces the former
 load-all-pages design: peak memory is one full-resolution page plus the
 payloads currently in flight, independent of document length.
 
@@ -14,8 +14,9 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import logging
+import math
 from collections.abc import AsyncIterator
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -28,6 +29,13 @@ from modules.images.llm_preprocess import (
     detect_model_type,
     get_image_config_section_name,
 )
+from modules.images.native import (
+    TargetDpi,
+    format_downscale_log,
+    image_settings_fingerprint,
+    native_page_dpi,
+    resolve_target_size,
+)
 from modules.images.pdf_utils import PDFProcessor
 
 logger = logging.getLogger(__name__)
@@ -37,7 +45,7 @@ logger = logging.getLogger(__name__)
 class PagePayload:
     """One preprocessed page, ready for an LLM vision call.
 
-    Provenance fields fingerprint the exact JPEG bytes sent to the model so
+    Provenance fields fingerprint the exact payload bytes sent to the model so
     a run can be verified by re-rendering (source + config + versions are
     recorded at file level; see ``build_image_provenance``).
     """
@@ -50,7 +58,8 @@ class PagePayload:
     width: int
     height: int
     byte_size: int
-    effective_dpi: int | None  # None for non-PDF image inputs
+    effective_dpi: float | None  # None for non-PDF image inputs
+    image_provenance: dict[str, Any] = field(default_factory=dict)
 
     def as_chunk(self) -> dict[str, Any]:
         """Return the dict shape expected by the processing strategies."""
@@ -69,6 +78,7 @@ class PagePayload:
             "height": self.height,
             "byte_size": self.byte_size,
             "effective_dpi": self.effective_dpi,
+            **self.image_provenance,
         }
 
 
@@ -90,26 +100,76 @@ def _payload_from_pil(
     index: int,
     processor: ImageProcessor,
     image_detail: str | None,
-    effective_dpi: int | None,
+    effective_dpi: float | None,
+    provenance: dict[str, Any] | None = None,
 ) -> PagePayload:
     """Preprocess one PIL image fully in memory and build its payload."""
     jpeg_bytes = processor.process_pil(img)
+    mime = "image/png" if jpeg_bytes.startswith(b"\x89PNG") else "image/jpeg"
     # Re-derive final dimensions from the transform chain output rather than
-    # the raw render: a header-only probe of the JPEG bytes is cheap.
+    # the raw render: a header-only probe of the payload bytes is cheap.
     import io
 
     with Image.open(io.BytesIO(jpeg_bytes)) as probe:
         width, height = probe.size
+    cfg = processor.img_cfg
+    detail = processor._effective_detail()
+    source = provenance or {
+        "source_dpi_x": None,
+        "source_dpi_y": None,
+        "dpi_source": "file",
+        "source_width": img.width,
+        "source_height": img.height,
+        "render_dpi": None,
+        "file_dpi_metadata": img.info.get("dpi"),
+    }
+    if "downscale_reason" not in source:
+        _, reason = resolve_target_size(
+            source["source_width"],
+            source["source_height"],
+            processor.model_type,
+            processor.model_name,
+            detail,
+            cfg,
+        )
+        source["downscale_reason"] = reason
+    padded = (
+        processor.model_type != "anthropic"
+        and detail not in ("low", "original")
+        and cfg.get("resize_profile") != "none"
+    )
+    source.update(
+        cap_policy=cfg.get("cap_policy", "profile-v1"),
+        sent_dpi=(
+            None
+            if padded or source["source_dpi_x"] is None
+            else max(source["source_dpi_x"], source["source_dpi_y"])
+            * width
+            / source["source_width"]
+        ),
+        payload_format=mime.split("/")[1],
+        mime_type=mime,
+        format_fallback=(cfg.get("payload_format") == "png" and mime == "image/jpeg"),
+    )
+    if source["downscale_reason"] != "none":
+        logger.info(
+            format_downscale_log(
+                index,
+                {**source, "width": width, "height": height},
+                processor.model_name,
+            )
+        )
     return PagePayload(
         index=index,
-        base64=encode_bytes_to_base64(jpeg_bytes, "image/jpeg"),
-        mime_type="image/jpeg",
-        detail=image_detail,
+        base64=encode_bytes_to_base64(jpeg_bytes, mime),
+        mime_type=mime,
+        detail=detail,
         sha256=hashlib.sha256(jpeg_bytes).hexdigest(),
         width=width,
         height=height,
         byte_size=len(jpeg_bytes),
         effective_dpi=effective_dpi,
+        image_provenance=source,
     )
 
 
@@ -146,39 +206,77 @@ async def stream_page_payloads(
         provider=provider,
         model_name=model_name,
         image_config=image_config,
+        image_detail=image_detail,
     )
     ext = file_path.suffix.lower()
 
     if ext in SUPPORTED_PDF_EXTENSIONS:
-        target_dpi = resolve_target_dpi(image_config, provider, model_name)
+        target_dpi = processor.img_cfg["target_dpi"]
         max_pixels = int(image_config.get("max_pixels_per_page", 0))
         render_strategy = str(
             image_config.get("render_strategy", "direct") or "direct"
         ).lower()
-        # Detail actually driving the resize profile (may differ from the
-        # detail recorded on the payload); needed to derive the direct DPI.
+        # Resolve the wire detail before sizing or deriving the direct DPI.
         resize_detail = processor._effective_detail()
 
         def _render_and_process(page_number: int) -> PagePayload:
+            assert pdf.doc is not None
+            page = pdf.doc[page_number - 1]
+            cfg = processor.img_cfg
+            density = (
+                native_page_dpi(page, cfg["native_fallback_dpi"])
+                if target_dpi == "native"
+                else None
+            )
+            source_dpi = density.dpi if density else float(target_dpi)
+            source_width = math.ceil(page.rect.width * source_dpi / 72 - 1e-7)
+            source_height = math.ceil(page.rect.height * source_dpi / 72 - 1e-7)
+            size, reason = resolve_target_size(
+                source_width,
+                source_height,
+                processor.model_type,
+                processor.model_name,
+                resize_detail,
+                cfg,
+            )
             render_dpi = target_dpi
-            if render_strategy == "direct":
-                rect = pdf.doc[page_number - 1].rect  # type: ignore[index]
+            if target_dpi == "native":
+                render_dpi = source_dpi * min(
+                    size[0] / source_width, size[1] / source_height
+                )
+            elif render_strategy == "direct":
+                rect = page.rect
                 render_dpi = ImageProcessor.compute_direct_render_dpi(
                     rect.width,
                     rect.height,
                     target_dpi,
                     resize_detail,
-                    processor.img_cfg,
+                    {**cfg, "_target_size": size},
                     processor.model_type,
                 )
             img, effective_dpi = pdf.render_page_with_dpi(
-                page_number - 1, render_dpi, max_pixels=max_pixels
+                page_number - 1,
+                render_dpi,
+                max_pixels=0 if target_dpi == "native" else max_pixels,
             )
+            if target_dpi != "native" and max_pixels and max_pixels < size[0] * size[1]:
+                reason = "memory_guard"
+            provenance = {
+                "source_dpi_x": density.dpi_x if density else source_dpi,
+                "source_dpi_y": density.dpi_y if density else source_dpi,
+                "dpi_source": density.source if density else "numeric",
+                "source_width": source_width,
+                "source_height": source_height,
+                "render_dpi": effective_dpi,
+                "downscale_reason": reason,
+            }
+            processor.img_cfg = {**cfg, "_target_size": size}
             try:
                 return _payload_from_pil(
-                    img, page_number, processor, image_detail, effective_dpi
+                    img, page_number, processor, image_detail, effective_dpi, provenance
                 )
             finally:
+                processor.img_cfg = cfg
                 img.close()
 
         with PDFProcessor(file_path) as pdf:
@@ -226,7 +324,7 @@ def resolve_image_section(
 
 def resolve_target_dpi(
     image_config: dict[str, Any], provider: str, model_name: str
-) -> int:
+) -> TargetDpi:
     """Resolve the render DPI for the active provider.
 
     Prefers a ``target_dpi`` in the provider-specific section, falls back to
@@ -235,9 +333,24 @@ def resolve_target_dpi(
     custom endpoint's 150 DPI) actually take effect.
     """
     section = resolve_image_section(image_config, provider, model_name)
-    if section.get("target_dpi") is not None:
-        return int(section["target_dpi"])
-    return int(image_config.get("target_dpi", 300))
+    from modules.images.native import validate_image_settings
+
+    section_name = get_image_config_section_name(
+        detect_model_type(provider, model_name)
+    )
+    if "target_dpi" in section:
+        target = section["target_dpi"]
+    else:
+        target = image_config.get("target_dpi")
+        if target is not None and type(target) is not int:
+            raise ValueError(f"Invalid target_dpi in {section_name}: {target!r}")
+        if target is None:
+            target = 300
+    validate_image_settings(
+        {**section, "target_dpi": target},
+        section_name,
+    )
+    return target
 
 
 def build_image_provenance(
@@ -261,25 +374,23 @@ def build_image_provenance(
         for block in iter(lambda: fh.read(1 << 20), b""):
             sha.update(block)
 
-    section = resolve_image_section(image_config, provider, model_name)
+    processor = ImageProcessor(
+        provider=provider,
+        model_name=model_name,
+        image_config=image_config,
+        image_detail=image_detail,
+    )
+    settings = {**processor.img_cfg, "model_type": processor.model_type}
     return {
         "source_file": file_path.name,
         "source_sha256": sha.hexdigest(),
         "pymupdf_version": getattr(fitz, "__version__", None)
         or getattr(fitz, "version", ("unknown",))[0],
         "pillow_version": PIL.__version__,
-        "image_config": {
-            # Resolved exactly as ``stream_page_payloads`` resolves it (provider
-            # section first), so provenance cannot claim a DPI that rendering
-            # never used.
-            "target_dpi": resolve_target_dpi(image_config, provider, model_name),
-            "render_strategy": str(
-                image_config.get("render_strategy", "direct") or "direct"
-            ).lower(),
-            "max_pixels_per_page": image_config.get("max_pixels_per_page"),
-            "resize_profile": section.get("resize_profile"),
-            "jpeg_quality": section.get("jpeg_quality"),
-            "grayscale_conversion": section.get("grayscale_conversion"),
-            "detail": image_detail,
-        },
+        "image_config": processor.img_cfg,
+        "model_type": processor.model_type,
+        "model_name": processor.model_name,
+        "detail": processor._effective_detail(),
+        "cap_policy": processor.img_cfg["cap_policy"],
+        "image_settings_fingerprint": image_settings_fingerprint(settings),
     }

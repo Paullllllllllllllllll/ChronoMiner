@@ -377,35 +377,62 @@ readjuster (certainty threshold, max retries, context expansion).
 
 ### 4. Image Processing Configuration (`image_processing_config.yaml`)
 
-Provider-specific sections configure vision preprocessing
-automatically based on the active model:
+Provider sections are `api_image_processing`, `anthropic_image_processing`,
+`google_image_processing`, and `custom_image_processing`. Each accepts:
 
-```yaml
-api_image_processing:
-  llm_detail: high          # OpenAI / OpenRouter
-anthropic_image_processing:
-  resize_profile: auto      # Anthropic
-google_image_processing:
-  media_resolution: high    # Google Gemini
-target_dpi: 300             # PDF-to-image rendering
-render_strategy: direct     # direct: render at the profile's target
-                            # size (default); supersample: render high
-                            # then downscale (legacy)
-max_pixels_per_page: 24000000  # Per-page render budget (auto DPI
-                               # reduction above this)
-```
+- `target_dpi`: a positive integer or `native`. Native detects the densest image
+  covering at least half the page, including rotated, cropped, and layered scans.
+  It renders the composite at the scan's density. Pages without a usable scan
+  use `native_fallback_dpi` (300 by default).
+- `payload_format`: `jpeg` (default) or lossless `png`. `max_image_bytes` limits
+  base64 bytes (0 disables it). An oversized PNG falls back to JPEG with a warning;
+  a still-oversized payload becomes a page error. Context images remain JPEG.
+- Grayscale, transparency, JPEG quality, detail/resolution, and resize profiles.
+  The new keys are read from the provider section. Old real configs retain the
+  top-level numeric `target_dpi` fallback; top-level null counts as missing.
 
-Under `direct` (the default), each page is rasterized straight at the
-size the active provider profile targets rather than rendered high and
-downscaled, so pages are produced faster with no quality loss (providers
-downscale server-side above their caps regardless). When a page already
-fits the profile's caps at `target_dpi`, the payload is byte-identical to
-the legacy `supersample` path.
+Fresh clones default to native JPEG at quality 95 for OpenAI and Anthropic.
+OpenAI uses `llm_detail: original` and keeps color cues (`grayscale_conversion:
+false`). Google uses 300 DPI, quality 95, and `media_resolution: high`; custom
+uses 150 DPI, quality 85, `resize_profile: low`, a 768 px low cap, and a
+`high_target_box` of `[512, 1024]`. Per-image guards are 50 MB, 10 MB, 20 MB,
+and disabled respectively.
 
-PDF pages are rendered, preprocessed, and encoded one at a time
-(streaming), so memory usage stays constant regardless of document
-length. Each output records the preprocessing parameters and a
-SHA-256 of every image sent to the model for reproducibility.
+OpenAI `original` uses a 30,000-patch (32 px) limit and 65,535 px edge for GPT-5.6
+and GPT-6; other original-detail models use 10,000 patches and 6,000 px.
+Anthropic high-resolution models use 4,784 patches (28 px) and a 2,576 px edge;
+standard models use 1,568 patches and a 1,568 px edge. Optional
+`original_max_side_px`, `original_max_pixels`, and Anthropic `high_max_side_px`
+only tighten model caps. Caps apply to numeric runs too.
+
+Other detail levels, Google, and custom use the configured resize profile;
+native mode warns once per run when a profile discards native resolution.
+Sizing follows the detail actually sent, including an `original` downgrade
+on a Chat Completions route. Native with an unbounded `none` profile is rejected.
+Top-level `render_strategy` selects `direct` or `supersample` for numeric runs;
+native always renders directly to the target with float zoom. Numeric direct
+runs retain integer DPI rounding. The top-level `max_pixels_per_page` guard
+(24 MP) applies only to numeric runs.
+
+PDF pages are rendered, preprocessed, and encoded one at a time, keeping memory
+bounded independently of document length. Output provenance records source,
+render and sent density, source and sent dimensions, downscale reason, encoding,
+model cap policy, and the SHA-256 of each payload. File-level image provenance
+includes resolved settings and `image_settings_fingerprint`. Resume and crash
+recovery reject changed settings with an error naming the differences; use
+`--force` to start again. Legacy records resume with a warning. Visual batch
+requests have a durable manifest written before submission, so recovery and
+finalization retain both page and file provenance.
+
+To restore the previous configuration, set `target_dpi: 300` and
+`jpeg_quality: 95` in the API, Anthropic, and Google sections; keep custom at
+150 DPI and quality 85. Set API `original_max_side_px: 6000`,
+`original_max_pixels: 10240000`, Anthropic `high_max_side_px: 2576`, and the
+previous detail/profile values (`original` / `original` for API, `auto` for
+Anthropic, `high` / `auto` for Google, `high` / `low` for custom). Set
+`payload_format: jpeg` and `max_image_bytes: 0` to retain the previous encoding
+and disabled size guard. Registry patch caps still apply, so oversized numeric
+pages may change.
 
 ### 5. Concurrency Configuration (`concurrency_config.yaml`)
 
@@ -831,6 +858,21 @@ v1.0.0 do not exist.
 
 ## Changelog
 
+- **v3.6.0** (30 September 2026) -- Native scan resolution and model image caps:
+  `target_dpi: native` renders each scanned PDF page at its own density, bounded
+  by the active model's edge and patch limits. Optional lossless PNG, a base64
+  size guard with JPEG fallback, and per-page downscale logs extend provenance.
+  A settings fingerprint prevents mixed preprocessing on resume or crash
+  recovery, and durable batch request manifests preserve page and file
+  provenance through finalization. The standardized example now ships native
+  JPEG at quality 95 for OpenAI and Anthropic, while numeric runs also respect
+  model caps. To roll back, explicitly set API, Anthropic, and Google
+  `target_dpi: 300` and `jpeg_quality: 95` (custom stays 150/85),
+  `payload_format: jpeg`, `max_image_bytes: 0`, API
+  `original_max_side_px: 6000` and `original_max_pixels: 10240000`, Anthropic
+  `high_max_side_px: 2576`, and the previous detail/profile values (`original` /
+  `original` for API, `auto` for Anthropic, `high` / `auto` for Google, `high` /
+  `low` for custom); registry caps remain in effect.
 - **v3.5.1** (30 September 2026) -- The shared ledger (module version 2.1.5)
   adds `gpt-6-astra` to the large default pool; before, its usage was
   recorded without a pool and escaped the per-key pool caps.

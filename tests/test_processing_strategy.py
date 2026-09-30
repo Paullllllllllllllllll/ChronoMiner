@@ -261,7 +261,9 @@ async def test_batch_processing_strategy_builds_visual_batch_requests(
         for line in temp_jsonl.read_text(encoding="utf-8").splitlines()
         if line.strip()
     ]
-    page_records = [ln for ln in lines if "batch_request" in ln]
+    page_records = [
+        ln for ln in lines if (ln.get("batch_request") or {}).get("custom_id")
+    ]
     assert len(page_records) == 2
     assert page_records[0]["batch_request"]["custom_id"] == f"{file_path.stem}-page-1"
     assert page_records[0]["batch_request"]["metadata"]["page_index"] == 1

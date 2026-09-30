@@ -73,7 +73,7 @@ def _to_unified_record(
     if chunk_range is None:
         chunk_range = meta.get("chunk_range")
 
-    return {
+    record = {
         "custom_id": custom_id,
         "chunk_index": _resolve_chunk_index(custom_id, meta),
         "chunk_range": chunk_range,
@@ -81,6 +81,53 @@ def _to_unified_record(
             {"output_text": text, "response_data": response_data}
         ),
     }
+    provenance = meta.get("image_provenance") or entry.get("image_provenance")
+    if provenance:
+        record["image_provenance"] = provenance
+    return record
+
+
+def _read_request_manifests(
+    tracking: list[dict[str, Any]],
+    custom_id_map: dict[str, dict[str, Any]],
+    order_map: dict[str, int],
+) -> dict[str, Any] | None:
+    """Restore request and file provenance even when temp request lines were lost."""
+    file_provenance: dict[str, Any] | None = None
+    for track in tracking:
+        path = (track.get("metadata") or {}).get("request_manifest")
+        if not path:
+            continue
+        # A lost manifest costs provenance, not the downloaded results: warn
+        # and finalize without it.
+        try:
+            manifest = json.loads(Path(path).read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError) as exc:
+            logger.warning(
+                "Batch request manifest %s unreadable (%s); finalizing without "
+                "image provenance.",
+                path,
+                exc,
+            )
+            continue
+        current = manifest.get("image_provenance")
+        if current:
+            if (
+                file_provenance
+                and file_provenance["image_settings_fingerprint"]
+                != current["image_settings_fingerprint"]
+            ):
+                raise ValueError("Batch manifests contain different image settings")
+            file_provenance = current
+        for request in manifest["requests"]:
+            cid = request["custom_id"]
+            custom_id_map[cid] = {
+                **custom_id_map.get(cid, {}),
+                **request.get("metadata", {}),
+            }
+            if request.get("order_index") is not None:
+                order_map[cid] = request["order_index"]
+    return file_provenance
 
 
 def build_unified_batch_output(
@@ -104,7 +151,9 @@ def build_unified_batch_output(
     being written as records, mirroring the synchronous path where failed
     chunks write no record.
     """
-    custom_id_map = custom_id_map or {}
+    custom_id_map = dict(custom_id_map or {})
+    order_map = dict(order_map or {})
+    image_provenance = _read_request_manifests(tracking, custom_id_map, order_map)
     ordered = _order_responses(list(responses), order_map)
 
     # Deduplicate by custom_id, last occurrence wins: downloaded results are
@@ -174,10 +223,11 @@ def build_unified_batch_output(
     metadata = build_extraction_metadata(
         schema_name=schema_name,
         model_name=_infer_model_name(tracking),
-        chunking_method="unknown",
+        chunking_method="pages" if image_provenance else "unknown",
         total_chunks=total_chunks,
         partial=partial,
         failed_chunks=sorted(set(failed_chunks)) or None,
+        image_provenance=image_provenance,
     )
     metadata["batch_tracking"] = {
         "provider": _infer_provider(tracking),
@@ -227,6 +277,11 @@ def merge_existing_batch_output(
     """
     if not existing_output_path.exists():
         return built
+    provenance = (built.get(METADATA_KEY) or {}).get("image_provenance")
+    if provenance:
+        from modules.extract.resume import verify_image_settings
+
+        verify_image_settings(existing_output_path, provenance)
     try:
         data = json.loads(existing_output_path.read_text(encoding="utf-8"))
     except (json.JSONDecodeError, OSError) as exc:

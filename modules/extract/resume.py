@@ -59,9 +59,73 @@ TEMP_VERSION_KEY = "_chronominer_temp_version"
 _CUSTOM_ID_INDEX_RE = re.compile(r"-(?:chunk|page)-(\d+)$")
 
 
-def build_temp_header() -> dict[str, Any]:
+def build_temp_header(
+    image_provenance: dict[str, Any] | None = None,
+) -> dict[str, Any]:
     """Return the header record written as the first line of a sync temp JSONL."""
-    return {TEMP_VERSION_KEY: TEMP_JSONL_VERSION}
+    header: dict[str, Any] = {TEMP_VERSION_KEY: TEMP_JSONL_VERSION}
+    if image_provenance:
+        header["image_provenance"] = image_provenance
+        header["image_settings_fingerprint"] = image_provenance[
+            "image_settings_fingerprint"
+        ]
+    return header
+
+
+def verify_image_settings(path: Path, current: dict[str, Any]) -> None:
+    """Reject mixed preprocessing before output or temp records are reused."""
+    if not path.exists() or not path.stat().st_size:
+        return
+    recorded: dict[str, Any] | None = None
+    header_fingerprint: str | None = None
+    if path.suffix == ".jsonl":
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                if not line.strip():
+                    continue
+                try:
+                    header = json.loads(line)
+                    if isinstance(header, dict):
+                        recorded = header.get("image_provenance")
+                        header_fingerprint = header.get("image_settings_fingerprint")
+                except ValueError:
+                    pass
+                break
+    else:
+        recorded = (read_extraction_metadata(path) or {}).get("image_provenance")
+    if not recorded or not recorded.get("image_settings_fingerprint"):
+        logger.warning(
+            "Legacy image settings in %s; resumed pages may mix settings.", path.name
+        )
+        return
+    if recorded["image_settings_fingerprint"] == current[
+        "image_settings_fingerprint"
+    ] and (
+        header_fingerprint is None
+        or header_fingerprint == current["image_settings_fingerprint"]
+    ):
+        return
+    previous = {
+        **recorded.get("image_config", {}),
+        "model_type": recorded.get("model_type"),
+    }
+    settings = {
+        **current.get("image_config", {}),
+        "model_type": current.get("model_type"),
+    }
+    changed = sorted(
+        key
+        for key in previous.keys() | settings.keys()
+        if previous.get(key) != settings.get(key)
+    )
+    if not changed:
+        changed = ["image_settings_fingerprint"]
+    message = (
+        f"Image settings changed for {path.name}: {', '.join(changed)}. "
+        "Skipping file; use --force to replace the existing run."
+    )
+    logger.error(message)
+    raise ValueError(message)
 
 
 def temp_jsonl_version(temp_jsonl_path: Path) -> int | None:

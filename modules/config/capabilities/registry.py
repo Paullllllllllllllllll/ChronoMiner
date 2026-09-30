@@ -55,6 +55,9 @@ class Capabilities:
     # downgraded to "high" by ``build_image_content_block``.
     supports_original_detail: bool = False
 
+    image_original_patch_cap_30k: bool = False
+    image_high_res_tier: bool = False
+
     supports_structured_outputs: bool = True
     supports_function_calling: bool = True
 
@@ -177,6 +180,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-6-astra",
         _OPENAI_REASONING_BASE,
         dict(
+            image_original_patch_cap_30k=True,
             supports_chat_completions=False,
             supports_original_detail=True,
             max_output_tokens=128000,
@@ -187,6 +191,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-6-sol",
         _OPENAI_REASONING_BASE,
         dict(
+            image_original_patch_cap_30k=True,
             supports_chat_completions=False,
             supports_original_detail=True,
             max_output_tokens=128000,
@@ -197,6 +202,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-6-luna",
         _OPENAI_REASONING_BASE,
         dict(
+            image_original_patch_cap_30k=True,
             supports_chat_completions=False,
             supports_original_detail=True,
             max_output_tokens=128000,
@@ -205,7 +211,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
     # --- OpenAI GPT-5.6 family (GA 2026-07-09) ---
     # All three share: 1.05M context, 128K max output, full vision with image
     # detail (low/high/original/auto; original/auto = full input resolution,
-    # no patch cap), Responses + Batch API, reasoning efforts none..xhigh.
+    # a 30,000-patch cap), Responses + Batch API, reasoning efforts none..xhigh.
     # Bare "gpt-5.6" is an API alias for gpt-5.6-sol (the flagship). The
     # specific -sol/-terra/-luna prefixes MUST precede the bare "gpt-5.6"
     # alias, which in turn precedes the bare "gpt-5" rule further below.
@@ -214,6 +220,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-5.6-sol",
         _OPENAI_REASONING_BASE,
         dict(
+            image_original_patch_cap_30k=True,
             supports_chat_completions=False,
             supports_original_detail=True,
             max_output_tokens=128000,
@@ -224,6 +231,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-5.6-terra",
         _OPENAI_REASONING_BASE,
         dict(
+            image_original_patch_cap_30k=True,
             # Same as luna below: terra serves both routes, but only the
             # Responses route accepts detail: "original". Verified 05.08.2026
             # against the live API (Responses + flex + strict json_schema +
@@ -239,6 +247,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-5.6-luna",
         _OPENAI_REASONING_BASE,
         dict(
+            image_original_patch_cap_30k=True,
             # Luna serves both routes, but only the Responses route accepts
             # detail: "original", which page-image extraction depends on.
             # Verified 05.08.2026 against the live API: Responses + flex tier +
@@ -257,6 +266,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "gpt-5.6-sol",
         _OPENAI_REASONING_BASE,
         dict(
+            image_original_patch_cap_30k=True,
             supports_chat_completions=False,
             supports_original_detail=True,
             max_output_tokens=128000,
@@ -394,6 +404,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-opus-5.5",
         _ANTHROPIC_BASE,
         dict(
+            image_high_res_tier=True,
             max_output_tokens=128000,
             supports_sampler_controls=False,
         ),
@@ -403,6 +414,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-opus-5",
         _ANTHROPIC_BASE,
         dict(
+            image_high_res_tier=True,
             max_output_tokens=128000,
             supports_sampler_controls=False,
         ),
@@ -412,6 +424,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-fable-5",
         _ANTHROPIC_BASE,
         dict(
+            image_high_res_tier=True,
             max_output_tokens=128000,
             supports_sampler_controls=False,
         ),
@@ -421,6 +434,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-opus-4.8",
         _ANTHROPIC_BASE,
         dict(
+            image_high_res_tier=True,
             max_output_tokens=128000,
             supports_sampler_controls=False,
         ),
@@ -430,6 +444,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-opus-4.7",
         _ANTHROPIC_BASE,
         dict(
+            image_high_res_tier=True,
             supports_sampler_controls=False,
         ),
     ),
@@ -473,6 +488,7 @@ _MODEL_REGISTRY: list[tuple[tuple[str, ...], str, dict, dict]] = [
         "claude-sonnet-5",
         _ANTHROPIC_BASE,
         dict(
+            image_high_res_tier=True,
             max_output_tokens=128000,
             supports_sampler_controls=False,
         ),

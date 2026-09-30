@@ -1,5 +1,7 @@
 """Tests for modules/processing/image_utils.py."""
 
+import math
+
 import pytest
 from PIL import Image
 
@@ -151,16 +153,19 @@ class TestComputeResizeScale:
 
     def test_original_pixel_cap_binds(self):
         cfg = {"original_max_side_px": 6000, "original_max_pixels": 10240000}
-        # 8000x4000 = 32 MP > 6000 side and > 10.24 MP: pixel cap is tighter
+        # Integer patch boundaries tighten the configured pixel ceiling.
         scale = ImageProcessor.compute_resize_scale(8000, 4000, "original", cfg)
-        assert scale == pytest.approx((10240000 / (8000 * 4000)) ** 0.5)
+        assert scale <= (10240000 / (8000 * 4000)) ** 0.5
+        assert math.ceil(8000 * scale / 32) * math.ceil(4000 * scale / 32) <= 10000
 
     def test_anthropic_high_uses_high_max_side(self):
         cfg = {"high_max_side_px": 2576}
         scale = ImageProcessor.compute_resize_scale(
             3000, 2000, "high", cfg, model_type="anthropic"
         )
-        assert scale == 2576 / 3000
+        # An unflagged model keeps the standard tier even with a larger cap.
+        assert 3000 * scale <= 1568
+        assert math.ceil(3000 * scale / 28) * math.ceil(2000 * scale / 28) <= 1568
 
     def test_box_fit_downscale(self):
         cfg = {"high_target_box": [768, 1536]}

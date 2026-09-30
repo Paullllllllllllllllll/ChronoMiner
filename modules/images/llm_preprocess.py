@@ -8,12 +8,14 @@ the project's ``image_processing`` YAML section.
 from __future__ import annotations
 
 import logging
+import math
 from pathlib import Path
 from typing import Any
 
 from PIL import Image, ImageOps
 
 from modules.config.constants import SUPPORTED_IMAGE_EXTENSIONS
+from modules.images.native import guarded_payload, model_image_cap, resolve_target_size
 
 logger = logging.getLogger(__name__)
 
@@ -79,6 +81,7 @@ class ImageProcessor:
         provider: str = "openai",
         model_name: str = "",
         image_config: dict[str, Any] | None = None,
+        image_detail: str | None = None,
     ) -> None:
         """Initialize ImageProcessor with provider-specific config.
 
@@ -102,7 +105,35 @@ class ImageProcessor:
             image_config = get_config_loader().get_image_processing_config()
 
         section_name = get_image_config_section_name(self.model_type)
-        self.img_cfg = image_config.get(section_name, {})
+        from modules.images.settings import resolved_settings
+
+        cfg = dict(image_config.get(section_name, {}))
+        if self.provider == "openrouter":
+            cfg["llm_detail"] = image_config.get("api_image_processing", {}).get(
+                "llm_detail", "high"
+            )
+        if "target_dpi" not in cfg:
+            target = image_config.get("target_dpi")
+            if target is not None and type(target) is not int:
+                raise ValueError(f"Invalid target_dpi in {section_name}: {target!r}")
+            cfg["target_dpi"] = 300 if target is None else target
+        if image_detail is not None:
+            detail_key = {
+                "google": "media_resolution",
+                "anthropic": "resize_profile",
+            }.get(self.model_type, "llm_detail")
+            if self.provider == "openrouter":
+                detail_key = "llm_detail"
+            cfg[detail_key] = image_detail
+        self.img_cfg = resolved_settings(
+            cfg,
+            self.provider,
+            self.model_name,
+            self.model_type,
+            section_name,
+            int(image_config.get("max_pixels_per_page", 0)),
+            str(image_config.get("render_strategy", "direct") or "direct").lower(),
+        )
 
     def handle_transparency(self, image: Image.Image) -> Image.Image:
         """Flatten transparency by pasting the image onto a white background."""
@@ -165,6 +196,23 @@ class ImageProcessor:
         is left for :meth:`resize_for_detail` to upscale and pad, since the
         render itself must never exceed ``target_dpi``.
         """
+        cap = model_image_cap(
+            model_type, img_cfg.get("model_name", ""), detail, img_cfg
+        )
+        if cap and width_px > 0 and height_px > 0:
+            width = math.ceil(width_px - 1e-7)
+            height = math.ceil(height_px - 1e-7)
+            size = img_cfg.get("_target_size")
+            if size is None:
+                size, _ = resolve_target_size(
+                    width,
+                    height,
+                    model_type,
+                    img_cfg.get("model_name", ""),
+                    detail,
+                    img_cfg,
+                )
+            return min(size[0] / width, size[1] / height)
         resize_profile = (img_cfg.get("resize_profile", "auto") or "auto").lower()
         if resize_profile == "none":
             return 1.0
@@ -255,6 +303,25 @@ class ImageProcessor:
                      cap longest side to high_max_side_px (Anthropic).
         - original: cap to original_max_side_px and max_pixels (GPT-5.4+).
         """
+        cap = model_image_cap(
+            model_type, img_cfg.get("model_name", ""), detail, img_cfg
+        )
+        if cap:
+            target = img_cfg.get("_target_size")
+            if target is None:
+                target, _ = resolve_target_size(
+                    *image.size,
+                    model_type,
+                    img_cfg.get("model_name", ""),
+                    detail,
+                    img_cfg,
+                )
+            size = min(image.width, target[0]), min(image.height, target[1])
+            return (
+                image
+                if size == image.size
+                else image.resize(size, Image.Resampling.LANCZOS)
+            )
         resize_profile = (img_cfg.get("resize_profile", "auto") or "auto").lower()
         if resize_profile == "none":
             return image
@@ -318,11 +385,18 @@ class ImageProcessor:
 
     def _effective_detail(self) -> str:
         """Resolve the configured detail level for the current model type."""
-        if self.model_type == "google":
-            return self.img_cfg.get("media_resolution", "high") or "high"
-        if self.model_type == "anthropic":
-            return self.img_cfg.get("resize_profile", "auto") or "auto"
-        return self.img_cfg.get("llm_detail", "high") or "high"
+        return self.resolve_detail(self.img_cfg, self.model_type)
+
+    @staticmethod
+    def resolve_detail(img_cfg: dict[str, Any], model_type: str) -> str:
+        """Resolve the detail that drives sizing and the request."""
+        if "resolved_detail" in img_cfg:
+            return str(img_cfg["resolved_detail"])
+        if model_type == "google":
+            return str(img_cfg.get("media_resolution", "high") or "high")
+        if model_type == "anthropic":
+            return str(img_cfg.get("resize_profile", "auto") or "auto")
+        return str(img_cfg.get("llm_detail", "high") or "high")
 
     def _apply_transforms(self, img: Image.Image) -> Image.Image:
         """Run the full transform chain on an open PIL image."""
@@ -337,7 +411,7 @@ class ImageProcessor:
         return img
 
     def process_pil(self, img: Image.Image) -> bytes:
-        """Process an in-memory PIL image and return encoded JPEG bytes.
+        """Process an in-memory PIL image and return encoded payload bytes.
 
         Applies the same transform chain as :meth:`process_image`
         (transparency flattening, optional grayscale, provider-specific
@@ -348,15 +422,18 @@ class ImageProcessor:
             img: Source PIL image.
 
         Returns:
-            JPEG-encoded bytes of the processed image.
+            JPEG or PNG bytes of the processed image.
         """
-        import io
-
         processed = self._apply_transforms(img)
         jpeg_quality = int(self.img_cfg.get("jpeg_quality", 95))
-        buffer = io.BytesIO()
-        processed.save(buffer, format="JPEG", quality=jpeg_quality)
-        return buffer.getvalue()
+        data, _, _ = guarded_payload(
+            processed,
+            self.img_cfg.get("payload_format", "jpeg"),
+            jpeg_quality,
+            int(self.img_cfg.get("max_image_bytes", 0)),
+            log=logger,
+        )
+        return data
 
     def process_image(self, output_path: Path) -> Path:
         """Process the image and save it to the given output path as JPEG.

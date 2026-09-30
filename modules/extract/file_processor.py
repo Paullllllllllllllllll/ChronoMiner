@@ -275,6 +275,8 @@ def _preprocess_context_image(
         image_config=image_config,
     )
     with Image.open(image_path) as img:
+        # Context images retain the JPEG transport contract.
+        processor.img_cfg = {**processor.img_cfg, "payload_format": "jpeg"}
         jpeg_bytes = processor.process_pil(img)
     return {
         "base64": encode_bytes_to_base64(jpeg_bytes, "image/jpeg"),
@@ -587,7 +589,14 @@ class FileProcessor:
             from modules.images import detect_model_type
 
             model_type = detect_model_type(provider, model_name)
-            if model_type == "google":
+            if provider == "openrouter":
+                image_detail = (
+                    image_config.get("api_image_processing", {}).get(
+                        "llm_detail", "high"
+                    )
+                    or "high"
+                )
+            elif model_type == "google":
                 image_detail = img_cfg.get("media_resolution", "high") or "high"
             elif model_type == "anthropic":
                 image_detail = img_cfg.get("resize_profile", "auto") or "auto"
@@ -597,6 +606,29 @@ class FileProcessor:
         # A configured/requested "original" is silently downgraded to "high"
         # unless the run is routed to the OpenAI Responses API; say so once.
         warn_if_original_detail_downgraded(model_name, image_detail, caps)
+
+        from modules.extract.resume import verify_image_settings
+
+        file_provenance = await asyncio.to_thread(
+            build_image_provenance,
+            file_path,
+            image_config,
+            provider,
+            model_name,
+            image_detail,
+        )
+        image_detail = file_provenance["detail"]
+        if (
+            file_provenance["image_config"]["target_dpi"] == "native"
+            and file_provenance["cap_policy"] == "profile-v1"
+            and not getattr(self, "_native_profile_warned", False)
+        ):
+            logger.warning(
+                "Native resolution is bounded by a resize profile for %s; "
+                "the profile discards native resolution.",
+                model_name,
+            )
+            self._native_profile_warned = True
 
         # 3. Page count without rendering
         ext = file_path.suffix.lower()
@@ -621,7 +653,13 @@ class FileProcessor:
         completed: set[int] = set()
         if resume:
             try:
-                output_json_path = self._setup_output_paths(file_path, schema_paths)[1]
+                _, output_json_path, temp_path = self._setup_output_paths(
+                    file_path, schema_paths
+                )
+                verify_image_settings(output_json_path, file_provenance)
+                verify_image_settings(temp_path, file_provenance)
+                for part in temp_path.parent.glob(f"{temp_path.stem}_part*.jsonl"):
+                    verify_image_settings(part, file_provenance)
             except Exception as e:
                 messenger.error(f"Failed to set up output paths: {e}", exc_info=e)
                 return "failed"
@@ -632,6 +670,11 @@ class FileProcessor:
                 final_output_path = output_json_path.with_name(
                     f"{file_path.stem}_final_output.json"
                 )
+                try:
+                    verify_image_settings(final_output_path, file_provenance)
+                except ValueError as e:
+                    messenger.error(str(e))
+                    return "failed"
                 completed = completed_indices_from_outputs(
                     output_json_path, final_output_path
                 )
@@ -690,16 +733,6 @@ class FileProcessor:
         except FileNotFoundError:
             messenger.error(f"Visual extraction prompt not found: {visual_prompt_path}")
             return "failed"
-
-        # 6. File-level provenance (source hash + preprocessing params)
-        file_provenance = await asyncio.to_thread(
-            build_image_provenance,
-            file_path,
-            image_config,
-            provider,
-            model_name,
-            image_detail,
-        )
 
         # 7. Factory for streaming page sources. Synchronous runs rebuild the
         # source over the still-pending pages on each budget re-pass, so the
@@ -903,6 +936,15 @@ class FileProcessor:
                 self._setup_output_paths(file_path, schema_paths)
             )
             messenger.info(f"Output will be saved to: {output_json_path}")
+            if resume and image_provenance is not None:
+                from modules.extract.resume import verify_image_settings
+
+                verify_image_settings(output_json_path, image_provenance)
+                verify_image_settings(temp_jsonl_path, image_provenance)
+                for part in temp_jsonl_path.parent.glob(
+                    f"{temp_jsonl_path.stem}_part*.jsonl"
+                ):
+                    verify_image_settings(part, image_provenance)
         except Exception as e:
             messenger.error(f"Failed to set up output paths: {e}", exc_info=e)
             return "failed"
@@ -1096,6 +1138,8 @@ class FileProcessor:
             }
             if image_chunks is not None:
                 process_kwargs["image_chunks"] = image_chunks
+            if image_provenance is not None:
+                process_kwargs["image_provenance"] = image_provenance
             if context_image_data is not None:
                 process_kwargs["context_image_data"] = context_image_data
             if chunk_indices is not None:

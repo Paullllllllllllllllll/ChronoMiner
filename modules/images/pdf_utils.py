@@ -59,8 +59,8 @@ class PDFProcessor:
         return self.doc.page_count
 
     def render_page_with_dpi(
-        self, page_index: int, dpi: int = 300, max_pixels: int = 0
-    ) -> tuple[Image.Image, int]:
+        self, page_index: int, dpi: float = 300, max_pixels: int = 0
+    ) -> tuple[Image.Image, float]:
         """Render a single PDF page and report the DPI actually used.
 
         Args:
@@ -85,9 +85,9 @@ class PDFProcessor:
             pixels_at_dpi = (rect.width / 72 * dpi) * (rect.height / 72 * dpi)
             if pixels_at_dpi > max_pixels:
                 effective_dpi = max(1, int(dpi * math.sqrt(max_pixels / pixels_at_dpi)))
-                logger.info(
-                    "Page %d: %.0f MP at %d DPI exceeds limit (%.0f MP); "
-                    "reducing to %d DPI",
+                logger.debug(
+                    "Page %d: %.0f MP at %.1f DPI exceeds limit (%.0f MP); "
+                    "reducing to %.1f DPI",
                     page_index + 1,
                     pixels_at_dpi / 1e6,
                     dpi,
