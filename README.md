@@ -806,6 +806,9 @@ blocks non-loopback connections and runs model calls against a scripted fake mod
 fake batch services. After an intended change, rewrite the golden files with
 `CM_UPDATE_GOLDEN=1` and review the diff; `tests/README.md` describes the layout.
 
+Evaluation data for a subset of historical sources (ground-truth extractions and
+benchmark runs) is available from the author upon request.
+
 ## Versioning
 
 [CHANGELOG.md](CHANGELOG.md) describes each release.
