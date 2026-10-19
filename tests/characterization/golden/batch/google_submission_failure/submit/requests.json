@@ -1,0 +1,39 @@
+{
+  "batch": {
+    "calls": [
+      {
+        "call": "google.files.upload",
+        "display_name": "batch-extraction-<submission-1>-p1",
+        "lines": 2
+      },
+      {
+        "call": "google.batches.create",
+        "config": {
+          "display_name": "batch-extraction-<submission-1>-p1"
+        },
+        "model": "models/gemini-2.5-flash",
+        "src": "<file-1>"
+      },
+      {
+        "call": "google.files.delete",
+        "name": "<file-1>"
+      }
+    ],
+    "clients": [
+      {
+        "kwargs": {
+          "api_key": "<env:GOOGLE_API_KEY>",
+          "http_options": {
+            "timeout": 60000
+          }
+        },
+        "provider": "google"
+      }
+    ],
+    "prompts": {},
+    "requests": []
+  },
+  "calls": [],
+  "models": [],
+  "prompts": {}
+}

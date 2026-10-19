@@ -1,0 +1,219 @@
+
+ChronoMiner | new extraction   step 1
+? Task:
+ > new extraction
+   generate line ranges
+   adjust line ranges
+   check batches
+   cancel batches
+   repair failed chunks
+   render files again
+   drop stored documents
+   Back
+  answer: new extraction
+
+ChronoMiner | new extraction   step 2
+? Input (file or folder): <tmp>/inputs/scans
+  found 3 images
+? Search the subfolders too?
+ > No, this folder only
+   Yes, every subfolder
+   Back
+  answer: No, this folder only
+
+ChronoMiner | new extraction   step 3
+? Input type:
+ > Automatic (each file by its type)
+   Images  3 items
+   Back
+  answer: Images
+? Which items?
+ > All 3
+   By number or range  such as 1,3 or 2-5
+   By name search  every name holding the text
+   Choose from the list
+   Back
+  answer: All 3
+
+ChronoMiner | new extraction   step 4
+? Where should the outputs go?
+ > Beside each input
+   Into one folder  created when missing
+   Back
+  answer: Into one folder
+? Output folder: <tmp>/out
+? Folder layout:
+   Every output in the output folder
+ > Mirror the input folders (s)
+   Back
+  answer: Mirror the input folders
+? Also write (chronominer.sqlite and _output.json are always written):
+   [ ] CSV (_output.csv)
+   [ ] Back
+  answer: (none)
+
+ChronoMiner | new extraction   step 5
+? Provider:
+ > OpenAI
+   Anthropic
+   Google
+   OpenRouter
+   Back
+  answer: Back
+
+ChronoMiner | new extraction   step 4
+? Where should the outputs go?
+   Beside each input
+ > Into one folder  created when missing
+   Back
+  answer: Into one folder
+? Output folder: [<tmp>/out] <tmp>/out
+? Folder layout:
+   Every output in the output folder
+ > Mirror the input folders (s)
+   Back
+  answer: Mirror the input folders
+? Also write (chronominer.sqlite and _output.json are always written):
+   [ ] CSV (_output.csv)
+   [ ] Back
+  answer: CSV (_output.csv)
+
+ChronoMiner | new extraction   step 5
+? Provider:
+ > OpenAI
+   Anthropic
+   Google
+   OpenRouter
+   Back
+  answer: OpenAI
+? Model:
+ > gpt-6-luna
+   gpt-6-sol
+   gpt-6-astra
+   gpt-6.1-sol
+   gpt-5.6-luna
+   gpt-5.6-terra
+   gpt-5.6-sol
+   gpt-5.5
+   Other (type a name)
+   Back
+  answer: gpt-6-luna
+? Reasoning effort:
+   none
+   minimal
+   low
+ > medium (s)
+   high
+   xhigh
+   max
+   Back
+  answer: medium
+? Model parameters:
+ > Recommended  verbosity medium, model's output limit, tier default
+   Customize
+   Back
+  answer: Recommended
+
+ChronoMiner | new extraction   step 6
+? Response format:
+ > Automatic  schema for this model
+   Schema (API-enforced)
+   JSON (prompted, validated)
+   Back
+  answer: Automatic
+? Schema:
+ > PriceListEntries
+   TradeRecords
+   WageRecords
+   A schema file...
+   Back
+  answer: WageRecords
+? Extraction context:
+ > Automatic (sidecar)  the item's {stem}_extract_context.txt
+   Topics as text
+   A text file
+   None
+   Back
+  answer: Automatic (sidecar)
+? Context for items without a sidecar:
+ > No fallback
+   Topics as text
+   A text file
+   Back
+  answer: No fallback
+? Context image:
+   Automatic  the item's {stem}_extract_context image
+ > None
+   A file
+   Back
+  answer: None
+
+ChronoMiner | new extraction   step 7
+? Page images:
+ > Recommended for openai models  native DPI, detail high (s), JPEG 95, color
+   Customize
+   Back
+  answer: Recommended for openai models
+
+ChronoMiner | new extraction   step 8
+? Submission:
+ > Synchronous  results now
+   Batch API  collected later with batch check
+   Back
+  answer: Batch API
+? Run options:
+   [ ] Extract complete items again (--force)
+   [ ] Dry run: show the plan, no API calls or writes
+   [ ] Back
+  answer: (none)
+
+Review                                                                  (s) = from settings defaults
+  input      <tmp>/inputs/scans  (3 images) | type images | all items
+  output     <tmp>/out | layout mirror (s) | formats _output.json, csv (+ chronominer.sqlite)
+  schema     WageRecords | <tmp>/schemas/wage_records.json
+  model      openai / gpt-6-luna | reasoning medium (s) | tier default
+  access     API key OPENAI_API_KEY
+  response   automatic (schema) | context auto | no context image
+  images     native DPI | detail high (s) | JPEG 95 | color
+  run        batch | resume
+
+Plan: 3 to process, 0 complete
+  page_001.png: new (image)
+  page_002.jpg: new (image)
+  page_003.png: new (image)
+
+Equivalent command:
+  chronominer extract --input '<tmp>/inputs/scans' --type images --all --output '<tmp>/out'
+    --layout mirror --formats csv --schema WageRecords --reasoning-effort medium --image-detail high
+    --batch --settings '<tmp>/config/settings.yaml'
+? Start:
+ > Run
+   Edit a step
+   Copy command and quit
+   Quit
+   Back
+  answer: Run
+[1/3] page_001.png (image)
+[1/3] page_001.png: submitted
+[2/3] page_002.jpg (image)
+[2/3] page_002.jpg: submitted
+[3/3] page_003.png (image)
+[3/3] page_003.png: submitted
+Run summary
+┏━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
+┃ Item         ┃ Status                            ┃ Chunks ok ┃ Failed ┃ Deferred ┃ Error ┃
+┡━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
+│ page_001.png │ submitted                         │         - │      - │        - │       │
+│ page_002.jpg │ submitted                         │         - │      - │        - │       │
+│ page_003.png │ submitted                         │         - │      - │        - │       │
+├──────────────┼───────────────────────────────────┼───────────┼────────┼──────────┼───────┤
+│ Total        │ 0 complete, 3 submitted, 0 failed │         - │      - │        - │       │
+└──────────────┴───────────────────────────────────┴───────────┴────────┴──────────┴───────┘
+Outputs: none
+Skipped (already complete): none
+Blocked (held by another run): none
+Unstored (outputs without store rows): none
+Databases written: <tmp>/out/chronominer.sqlite
+Run time: <duration>
+Token usage: none reported
+Batch: 3 items submitted to the openai batch API; collect the results with 'chronominer batch check'.

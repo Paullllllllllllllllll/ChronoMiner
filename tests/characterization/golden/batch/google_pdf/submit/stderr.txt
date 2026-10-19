@@ -1,0 +1,6 @@
+[WARNING] the settings default context_window (--context-window) applies only for chunking adjust and has no effect here: the chunking is auto
+[INFO] Resume mode: skip (use --force to reprocess all)
+[INFO] Beginning processing of 1 item(s)...
+[INFO] Processing item 1/1: book.pdf
+[SUCCESS] Processing complete!
+[INFO] Database: <tmp>/out/chronominer.sqlite

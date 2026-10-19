@@ -1,0 +1,327 @@
+## artifacts
+## document_meta
+## documents
+{
+  "doc_id": 1,
+  "first_run_id": "<run-1>",
+  "image_settings": null,
+  "input_path": "<tmp>/docs/ledger.txt",
+  "input_sha256": null,
+  "kind": "text",
+  "last_run_id": "<run-1>",
+  "lease_generation": "<generation>",
+  "lease_run_id": null,
+  "lease_until": null,
+  "name": "ledger",
+  "status": "complete",
+  "tool": "chronominer",
+  "units_done": 4,
+  "units_failed": 0,
+  "units_pending": 0,
+  "units_total": 4,
+  "updated_at": "<datetime>"
+}
+{
+  "doc_id": 2,
+  "first_run_id": "<run-1>",
+  "image_settings": null,
+  "input_path": "<tmp>/docs/notes.md",
+  "input_sha256": null,
+  "kind": "text",
+  "last_run_id": "<run-1>",
+  "lease_generation": "<generation>",
+  "lease_run_id": null,
+  "lease_until": null,
+  "name": "notes",
+  "status": "complete",
+  "tool": "chronominer",
+  "units_done": 2,
+  "units_failed": 0,
+  "units_pending": 0,
+  "units_total": 2,
+  "updated_at": "<datetime>"
+}
+## entry_rows
+## meta
+{
+  "component": "chronominer",
+  "version": 1
+}
+{
+  "component": "core",
+  "version": 2
+}
+## notes
+## outputs
+{
+  "doc_id": 1,
+  "format": "line_ranges",
+  "path": "ledger_line_ranges.txt",
+  "rendered_at": "<datetime>",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "stale": 0
+}
+{
+  "doc_id": 2,
+  "format": "line_ranges",
+  "path": "notes_line_ranges.txt",
+  "rendered_at": "<datetime>",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "stale": 0
+}
+## responses
+## runs
+{
+  "command": "ranges generate",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-1>",
+  "settings_fingerprint": null,
+  "spec": {
+    "chunk_tokens": {
+      "source": "settings",
+      "value": 160
+    },
+    "dry_run": {
+      "source": "default",
+      "value": false
+    },
+    "input": {
+      "source": "flag",
+      "value": "<tmp>/docs"
+    },
+    "json": {
+      "source": "flag",
+      "value": true
+    },
+    "model": {
+      "source": "settings",
+      "value": "gpt-4o"
+    },
+    "recursive": {
+      "source": "flag",
+      "value": true
+    }
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+## submission_requests
+## submissions
+## units
+{
+  "attempts": 0,
+  "content": [
+    1,
+    17
+  ],
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 0,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "generated",
+  "provenance": null,
+  "provider": "",
+  "response_id": null,
+  "run_id": "<run-1>",
+  "source_index": "1-17",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": [
+    18,
+    35
+  ],
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 1,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "generated",
+  "provenance": null,
+  "provider": "",
+  "response_id": null,
+  "run_id": "<run-1>",
+  "source_index": "18-35",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": [
+    36,
+    53
+  ],
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 2,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "generated",
+  "provenance": null,
+  "provider": "",
+  "response_id": null,
+  "run_id": "<run-1>",
+  "source_index": "36-53",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": [
+    54,
+    71
+  ],
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 3,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "generated",
+  "provenance": null,
+  "provider": "",
+  "response_id": null,
+  "run_id": "<run-1>",
+  "source_index": "54-71",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": [
+    1,
+    17
+  ],
+  "doc_id": 2,
+  "error": null,
+  "error_type": null,
+  "idx": 0,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "generated",
+  "provenance": null,
+  "provider": "",
+  "response_id": null,
+  "run_id": "<run-1>",
+  "source_index": "1-17",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": [
+    18,
+    23
+  ],
+  "doc_id": 2,
+  "error": null,
+  "error_type": null,
+  "idx": 1,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "generated",
+  "provenance": null,
+  "provider": "",
+  "response_id": null,
+  "run_id": "<run-1>",
+  "source_index": "18-23",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+## view entries
+## view chunks
+## view ranges
+{
+  "adjusted_end": null,
+  "adjusted_start": null,
+  "document": "ledger",
+  "original_end": 17,
+  "original_start": 1,
+  "range_index": 1,
+  "should_delete": null,
+  "status": "done"
+}
+{
+  "adjusted_end": null,
+  "adjusted_start": null,
+  "document": "ledger",
+  "original_end": 35,
+  "original_start": 18,
+  "range_index": 2,
+  "should_delete": null,
+  "status": "done"
+}
+{
+  "adjusted_end": null,
+  "adjusted_start": null,
+  "document": "ledger",
+  "original_end": 53,
+  "original_start": 36,
+  "range_index": 3,
+  "should_delete": null,
+  "status": "done"
+}
+{
+  "adjusted_end": null,
+  "adjusted_start": null,
+  "document": "ledger",
+  "original_end": 71,
+  "original_start": 54,
+  "range_index": 4,
+  "should_delete": null,
+  "status": "done"
+}
+{
+  "adjusted_end": null,
+  "adjusted_start": null,
+  "document": "notes",
+  "original_end": 17,
+  "original_start": 1,
+  "range_index": 1,
+  "should_delete": null,
+  "status": "done"
+}
+{
+  "adjusted_end": null,
+  "adjusted_start": null,
+  "document": "notes",
+  "original_end": 23,
+  "original_start": 18,
+  "range_index": 2,
+  "should_delete": null,
+  "status": "done"
+}

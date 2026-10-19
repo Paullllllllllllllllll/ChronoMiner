@@ -1,0 +1,71 @@
+{
+  "_chronominer_metadata": {
+    "chunking_method": "auto",
+    "chunking_text_version": 2,
+    "document_total_chunks": 1,
+    "model_name": "gpt-4o",
+    "schema_name": "NestedEntries",
+    "timestamp": "<timestamp>",
+    "total_chunks": 1,
+    "version": 1
+  },
+  "records": [
+    {
+      "chunk_index": 1,
+      "chunk_range": [
+        1,
+        17
+      ],
+      "custom_id": "ledger-chunk-1",
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "name": "Granary of Basel",
+              "notes": null,
+              "place": {
+                "region": null,
+                "town": "Basel"
+              },
+              "source_page": "12",
+              "tags": [
+                "grain",
+                "storage",
+                "town"
+              ]
+            },
+            {
+              "name": "Mill at Liestal",
+              "notes": "Rebuilt after the flood.",
+              "place": {
+                "region": "Basel-Land",
+                "town": "Liestal"
+              },
+              "source_page": null,
+              "tags": []
+            }
+          ]
+        },
+        "response_data": {
+          "model": "gpt-4o",
+          "provider": "openai",
+          "usage": {
+            "cached_tokens": 0,
+            "input_tokens": 1500,
+            "output_tokens": 400,
+            "reasoning_tokens": 0,
+            "total_tokens": 1900
+          }
+        },
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 1500,
+          "output_tokens": 400,
+          "reasoning_tokens": 0,
+          "total_tokens": 1900
+        }
+      }
+    }
+  ]
+}

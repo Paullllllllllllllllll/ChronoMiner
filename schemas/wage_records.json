@@ -1,0 +1,98 @@
+{
+  "name": "WageRecords",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "description": "Payrolls, wage books and account entries that record what a named person earned for work in a given period.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no wage records. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "person": {
+              "type": "string",
+              "description": "The name of the person paid, as written. Example: 'John Carter'."
+            },
+            "occupation": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The trade or position of the person. Example: 'mason' or 'day labourer'. Use null if not stated."
+            },
+            "wage": {
+              "anyOf": [
+                { "type": "number" },
+                { "type": "null" }
+              ],
+              "description": "The amount paid as a decimal number. Use null if the amount is illegible or missing."
+            },
+            "period": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The period the wage covers, as written. Example: 'per day', 'per week' or 'for the quarter'. Use null if not stated."
+            },
+            "currency": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The currency or monetary unit as written. Use null if not stated."
+            },
+            "date": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The date of payment or of the work, as written. Use null if the source gives no date."
+            },
+            "employer": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The person or institution that paid the wage. Use null if not stated."
+            },
+            "source_page": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The page or folio on which the entry appears. Use null if not identifiable."
+            },
+            "notes": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Remarks about the entry, such as payment in kind or an uncertain reading. Use null if there are none."
+            }
+          },
+          "required": [
+            "person",
+            "occupation",
+            "wage",
+            "period",
+            "currency",
+            "date",
+            "employer",
+            "source_page",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

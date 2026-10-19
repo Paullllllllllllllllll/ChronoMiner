@@ -1,0 +1,13 @@
+
+================================================================================
+  BATCH CANCELLATION
+================================================================================
+
+[INFO] Cancelling the open batch submissions below '<tmp>/out'...
+[INFO] Not cancelled: <tmp>/out/chronominer.sqlite: batch <openai-batch-1> of submission <submission-1> has already ended (completed); run 'chronominer batch check' to finalize it
+
+================================================================================
+  CANCELLATION COMPLETE
+================================================================================
+
+[SUCCESS] Successfully cancelled: 0

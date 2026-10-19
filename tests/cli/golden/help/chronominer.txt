@@ -1,0 +1,19 @@
+usage: chronominer [-h] COMMAND ...
+
+Extract structured data from text files, images and PDFs with language models, driven by a JSON
+schema.
+
+options:
+  -h, --help  show this help message and exit
+
+commands:
+  COMMAND
+    extract   extract structured entries from texts, images and PDFs
+    ranges    write or adjust the line ranges of text inputs
+    batch     check or cancel batch submissions
+    repair    run the failed chunks of extractions again
+    render    render the JSON, CSV and line-range views from the store again
+    drop      delete stored documents so that the next run starts them anew
+    ui        guided run in an interactive terminal
+
+Run 'chronominer <command> --help' for the options of a command.

@@ -1,0 +1,47 @@
+{
+  "batch": {
+    "calls": [
+      {
+        "call": "openai.files.create",
+        "lines": 2,
+        "purpose": "batch"
+      },
+      {
+        "call": "openai.batches.create",
+        "completion_window": "24h",
+        "endpoint": "/v1/responses",
+        "input_file_id": "<file-1>",
+        "metadata": {
+          "description": "batch-extraction",
+          "part": "1",
+          "submission_id": "<submission-1>"
+        }
+      },
+      {
+        "call": "openai.files.delete",
+        "file_id": "<file-1>"
+      }
+    ],
+    "clients": [
+      {
+        "kwargs": {
+          "api_key": "<env:OPENAI_API_KEY>",
+          "timeout": {
+            "httpx.Timeout": {
+              "connect": 10.0,
+              "pool": 30.0,
+              "read": 60.0,
+              "write": 30.0
+            }
+          }
+        },
+        "provider": "openai"
+      }
+    ],
+    "prompts": {},
+    "requests": []
+  },
+  "calls": [],
+  "models": [],
+  "prompts": {}
+}

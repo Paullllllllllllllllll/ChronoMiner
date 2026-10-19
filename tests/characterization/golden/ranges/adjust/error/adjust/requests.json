@@ -1,0 +1,132 @@
+{
+  "calls": [
+    {
+      "attempt": 1,
+      "bound": {},
+      "kwargs": {},
+      "messages": [
+        {
+          "blocks": [
+            {
+              "chars": 3076,
+              "prompt": "prompt-1",
+              "type": "text"
+            }
+          ],
+          "role": "system"
+        },
+        {
+          "blocks": [
+            {
+              "chars": 220,
+              "prompt": "prompt-2",
+              "type": "text"
+            }
+          ],
+          "role": "human"
+        }
+      ],
+      "model": "gpt-4o",
+      "provider": "openai",
+      "role": "adjust",
+      "structured": {
+        "include_raw": true,
+        "method": "json_schema",
+        "schema": {
+          "digest": "0652978b646c33b3",
+          "name": "SemanticBoundaryResponse",
+          "properties": [
+            "boundary_already_on_target",
+            "certainty",
+            "contains_no_semantic_boundary",
+            "needs_more_context",
+            "semantic_marker"
+          ],
+          "strict": true
+        }
+      },
+      "unit": "adjust-0"
+    },
+    {
+      "attempt": 1,
+      "bound": {},
+      "kwargs": {},
+      "messages": [
+        {
+          "blocks": [
+            {
+              "chars": 3076,
+              "prompt": "prompt-1",
+              "type": "text"
+            }
+          ],
+          "role": "system"
+        },
+        {
+          "blocks": [
+            {
+              "chars": 399,
+              "prompt": "prompt-3",
+              "type": "text"
+            }
+          ],
+          "role": "human"
+        }
+      ],
+      "model": "gpt-4o",
+      "provider": "openai",
+      "role": "adjust",
+      "structured": {
+        "include_raw": true,
+        "method": "json_schema",
+        "schema": {
+          "digest": "0652978b646c33b3",
+          "name": "SemanticBoundaryResponse",
+          "properties": [
+            "boundary_already_on_target",
+            "certainty",
+            "contains_no_semantic_boundary",
+            "needs_more_context",
+            "semantic_marker"
+          ],
+          "strict": true
+        }
+      },
+      "unit": "adjust-4"
+    }
+  ],
+  "models": [
+    {
+      "constructor": "ChatOpenAI",
+      "kwargs": {
+        "api_key": "<env:OPENAI_API_KEY>",
+        "disabled_params": {
+          "frequency_penalty": null,
+          "presence_penalty": null
+        },
+        "http_async_client": "<_DefaultAsyncHttpxClient>",
+        "http_client": "<_DefaultHttpxClient>",
+        "max_retries": 0,
+        "max_tokens": 4096,
+        "model": "gpt-4o",
+        "temperature": 0.0,
+        "timeout": {
+          "httpx.Timeout": {
+            "connect": 10.0,
+            "pool": 30.0,
+            "read": 60.0,
+            "write": 30.0
+          }
+        },
+        "top_p": 1.0,
+        "use_responses_api": true
+      },
+      "provider": "openai"
+    }
+  ],
+  "prompts": {
+    "prompt-1": "You are a text segmentation expert. Decide whether the current chunk boundary in the provided text sits at the start of a semantic unit and, if not, identify the nearest such start. Respond according to the JSON schema below.\n\nSEMANTIC UNIT TYPE\nOne entry of the type defined in the rules block at the end of this prompt (schema name: FlatEntries). If no rules block is present, treat one complete entry of that schema as the unit.\n\nINPUT FORMAT\nThe input text may contain a sentinel line, <<<CURRENT_CHUNK_START>>>, placed immediately above the line where the current chunk starts. The sentinel is injected for orientation only: it is not part of the source text and must never be used as, or included in, a semantic marker. If no sentinel is visible, judge the visible text as a whole.\n\nTASK\n1. Look at the line directly below the sentinel. If that line begins a complete unit, set \"boundary_already_on_target\" to true and leave \"semantic_marker\" empty.\n2. Otherwise, find the line nearest to the sentinel (before or after it) that begins a complete unit.\n3. Return a 5-15 character verbatim substring taken from the start of that line, distinctive enough to match exactly once in the source text.\n\nRESPONSE REQUIREMENTS\n- At most one of \"contains_no_semantic_boundary\", \"needs_more_context\" and \"boundary_already_on_target\" may be true; when you return a semantic_marker, all three are false.\n- Always provide a \"certainty\" score (0-100).\n\nOUTPUT REQUIREMENTS\n- Return only valid JSON matching the schema below: no commentary, code fences, or additional fields.\n- Use only verbatim text from the input. Do not modify or invent content, and never output the sentinel.\n\nThe JSON schema:\n{\"type\":\"object\",\"properties\":{\"contains_no_semantic_boundary\":{\"type\":\"boolean\",\"description\":\"Set to true when the provided text contains NO content of the required semantic type at all. Use this when you are confident no relevant content exists anywhere in the visible context.\"},\"needs_more_context\":{\"type\":\"boolean\",\"description\":\"Set to true when you believe the semantic boundary exists somewhere around the visible text but you need to see more surrounding content to accurately identify it.\"},\"boundary_already_on_target\":{\"type\":\"boolean\",\"description\":\"Set to true when the current range start is already positioned at a semantic boundary and no adjustment is needed. Leave semantic_marker empty when this is true.\"},\"certainty\":{\"type\":\"integer\",\"description\":\"Your confidence level in this response as an integer from 0-100. Use 0-40 for low confidence, 41-70 for moderate confidence, 71-100 for high confidence. This applies to whatever decision you make (boundary found, no content, or needs more context).\"},\"semantic_marker\":{\"type\":\"string\",\"description\":\"A precise 5-15 character verbatim substring that marks the semantic boundary. Leave empty if contains_no_semantic_boundary or needs_more_context is true.\"}},\"required\":[\"contains_no_semantic_boundary\",\"needs_more_context\",\"boundary_already_on_target\",\"certainty\",\"semantic_marker\"],\"additionalProperties\":false}\n\n",
+    "prompt-2": "Input text:\n\n<<<CURRENT_CHUNK_START>>>\nRecord 001.\nItem: wheat, best quality, delivered to the town granary\nQuantity: 2 bushels by the town measure\nPrice: 3 shillings 0 pence the bushel\nDate: 1 January 1701\n\nRecord 002.\n",
+    "prompt-3": "Input text:\n\nQuantity: 4 bushels by the town measure\nPrice: 5 shillings 2 pence the bushel\nDate: 3 May 1703\n\nRecord 004.\nItem: salted butter, delivered to the town granary\n<<<CURRENT_CHUNK_START>>>\nQuantity: 5 bushels by the town measure\nPrice: 6 shillings 3 pence the bushel\nDate: 4 July 1704\n\nRecord 005.\nItem: tallow candles, delivered to the town granary\nQuantity: 6 bushels by the town measure\n"
+  }
+}

@@ -1,0 +1,83 @@
+# ChronoMiner settings: machine values and optional run defaults.
+#
+# Copy this file to config/settings.yaml in the repository (gitignored) and
+# edit the copy, or pass another file with --settings FILE. Every key is
+# optional; a missing key keeps the value shown here. Unknown keys are errors.
+# Relative paths resolve against the current directory.
+
+# Environment-variable NAMES that hold each provider's API key (never the key).
+api_keys:
+  openai: OPENAI_API_KEY
+  anthropic: ANTHROPIC_API_KEY
+  google: GOOGLE_API_KEY
+  openrouter: OPENROUTER_API_KEY
+
+# Named OpenAI-compatible endpoints, selected with --endpoint NAME.
+endpoints: {}
+#  example:
+#    base_url: https://your-endpoint.example.com/v1/
+#    api_key_env: YOUR_ENDPOINT_API_KEY
+#    supports_vision: true   # the model accepts images
+#    supports_schema: false  # the API enforces JSON schemas
+
+# HTTP timeouts in seconds. request is the read timeout; 900 s suits the
+# OpenAI flex tier, which may queue requests.
+timeouts:
+  request: 900
+  connect: 10
+  write: 30
+  pool: 30
+
+# Client-side rate limits per provider as [max_requests, window_seconds].
+rate_limits:
+  - [120, 1]
+  - [15000, 60]
+  - [15000, 3600]
+
+# Retries of failed API calls (429, 5xx, timeouts, connection errors).
+retry:
+  max_attempts: 8         # every call, the first included
+  timeout_attempts: 3     # calls that end in a timeout (billed, no usage)
+  validation_attempts: 1  # calls that return unparseable structured output
+  min_input_tokens: 0     # retry image requests reporting fewer input tokens
+  # Wall-clock limit of one chunk across all attempts: auto (request timeout
+  # times timeout_attempts plus 300 s), off, or seconds.
+  page_timeout: auto
+
+# Pacing of the --concurrency workers (the LLM chunk requests).
+concurrency:
+  delay_between_tasks: 0  # seconds each worker pauses before its next request
+
+# Long-side limit in pixels of OpenAI pages sent at original detail; null
+# keeps the model's default (3000 for gpt-6-luna, none for other models).
+images:
+  original_max_side_px: null
+
+# Provider prompt caching of the static prompt (instructions, schema, context).
+prompt_caching:
+  enabled: true
+  anthropic:
+    ttl: 5m  # 5m or 1h
+  openai:
+    prompt_cache_retention: null  # or 24h: documented models; GPT-5.6+ get ttl 30m
+  openrouter:
+    anthropic_cache_control: true
+
+# Folder of the state files of extensions; '' means ~/.chronominer.
+state_dir: ''
+
+# Log folder, or a file ending in .log; '' writes logs/application.log in the
+# repository.
+logs_dir: ''
+
+# Run defaults keyed by option name (flags override them), for example:
+# defaults:
+#   model: gpt-6-luna
+#   reasoning_effort: xhigh
+#   service_tier: default
+#   formats: [csv]  # chronominer.sqlite and {stem}_output.json are always written
+#   layout: flat
+#   chunk_tokens: 3500
+#   concurrency: 16
+#   batch: false
+#   fallback_context: none  # inputs without a sidecar: topics as text or a file

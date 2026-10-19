@@ -1,0 +1,222 @@
+{
+  "_chronominer_metadata": {
+    "chunking_method": "pages",
+    "image_provenance": {
+      "cap_policy": "profile-v1",
+      "detail": "high",
+      "image_config": {
+        "cap_policy": "profile-v1",
+        "detail": "high",
+        "grayscale_conversion": true,
+        "handle_transparency": true,
+        "high_target_box": [
+          768,
+          1536
+        ],
+        "image_high_res_tier": false,
+        "image_original_patch_cap_30k": false,
+        "jpeg_quality": 90,
+        "llm_detail": "high",
+        "low_max_side_px": 512,
+        "max_image_bytes": 50000000,
+        "max_pixels_per_page": 24000000,
+        "model_name": "gpt-4o",
+        "native_fallback_dpi": 300,
+        "payload_format": "jpeg",
+        "provider": "openai",
+        "render_strategy": "direct",
+        "resize_profile": "high",
+        "resolved_detail": "high",
+        "target_dpi": 72
+      },
+      "image_settings_fingerprint": "df7d14be1407e4db6ddd83331927d858077de47d4063269874dd27f0a074b01b",
+      "model_name": "gpt-4o",
+      "model_type": "openai",
+      "pillow_version": "<version>",
+      "pymupdf_version": "<version>",
+      "source_file": "book.pdf",
+      "source_sha256": "<sha256>"
+    },
+    "model_name": "gpt-4o",
+    "schema_name": "FlatEntries",
+    "timestamp": "<timestamp>",
+    "total_chunks": 3,
+    "version": 1
+  },
+  "records": [
+    {
+      "chunk_index": 1,
+      "chunk_range": null,
+      "custom_id": "book-page-1",
+      "image_provenance": {
+        "byte_size": "<byte_size>",
+        "cap_policy": "profile-v1",
+        "downscale_reason": "none",
+        "dpi_source": "numeric",
+        "effective_dpi": 72,
+        "format_fallback": false,
+        "height": 1536,
+        "image_sha256": "<sha256>",
+        "mime_type": "image/jpeg",
+        "payload_format": "jpeg",
+        "render_dpi": 72,
+        "sent_dpi": null,
+        "source_dpi_x": 72.0,
+        "source_dpi_y": 72.0,
+        "source_height": 300,
+        "source_width": 200,
+        "width": 768
+      },
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": null,
+              "item": "revised item",
+              "notes": "second run",
+              "price": null,
+              "quantity": null,
+              "record_id": "Record revised",
+              "source_page": null
+            }
+          ]
+        },
+        "response_data": {
+          "model": "gpt-4o",
+          "provider": "openai",
+          "usage": {
+            "cached_tokens": 0,
+            "input_tokens": 1500,
+            "output_tokens": 400,
+            "reasoning_tokens": 0,
+            "total_tokens": 1900
+          }
+        },
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 1500,
+          "output_tokens": 400,
+          "reasoning_tokens": 0,
+          "total_tokens": 1900
+        }
+      }
+    },
+    {
+      "chunk_index": 2,
+      "chunk_range": null,
+      "custom_id": "book-page-2",
+      "image_provenance": {
+        "byte_size": "<byte_size>",
+        "cap_policy": "profile-v1",
+        "downscale_reason": "none",
+        "dpi_source": "numeric",
+        "effective_dpi": 72,
+        "format_fallback": false,
+        "height": 1536,
+        "image_sha256": "<sha256>",
+        "mime_type": "image/jpeg",
+        "payload_format": "jpeg",
+        "render_dpi": 72,
+        "sent_dpi": null,
+        "source_dpi_x": 72.0,
+        "source_dpi_y": 72.0,
+        "source_height": 300,
+        "source_width": 200,
+        "width": 768
+      },
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": null,
+              "item": "revised item",
+              "notes": "second run",
+              "price": null,
+              "quantity": null,
+              "record_id": "Record revised",
+              "source_page": null
+            }
+          ]
+        },
+        "response_data": {
+          "model": "gpt-4o",
+          "provider": "openai",
+          "usage": {
+            "cached_tokens": 0,
+            "input_tokens": 1500,
+            "output_tokens": 400,
+            "reasoning_tokens": 0,
+            "total_tokens": 1900
+          }
+        },
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 1500,
+          "output_tokens": 400,
+          "reasoning_tokens": 0,
+          "total_tokens": 1900
+        }
+      }
+    },
+    {
+      "chunk_index": 3,
+      "chunk_range": null,
+      "custom_id": "book-page-3",
+      "image_provenance": {
+        "byte_size": "<byte_size>",
+        "cap_policy": "profile-v1",
+        "downscale_reason": "none",
+        "dpi_source": "numeric",
+        "effective_dpi": 72,
+        "format_fallback": false,
+        "height": 1536,
+        "image_sha256": "<sha256>",
+        "mime_type": "image/jpeg",
+        "payload_format": "jpeg",
+        "render_dpi": 72,
+        "sent_dpi": null,
+        "source_dpi_x": 72.0,
+        "source_dpi_y": 72.0,
+        "source_height": 300,
+        "source_width": 200,
+        "width": 768
+      },
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": null,
+              "item": "revised item",
+              "notes": "second run",
+              "price": null,
+              "quantity": null,
+              "record_id": "Record revised",
+              "source_page": null
+            }
+          ]
+        },
+        "response_data": {
+          "model": "gpt-4o",
+          "provider": "openai",
+          "usage": {
+            "cached_tokens": 0,
+            "input_tokens": 1500,
+            "output_tokens": 400,
+            "reasoning_tokens": 0,
+            "total_tokens": 1900
+          }
+        },
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 1500,
+          "output_tokens": 400,
+          "reasoning_tokens": 0,
+          "total_tokens": 1900
+        }
+      }
+    }
+  ]
+}

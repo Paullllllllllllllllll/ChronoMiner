@@ -1,0 +1,123 @@
+## artifacts
+## document_meta
+## documents
+{
+  "doc_id": 1,
+  "first_run_id": "<run-2>",
+  "image_settings": null,
+  "input_path": "<tmp>/docs/sub/short.txt",
+  "input_sha256": null,
+  "kind": "text",
+  "last_run_id": "<run-2>",
+  "lease_generation": "<generation>",
+  "lease_run_id": null,
+  "lease_until": null,
+  "name": "short",
+  "status": "complete",
+  "tool": "chronominer",
+  "units_done": 1,
+  "units_failed": 0,
+  "units_pending": 0,
+  "units_total": 1,
+  "updated_at": "<datetime>"
+}
+## entry_rows
+## meta
+{
+  "component": "chronominer",
+  "version": 1
+}
+{
+  "component": "core",
+  "version": 2
+}
+## notes
+## outputs
+{
+  "doc_id": 1,
+  "format": "line_ranges",
+  "path": "short_line_ranges.txt",
+  "rendered_at": "<datetime>",
+  "run_id": "<run-2>",
+  "sha256": "<sha256>",
+  "stale": 0
+}
+## responses
+## runs
+{
+  "command": "ranges generate",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-2>",
+  "settings_fingerprint": null,
+  "spec": {
+    "chunk_tokens": {
+      "source": "settings",
+      "value": 160
+    },
+    "dry_run": {
+      "source": "default",
+      "value": false
+    },
+    "input": {
+      "source": "flag",
+      "value": "<tmp>/docs"
+    },
+    "json": {
+      "source": "flag",
+      "value": true
+    },
+    "model": {
+      "source": "settings",
+      "value": "gpt-4o"
+    },
+    "recursive": {
+      "source": "flag",
+      "value": true
+    }
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+## submission_requests
+## submissions
+## units
+{
+  "attempts": 0,
+  "content": [
+    1,
+    11
+  ],
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 0,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "generated",
+  "provenance": null,
+  "provider": "",
+  "response_id": null,
+  "run_id": "<run-2>",
+  "source_index": "1-11",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+## view entries
+## view chunks
+## view ranges
+{
+  "adjusted_end": null,
+  "adjusted_start": null,
+  "document": "short",
+  "original_end": 11,
+  "original_start": 1,
+  "range_index": 1,
+  "should_delete": null,
+  "status": "done"
+}

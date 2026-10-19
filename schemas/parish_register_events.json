@@ -1,0 +1,106 @@
+{
+  "name": "ParishRegisterEvents",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "description": "Parish registers of baptisms, marriages and burials, with one entry per recorded event and the persons involved.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no parish register events. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "event_type": {
+              "type": "string",
+              "enum": ["baptism", "marriage", "burial", "other"],
+              "description": "The kind of event recorded."
+            },
+            "event_date": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The date of the event, as written. Use null if the source gives no date."
+            },
+            "parish": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The parish in which the event was registered. Use null if not stated."
+            },
+            "persons": {
+              "type": "array",
+              "description": "The persons named in the event.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "The name of the person, as written."
+                  },
+                  "role": {
+                    "type": "string",
+                    "enum": [
+                      "child",
+                      "father",
+                      "mother",
+                      "godparent",
+                      "bride",
+                      "groom",
+                      "witness",
+                      "deceased",
+                      "other"
+                    ],
+                    "description": "The role of the person in the event."
+                  }
+                },
+                "required": ["name", "role"],
+                "additionalProperties": false
+              }
+            },
+            "officiant": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The priest or minister who performed the rite. Use null if not stated."
+            },
+            "source_page": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The page or folio on which the entry appears. Use null if not identifiable."
+            },
+            "notes": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Remarks about the entry, such as legitimacy or an uncertain reading. Use null if there are none."
+            }
+          },
+          "required": [
+            "event_type",
+            "event_date",
+            "parish",
+            "persons",
+            "officiant",
+            "source_page",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

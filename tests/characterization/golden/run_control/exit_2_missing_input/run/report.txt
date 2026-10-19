@@ -1,0 +1,1 @@
+[ERROR] Invalid arguments: Input path does not exist: <tmp>/docs/missing.txt

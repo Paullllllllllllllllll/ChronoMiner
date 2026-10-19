@@ -1,0 +1,186 @@
+{
+  "calls": [
+    {
+      "attempt": 1,
+      "bound": {},
+      "kwargs": {},
+      "messages": [
+        {
+          "blocks": [
+            {
+              "chars": 2434,
+              "prompt": "prompt-1",
+              "type": "text"
+            }
+          ],
+          "role": "system"
+        },
+        {
+          "blocks": [
+            {
+              "text": "Extract structured data from this image according to the schema.",
+              "type": "text"
+            },
+            {
+              "detail": "high",
+              "height": 1536,
+              "mime": "image/jpeg",
+              "type": "image_url",
+              "width": 768
+            }
+          ],
+          "role": "human"
+        }
+      ],
+      "model": "gpt-4o",
+      "provider": "openai",
+      "role": "extract",
+      "structured": {
+        "include_raw": true,
+        "method": "json_schema",
+        "schema": {
+          "digest": "1a2dbf7055abd48a",
+          "name": "ExtractionSchema",
+          "properties": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "strict": true
+        }
+      },
+      "unit": "page-0"
+    },
+    {
+      "attempt": 1,
+      "bound": {},
+      "kwargs": {},
+      "messages": [
+        {
+          "blocks": [
+            {
+              "chars": 2434,
+              "prompt": "prompt-1",
+              "type": "text"
+            }
+          ],
+          "role": "system"
+        },
+        {
+          "blocks": [
+            {
+              "text": "Extract structured data from this image according to the schema.",
+              "type": "text"
+            },
+            {
+              "detail": "high",
+              "height": 1536,
+              "mime": "image/jpeg",
+              "type": "image_url",
+              "width": 768
+            }
+          ],
+          "role": "human"
+        }
+      ],
+      "model": "gpt-4o",
+      "provider": "openai",
+      "role": "extract",
+      "structured": {
+        "include_raw": true,
+        "method": "json_schema",
+        "schema": {
+          "digest": "1a2dbf7055abd48a",
+          "name": "ExtractionSchema",
+          "properties": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "strict": true
+        }
+      },
+      "unit": "page-1"
+    },
+    {
+      "attempt": 1,
+      "bound": {},
+      "kwargs": {},
+      "messages": [
+        {
+          "blocks": [
+            {
+              "chars": 2434,
+              "prompt": "prompt-1",
+              "type": "text"
+            }
+          ],
+          "role": "system"
+        },
+        {
+          "blocks": [
+            {
+              "text": "Extract structured data from this image according to the schema.",
+              "type": "text"
+            },
+            {
+              "detail": "high",
+              "height": 1536,
+              "mime": "image/jpeg",
+              "type": "image_url",
+              "width": 768
+            }
+          ],
+          "role": "human"
+        }
+      ],
+      "model": "gpt-4o",
+      "provider": "openai",
+      "role": "extract",
+      "structured": {
+        "include_raw": true,
+        "method": "json_schema",
+        "schema": {
+          "digest": "1a2dbf7055abd48a",
+          "name": "ExtractionSchema",
+          "properties": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "strict": true
+        }
+      },
+      "unit": "page-2"
+    }
+  ],
+  "models": [
+    {
+      "constructor": "ChatOpenAI",
+      "kwargs": {
+        "api_key": "<env:OPENAI_API_KEY>",
+        "disabled_params": {
+          "frequency_penalty": null,
+          "presence_penalty": null
+        },
+        "http_async_client": "<_DefaultAsyncHttpxClient>",
+        "http_client": "<_DefaultHttpxClient>",
+        "max_retries": 0,
+        "max_tokens": 4096,
+        "model": "gpt-4o",
+        "temperature": 0.0,
+        "timeout": {
+          "httpx.Timeout": {
+            "connect": 10.0,
+            "pool": 30.0,
+            "read": 60.0,
+            "write": 30.0
+          }
+        },
+        "top_p": 1.0,
+        "use_responses_api": true
+      },
+      "provider": "openai"
+    }
+  ],
+  "prompts": {
+    "prompt-1": "You are a structured data extraction expert with advanced image analysis capabilities. Your task is to extract structured data from the provided image according to the JSON schema below.\n\nTASK DEFINITION\n1. Analyze the JSON schema to understand what data to extract\n2. Carefully read and interpret all text, tables, and visual content in the image\n3. Reason hard to extract **all data** from the image and organize it into the entries array\n\nDATA EXTRACTION RULES\n- If the image contains no content of the requested type, set contains_no_content_of_requested_type to true and return an empty entries array\n- Fill a field from the image or from what follows directly from it (e.g. a city's country); otherwise use `null` (or any explicit placeholder described in the schema). Never invent data\n- The rules block below, when present, is binding and applies per entry\n- If the image is illegible, blurred, or otherwise unreadable, do your best to extract what is possible and note uncertainty in any applicable schema fields\n\nOUTPUT REQUIREMENTS\n- Return only valid JSON matching the schema below—no commentary, code fences, or additional fields\n\nThe JSON schema:\n{\"type\":\"object\",\"properties\":{\"contains_no_content_of_requested_type\":{\"type\":\"boolean\",\"description\":\"Set to true if the input contains no records. Otherwise, set to false.\"},\"entries\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"record_id\":{\"type\":\"string\",\"description\":\"The record heading as written, such as 'Record 001'.\"},\"item\":{\"type\":\"string\",\"description\":\"The item named in the record.\"},\"quantity\":{\"anyOf\":[{\"type\":\"number\"},{\"type\":\"null\"}],\"description\":\"The quantity stated in the record. Use null if not stated.\"},\"price\":{\"anyOf\":[{\"type\":\"number\"},{\"type\":\"null\"}],\"description\":\"The price stated in the record. Use null if not stated.\"},\"date\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"The date of the record as written. Use null if not stated.\"},\"source_page\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"The page on which the record appears. Use null if not identifiable.\"},\"notes\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"Remarks about the record. Use null if there are none.\"}},\"required\":[\"record_id\",\"item\",\"quantity\",\"price\",\"date\",\"source_page\",\"notes\"],\"additionalProperties\":false}}},\"required\":[\"contains_no_content_of_requested_type\",\"entries\"],\"additionalProperties\":false}\n\n"
+  }
+}

@@ -1,0 +1,96 @@
+{
+  "name": "CensusHouseholds",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "description": "Census returns and population registers that list the members of each household with age, sex and occupation.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no census household entries. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "household": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The household number or identifier as written. Use null if not stated."
+            },
+            "person": {
+              "type": "string",
+              "description": "The full name of the person, as written."
+            },
+            "age": {
+              "anyOf": [
+                { "type": "integer" },
+                { "type": "null" }
+              ],
+              "description": "The age in years. Use null if not stated or illegible."
+            },
+            "sex": {
+              "type": ["string", "null"],
+              "enum": ["female", "male", null],
+              "description": "The sex of the person as recorded. Use null if not stated."
+            },
+            "occupation": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The occupation as written. Use null if not stated."
+            },
+            "relation_to_head": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The relation to the head of household as written. Example: 'wife', 'son' or 'servant'. Use null if not stated."
+            },
+            "address": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The street, house or parcel of the household as written. Use null if not stated."
+            },
+            "source_page": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The page or folio on which the entry appears. Use null if not identifiable."
+            },
+            "notes": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Remarks about the entry, such as marital status or an uncertain reading. Use null if there are none."
+            }
+          },
+          "required": [
+            "household",
+            "person",
+            "age",
+            "sex",
+            "occupation",
+            "relation_to_head",
+            "address",
+            "source_page",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

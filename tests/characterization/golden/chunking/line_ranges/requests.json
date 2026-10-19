@@ -1,0 +1,171 @@
+{
+  "calls": [
+    {
+      "attempt": 1,
+      "bound": {},
+      "kwargs": {},
+      "messages": [
+        {
+          "blocks": [
+            {
+              "chars": 2205,
+              "prompt": "prompt-1",
+              "type": "text"
+            }
+          ],
+          "role": "system"
+        },
+        {
+          "blocks": [
+            {
+              "chars": 641,
+              "prompt": "prompt-2",
+              "type": "text"
+            }
+          ],
+          "role": "human"
+        }
+      ],
+      "model": "gpt-4o",
+      "provider": "openai",
+      "role": "extract",
+      "structured": {
+        "include_raw": true,
+        "method": "json_schema",
+        "schema": {
+          "digest": "1a2dbf7055abd48a",
+          "name": "ExtractionSchema",
+          "properties": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "strict": true
+        }
+      },
+      "unit": "record-0"
+    },
+    {
+      "attempt": 1,
+      "bound": {},
+      "kwargs": {},
+      "messages": [
+        {
+          "blocks": [
+            {
+              "chars": 2205,
+              "prompt": "prompt-1",
+              "type": "text"
+            }
+          ],
+          "role": "system"
+        },
+        {
+          "blocks": [
+            {
+              "chars": 635,
+              "prompt": "prompt-3",
+              "type": "text"
+            }
+          ],
+          "role": "human"
+        }
+      ],
+      "model": "gpt-4o",
+      "provider": "openai",
+      "role": "extract",
+      "structured": {
+        "include_raw": true,
+        "method": "json_schema",
+        "schema": {
+          "digest": "1a2dbf7055abd48a",
+          "name": "ExtractionSchema",
+          "properties": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "strict": true
+        }
+      },
+      "unit": "record-4"
+    },
+    {
+      "attempt": 1,
+      "bound": {},
+      "kwargs": {},
+      "messages": [
+        {
+          "blocks": [
+            {
+              "chars": 2205,
+              "prompt": "prompt-1",
+              "type": "text"
+            }
+          ],
+          "role": "system"
+        },
+        {
+          "blocks": [
+            {
+              "chars": 654,
+              "prompt": "prompt-4",
+              "type": "text"
+            }
+          ],
+          "role": "human"
+        }
+      ],
+      "model": "gpt-4o",
+      "provider": "openai",
+      "role": "extract",
+      "structured": {
+        "include_raw": true,
+        "method": "json_schema",
+        "schema": {
+          "digest": "1a2dbf7055abd48a",
+          "name": "ExtractionSchema",
+          "properties": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "strict": true
+        }
+      },
+      "unit": "record-8"
+    }
+  ],
+  "models": [
+    {
+      "constructor": "ChatOpenAI",
+      "kwargs": {
+        "api_key": "<env:OPENAI_API_KEY>",
+        "disabled_params": {
+          "frequency_penalty": null,
+          "presence_penalty": null
+        },
+        "http_async_client": "<_DefaultAsyncHttpxClient>",
+        "http_client": "<_DefaultHttpxClient>",
+        "max_retries": 0,
+        "max_tokens": 4096,
+        "model": "gpt-4o",
+        "temperature": 0.0,
+        "timeout": {
+          "httpx.Timeout": {
+            "connect": 10.0,
+            "pool": 30.0,
+            "read": 60.0,
+            "write": 30.0
+          }
+        },
+        "top_p": 1.0,
+        "use_responses_api": true
+      },
+      "provider": "openai"
+    }
+  ],
+  "prompts": {
+    "prompt-1": "You are a structured data extraction expert. Extract structured data from the provided input text according to the JSON schema below.\n\nTASK DEFINITION\n1. Analyze the JSON schema to understand what data to extract\n2. Analyze the input text to understand its content and structure\n3. Extract all data from the input text and organize it into the entries array\n\nDATA EXTRACTION RULES\n- If the input text contains no content of the requested type, set contains_no_content_of_requested_type to true and return an empty entries array\n- Fill a field from the input text or from what follows directly from it (e.g. a city's country); otherwise use `null` (or any explicit placeholder described in the schema). Never invent data\n- The rules block below, when present, is binding and applies per entry\n\nOUTPUT REQUIREMENTS\n- Return only valid JSON matching the schema below: no commentary, code fences, or additional fields\n\nThe JSON schema:\n{\"type\":\"object\",\"properties\":{\"contains_no_content_of_requested_type\":{\"type\":\"boolean\",\"description\":\"Set to true if the input contains no records. Otherwise, set to false.\"},\"entries\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"record_id\":{\"type\":\"string\",\"description\":\"The record heading as written, such as 'Record 001'.\"},\"item\":{\"type\":\"string\",\"description\":\"The item named in the record.\"},\"quantity\":{\"anyOf\":[{\"type\":\"number\"},{\"type\":\"null\"}],\"description\":\"The quantity stated in the record. Use null if not stated.\"},\"price\":{\"anyOf\":[{\"type\":\"number\"},{\"type\":\"null\"}],\"description\":\"The price stated in the record. Use null if not stated.\"},\"date\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"The date of the record as written. Use null if not stated.\"},\"source_page\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"The page on which the record appears. Use null if not identifiable.\"},\"notes\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"Remarks about the record. Use null if there are none.\"}},\"required\":[\"record_id\",\"item\",\"quantity\",\"price\",\"date\",\"source_page\",\"notes\"],\"additionalProperties\":false}}},\"required\":[\"contains_no_content_of_requested_type\",\"entries\"],\"additionalProperties\":false}\n\n",
+    "prompt-2": "Record 001.\nItem: wheat, best quality, delivered to the town granary\nQuantity: 2 bushels by the town measure\nPrice: 3 shillings 0 pence the bushel\nDate: 1 January 1701\n\nRecord 002.\nItem: rye flour, delivered to the town granary\nQuantity: 3 bushels by the town measure\nPrice: 4 shillings 1 pence the bushel\nDate: 2 March 1702\n\nRecord 003.\nItem: barley malt, delivered to the town granary\nQuantity: 4 bushels by the town measure\nPrice: 5 shillings 2 pence the bushel\nDate: 3 May 1703\n\nRecord 004.\nItem: salted butter, delivered to the town granary\nQuantity: 5 bushels by the town measure\nPrice: 6 shillings 3 pence the bushel\nDate: 4 July 1704",
+    "prompt-3": "Record 005.\nItem: tallow candles, delivered to the town granary\nQuantity: 6 bushels by the town measure\nPrice: 7 shillings 4 pence the bushel\nDate: 5 September 1705\n\nRecord 006.\nItem: sea salt, delivered to the town granary\nQuantity: 7 bushels by the town measure\nPrice: 8 shillings 5 pence the bushel\nDate: 6 November 1706\n\nRecord 007.\nItem: dried peas, delivered to the town granary\nQuantity: 8 bushels by the town measure\nPrice: 9 shillings 6 pence the bushel\nDate: 7 January 1707\n\nRecord 008.\nItem: oats, delivered to the town granary\nQuantity: 9 bushels by the town measure\nPrice: 3 shillings 7 pence the bushel\nDate: 8 March 1708",
+    "prompt-4": "Record 009.\nItem: wheat, best quality, delivered to the town granary\nQuantity: 10 bushels by the town measure\nPrice: 4 shillings 8 pence the bushel\nDate: 9 May 1709\n\nRecord 010.\nItem: rye flour, delivered to the town granary\nQuantity: 11 bushels by the town measure\nPrice: 5 shillings 9 pence the bushel\nDate: 10 July 1710\n\nRecord 011.\nItem: barley malt, delivered to the town granary\nQuantity: 12 bushels by the town measure\nPrice: 6 shillings 10 pence the bushel\nDate: 11 September 1711\n\nRecord 012.\nItem: salted butter, delivered to the town granary\nQuantity: 13 bushels by the town measure\nPrice: 7 shillings 0 pence the bushel\nDate: 12 November 1712"
+  }
+}

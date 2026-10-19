@@ -1,0 +1,15 @@
+usage: chronominer ui [-h] [--settings FILE]
+
+Guided run: choose a task (extract, ranges generate, ranges adjust, batch check, batch cancel,
+repair, render or drop), answer its steps with Back navigation, then review the values, marked
+where they come from the settings defaults, with the equivalent command, and run it, copy the
+command or quit. Needs an interactive terminal.
+
+options:
+  -h, --help       show this help message and exit
+
+run control:
+  --settings FILE  alternate settings file; default: config/settings.yaml
+
+Exit codes are those of the chosen task's command. For scripts and agents, use 'chronominer
+extract' and the other commands with flags.

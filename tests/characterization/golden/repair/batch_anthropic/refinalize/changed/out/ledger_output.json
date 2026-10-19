@@ -1,0 +1,117 @@
+{
+  "_chronominer_metadata": {
+    "batch_tracking": {
+      "batch_ids": [
+        "<anthropic-batch-1>",
+        "<anthropic-batch-2>"
+      ],
+      "completed_batches": 2,
+      "failed_batches": 0,
+      "fully_completed": true,
+      "missing_batches": [],
+      "ordered_by_custom_id": true,
+      "parts": 2,
+      "processed_at": "<datetime>",
+      "provider": "anthropic",
+      "recovered_batch_ids": [],
+      "tracking": [
+        {
+          "batch_id": "<anthropic-batch-1>",
+          "metadata": {
+            "model": "claude-sonnet-4-5",
+            "request_count": 2,
+            "submission_id": "<submission-1>"
+          },
+          "provider": "anthropic",
+          "request_count": 2,
+          "schema_name": "FlatEntries",
+          "status": "finalized",
+          "timestamp": "<timestamp>"
+        },
+        {
+          "batch_id": "<anthropic-batch-2>",
+          "metadata": {
+            "model": "claude-sonnet-4-5",
+            "request_count": 1,
+            "submission_id": "<submission-2>"
+          },
+          "provider": "anthropic",
+          "request_count": 1,
+          "schema_name": "FlatEntries",
+          "status": "finalized",
+          "timestamp": "<timestamp>"
+        }
+      ]
+    },
+    "chunking_method": "auto",
+    "chunking_text_version": 2,
+    "document_total_chunks": 2,
+    "model_name": "claude-sonnet-4-5",
+    "schema_name": "FlatEntries",
+    "timestamp": "<timestamp>",
+    "total_chunks": 2,
+    "version": 1
+  },
+  "records": [
+    {
+      "chunk_index": 1,
+      "chunk_range": [
+        1,
+        18
+      ],
+      "custom_id": "ledger-chunk-1",
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date record-0",
+              "item": "item record-0",
+              "notes": "notes record-0",
+              "price": 1.5,
+              "quantity": 1.5,
+              "record_id": "record_id record-0",
+              "source_page": "source_page record-0"
+            }
+          ]
+        },
+        "response_data": {
+          "usage": {
+            "input_tokens": 1500,
+            "output_tokens": 400
+          }
+        }
+      }
+    },
+    {
+      "chunk_index": 2,
+      "chunk_range": [
+        19,
+        35
+      ],
+      "custom_id": "ledger-chunk-2",
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date record-3",
+              "item": "item record-3",
+              "notes": "notes record-3",
+              "price": 4.5,
+              "quantity": 4.5,
+              "record_id": "record_id record-3",
+              "source_page": "source_page record-3"
+            }
+          ]
+        },
+        "response_data": {
+          "usage": {
+            "input_tokens": 1500,
+            "output_tokens": 400
+          }
+        }
+      }
+    }
+  ]
+}

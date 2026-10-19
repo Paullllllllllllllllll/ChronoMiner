@@ -1,0 +1,64 @@
+{
+  "name": "FlatEntries",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "description": "Characterization fixture: a ledger of dated item records with one flat row per entry.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input contains no records. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "record_id": {
+              "type": "string",
+              "description": "The record heading as written, such as 'Record 001'."
+            },
+            "item": {
+              "type": "string",
+              "description": "The item named in the record."
+            },
+            "quantity": {
+              "anyOf": [{ "type": "number" }, { "type": "null" }],
+              "description": "The quantity stated in the record. Use null if not stated."
+            },
+            "price": {
+              "anyOf": [{ "type": "number" }, { "type": "null" }],
+              "description": "The price stated in the record. Use null if not stated."
+            },
+            "date": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "description": "The date of the record as written. Use null if not stated."
+            },
+            "source_page": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "description": "The page on which the record appears. Use null if not identifiable."
+            },
+            "notes": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "description": "Remarks about the record. Use null if there are none."
+            }
+          },
+          "required": [
+            "record_id",
+            "item",
+            "quantity",
+            "price",
+            "date",
+            "source_page",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

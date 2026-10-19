@@ -1,0 +1,8 @@
+[
+  {
+    "batch_id": "<openai-batch-1>",
+    "polls": 1,
+    "provider": "openai",
+    "state": "completed"
+  }
+]

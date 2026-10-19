@@ -1,0 +1,205 @@
+
+ChronoMiner | new extraction   step 1
+? Task:
+ > new extraction
+   generate line ranges
+   adjust line ranges
+   check batches
+   cancel batches
+   repair failed chunks
+   render files again
+   drop stored documents
+   Back
+  answer: new extraction
+
+ChronoMiner | new extraction   step 2
+? Input (file or folder): <tmp>/inputs/ledger.txt
+  found 1 text file (1 with line ranges)
+
+ChronoMiner | new extraction   step 3
+? Input type:
+ > Automatic (each file by its type)
+   Text files  1 item
+   Back
+  answer: Text files
+
+ChronoMiner | new extraction   step 4
+? Text chunking:
+ > Automatic  cut by tokens per chunk
+   Line ranges  each item's _line_ranges.txt
+   Adjusted line ranges  the model moves the boundaries first
+   Back
+  answer: Line ranges
+
+ChronoMiner | new extraction   step 5
+? Which line ranges?
+ > All line ranges
+   A range  such as 5, first:5, last:5, 3-7, 3-, -7 or 1,3,5-8
+   Back
+  answer: All line ranges
+
+ChronoMiner | new extraction   step 6
+? Where should the outputs go?
+ > Beside each input
+   Into one folder  created when missing
+   Back
+  answer: Into one folder
+? Output folder: <tmp>/out
+? Also write (chronominer.sqlite and _output.json are always written):
+   [ ] CSV (_output.csv)
+   [ ] Back
+  answer: CSV (_output.csv)
+
+ChronoMiner | new extraction   step 7
+? Provider:
+ > OpenAI (s)
+   Anthropic
+   Google
+   OpenRouter
+   Back
+  answer: Back
+
+ChronoMiner | new extraction   step 6
+? Where should the outputs go?
+   Beside each input
+ > Into one folder  created when missing
+   Back
+  answer: Into one folder
+? Output folder: [<tmp>/out] <tmp>/out
+? Also write (chronominer.sqlite and _output.json are always written):
+   [x] CSV (_output.csv)
+   [ ] Back
+  answer: CSV (_output.csv)
+
+ChronoMiner | new extraction   step 7
+? Provider:
+ > OpenAI (s)
+   Anthropic
+   Google
+   OpenRouter
+   Back
+  answer: OpenAI
+? Model:
+   gpt-6-luna
+   gpt-6-sol
+   gpt-6-astra
+   gpt-6.1-sol
+   gpt-5.6-luna
+ > gpt-5.6-terra (s)
+   gpt-5.6-sol
+   gpt-5.5
+   Other (type a name)
+   Back
+  answer: gpt-5.6-terra
+? Reasoning effort:
+   none
+   minimal
+   low
+   medium
+   high
+ > xhigh
+   max
+   Back
+  answer: xhigh
+? Model parameters:
+ > Recommended  verbosity medium, model's output limit, tier priority (s)
+   Customize
+   Back
+  answer: Recommended
+
+ChronoMiner | new extraction   step 8
+? Response format:
+ > Automatic  schema for this model
+   Schema (API-enforced)
+   JSON (prompted, validated)
+   Back
+  answer: Automatic
+? Schema:
+ > PriceListEntries
+   TradeRecords
+   WageRecords
+   A schema file...
+   Back
+  answer: PriceListEntries
+? Extraction context:
+ > Automatic (sidecar)  the item's {stem}_extract_context.txt
+   Topics as text
+   A text file
+   None
+   Back
+  answer: Automatic (sidecar)
+? Context for items without a sidecar:
+ > No fallback
+   Topics as text
+   A text file
+   Back
+  answer: No fallback
+? Context image:
+   Automatic  the item's {stem}_extract_context image
+ > None
+   A file
+   Back
+  answer: None
+
+ChronoMiner | new extraction   step 9
+? Submission:
+ > Synchronous  results now
+   Batch API  collected later with batch check
+   Back
+  answer: Synchronous
+? Run options:
+   [ ] Extract complete items again (--force)
+   [ ] Dry run: show the plan, no API calls or writes
+   [ ] Back
+  answer: (none)
+? Parallel requests: [4 (s)] 4
+
+Review                                                                  (s) = from settings defaults
+  input      <tmp>/inputs/ledger.txt  (1 text file (1 with line ranges)) | type text | all line ranges
+  output     <tmp>/out | layout flat | formats _output.json, csv (+ chronominer.sqlite)
+  schema     PriceListEntries | <tmp>/schemas/price_list_entries.json
+  chunking   line-ranges | from _line_ranges.txt
+  model      openai / gpt-5.6-terra (s) | reasoning xhigh | tier priority (s)
+  access     API key OPENAI_API_KEY
+  response   automatic (schema) | context auto | no context image
+  run        sync | resume | concurrency 4 (s)
+
+Plan: 1 to process, 0 complete
+  ledger.txt: new (text)
+
+Equivalent command:
+  chronominer extract --input '<tmp>/inputs/ledger.txt' --type text --output '<tmp>/out'
+    --formats csv --schema PriceListEntries --chunking line-ranges --model gpt-5.6-terra
+    --service-tier priority --concurrency 4 --settings '<tmp>/config/settings.yaml'
+? Start:
+ > Run
+   Edit a step
+   Copy command and quit
+   Quit
+   Back
+  answer: Run
+[1/1] ledger.txt (text)
+[1/1] ledger.txt: complete; 3 chunk(s) ok, 0 failed, 0 deferred
+    outputs: <tmp>/out/ledger_output.json, <tmp>/out/ledger_output.csv
+Run summary
+┏━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━┳━━━━━━━┓
+┃ Item       ┃ Status               ┃ Chunks ok ┃ Failed ┃ Deferred ┃ Error ┃
+┡━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━╇━━━━━━━┩
+│ ledger.txt │ complete             │         3 │      0 │        0 │       │
+├────────────┼──────────────────────┼───────────┼────────┼──────────┼───────┤
+│ Total      │ 1 complete, 0 failed │         3 │      0 │        0 │       │
+└────────────┴──────────────────────┴───────────┴────────┴──────────┴───────┘
+Outputs: <tmp>/out/ledger_output.json, <tmp>/out/ledger_output.csv
+Skipped (already complete): none
+Blocked (held by another run): none
+Unstored (outputs without store rows): none
+Databases written: <tmp>/out/chronominer.sqlite
+Run time: <duration>
+Token usage
+┏━━━━━━━━━┳━━━━━━━┳━━━━━━━━┳━━━━━━━━┳━━━━━━━━━━━┳━━━━━━━┓
+┃ Role    ┃ Input ┃ Output ┃ Cached ┃ Reasoning ┃ Total ┃
+┡━━━━━━━━━╇━━━━━━━╇━━━━━━━━╇━━━━━━━━╇━━━━━━━━━━━╇━━━━━━━┩
+│ extract │ 4,500 │  1,200 │      0 │         0 │ 5,700 │
+├─────────┼───────┼────────┼────────┼───────────┼───────┤
+│ Total   │ 4,500 │  1,200 │      0 │         0 │ 5,700 │
+└─────────┴───────┴────────┴────────┴───────────┴───────┘

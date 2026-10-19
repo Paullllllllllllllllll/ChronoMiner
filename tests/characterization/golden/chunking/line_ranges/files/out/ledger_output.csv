@@ -1,0 +1,4 @@
+<utf-8 bom>record_id,item,quantity,price,date,source_page,notes
+record_id record-0,item record-0,1.5,1.5,date record-0,source_page record-0,notes record-0
+record_id record-4,item record-4,5.5,5.5,date record-4,source_page record-4,notes record-4
+record_id record-8,item record-8,9.5,9.5,date record-8,source_page record-8,notes record-8

@@ -1,0 +1,22 @@
+{
+  "exit_code": 0,
+  "json_line": {
+    "dry_run": false,
+    "items_blocked": 0,
+    "items_complete": 0,
+    "items_failed": 0,
+    "items_skipped": 1,
+    "items_submitted": 0,
+    "items_total": 0,
+    "outputs": [],
+    "usage": {
+      "total": {
+        "cached_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  }
+}

@@ -1,0 +1,37 @@
+usage: chronominer render [-h] [--input PATH] [--formats LIST] [--force] [--dry-run] [--json]
+
+Render the files of every document in the databases at or below a folder from the store, without
+model calls.
+
+options:
+  -h, --help      show this help message and exit
+
+input:
+  --input PATH    folder or chronominer.sqlite to render; default: .
+
+output:
+  --formats LIST  comma-separated formats to render besides {stem}_output.json; from csv; default:
+                  the formats each document was rendered in
+
+run control:
+  --force         replace files changed outside the tool
+  --dry-run       plan without API calls or writes
+  --json          print one JSON summary line on stdout
+
+Without --formats each document is rendered in the formats it was rendered in before. A file
+changed outside the tool is left as it is unless --force.
+
+Exit codes:
+  0    every file holds its rendering or was left as edited
+  1    a file could not be replaced, or another run holds a document
+  2    usage error, or a database the store refuses
+  130  interrupted (Ctrl+C or Ctrl+Break)
+
+With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and
+errors go to stderr.
+
+Examples:
+  Render every document below a folder again:
+    chronominer render --input out
+  Write the CSV views too, replacing files edited by hand:
+    chronominer render --input out --formats csv --force

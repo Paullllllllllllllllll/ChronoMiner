@@ -1,0 +1,98 @@
+{
+  "name": "PriceListEntries",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "description": "Printed or handwritten price lists, price currents and market tariffs that give a price for each listed item.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no price list entries. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "item": {
+              "type": "string",
+              "description": "The item or commodity as named in the source. Example: 'Wheat, best quality'."
+            },
+            "quantity": {
+              "anyOf": [
+                { "type": "number" },
+                { "type": "null" }
+              ],
+              "description": "The quantity to which the price refers. Example: 1 for 'per pound'. Use null if not stated."
+            },
+            "unit": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The unit of measure as written. Example: 'lb', 'bushel' or 'dozen'. Use null if not stated."
+            },
+            "price": {
+              "anyOf": [
+                { "type": "number" },
+                { "type": "null" }
+              ],
+              "description": "The price as a decimal number in the currency named below. Use null if the price is illegible or missing."
+            },
+            "currency": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The currency or monetary unit as written. Example: 'shillings' or 'guilders'. Use null if not stated."
+            },
+            "date": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The date of the price quotation as written in the source. Use null if the source gives no date."
+            },
+            "place": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The market or town to which the price refers. Use null if not stated."
+            },
+            "source_page": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The page or folio on which the entry appears. Use null if not identifiable."
+            },
+            "notes": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Remarks about the entry, such as the quality grade or an uncertain reading. Use null if there are none."
+            }
+          },
+          "required": [
+            "item",
+            "quantity",
+            "unit",
+            "price",
+            "currency",
+            "date",
+            "place",
+            "source_page",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

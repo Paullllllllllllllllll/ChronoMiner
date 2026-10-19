@@ -1,0 +1,3 @@
+The input is a ledger of numbered records. Each record opens with a heading
+such as "Record 001." and lists an item, a quantity, a price and a date.
+Keep the spelling of the source and give one entry per record.

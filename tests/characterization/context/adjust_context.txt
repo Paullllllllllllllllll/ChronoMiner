@@ -1,0 +1,2 @@
+The input is a ledger of numbered records. A record begins at its heading
+line, such as "Record 001.", and ends before the next heading.

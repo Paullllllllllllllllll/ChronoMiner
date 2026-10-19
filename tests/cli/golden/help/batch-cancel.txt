@@ -1,0 +1,25 @@
+usage: chronominer batch cancel [-h] [--batch-ids IDS | --all | --input DIR] [--json]
+                                [--settings FILE]
+
+Cancel the named batches, every unfinished batch, or the open batch submissions below a folder.
+
+options:
+  -h, --help       show this help message and exit
+
+batches:
+  --batch-ids IDS  comma-separated batch IDs to cancel
+  --all            cancel every unfinished batch of every provider
+  --input DIR      cancel the open batch submissions recorded in the databases below this folder
+
+run control:
+  --json           print one JSON summary line on stdout
+  --settings FILE  alternate settings file; default: config/settings.yaml
+
+Exit codes:
+  0    every batch was cancelled, or none was left
+  1    a cancellation or a provider listing failed
+  2    usage error, a missing folder or a database the store refuses
+  130  interrupted (Ctrl+C or Ctrl+Break)
+
+With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and
+errors go to stderr.

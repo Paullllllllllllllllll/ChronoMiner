@@ -1,0 +1,533 @@
+{
+  "chunking": [
+    {
+      "adjusted_range": [
+        1,
+        20
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "already_on_target",
+          "marker_matched": false,
+          "semantic_marker": null,
+          "window": [
+            1,
+            7
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": true,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": null
+      },
+      "original_range": [
+        1,
+        20
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        25,
+        44
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 005.",
+          "window": [
+            15,
+            27
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 005."
+      },
+      "original_range": [
+        21,
+        44
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        49,
+        71
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 009.",
+          "window": [
+            39,
+            51
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 009."
+      },
+      "original_range": [
+        45,
+        71
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    }
+  ],
+  "merged": [
+    {
+      "adjusted_range": [
+        1,
+        4
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "already_on_target",
+          "marker_matched": false,
+          "semantic_marker": null,
+          "window": [
+            1,
+            7
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": true,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": null
+      },
+      "original_range": [
+        1,
+        4
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        1,
+        20
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 001.",
+          "window": [
+            1,
+            11
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 001."
+      },
+      "original_range": [
+        5,
+        20
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        25,
+        38
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 005.",
+          "window": [
+            15,
+            27
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 005."
+      },
+      "original_range": [
+        21,
+        38
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        43,
+        56
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 008.",
+          "window": [
+            33,
+            45
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 008."
+      },
+      "original_range": [
+        39,
+        56
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        61,
+        71
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 011.",
+          "window": [
+            51,
+            63
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 011."
+      },
+      "original_range": [
+        57,
+        71
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    }
+  ],
+  "moved": [
+    {
+      "adjusted_range": [
+        1,
+        20
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "already_on_target",
+          "marker_matched": false,
+          "semantic_marker": null,
+          "window": [
+            1,
+            7
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": true,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": null
+      },
+      "original_range": [
+        1,
+        20
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        25,
+        38
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 005.",
+          "window": [
+            15,
+            27
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 005."
+      },
+      "original_range": [
+        21,
+        38
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        43,
+        56
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 008.",
+          "window": [
+            33,
+            45
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 008."
+      },
+      "original_range": [
+        39,
+        56
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        61,
+        71
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 011.",
+          "window": [
+            51,
+            63
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 011."
+      },
+      "original_range": [
+        57,
+        71
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    }
+  ],
+  "no_content": [
+    {
+      "adjusted_range": [
+        1,
+        18
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "already_on_target",
+          "marker_matched": false,
+          "semantic_marker": null,
+          "window": [
+            1,
+            7
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": true,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": null
+      },
+      "original_range": [
+        1,
+        18
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        19,
+        36
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "already_on_target",
+          "marker_matched": false,
+          "semantic_marker": null,
+          "window": [
+            13,
+            25
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": true,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": null
+      },
+      "original_range": [
+        19,
+        36
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    {
+      "adjusted_range": [
+        37,
+        54
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "no_semantic_boundary",
+          "marker_matched": false,
+          "semantic_marker": null,
+          "window": [
+            31,
+            43
+          ],
+          "window_index": 0
+        },
+        {
+          "certainty": 95,
+          "decision_type": "verify_interior_1",
+          "found_content": false,
+          "semantic_marker": null,
+          "window": [
+            37,
+            54
+          ],
+          "window_index": -1
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": true,
+        "needs_more_context": false,
+        "semantic_marker": null
+      },
+      "original_range": [
+        37,
+        54
+      ],
+      "should_delete": true,
+      "total_llm_calls": 2
+    },
+    {
+      "adjusted_range": [
+        55,
+        71
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "already_on_target",
+          "marker_matched": false,
+          "semantic_marker": null,
+          "window": [
+            49,
+            61
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": true,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": null
+      },
+      "original_range": [
+        55,
+        71
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    }
+  ]
+}

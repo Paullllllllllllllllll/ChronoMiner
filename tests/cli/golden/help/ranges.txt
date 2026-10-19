@@ -1,0 +1,12 @@
+usage: chronominer ranges [-h] COMMAND ...
+
+Write the {stem}_line_ranges.txt files of text inputs, or move their boundaries to entry
+boundaries with a model.
+
+options:
+  -h, --help  show this help message and exit
+
+commands:
+  COMMAND
+    generate  write token-based line ranges
+    adjust    move line-range boundaries to entry boundaries

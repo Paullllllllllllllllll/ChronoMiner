@@ -1,0 +1,122 @@
+[project]
+name = "chronominer"
+version = "1.0.0"
+description = "Structured data extraction from text, images, and PDFs using schema-based LLM processing"
+requires-python = ">=3.13"
+license = "MIT"
+readme = "README.md"
+
+dependencies = [
+    "anthropic>=0.117",
+    "charset-normalizer>=3.4",
+    "colorama>=0.4.6",
+    "google-genai>=2.12",
+    # HTTP (direct use in retry/timeout classification)
+    "httpx>=0.28",
+    "langchain-anthropic>=1.4.8",
+    "langchain-core>=1.4.9",
+    "langchain-google-genai>=4.2.7",
+    "langchain-openai>=1.3.5",
+    "openai>=2.46",
+    "Pillow>=12.3",
+    "prompt-toolkit>=3.0",
+    "pydantic>=2.13",
+    "PyMuPDF>=1.28",
+    "PyYAML>=6.0",
+    "questionary>=2.1",
+    "rich>=15.0",
+    "tiktoken>=0.13",
+]
+
+[project.scripts]
+chronominer = "chronominer.__main__:main"
+
+[project.optional-dependencies]
+dev = [
+    "numpy>=2.5",
+    "pytest>=9.1",
+    "pytest-asyncio>=1.4",
+    "pytest-cov>=7.1",
+    "coverage>=7.15",
+    "mypy>=2.3",
+    "ruff>=0.15.22",
+    "types-PyYAML>=6.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["chronominer"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short --strict-markers"
+markers = [
+    "unit: Unit tests (fast, no external dependencies)",
+    "integration: Integration tests (may require external services)",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
+]
+asyncio_mode = "auto"
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+ignore_missing_imports = true
+# Type-check the shipped source only; tests/ holds loosely typed code.
+exclude = [
+    '^\.venv/',
+    '^tests/',
+    '^staging/',
+    '^htmlcov/',
+    '^scratch/',
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py313"
+extend-exclude = ["scratch", ".claude", "backup"]
+
+[tool.ruff.lint]
+select = [
+    "E", "F", "I", "B", "UP", "SIM",
+    "C901", "PLR0912", "PLR0913", "PLR0915", "BLE001", "T201", "ERA001",
+]
+ignore = ["UP047"]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 15
+
+[tool.ruff.lint.pylint]
+max-args = 8
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["PLR0913"]
+"chronominer/cli/**" = ["T201"]
+"chronominer/ui/**" = ["T201"]
+
+[tool.ruff.format]
+quote-style = "double"
+docstring-code-format = false
+
+[tool.deptry]
+# Treat the dev extra as development dependencies (pytest, mypy, ruff and
+# type stubs are not imported in the shipped source tree).
+pep621_dev_dependency_groups = ["dev"]
+# tests/ holds test-only imports that are intentionally undeclared.
+extend_exclude = ["tests"]
+
+[tool.deptry.package_module_name_map]
+# Distributions whose import name differs from the package name; declaring
+# these keeps scans accurate even when deptry runs outside the project venv.
+google-genai = ["google"]
+PyYAML = ["yaml"]
+Pillow = ["PIL"]
+PyMuPDF = ["fitz"]

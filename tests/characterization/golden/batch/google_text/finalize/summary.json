@@ -1,0 +1,33 @@
+{
+  "exit_code": 0,
+  "json_line": {
+    "command": "check_batches",
+    "complete": 1,
+    "dry_run": false,
+    "failed": 0,
+    "finalized": 1,
+    "outputs": [
+      "<tmp>/out/ledger_output.json",
+      "<tmp>/out/ledger_output.csv"
+    ],
+    "pending": 0,
+    "submitted": 0,
+    "unresolved": 0,
+    "usage": {
+      "extract": {
+        "cached_tokens": 0,
+        "input_tokens": 3000,
+        "output_tokens": 800,
+        "reasoning_tokens": 0,
+        "total_tokens": 3800
+      },
+      "total": {
+        "cached_tokens": 0,
+        "input_tokens": 3000,
+        "output_tokens": 800,
+        "reasoning_tokens": 0,
+        "total_tokens": 3800
+      }
+    }
+  }
+}

@@ -1,0 +1,88 @@
+{
+  "_chronominer_metadata": {
+    "batch_tracking": {
+      "batch_ids": [
+        "<google-batch-1>",
+        "<google-batch-2>"
+      ],
+      "completed_batches": 1,
+      "failed_batches": 0,
+      "fully_completed": false,
+      "missing_batches": [],
+      "ordered_by_custom_id": true,
+      "parts": 2,
+      "processed_at": "<datetime>",
+      "provider": "google",
+      "recovered_batch_ids": [],
+      "tracking": [
+        {
+          "batch_id": "<google-batch-1>",
+          "metadata": {
+            "model": "gemini-2.5-flash",
+            "request_count": 2,
+            "submission_id": "<submission-1>"
+          },
+          "provider": "google",
+          "request_count": 2,
+          "schema_name": "FlatEntries",
+          "status": "finalized",
+          "timestamp": "<timestamp>"
+        },
+        {
+          "batch_id": "<google-batch-2>",
+          "metadata": {
+            "model": "gemini-2.5-flash",
+            "request_count": 1,
+            "submission_id": "<submission-2>"
+          },
+          "provider": "google",
+          "request_count": 1,
+          "schema_name": "FlatEntries",
+          "status": "submitted",
+          "timestamp": "<timestamp>"
+        }
+      ]
+    },
+    "chunking_method": "auto",
+    "chunking_text_version": 2,
+    "document_total_chunks": 2,
+    "model_name": "gemini-2.5-flash",
+    "partial": true,
+    "schema_name": "FlatEntries",
+    "timestamp": "<timestamp>",
+    "total_chunks": 2,
+    "version": 1
+  },
+  "records": [
+    {
+      "chunk_index": 1,
+      "chunk_range": [
+        1,
+        18
+      ],
+      "custom_id": "ledger-chunk-1",
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date record-0",
+              "item": "item record-0",
+              "notes": "notes record-0",
+              "price": 1.5,
+              "quantity": 1.5,
+              "record_id": "record_id record-0",
+              "source_page": "source_page record-0"
+            }
+          ]
+        },
+        "response_data": {
+          "usage": {
+            "input_tokens": 1500,
+            "output_tokens": 400
+          }
+        }
+      }
+    }
+  ]
+}

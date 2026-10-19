@@ -1,0 +1,11 @@
+usage: chronominer batch [-h] COMMAND ...
+
+Check and finalize, or cancel, batch submissions.
+
+options:
+  -h, --help  show this help message and exit
+
+commands:
+  COMMAND
+    check     check batches and write the outputs of finished ones
+    cancel    cancel batches

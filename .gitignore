@@ -1,0 +1,66 @@
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual environments
+venv/
+.venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.windsurf
+.claude
+CLAUDE.md
+AGENTS.md
+/docs/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Machine settings (the example ships in chronominer/resources/)
+/config/*
+
+# Environment variables
+.env*
+
+# Caches
+.mypy_cache/
+.pytest_cache/
+.coverage
+
+# staging
+/staging
+
+# Local scratch area (ad-hoc tests, backups)
+scratch/
+backup/

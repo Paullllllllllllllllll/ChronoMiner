@@ -1,0 +1,5 @@
+[WARNING] the settings default context_window (--context-window) applies only for chunking adjust and has no effect here: the chunking is auto
+[INFO] Resume mode: skip (use --force to reprocess all)
+[INFO] Resume: skipping 1 already-processed item(s)
+[INFO] Beginning processing of 0 item(s)...
+[SUCCESS] Processing complete!

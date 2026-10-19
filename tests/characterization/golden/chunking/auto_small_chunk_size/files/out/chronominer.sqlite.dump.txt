@@ -1,0 +1,2458 @@
+## artifacts
+{
+  "created_at": "<timestamp>",
+  "kind": "prompt",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "text": "<text: 1002 chars>"
+}
+{
+  "created_at": "<timestamp>",
+  "kind": "schema",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "text": "<text: 2210 chars>"
+}
+## document_meta
+{
+  "doc_id": 1,
+  "metadata": {
+    "chunking_method": "auto",
+    "chunking_text_version": 2,
+    "document_total_chunks": 12,
+    "model_name": "gpt-4o",
+    "schema_name": "FlatEntries"
+  },
+  "run_id": "<run-1>",
+  "schema_sha256": "ff1e47033cdedea26aadcdcbea0624e08673a5dc4b54ab95bd1e824529da6dfd",
+  "updated_at": "<datetime>"
+}
+## documents
+{
+  "doc_id": 1,
+  "first_run_id": "<run-1>",
+  "image_settings": null,
+  "input_path": "<tmp>/docs/ledger.txt",
+  "input_sha256": "<sha256>",
+  "kind": "text",
+  "last_run_id": "<run-1>",
+  "lease_generation": "<generation>",
+  "lease_run_id": null,
+  "lease_until": null,
+  "name": "ledger",
+  "status": "complete",
+  "tool": "chronominer",
+  "units_done": 12,
+  "units_failed": 0,
+  "units_pending": 0,
+  "units_total": 12,
+  "updated_at": "<datetime>"
+}
+## entry_rows
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-0",
+    "item": "item record-0",
+    "notes": "notes record-0",
+    "price": 1.5,
+    "quantity": 1.5,
+    "record_id": "record_id record-0",
+    "source_page": "source_page record-0"
+  },
+  "entry_index": 0,
+  "f_date": "date record-0",
+  "f_item": "item record-0",
+  "f_notes": "notes record-0",
+  "f_price": 1.5,
+  "f_quantity": 1.5,
+  "f_record_id": "record_id record-0",
+  "f_source_page": "source_page record-0",
+  "idx": 0,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-2",
+    "item": "item record-2",
+    "notes": "notes record-2",
+    "price": 3.5,
+    "quantity": 3.5,
+    "record_id": "record_id record-2",
+    "source_page": "source_page record-2"
+  },
+  "entry_index": 0,
+  "f_date": "date record-2",
+  "f_item": "item record-2",
+  "f_notes": "notes record-2",
+  "f_price": 3.5,
+  "f_quantity": 3.5,
+  "f_record_id": "record_id record-2",
+  "f_source_page": "source_page record-2",
+  "idx": 1,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-3",
+    "item": "item record-3",
+    "notes": "notes record-3",
+    "price": 4.5,
+    "quantity": 4.5,
+    "record_id": "record_id record-3",
+    "source_page": "source_page record-3"
+  },
+  "entry_index": 0,
+  "f_date": "date record-3",
+  "f_item": "item record-3",
+  "f_notes": "notes record-3",
+  "f_price": 4.5,
+  "f_quantity": 4.5,
+  "f_record_id": "record_id record-3",
+  "f_source_page": "source_page record-3",
+  "idx": 2,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-4",
+    "item": "item record-4",
+    "notes": "notes record-4",
+    "price": 5.5,
+    "quantity": 5.5,
+    "record_id": "record_id record-4",
+    "source_page": "source_page record-4"
+  },
+  "entry_index": 0,
+  "f_date": "date record-4",
+  "f_item": "item record-4",
+  "f_notes": "notes record-4",
+  "f_price": 5.5,
+  "f_quantity": 5.5,
+  "f_record_id": "record_id record-4",
+  "f_source_page": "source_page record-4",
+  "idx": 3,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-5",
+    "item": "item record-5",
+    "notes": "notes record-5",
+    "price": 6.5,
+    "quantity": 6.5,
+    "record_id": "record_id record-5",
+    "source_page": "source_page record-5"
+  },
+  "entry_index": 0,
+  "f_date": "date record-5",
+  "f_item": "item record-5",
+  "f_notes": "notes record-5",
+  "f_price": 6.5,
+  "f_quantity": 6.5,
+  "f_record_id": "record_id record-5",
+  "f_source_page": "source_page record-5",
+  "idx": 4,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-6",
+    "item": "item record-6",
+    "notes": "notes record-6",
+    "price": 7.5,
+    "quantity": 7.5,
+    "record_id": "record_id record-6",
+    "source_page": "source_page record-6"
+  },
+  "entry_index": 0,
+  "f_date": "date record-6",
+  "f_item": "item record-6",
+  "f_notes": "notes record-6",
+  "f_price": 7.5,
+  "f_quantity": 7.5,
+  "f_record_id": "record_id record-6",
+  "f_source_page": "source_page record-6",
+  "idx": 5,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-7",
+    "item": "item record-7",
+    "notes": "notes record-7",
+    "price": 8.5,
+    "quantity": 8.5,
+    "record_id": "record_id record-7",
+    "source_page": "source_page record-7"
+  },
+  "entry_index": 0,
+  "f_date": "date record-7",
+  "f_item": "item record-7",
+  "f_notes": "notes record-7",
+  "f_price": 8.5,
+  "f_quantity": 8.5,
+  "f_record_id": "record_id record-7",
+  "f_source_page": "source_page record-7",
+  "idx": 6,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-8",
+    "item": "item record-8",
+    "notes": "notes record-8",
+    "price": 9.5,
+    "quantity": 9.5,
+    "record_id": "record_id record-8",
+    "source_page": "source_page record-8"
+  },
+  "entry_index": 0,
+  "f_date": "date record-8",
+  "f_item": "item record-8",
+  "f_notes": "notes record-8",
+  "f_price": 9.5,
+  "f_quantity": 9.5,
+  "f_record_id": "record_id record-8",
+  "f_source_page": "source_page record-8",
+  "idx": 7,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-9",
+    "item": "item record-9",
+    "notes": "notes record-9",
+    "price": 10.5,
+    "quantity": 10.5,
+    "record_id": "record_id record-9",
+    "source_page": "source_page record-9"
+  },
+  "entry_index": 0,
+  "f_date": "date record-9",
+  "f_item": "item record-9",
+  "f_notes": "notes record-9",
+  "f_price": 10.5,
+  "f_quantity": 10.5,
+  "f_record_id": "record_id record-9",
+  "f_source_page": "source_page record-9",
+  "idx": 8,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-10",
+    "item": "item record-10",
+    "notes": "notes record-10",
+    "price": 11.5,
+    "quantity": 11.5,
+    "record_id": "record_id record-10",
+    "source_page": "source_page record-10"
+  },
+  "entry_index": 0,
+  "f_date": "date record-10",
+  "f_item": "item record-10",
+  "f_notes": "notes record-10",
+  "f_price": 11.5,
+  "f_quantity": 11.5,
+  "f_record_id": "record_id record-10",
+  "f_source_page": "source_page record-10",
+  "idx": 9,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date record-11",
+    "item": "item record-11",
+    "notes": "notes record-11",
+    "price": 12.5,
+    "quantity": 12.5,
+    "record_id": "record_id record-11",
+    "source_page": "source_page record-11"
+  },
+  "entry_index": 0,
+  "f_date": "date record-11",
+  "f_item": "item record-11",
+  "f_notes": "notes record-11",
+  "f_price": 12.5,
+  "f_quantity": 12.5,
+  "f_record_id": "record_id record-11",
+  "f_source_page": "source_page record-11",
+  "idx": 10,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date unit",
+    "item": "item unit",
+    "notes": "notes unit",
+    "price": 1.5,
+    "quantity": 1.5,
+    "record_id": "record_id unit",
+    "source_page": "source_page unit"
+  },
+  "entry_index": 0,
+  "f_date": "date unit",
+  "f_item": "item unit",
+  "f_notes": "notes unit",
+  "f_price": 1.5,
+  "f_quantity": 1.5,
+  "f_record_id": "record_id unit",
+  "f_source_page": "source_page unit",
+  "idx": 11,
+  "kind": "chunk",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+## meta
+{
+  "component": "chronominer",
+  "version": 1
+}
+{
+  "component": "core",
+  "version": 2
+}
+## notes
+## outputs
+{
+  "doc_id": 1,
+  "format": "csv",
+  "path": "ledger_output.csv",
+  "rendered_at": "<datetime>",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "stale": 0
+}
+{
+  "doc_id": 1,
+  "format": "json",
+  "path": "ledger_output.json",
+  "rendered_at": "<datetime>",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "stale": 0
+}
+## responses
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 0,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-0",
+          "item": "item record-0",
+          "notes": "notes record-0",
+          "price": 1.5,
+          "quantity": 1.5,
+          "record_id": "record_id record-0",
+          "source_page": "source_page record-0"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 1,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 1,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-2",
+          "item": "item record-2",
+          "notes": "notes record-2",
+          "price": 3.5,
+          "quantity": 3.5,
+          "record_id": "record_id record-2",
+          "source_page": "source_page record-2"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 2,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 2,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-3",
+          "item": "item record-3",
+          "notes": "notes record-3",
+          "price": 4.5,
+          "quantity": 4.5,
+          "record_id": "record_id record-3",
+          "source_page": "source_page record-3"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 3,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 3,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-4",
+          "item": "item record-4",
+          "notes": "notes record-4",
+          "price": 5.5,
+          "quantity": 5.5,
+          "record_id": "record_id record-4",
+          "source_page": "source_page record-4"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 4,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 4,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-5",
+          "item": "item record-5",
+          "notes": "notes record-5",
+          "price": 6.5,
+          "quantity": 6.5,
+          "record_id": "record_id record-5",
+          "source_page": "source_page record-5"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 5,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 5,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-6",
+          "item": "item record-6",
+          "notes": "notes record-6",
+          "price": 7.5,
+          "quantity": 7.5,
+          "record_id": "record_id record-6",
+          "source_page": "source_page record-6"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 6,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 6,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-7",
+          "item": "item record-7",
+          "notes": "notes record-7",
+          "price": 8.5,
+          "quantity": 8.5,
+          "record_id": "record_id record-7",
+          "source_page": "source_page record-7"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 7,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 7,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-8",
+          "item": "item record-8",
+          "notes": "notes record-8",
+          "price": 9.5,
+          "quantity": 9.5,
+          "record_id": "record_id record-8",
+          "source_page": "source_page record-8"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 8,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 8,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-9",
+          "item": "item record-9",
+          "notes": "notes record-9",
+          "price": 10.5,
+          "quantity": 10.5,
+          "record_id": "record_id record-9",
+          "source_page": "source_page record-9"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 9,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 9,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-10",
+          "item": "item record-10",
+          "notes": "notes record-10",
+          "price": 11.5,
+          "quantity": 11.5,
+          "record_id": "record_id record-10",
+          "source_page": "source_page record-10"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 10,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 10,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date record-11",
+          "item": "item record-11",
+          "notes": "notes record-11",
+          "price": 12.5,
+          "quantity": 12.5,
+          "record_id": "record_id record-11",
+          "source_page": "source_page record-11"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 11,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 11,
+  "kind": "chunk",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "contains_no_content_of_requested_type": false,
+      "entries": [
+        {
+          "date": "date unit",
+          "item": "item unit",
+          "notes": "notes unit",
+          "price": 1.5,
+          "quantity": 1.5,
+          "record_id": "record_id unit",
+          "source_page": "source_page unit"
+        }
+      ]
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 12,
+  "role": "extract",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+## runs
+{
+  "command": "extract",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-1>",
+  "settings_fingerprint": null,
+  "spec": {
+    "chunking.chunk_tokens": {
+      "source": "flag",
+      "value": 60
+    },
+    "chunking.context_window": {
+      "source": "settings",
+      "value": 6
+    },
+    "chunking.mode": {
+      "source": "flag",
+      "value": "auto"
+    },
+    "images.detail": {
+      "source": "settings",
+      "value": "high"
+    },
+    "images.dpi": {
+      "source": "settings",
+      "value": 72
+    },
+    "images.format": {
+      "source": "default",
+      "value": null
+    },
+    "images.grayscale": {
+      "source": "settings",
+      "value": true
+    },
+    "images.jpeg_quality": {
+      "source": "settings",
+      "value": 90
+    },
+    "input.all": {
+      "source": "default",
+      "value": false
+    },
+    "input.files": {
+      "source": "default",
+      "value": []
+    },
+    "input.pages": {
+      "source": "default",
+      "value": null
+    },
+    "input.path": {
+      "source": "flag",
+      "value": "<tmp>/docs/ledger.txt"
+    },
+    "input.recursive": {
+      "source": "default",
+      "value": false
+    },
+    "input.select": {
+      "source": "default",
+      "value": null
+    },
+    "input.type": {
+      "source": "default",
+      "value": "auto"
+    },
+    "model.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "model.max_output_tokens": {
+      "source": "settings",
+      "value": 4096
+    },
+    "model.model": {
+      "source": "settings",
+      "value": "gpt-4o"
+    },
+    "model.provider": {
+      "source": "settings",
+      "value": "openai"
+    },
+    "model.reasoning_effort": {
+      "source": "default",
+      "value": "xhigh"
+    },
+    "model.response_format": {
+      "source": "default",
+      "value": null
+    },
+    "model.service_tier": {
+      "source": "default",
+      "value": "default"
+    },
+    "model.temperature": {
+      "source": "settings",
+      "value": 0.0
+    },
+    "model.top_p": {
+      "source": "settings",
+      "value": 1.0
+    },
+    "model.verbosity": {
+      "source": "default",
+      "value": "medium"
+    },
+    "output.directory": {
+      "source": "flag",
+      "value": "out"
+    },
+    "output.formats": {
+      "source": "flag",
+      "value": [
+        "csv"
+      ]
+    },
+    "output.layout": {
+      "source": "default",
+      "value": "flat"
+    },
+    "prompt.context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.context_image": {
+      "source": "default",
+      "value": "none"
+    },
+    "prompt.fallback_context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.schema": {
+      "source": "flag",
+      "value": "FlatEntries"
+    },
+    "run.batch": {
+      "source": "default",
+      "value": false
+    },
+    "run.concurrency": {
+      "source": "settings",
+      "value": 1
+    },
+    "run.dry_run": {
+      "source": "default",
+      "value": false
+    },
+    "run.force": {
+      "source": "default",
+      "value": false
+    },
+    "run.json": {
+      "source": "flag",
+      "value": true
+    }
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+## submission_requests
+## submissions
+## units
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-0",
+        "item": "item record-0",
+        "notes": "notes record-0",
+        "price": 1.5,
+        "quantity": 1.5,
+        "record_id": "record_id record-0",
+        "source_page": "source_page record-0"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 0,
+  "kind": "chunk",
+  "label": "1-7",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      1,
+      7
+    ],
+    "custom_id": "ledger-chunk-1"
+  },
+  "provider": "openai",
+  "response_id": 1,
+  "run_id": "<run-1>",
+  "source_index": "1-7",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-2",
+        "item": "item record-2",
+        "notes": "notes record-2",
+        "price": 3.5,
+        "quantity": 3.5,
+        "record_id": "record_id record-2",
+        "source_page": "source_page record-2"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 1,
+  "kind": "chunk",
+  "label": "8-13",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      8,
+      13
+    ],
+    "custom_id": "ledger-chunk-2"
+  },
+  "provider": "openai",
+  "response_id": 2,
+  "run_id": "<run-1>",
+  "source_index": "8-13",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-3",
+        "item": "item record-3",
+        "notes": "notes record-3",
+        "price": 4.5,
+        "quantity": 4.5,
+        "record_id": "record_id record-3",
+        "source_page": "source_page record-3"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 2,
+  "kind": "chunk",
+  "label": "14-19",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      14,
+      19
+    ],
+    "custom_id": "ledger-chunk-3"
+  },
+  "provider": "openai",
+  "response_id": 3,
+  "run_id": "<run-1>",
+  "source_index": "14-19",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-4",
+        "item": "item record-4",
+        "notes": "notes record-4",
+        "price": 5.5,
+        "quantity": 5.5,
+        "record_id": "record_id record-4",
+        "source_page": "source_page record-4"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 3,
+  "kind": "chunk",
+  "label": "20-25",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      20,
+      25
+    ],
+    "custom_id": "ledger-chunk-4"
+  },
+  "provider": "openai",
+  "response_id": 4,
+  "run_id": "<run-1>",
+  "source_index": "20-25",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-5",
+        "item": "item record-5",
+        "notes": "notes record-5",
+        "price": 6.5,
+        "quantity": 6.5,
+        "record_id": "record_id record-5",
+        "source_page": "source_page record-5"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 4,
+  "kind": "chunk",
+  "label": "26-31",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      26,
+      31
+    ],
+    "custom_id": "ledger-chunk-5"
+  },
+  "provider": "openai",
+  "response_id": 5,
+  "run_id": "<run-1>",
+  "source_index": "26-31",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-6",
+        "item": "item record-6",
+        "notes": "notes record-6",
+        "price": 7.5,
+        "quantity": 7.5,
+        "record_id": "record_id record-6",
+        "source_page": "source_page record-6"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 5,
+  "kind": "chunk",
+  "label": "32-37",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      32,
+      37
+    ],
+    "custom_id": "ledger-chunk-6"
+  },
+  "provider": "openai",
+  "response_id": 6,
+  "run_id": "<run-1>",
+  "source_index": "32-37",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-7",
+        "item": "item record-7",
+        "notes": "notes record-7",
+        "price": 8.5,
+        "quantity": 8.5,
+        "record_id": "record_id record-7",
+        "source_page": "source_page record-7"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 6,
+  "kind": "chunk",
+  "label": "38-43",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      38,
+      43
+    ],
+    "custom_id": "ledger-chunk-7"
+  },
+  "provider": "openai",
+  "response_id": 7,
+  "run_id": "<run-1>",
+  "source_index": "38-43",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-8",
+        "item": "item record-8",
+        "notes": "notes record-8",
+        "price": 9.5,
+        "quantity": 9.5,
+        "record_id": "record_id record-8",
+        "source_page": "source_page record-8"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 7,
+  "kind": "chunk",
+  "label": "44-49",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      44,
+      49
+    ],
+    "custom_id": "ledger-chunk-8"
+  },
+  "provider": "openai",
+  "response_id": 8,
+  "run_id": "<run-1>",
+  "source_index": "44-49",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-9",
+        "item": "item record-9",
+        "notes": "notes record-9",
+        "price": 10.5,
+        "quantity": 10.5,
+        "record_id": "record_id record-9",
+        "source_page": "source_page record-9"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 8,
+  "kind": "chunk",
+  "label": "50-55",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      50,
+      55
+    ],
+    "custom_id": "ledger-chunk-9"
+  },
+  "provider": "openai",
+  "response_id": 9,
+  "run_id": "<run-1>",
+  "source_index": "50-55",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-10",
+        "item": "item record-10",
+        "notes": "notes record-10",
+        "price": 11.5,
+        "quantity": 11.5,
+        "record_id": "record_id record-10",
+        "source_page": "source_page record-10"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 9,
+  "kind": "chunk",
+  "label": "56-61",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      56,
+      61
+    ],
+    "custom_id": "ledger-chunk-10"
+  },
+  "provider": "openai",
+  "response_id": 10,
+  "run_id": "<run-1>",
+  "source_index": "56-61",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-11",
+        "item": "item record-11",
+        "notes": "notes record-11",
+        "price": 12.5,
+        "quantity": 12.5,
+        "record_id": "record_id record-11",
+        "source_page": "source_page record-11"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 10,
+  "kind": "chunk",
+  "label": "62-67",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      62,
+      67
+    ],
+    "custom_id": "ledger-chunk-11"
+  },
+  "provider": "openai",
+  "response_id": 11,
+  "run_id": "<run-1>",
+  "source_index": "62-67",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date unit",
+        "item": "item unit",
+        "notes": "notes unit",
+        "price": 1.5,
+        "quantity": 1.5,
+        "record_id": "record_id unit",
+        "source_page": "source_page unit"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 11,
+  "kind": "chunk",
+  "label": "68-71",
+  "model": "gpt-4o",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": [
+      68,
+      71
+    ],
+    "custom_id": "ledger-chunk-12"
+  },
+  "provider": "openai",
+  "response_id": 12,
+  "run_id": "<run-1>",
+  "source_index": "68-71",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+## view entries
+{
+  "chunk_index": 1,
+  "date": "date record-0",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-0",
+  "model": "gpt-4o",
+  "notes": "notes record-0",
+  "price": 1.5,
+  "provider": "openai",
+  "quantity": 1.5,
+  "record_id": "record_id record-0",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-0"
+}
+{
+  "chunk_index": 2,
+  "date": "date record-2",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-2",
+  "model": "gpt-4o",
+  "notes": "notes record-2",
+  "price": 3.5,
+  "provider": "openai",
+  "quantity": 3.5,
+  "record_id": "record_id record-2",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-2"
+}
+{
+  "chunk_index": 3,
+  "date": "date record-3",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-3",
+  "model": "gpt-4o",
+  "notes": "notes record-3",
+  "price": 4.5,
+  "provider": "openai",
+  "quantity": 4.5,
+  "record_id": "record_id record-3",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-3"
+}
+{
+  "chunk_index": 4,
+  "date": "date record-4",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-4",
+  "model": "gpt-4o",
+  "notes": "notes record-4",
+  "price": 5.5,
+  "provider": "openai",
+  "quantity": 5.5,
+  "record_id": "record_id record-4",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-4"
+}
+{
+  "chunk_index": 5,
+  "date": "date record-5",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-5",
+  "model": "gpt-4o",
+  "notes": "notes record-5",
+  "price": 6.5,
+  "provider": "openai",
+  "quantity": 6.5,
+  "record_id": "record_id record-5",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-5"
+}
+{
+  "chunk_index": 6,
+  "date": "date record-6",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-6",
+  "model": "gpt-4o",
+  "notes": "notes record-6",
+  "price": 7.5,
+  "provider": "openai",
+  "quantity": 7.5,
+  "record_id": "record_id record-6",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-6"
+}
+{
+  "chunk_index": 7,
+  "date": "date record-7",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-7",
+  "model": "gpt-4o",
+  "notes": "notes record-7",
+  "price": 8.5,
+  "provider": "openai",
+  "quantity": 8.5,
+  "record_id": "record_id record-7",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-7"
+}
+{
+  "chunk_index": 8,
+  "date": "date record-8",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-8",
+  "model": "gpt-4o",
+  "notes": "notes record-8",
+  "price": 9.5,
+  "provider": "openai",
+  "quantity": 9.5,
+  "record_id": "record_id record-8",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-8"
+}
+{
+  "chunk_index": 9,
+  "date": "date record-9",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-9",
+  "model": "gpt-4o",
+  "notes": "notes record-9",
+  "price": 10.5,
+  "provider": "openai",
+  "quantity": 10.5,
+  "record_id": "record_id record-9",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-9"
+}
+{
+  "chunk_index": 10,
+  "date": "date record-10",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-10",
+  "model": "gpt-4o",
+  "notes": "notes record-10",
+  "price": 11.5,
+  "provider": "openai",
+  "quantity": 11.5,
+  "record_id": "record_id record-10",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-10"
+}
+{
+  "chunk_index": 11,
+  "date": "date record-11",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item record-11",
+  "model": "gpt-4o",
+  "notes": "notes record-11",
+  "price": 12.5,
+  "provider": "openai",
+  "quantity": 12.5,
+  "record_id": "record_id record-11",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page record-11"
+}
+{
+  "chunk_index": 12,
+  "date": "date unit",
+  "document": "ledger",
+  "entry_index": 0,
+  "item": "item unit",
+  "model": "gpt-4o",
+  "notes": "notes unit",
+  "price": 1.5,
+  "provider": "openai",
+  "quantity": 1.5,
+  "record_id": "record_id unit",
+  "run_id": "<run-1>",
+  "schema": "FlatEntries",
+  "source_page": "source_page unit"
+}
+## view chunks
+{
+  "chunk_index": 1,
+  "custom_id": "ledger-chunk-1",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "1-7",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-0",
+        "item": "item record-0",
+        "notes": "notes record-0",
+        "price": 1.5,
+        "quantity": 1.5,
+        "record_id": "record_id record-0",
+        "source_page": "source_page record-0"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "1-7",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 2,
+  "custom_id": "ledger-chunk-2",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "8-13",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-2",
+        "item": "item record-2",
+        "notes": "notes record-2",
+        "price": 3.5,
+        "quantity": 3.5,
+        "record_id": "record_id record-2",
+        "source_page": "source_page record-2"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "8-13",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 3,
+  "custom_id": "ledger-chunk-3",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "14-19",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-3",
+        "item": "item record-3",
+        "notes": "notes record-3",
+        "price": 4.5,
+        "quantity": 4.5,
+        "record_id": "record_id record-3",
+        "source_page": "source_page record-3"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "14-19",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 4,
+  "custom_id": "ledger-chunk-4",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "20-25",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-4",
+        "item": "item record-4",
+        "notes": "notes record-4",
+        "price": 5.5,
+        "quantity": 5.5,
+        "record_id": "record_id record-4",
+        "source_page": "source_page record-4"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "20-25",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 5,
+  "custom_id": "ledger-chunk-5",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "26-31",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-5",
+        "item": "item record-5",
+        "notes": "notes record-5",
+        "price": 6.5,
+        "quantity": 6.5,
+        "record_id": "record_id record-5",
+        "source_page": "source_page record-5"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "26-31",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 6,
+  "custom_id": "ledger-chunk-6",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "32-37",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-6",
+        "item": "item record-6",
+        "notes": "notes record-6",
+        "price": 7.5,
+        "quantity": 7.5,
+        "record_id": "record_id record-6",
+        "source_page": "source_page record-6"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "32-37",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 7,
+  "custom_id": "ledger-chunk-7",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "38-43",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-7",
+        "item": "item record-7",
+        "notes": "notes record-7",
+        "price": 8.5,
+        "quantity": 8.5,
+        "record_id": "record_id record-7",
+        "source_page": "source_page record-7"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "38-43",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 8,
+  "custom_id": "ledger-chunk-8",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "44-49",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-8",
+        "item": "item record-8",
+        "notes": "notes record-8",
+        "price": 9.5,
+        "quantity": 9.5,
+        "record_id": "record_id record-8",
+        "source_page": "source_page record-8"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "44-49",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 9,
+  "custom_id": "ledger-chunk-9",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "50-55",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-9",
+        "item": "item record-9",
+        "notes": "notes record-9",
+        "price": 10.5,
+        "quantity": 10.5,
+        "record_id": "record_id record-9",
+        "source_page": "source_page record-9"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "50-55",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 10,
+  "custom_id": "ledger-chunk-10",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "56-61",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-10",
+        "item": "item record-10",
+        "notes": "notes record-10",
+        "price": 11.5,
+        "quantity": 11.5,
+        "record_id": "record_id record-10",
+        "source_page": "source_page record-10"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "56-61",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 11,
+  "custom_id": "ledger-chunk-11",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "62-67",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date record-11",
+        "item": "item record-11",
+        "notes": "notes record-11",
+        "price": 12.5,
+        "quantity": 12.5,
+        "record_id": "record_id record-11",
+        "source_page": "source_page record-11"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "62-67",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 12,
+  "custom_id": "ledger-chunk-12",
+  "document": "ledger",
+  "error": null,
+  "error_type": null,
+  "label": "68-71",
+  "model": "gpt-4o",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date unit",
+        "item": "item unit",
+        "notes": "notes unit",
+        "price": 1.5,
+        "quantity": 1.5,
+        "record_id": "record_id unit",
+        "source_page": "source_page unit"
+      }
+    ]
+  },
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "68-71",
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+## view ranges

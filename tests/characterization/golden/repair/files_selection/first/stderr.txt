@@ -1,0 +1,14 @@
+[WARNING] the settings default context_window (--context-window) applies only for chunking adjust and has no effect here: the chunking is auto
+[INFO] Resume mode: skip (use --force to reprocess all)
+[INFO] Beginning processing of 2 item(s)...
+[INFO] Processing item 1/2: annals.txt
+[INFO] annals.txt: 1/2 chunk(s) done
+[WARNING] annals.txt: chunk 2 failed (2/2)
+[ERROR] Failed to process 'annals.txt': 1 of 2 chunk(s) failed to extract for 'annals'
+[INFO] Processing item 2/2: ledger.txt
+[INFO] ledger.txt: 1/2 chunk(s) done
+[WARNING] ledger.txt: chunk 2 failed (2/2)
+[ERROR] Failed to process 'ledger.txt': 1 of 2 chunk(s) failed to extract for 'ledger'
+[WARNING] Processing complete with 2 failure(s) of 2 item(s).
+[INFO] Database: <tmp>/out/chronominer.sqlite
+[INFO] Tokens: 3,000 input, 800 output, 3,800 total.

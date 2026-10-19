@@ -1,0 +1,9 @@
+{
+  "exit_code": 0,
+  "json_line": {
+    "cancelled": 1,
+    "command": "cancel_batches",
+    "dry_run": false,
+    "failed": 0
+  }
+}

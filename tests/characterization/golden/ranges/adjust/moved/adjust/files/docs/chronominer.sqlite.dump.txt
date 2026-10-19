@@ -1,0 +1,672 @@
+## artifacts
+## document_meta
+## documents
+{
+  "doc_id": 1,
+  "first_run_id": "<run-1>",
+  "image_settings": null,
+  "input_path": "<tmp>/docs/ledger.txt",
+  "input_sha256": null,
+  "kind": "text",
+  "last_run_id": "<run-1>",
+  "lease_generation": "<generation>",
+  "lease_run_id": null,
+  "lease_until": null,
+  "name": "ledger",
+  "status": "complete",
+  "tool": "chronominer",
+  "units_done": 4,
+  "units_failed": 0,
+  "units_pending": 0,
+  "units_total": 4,
+  "updated_at": "<datetime>"
+}
+## entry_rows
+## meta
+{
+  "component": "chronominer",
+  "version": 1
+}
+{
+  "component": "core",
+  "version": 2
+}
+## notes
+## outputs
+{
+  "doc_id": 1,
+  "format": "line_ranges",
+  "path": "ledger_line_ranges.txt",
+  "rendered_at": "<datetime>",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "stale": 0
+}
+## responses
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 0,
+  "kind": "range",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "boundary_already_on_target": true,
+      "certainty": 95,
+      "contains_no_semantic_boundary": false,
+      "needs_more_context": false,
+      "semantic_marker": ""
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 1,
+  "role": "adjust",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 1,
+  "kind": "range",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "boundary_already_on_target": false,
+      "certainty": 95,
+      "contains_no_semantic_boundary": false,
+      "needs_more_context": false,
+      "semantic_marker": "Record 005."
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 2,
+  "role": "adjust",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 2,
+  "kind": "range",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "boundary_already_on_target": false,
+      "certainty": 95,
+      "contains_no_semantic_boundary": false,
+      "needs_more_context": false,
+      "semantic_marker": "Record 008."
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 3,
+  "role": "adjust",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 3,
+  "kind": "range",
+  "latency": "<duration>",
+  "model": "gpt-4o",
+  "provider": "openai",
+  "raw": {
+    "additional_kwargs": {},
+    "content": {
+      "boundary_already_on_target": false,
+      "certainty": 95,
+      "contains_no_semantic_boundary": false,
+      "needs_more_context": false,
+      "semantic_marker": "Record 011."
+    },
+    "id": "lc_run--<uuid>-0",
+    "invalid_tool_calls": [],
+    "name": null,
+    "response_metadata": {
+      "model_name": "gpt-4o",
+      "status": "completed"
+    },
+    "tool_calls": [],
+    "type": "ai",
+    "usage_metadata": {
+      "input_tokens": 1500,
+      "output_tokens": 400,
+      "total_tokens": 1900
+    }
+  },
+  "raw_kind": "sdk",
+  "request": null,
+  "response_id": 4,
+  "role": "adjust",
+  "run_id": "<run-1>",
+  "submission_id": null,
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+## runs
+{
+  "command": "ranges adjust",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-1>",
+  "settings_fingerprint": null,
+  "spec": {
+    "context": {
+      "source": "default",
+      "value": null
+    },
+    "context_window": {
+      "source": "settings",
+      "value": 6
+    },
+    "fallback_context": {
+      "source": "default",
+      "value": null
+    },
+    "input": {
+      "source": "flag",
+      "value": "<tmp>/docs/ledger.txt"
+    },
+    "model.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "model.max_output_tokens": {
+      "source": "settings",
+      "value": 4096
+    },
+    "model.model": {
+      "source": "settings",
+      "value": "gpt-4o"
+    },
+    "model.provider": {
+      "source": "settings",
+      "value": "openai"
+    },
+    "model.reasoning_effort": {
+      "source": "default",
+      "value": "xhigh"
+    },
+    "model.response_format": {
+      "source": "default",
+      "value": null
+    },
+    "model.service_tier": {
+      "source": "default",
+      "value": "default"
+    },
+    "model.temperature": {
+      "source": "settings",
+      "value": 0.0
+    },
+    "model.top_p": {
+      "source": "settings",
+      "value": 1.0
+    },
+    "model.verbosity": {
+      "source": "default",
+      "value": "medium"
+    },
+    "pages": {
+      "source": "default",
+      "value": null
+    },
+    "recursive": {
+      "source": "default",
+      "value": false
+    },
+    "run.concurrency": {
+      "source": "settings",
+      "value": 1
+    },
+    "run.dry_run": {
+      "source": "default",
+      "value": false
+    },
+    "run.force": {
+      "source": "default",
+      "value": false
+    },
+    "run.json": {
+      "source": "flag",
+      "value": true
+    },
+    "schema": {
+      "source": "flag",
+      "value": "FlatEntries"
+    }
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+## submission_requests
+## submissions
+## units
+{
+  "attempts": 1,
+  "content": [
+    1,
+    24
+  ],
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 0,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "on_target",
+  "provenance": {
+    "decision": {
+      "adjusted_range": [
+        1,
+        20
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "already_on_target",
+          "marker_matched": false,
+          "semantic_marker": null,
+          "window": [
+            1,
+            7
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": true,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": null
+      },
+      "original_range": [
+        1,
+        20
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    "settings": {
+      "boundary_type": "FlatEntries",
+      "context_window": 6,
+      "prompt_sha256": "84c5c4ad805e834925710f754788f634cf163db3ae9073fa0ff2417b7f36e408"
+    }
+  },
+  "provider": "openai",
+  "response_id": 1,
+  "run_id": "<run-1>",
+  "source_index": "1-20",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": [
+    25,
+    42
+  ],
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 1,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "moved",
+  "provenance": {
+    "decision": {
+      "adjusted_range": [
+        25,
+        38
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 005.",
+          "window": [
+            15,
+            27
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 005."
+      },
+      "original_range": [
+        21,
+        38
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    "settings": {
+      "boundary_type": "FlatEntries",
+      "context_window": 6,
+      "prompt_sha256": "84c5c4ad805e834925710f754788f634cf163db3ae9073fa0ff2417b7f36e408"
+    }
+  },
+  "provider": "openai",
+  "response_id": 2,
+  "run_id": "<run-1>",
+  "source_index": "21-38",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": [
+    43,
+    60
+  ],
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 2,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "moved",
+  "provenance": {
+    "decision": {
+      "adjusted_range": [
+        43,
+        56
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 008.",
+          "window": [
+            33,
+            45
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 008."
+      },
+      "original_range": [
+        39,
+        56
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    "settings": {
+      "boundary_type": "FlatEntries",
+      "context_window": 6,
+      "prompt_sha256": "84c5c4ad805e834925710f754788f634cf163db3ae9073fa0ff2417b7f36e408"
+    }
+  },
+  "provider": "openai",
+  "response_id": 3,
+  "run_id": "<run-1>",
+  "source_index": "39-56",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": [
+    61,
+    71
+  ],
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 3,
+  "kind": "range",
+  "label": null,
+  "model": "gpt-4o",
+  "outcome": "moved",
+  "provenance": {
+    "decision": {
+      "adjusted_range": [
+        61,
+        71
+      ],
+      "attempts": [
+        {
+          "certainty": 95,
+          "decision_type": "marker_found",
+          "marker_matched": true,
+          "semantic_marker": "Record 011.",
+          "window": [
+            51,
+            63
+          ],
+          "window_index": 0
+        }
+      ],
+      "decision": {
+        "boundary_already_on_target": false,
+        "certainty": 95,
+        "contains_no_semantic_boundary": false,
+        "needs_more_context": false,
+        "semantic_marker": "Record 011."
+      },
+      "original_range": [
+        57,
+        71
+      ],
+      "should_delete": false,
+      "total_llm_calls": 1
+    },
+    "settings": {
+      "boundary_type": "FlatEntries",
+      "context_window": 6,
+      "prompt_sha256": "84c5c4ad805e834925710f754788f634cf163db3ae9073fa0ff2417b7f36e408"
+    }
+  },
+  "provider": "openai",
+  "response_id": 4,
+  "run_id": "<run-1>",
+  "source_index": "57-71",
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+## view entries
+## view chunks
+## view ranges
+{
+  "adjusted_end": 20,
+  "adjusted_start": 1,
+  "document": "ledger",
+  "original_end": 20,
+  "original_start": 1,
+  "range_index": 1,
+  "should_delete": 0,
+  "status": "done"
+}
+{
+  "adjusted_end": 38,
+  "adjusted_start": 25,
+  "document": "ledger",
+  "original_end": 38,
+  "original_start": 21,
+  "range_index": 2,
+  "should_delete": 0,
+  "status": "done"
+}
+{
+  "adjusted_end": 56,
+  "adjusted_start": 43,
+  "document": "ledger",
+  "original_end": 56,
+  "original_start": 39,
+  "range_index": 3,
+  "should_delete": 0,
+  "status": "done"
+}
+{
+  "adjusted_end": 71,
+  "adjusted_start": 61,
+  "document": "ledger",
+  "original_end": 71,
+  "original_start": 57,
+  "range_index": 4,
+  "should_delete": 0,
+  "status": "done"
+}

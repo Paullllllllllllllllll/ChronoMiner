@@ -1,0 +1,60 @@
+{
+  "name": "NestedEntries",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "description": "Characterization fixture: named records with a nested place object and a list of tags.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input contains no records. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "description": "The name given in the record."
+            },
+            "place": {
+              "type": "object",
+              "properties": {
+                "town": {
+                  "type": "string",
+                  "description": "The town named in the record."
+                },
+                "region": {
+                  "anyOf": [{ "type": "string" }, { "type": "null" }],
+                  "description": "The region named in the record. Use null if not stated."
+                }
+              },
+              "required": ["town", "region"],
+              "additionalProperties": false
+            },
+            "tags": {
+              "type": "array",
+              "items": { "type": "string" },
+              "description": "Short keywords describing the record."
+            },
+            "source_page": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "description": "The page on which the record appears. Use null if not identifiable."
+            },
+            "notes": {
+              "anyOf": [{ "type": "string" }, { "type": "null" }],
+              "description": "Remarks about the record. Use null if there are none."
+            }
+          },
+          "required": ["name", "place", "tags", "source_page", "notes"],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "exit_code": 1,
+  "json_line": {
+    "dry_run": false,
+    "items_blocked": 0,
+    "items_complete": 0,
+    "items_failed": 1,
+    "items_skipped": 0,
+    "items_submitted": 0,
+    "items_total": 1,
+    "outputs": [
+      "<tmp>/out/ledger_output.json",
+      "<tmp>/out/ledger_output.csv",
+      "<tmp>/out/chronominer.sqlite"
+    ],
+    "usage": {
+      "extract": {
+        "cached_tokens": 0,
+        "input_tokens": 6000,
+        "output_tokens": 1600,
+        "reasoning_tokens": 0,
+        "total_tokens": 7600
+      },
+      "total": {
+        "cached_tokens": 0,
+        "input_tokens": 6000,
+        "output_tokens": 1600,
+        "reasoning_tokens": 0,
+        "total_tokens": 7600
+      }
+    }
+  }
+}

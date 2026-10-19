@@ -1,0 +1,78 @@
+usage: chronominer repair [--input PATH] [options]
+
+Find the failed chunks of the documents at a file, folder or database, run them again, store the
+new results in the database and render the documents' outputs from it again.
+
+options:
+  -h, --help            show this help message and exit
+
+input:
+  --input PATH          folder, chronominer.sqlite or input whose failed chunks to run again;
+                        subfolders included; default: the current directory
+
+batches:
+  --schema NAME         repair only documents extracted with this schema; default: every schema
+
+chunks to repair:
+  --indices LIST        0-based chunk indices (order in the document) among the failed chunks:
+                        0,5,12 or 3-7; default: every failed chunk
+
+model:
+  --provider {openai,anthropic,google,openrouter,custom}
+                        model provider; default: inferred from the model name
+  --model NAME          model name; a provider: prefix (anthropic:NAME) selects the provider;
+                        default: gpt-6-luna
+  --endpoint NAME       named custom endpoint from the settings (implies provider custom);
+                        default: none
+  --reasoning-effort {none,minimal,low,medium,high,xhigh,max}
+                        reasoning effort; default: xhigh
+  --verbosity {low,medium,high}
+                        output verbosity; default: medium
+  --max-output-tokens N
+                        maximum output tokens; default: the model's output limit
+  --temperature T       sampling temperature, 0.0 to 2.0; default: 1.0
+  --top-p P             nucleus sampling, 0.0 to 1.0; sent only when supported; default: 1.0
+  --service-tier {auto,default,flex,priority}
+                        OpenAI service tier; default: default; only for provider openai
+  --response-format {schema,json}
+                        schema (API-enforced) or json (prompted, validated); default: schema when
+                        the model supports it, else json
+
+images:
+  --dpi native|N        render resolution: native or a DPI value; default: the provider's
+                        recommended value
+  --image-detail {low,high,auto,original}
+                        image detail sent to the model; default: the provider's recommended value
+  --image-format {jpeg,png}
+                        page image format; default: the provider's recommended value
+  --jpeg-quality N      JPEG quality, 1 to 100; default: the provider's recommended value
+  --grayscale, --no-grayscale
+                        convert page images to grayscale; default: the provider's recommended
+                        value
+
+run control:
+  --batch, --no-batch   submit the repairs to the provider's batch API; default: off
+  --dry-run             plan without API calls or writes
+  --json                print one JSON summary line on stdout
+  --settings FILE       alternate settings file; default: config/settings.yaml
+
+Precedence: a flag wins over the settings defaults: block, which wins over the code default.
+--settings FILE reads another settings file instead of config/settings.yaml.
+
+Exit codes:
+  0    every targeted chunk was repaired, or nothing was left to do
+  1    a targeted chunk stayed unrepaired, or the repair failed
+  2    usage or configuration error: a missing input, an input no
+       database records, a database the store refuses, no key or
+       batch API, or a model without image input for page chunks
+  130  interrupted (Ctrl+C or Ctrl+Break)
+
+With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and
+errors go to stderr.
+
+Examples:
+  Run the failed chunks below an output folder again:
+    chronominer repair --input out
+  Repair two chunks of one schema's documents through the batch API:
+    chronominer repair --input out --schema wage_records --indices 0,3
+      --batch

@@ -1,0 +1,90 @@
+{
+  "name": "BibliographicCatalogueEntries",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "description": "Library catalogues, bibliographies and book lists with one entry per described publication.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no bibliographic entries. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "author": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The author as given in the entry, surname first where printed so. Use null for anonymous works."
+            },
+            "title": {
+              "type": "string",
+              "description": "The title of the work, as written in the entry."
+            },
+            "place": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The place of publication. Use null if not stated."
+            },
+            "publisher": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The publisher or printer. Use null if not stated."
+            },
+            "year": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The year of publication as written. Example: '1745' or '1745?'. Use null if not stated."
+            },
+            "format": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The physical format or size. Example: 'octavo' or '12mo'. Use null if not stated."
+            },
+            "source_page": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The page on which the entry appears. Use null if not identifiable."
+            },
+            "notes": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Remarks in the entry, such as editions, pagination or an uncertain reading. Use null if there are none."
+            }
+          },
+          "required": [
+            "author",
+            "title",
+            "place",
+            "publisher",
+            "year",
+            "format",
+            "source_page",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

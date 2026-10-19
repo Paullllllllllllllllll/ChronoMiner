@@ -1,0 +1,90 @@
+{
+  "name": "CorrespondenceMetadata",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "description": "Letters and letter calendars, with one entry per letter giving its sender, recipient, date and a short summary.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no letters or letter descriptions. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "sender": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The name of the sender, as written. Use null if unknown."
+            },
+            "recipient": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The name of the recipient, as written. Use null if unknown."
+            },
+            "date": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The date of the letter, as written. Use null if the source gives no date."
+            },
+            "place": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The place from which the letter was sent. Use null if not stated."
+            },
+            "language": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The language of the letter. Use null if not stated."
+            },
+            "summary": {
+              "type": "string",
+              "description": "A one- or two-sentence summary of the content of the letter, in English."
+            },
+            "source_page": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The page or folio on which the letter or its description appears. Use null if not identifiable."
+            },
+            "notes": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Remarks about the letter, such as enclosures, damage or an uncertain reading. Use null if there are none."
+            }
+          },
+          "required": [
+            "sender",
+            "recipient",
+            "date",
+            "place",
+            "language",
+            "summary",
+            "source_page",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

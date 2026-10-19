@@ -1,0 +1,37 @@
+{
+  "exit_code": 1,
+  "json_line": {
+    "dry_run": false,
+    "items_blocked": 0,
+    "items_complete": 2,
+    "items_failed": 1,
+    "items_skipped": 0,
+    "items_submitted": 0,
+    "items_total": 3,
+    "outputs": [
+      "<tmp>/out/page_001_output.json",
+      "<tmp>/out/page_001_output.csv",
+      "<tmp>/out/page_002_output.json",
+      "<tmp>/out/page_002_output.csv",
+      "<tmp>/out/page_003_output.json",
+      "<tmp>/out/page_003_output.csv",
+      "<tmp>/out/chronominer.sqlite"
+    ],
+    "usage": {
+      "extract": {
+        "cached_tokens": 0,
+        "input_tokens": 3000,
+        "output_tokens": 800,
+        "reasoning_tokens": 0,
+        "total_tokens": 3800
+      },
+      "total": {
+        "cached_tokens": 0,
+        "input_tokens": 3000,
+        "output_tokens": 800,
+        "reasoning_tokens": 0,
+        "total_tokens": 3800
+      }
+    }
+  }
+}

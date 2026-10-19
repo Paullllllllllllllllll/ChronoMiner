@@ -1,0 +1,40 @@
+usage: chronominer ranges generate --input PATH [options]
+
+Cut each text file into line ranges of about --chunk-tokens tokens and write them to
+{stem}_line_ranges.txt beside it.
+
+options:
+  -h, --help            show this help message and exit
+
+input:
+  --input PATH          text file, or a folder of text files, to write line ranges for
+  --recursive, --no-recursive
+                        search the subfolders of the input folder; default: off
+
+chunking:
+  --chunk-tokens N      target tokens per text chunk, also for line ranges written anew; default:
+                        3500
+
+model:
+  --model NAME          model whose tokenizer counts the chunk tokens; default: gpt-6-luna
+
+run control:
+  --dry-run             plan without API calls or writes
+  --json                print one JSON summary line on stdout
+  --settings FILE       alternate settings file; default: config/settings.yaml
+
+Precedence: a flag wins over the settings defaults: block, which wins over the code default.
+--settings FILE reads another settings file instead of config/settings.yaml.
+
+Exit codes:
+  0    every text file got its line ranges
+  1    a text file failed
+  2    usage or configuration error, or no text file found
+  130  interrupted (Ctrl+C or Ctrl+Break)
+
+With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and
+errors go to stderr.
+
+Examples:
+  Write {stem}_line_ranges.txt beside every text file of a folder:
+    chronominer ranges generate --input texts --chunk-tokens 3000

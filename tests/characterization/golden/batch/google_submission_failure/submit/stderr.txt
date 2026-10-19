@@ -1,0 +1,7 @@
+[WARNING] the settings default context_window (--context-window) applies only for chunking adjust and has no effect here: the chunking is auto
+[INFO] Resume mode: skip (use --force to reprocess all)
+[INFO] Beginning processing of 1 item(s)...
+[INFO] Processing item 1/1: ledger.txt
+[ERROR] Failed to process 'ledger.txt': google batch part 1 of 1 (submission <submission-1>) failed to create, refused: Error code: 400 - invalid request
+[WARNING] Processing complete with 1 failure(s) of 1 item(s).
+[INFO] Database: <tmp>/out/chronominer.sqlite

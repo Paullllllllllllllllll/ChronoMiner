@@ -1,0 +1,2332 @@
+## artifacts
+{
+  "created_at": "<timestamp>",
+  "kind": "prompt",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "text": "<text: 1002 chars>"
+}
+{
+  "created_at": "<timestamp>",
+  "kind": "schema",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "text": "<text: 2210 chars>"
+}
+## document_meta
+{
+  "doc_id": 1,
+  "metadata": {
+    "chunking_method": "auto",
+    "chunking_text_version": 2,
+    "document_total_chunks": 2,
+    "model_name": "gpt-4o",
+    "schema_name": "FlatEntries"
+  },
+  "run_id": "<run-1>",
+  "schema_sha256": "ff1e47033cdedea26aadcdcbea0624e08673a5dc4b54ab95bd1e824529da6dfd",
+  "updated_at": "<datetime>"
+}
+{
+  "doc_id": 2,
+  "metadata": {
+    "chunking_method": "auto",
+    "chunking_text_version": 2,
+    "document_total_chunks": 2,
+    "model_name": "claude-sonnet-4-5",
+    "schema_name": "FlatEntries"
+  },
+  "run_id": "<run-2>",
+  "schema_sha256": "ff1e47033cdedea26aadcdcbea0624e08673a5dc4b54ab95bd1e824529da6dfd",
+  "updated_at": "<datetime>"
+}
+{
+  "doc_id": 3,
+  "metadata": {
+    "chunking_method": "auto",
+    "chunking_text_version": 2,
+    "document_total_chunks": 2,
+    "model_name": "gemini-2.5-flash",
+    "schema_name": "FlatEntries"
+  },
+  "run_id": "<run-3>",
+  "schema_sha256": "ff1e47033cdedea26aadcdcbea0624e08673a5dc4b54ab95bd1e824529da6dfd",
+  "updated_at": "<datetime>"
+}
+{
+  "doc_id": 4,
+  "metadata": {
+    "chunking_method": "auto",
+    "chunking_text_version": 2,
+    "document_total_chunks": 2,
+    "model_name": "gpt-4o",
+    "schema_name": "FlatEntries"
+  },
+  "run_id": "<run-4>",
+  "schema_sha256": "ff1e47033cdedea26aadcdcbea0624e08673a5dc4b54ab95bd1e824529da6dfd",
+  "updated_at": "<datetime>"
+}
+## documents
+{
+  "doc_id": 2,
+  "first_run_id": "<run-2>",
+  "image_settings": null,
+  "input_path": "<tmp>/docs/anthropic_ledger.txt",
+  "input_sha256": "<sha256>",
+  "kind": "text",
+  "last_run_id": "<run-2>",
+  "lease_generation": "<generation>",
+  "lease_run_id": null,
+  "lease_until": null,
+  "name": "anthropic_ledger",
+  "status": "pending",
+  "tool": "chronominer",
+  "units_done": 0,
+  "units_failed": 0,
+  "units_pending": 2,
+  "units_total": 2,
+  "updated_at": "<datetime>"
+}
+{
+  "doc_id": 4,
+  "first_run_id": "<run-4>",
+  "image_settings": null,
+  "input_path": "<tmp>/docs/done_ledger.txt",
+  "input_sha256": "<sha256>",
+  "kind": "text",
+  "last_run_id": "<run-4>",
+  "lease_generation": "<generation>",
+  "lease_run_id": null,
+  "lease_until": null,
+  "name": "done_ledger",
+  "status": "pending",
+  "tool": "chronominer",
+  "units_done": 0,
+  "units_failed": 0,
+  "units_pending": 2,
+  "units_total": 2,
+  "updated_at": "<datetime>"
+}
+{
+  "doc_id": 3,
+  "first_run_id": "<run-3>",
+  "image_settings": null,
+  "input_path": "<tmp>/docs/google_ledger.txt",
+  "input_sha256": "<sha256>",
+  "kind": "text",
+  "last_run_id": "<run-3>",
+  "lease_generation": "<generation>",
+  "lease_run_id": null,
+  "lease_until": null,
+  "name": "google_ledger",
+  "status": "pending",
+  "tool": "chronominer",
+  "units_done": 0,
+  "units_failed": 0,
+  "units_pending": 2,
+  "units_total": 2,
+  "updated_at": "<datetime>"
+}
+{
+  "doc_id": 1,
+  "first_run_id": "<run-1>",
+  "image_settings": null,
+  "input_path": "<tmp>/docs/openai_ledger.txt",
+  "input_sha256": "<sha256>",
+  "kind": "text",
+  "last_run_id": "<run-1>",
+  "lease_generation": "<generation>",
+  "lease_run_id": null,
+  "lease_until": null,
+  "name": "openai_ledger",
+  "status": "pending",
+  "tool": "chronominer",
+  "units_done": 0,
+  "units_failed": 0,
+  "units_pending": 2,
+  "units_total": 2,
+  "updated_at": "<datetime>"
+}
+## entry_rows
+## meta
+{
+  "component": "chronominer",
+  "version": 1
+}
+{
+  "component": "core",
+  "version": 2
+}
+## notes
+## outputs
+## responses
+## runs
+{
+  "command": "extract",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-1>",
+  "settings_fingerprint": null,
+  "spec": {
+    "chunking.chunk_tokens": {
+      "source": "settings",
+      "value": 160
+    },
+    "chunking.context_window": {
+      "source": "settings",
+      "value": 6
+    },
+    "chunking.mode": {
+      "source": "default",
+      "value": "auto"
+    },
+    "images.detail": {
+      "source": "settings",
+      "value": "high"
+    },
+    "images.dpi": {
+      "source": "settings",
+      "value": 72
+    },
+    "images.format": {
+      "source": "default",
+      "value": null
+    },
+    "images.grayscale": {
+      "source": "settings",
+      "value": true
+    },
+    "images.jpeg_quality": {
+      "source": "settings",
+      "value": 90
+    },
+    "input.all": {
+      "source": "default",
+      "value": false
+    },
+    "input.files": {
+      "source": "default",
+      "value": []
+    },
+    "input.pages": {
+      "source": "default",
+      "value": null
+    },
+    "input.path": {
+      "source": "flag",
+      "value": "<tmp>/docs/openai_ledger.txt"
+    },
+    "input.recursive": {
+      "source": "default",
+      "value": false
+    },
+    "input.select": {
+      "source": "default",
+      "value": null
+    },
+    "input.type": {
+      "source": "default",
+      "value": "auto"
+    },
+    "model.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "model.max_output_tokens": {
+      "source": "settings",
+      "value": 4096
+    },
+    "model.model": {
+      "source": "flag",
+      "value": "gpt-4o"
+    },
+    "model.provider": {
+      "source": "flag",
+      "value": "openai"
+    },
+    "model.reasoning_effort": {
+      "source": "default",
+      "value": "xhigh"
+    },
+    "model.response_format": {
+      "source": "default",
+      "value": null
+    },
+    "model.service_tier": {
+      "source": "default",
+      "value": "default"
+    },
+    "model.temperature": {
+      "source": "settings",
+      "value": 0.0
+    },
+    "model.top_p": {
+      "source": "settings",
+      "value": 1.0
+    },
+    "model.verbosity": {
+      "source": "default",
+      "value": "medium"
+    },
+    "output.directory": {
+      "source": "flag",
+      "value": "<tmp>/out"
+    },
+    "output.formats": {
+      "source": "flag",
+      "value": [
+        "csv"
+      ]
+    },
+    "output.layout": {
+      "source": "default",
+      "value": "flat"
+    },
+    "prompt.context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.context_image": {
+      "source": "default",
+      "value": "none"
+    },
+    "prompt.fallback_context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.schema": {
+      "source": "flag",
+      "value": "FlatEntries"
+    },
+    "run.batch": {
+      "source": "flag",
+      "value": true
+    },
+    "run.concurrency": {
+      "source": "settings",
+      "value": 1
+    },
+    "run.dry_run": {
+      "source": "default",
+      "value": false
+    },
+    "run.force": {
+      "source": "default",
+      "value": false
+    },
+    "run.json": {
+      "source": "flag",
+      "value": true
+    }
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+{
+  "command": "extract",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-2>",
+  "settings_fingerprint": null,
+  "spec": {
+    "chunking.chunk_tokens": {
+      "source": "settings",
+      "value": 160
+    },
+    "chunking.context_window": {
+      "source": "settings",
+      "value": 6
+    },
+    "chunking.mode": {
+      "source": "default",
+      "value": "auto"
+    },
+    "images.detail": {
+      "source": "settings",
+      "value": "low"
+    },
+    "images.dpi": {
+      "source": "settings",
+      "value": 72
+    },
+    "images.format": {
+      "source": "default",
+      "value": null
+    },
+    "images.grayscale": {
+      "source": "settings",
+      "value": true
+    },
+    "images.jpeg_quality": {
+      "source": "settings",
+      "value": 90
+    },
+    "input.all": {
+      "source": "default",
+      "value": false
+    },
+    "input.files": {
+      "source": "default",
+      "value": []
+    },
+    "input.pages": {
+      "source": "default",
+      "value": null
+    },
+    "input.path": {
+      "source": "flag",
+      "value": "<tmp>/docs/anthropic_ledger.txt"
+    },
+    "input.recursive": {
+      "source": "default",
+      "value": false
+    },
+    "input.select": {
+      "source": "default",
+      "value": null
+    },
+    "input.type": {
+      "source": "default",
+      "value": "auto"
+    },
+    "model.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "model.max_output_tokens": {
+      "source": "settings",
+      "value": 4096
+    },
+    "model.model": {
+      "source": "flag",
+      "value": "claude-sonnet-4-5"
+    },
+    "model.provider": {
+      "source": "flag",
+      "value": "anthropic"
+    },
+    "model.reasoning_effort": {
+      "source": "default",
+      "value": "xhigh"
+    },
+    "model.response_format": {
+      "source": "default",
+      "value": null
+    },
+    "model.service_tier": {
+      "source": "default",
+      "value": "default"
+    },
+    "model.temperature": {
+      "source": "settings",
+      "value": 0.0
+    },
+    "model.top_p": {
+      "source": "settings",
+      "value": 1.0
+    },
+    "model.verbosity": {
+      "source": "default",
+      "value": "medium"
+    },
+    "output.directory": {
+      "source": "flag",
+      "value": "<tmp>/out"
+    },
+    "output.formats": {
+      "source": "flag",
+      "value": [
+        "csv"
+      ]
+    },
+    "output.layout": {
+      "source": "default",
+      "value": "flat"
+    },
+    "prompt.context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.context_image": {
+      "source": "default",
+      "value": "none"
+    },
+    "prompt.fallback_context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.schema": {
+      "source": "flag",
+      "value": "FlatEntries"
+    },
+    "run.batch": {
+      "source": "flag",
+      "value": true
+    },
+    "run.concurrency": {
+      "source": "settings",
+      "value": 1
+    },
+    "run.dry_run": {
+      "source": "default",
+      "value": false
+    },
+    "run.force": {
+      "source": "default",
+      "value": false
+    },
+    "run.json": {
+      "source": "flag",
+      "value": true
+    }
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+{
+  "command": "extract",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-3>",
+  "settings_fingerprint": null,
+  "spec": {
+    "chunking.chunk_tokens": {
+      "source": "settings",
+      "value": 160
+    },
+    "chunking.context_window": {
+      "source": "settings",
+      "value": 6
+    },
+    "chunking.mode": {
+      "source": "default",
+      "value": "auto"
+    },
+    "images.detail": {
+      "source": "settings",
+      "value": "high"
+    },
+    "images.dpi": {
+      "source": "settings",
+      "value": 72
+    },
+    "images.format": {
+      "source": "default",
+      "value": null
+    },
+    "images.grayscale": {
+      "source": "settings",
+      "value": true
+    },
+    "images.jpeg_quality": {
+      "source": "settings",
+      "value": 90
+    },
+    "input.all": {
+      "source": "default",
+      "value": false
+    },
+    "input.files": {
+      "source": "default",
+      "value": []
+    },
+    "input.pages": {
+      "source": "default",
+      "value": null
+    },
+    "input.path": {
+      "source": "flag",
+      "value": "<tmp>/docs/google_ledger.txt"
+    },
+    "input.recursive": {
+      "source": "default",
+      "value": false
+    },
+    "input.select": {
+      "source": "default",
+      "value": null
+    },
+    "input.type": {
+      "source": "default",
+      "value": "auto"
+    },
+    "model.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "model.max_output_tokens": {
+      "source": "settings",
+      "value": 4096
+    },
+    "model.model": {
+      "source": "flag",
+      "value": "gemini-2.5-flash"
+    },
+    "model.provider": {
+      "source": "flag",
+      "value": "google"
+    },
+    "model.reasoning_effort": {
+      "source": "default",
+      "value": "xhigh"
+    },
+    "model.response_format": {
+      "source": "default",
+      "value": null
+    },
+    "model.service_tier": {
+      "source": "default",
+      "value": "default"
+    },
+    "model.temperature": {
+      "source": "settings",
+      "value": 0.0
+    },
+    "model.top_p": {
+      "source": "settings",
+      "value": 1.0
+    },
+    "model.verbosity": {
+      "source": "default",
+      "value": "medium"
+    },
+    "output.directory": {
+      "source": "flag",
+      "value": "<tmp>/out"
+    },
+    "output.formats": {
+      "source": "flag",
+      "value": [
+        "csv"
+      ]
+    },
+    "output.layout": {
+      "source": "default",
+      "value": "flat"
+    },
+    "prompt.context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.context_image": {
+      "source": "default",
+      "value": "none"
+    },
+    "prompt.fallback_context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.schema": {
+      "source": "flag",
+      "value": "FlatEntries"
+    },
+    "run.batch": {
+      "source": "flag",
+      "value": true
+    },
+    "run.concurrency": {
+      "source": "settings",
+      "value": 1
+    },
+    "run.dry_run": {
+      "source": "default",
+      "value": false
+    },
+    "run.force": {
+      "source": "default",
+      "value": false
+    },
+    "run.json": {
+      "source": "flag",
+      "value": true
+    }
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+{
+  "command": "extract",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-4>",
+  "settings_fingerprint": null,
+  "spec": {
+    "chunking.chunk_tokens": {
+      "source": "settings",
+      "value": 160
+    },
+    "chunking.context_window": {
+      "source": "settings",
+      "value": 6
+    },
+    "chunking.mode": {
+      "source": "default",
+      "value": "auto"
+    },
+    "images.detail": {
+      "source": "settings",
+      "value": "high"
+    },
+    "images.dpi": {
+      "source": "settings",
+      "value": 72
+    },
+    "images.format": {
+      "source": "default",
+      "value": null
+    },
+    "images.grayscale": {
+      "source": "settings",
+      "value": true
+    },
+    "images.jpeg_quality": {
+      "source": "settings",
+      "value": 90
+    },
+    "input.all": {
+      "source": "default",
+      "value": false
+    },
+    "input.files": {
+      "source": "default",
+      "value": []
+    },
+    "input.pages": {
+      "source": "default",
+      "value": null
+    },
+    "input.path": {
+      "source": "flag",
+      "value": "<tmp>/docs/done_ledger.txt"
+    },
+    "input.recursive": {
+      "source": "default",
+      "value": false
+    },
+    "input.select": {
+      "source": "default",
+      "value": null
+    },
+    "input.type": {
+      "source": "default",
+      "value": "auto"
+    },
+    "model.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "model.max_output_tokens": {
+      "source": "settings",
+      "value": 4096
+    },
+    "model.model": {
+      "source": "flag",
+      "value": "gpt-4o"
+    },
+    "model.provider": {
+      "source": "flag",
+      "value": "openai"
+    },
+    "model.reasoning_effort": {
+      "source": "default",
+      "value": "xhigh"
+    },
+    "model.response_format": {
+      "source": "default",
+      "value": null
+    },
+    "model.service_tier": {
+      "source": "default",
+      "value": "default"
+    },
+    "model.temperature": {
+      "source": "settings",
+      "value": 0.0
+    },
+    "model.top_p": {
+      "source": "settings",
+      "value": 1.0
+    },
+    "model.verbosity": {
+      "source": "default",
+      "value": "medium"
+    },
+    "output.directory": {
+      "source": "flag",
+      "value": "<tmp>/out"
+    },
+    "output.formats": {
+      "source": "flag",
+      "value": [
+        "csv"
+      ]
+    },
+    "output.layout": {
+      "source": "default",
+      "value": "flat"
+    },
+    "prompt.context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.context_image": {
+      "source": "default",
+      "value": "none"
+    },
+    "prompt.fallback_context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.schema": {
+      "source": "flag",
+      "value": "FlatEntries"
+    },
+    "run.batch": {
+      "source": "flag",
+      "value": true
+    },
+    "run.concurrency": {
+      "source": "settings",
+      "value": 1
+    },
+    "run.dry_run": {
+      "source": "default",
+      "value": false
+    },
+    "run.force": {
+      "source": "default",
+      "value": false
+    },
+    "run.json": {
+      "source": "flag",
+      "value": true
+    }
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+{
+  "command": "batch cancel",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-5>",
+  "settings_fingerprint": null,
+  "spec": {
+    "directory": "<tmp>/out"
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+## submission_requests
+{
+  "custom_id": "<submission-1>-00000",
+  "doc_id": 1,
+  "idx": 0,
+  "kind": "chunk",
+  "request": {
+    "input": [
+      {
+        "content": [
+          {
+            "text": "<text: 2205 chars f550c7cf4324>",
+            "type": "input_text"
+          }
+        ],
+        "role": "system"
+      },
+      {
+        "content": [
+          {
+            "text": "<text: 481 chars 01dcf91adf62>",
+            "type": "input_text"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "max_output_tokens": 4096,
+    "model": "gpt-4o",
+    "temperature": 0.0,
+    "text": {
+      "format": {
+        "name": "ExtractionSchema",
+        "schema": {
+          "additionalProperties": false,
+          "properties": {
+            "contains_no_content_of_requested_type": {
+              "description": "Set to true if the input contains no records. Otherwise, set to false.",
+              "type": "boolean"
+            },
+            "entries": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The date of the record as written. Use null if not stated."
+                  },
+                  "item": {
+                    "description": "The item named in the record.",
+                    "type": "string"
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Remarks about the record. Use null if there are none."
+                  },
+                  "price": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The price stated in the record. Use null if not stated."
+                  },
+                  "quantity": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The quantity stated in the record. Use null if not stated."
+                  },
+                  "record_id": {
+                    "description": "The record heading as written, such as 'Record 001'.",
+                    "type": "string"
+                  },
+                  "source_page": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The page on which the record appears. Use null if not identifiable."
+                  }
+                },
+                "required": [
+                  "record_id",
+                  "item",
+                  "quantity",
+                  "price",
+                  "date",
+                  "source_page",
+                  "notes"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "type": "object"
+        },
+        "strict": true,
+        "type": "json_schema"
+      }
+    },
+    "top_p": 1.0
+  },
+  "submission_id": "<submission-1>"
+}
+{
+  "custom_id": "<submission-1>-00001",
+  "doc_id": 1,
+  "idx": 1,
+  "kind": "chunk",
+  "request": {
+    "input": [
+      {
+        "content": [
+          {
+            "text": "<text: 2205 chars f550c7cf4324>",
+            "type": "input_text"
+          }
+        ],
+        "role": "system"
+      },
+      {
+        "content": [
+          {
+            "text": "<text: 484 chars dea3462aba90>",
+            "type": "input_text"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "max_output_tokens": 4096,
+    "model": "gpt-4o",
+    "temperature": 0.0,
+    "text": {
+      "format": {
+        "name": "ExtractionSchema",
+        "schema": {
+          "additionalProperties": false,
+          "properties": {
+            "contains_no_content_of_requested_type": {
+              "description": "Set to true if the input contains no records. Otherwise, set to false.",
+              "type": "boolean"
+            },
+            "entries": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The date of the record as written. Use null if not stated."
+                  },
+                  "item": {
+                    "description": "The item named in the record.",
+                    "type": "string"
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Remarks about the record. Use null if there are none."
+                  },
+                  "price": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The price stated in the record. Use null if not stated."
+                  },
+                  "quantity": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The quantity stated in the record. Use null if not stated."
+                  },
+                  "record_id": {
+                    "description": "The record heading as written, such as 'Record 001'.",
+                    "type": "string"
+                  },
+                  "source_page": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The page on which the record appears. Use null if not identifiable."
+                  }
+                },
+                "required": [
+                  "record_id",
+                  "item",
+                  "quantity",
+                  "price",
+                  "date",
+                  "source_page",
+                  "notes"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "type": "object"
+        },
+        "strict": true,
+        "type": "json_schema"
+      }
+    },
+    "top_p": 1.0
+  },
+  "submission_id": "<submission-1>"
+}
+{
+  "custom_id": "<submission-2>-00000",
+  "doc_id": 2,
+  "idx": 0,
+  "kind": "chunk",
+  "request": {
+    "max_tokens": 4096,
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "<text: 482 chars ac9e5fad2ca8>",
+            "type": "text"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "model": "claude-sonnet-4-5",
+    "output_config": {
+      "format": {
+        "schema": {
+          "additionalProperties": false,
+          "description": "Return a JSON object that conforms to this schema.",
+          "properties": {
+            "contains_no_content_of_requested_type": {
+              "description": "Set to true if the input contains no records. Otherwise, set to false.",
+              "type": "boolean"
+            },
+            "entries": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The date of the record as written. Use null if not stated."
+                  },
+                  "item": {
+                    "description": "The item named in the record.",
+                    "type": "string"
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Remarks about the record. Use null if there are none."
+                  },
+                  "price": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The price stated in the record. Use null if not stated."
+                  },
+                  "quantity": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The quantity stated in the record. Use null if not stated."
+                  },
+                  "record_id": {
+                    "description": "The record heading as written, such as 'Record 001'.",
+                    "type": "string"
+                  },
+                  "source_page": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The page on which the record appears. Use null if not identifiable."
+                  }
+                },
+                "required": [
+                  "record_id",
+                  "item",
+                  "quantity",
+                  "price",
+                  "date",
+                  "source_page",
+                  "notes"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "title": "ExtractionSchema",
+          "type": "object"
+        },
+        "type": "json_schema"
+      }
+    },
+    "system": [
+      {
+        "cache_control": {
+          "type": "ephemeral"
+        },
+        "text": "<text: 2205 chars f550c7cf4324>",
+        "type": "text"
+      }
+    ],
+    "thinking": {
+      "budget_tokens": 3840,
+      "type": "enabled"
+    }
+  },
+  "submission_id": "<submission-2>"
+}
+{
+  "custom_id": "<submission-2>-00001",
+  "doc_id": 2,
+  "idx": 1,
+  "kind": "chunk",
+  "request": {
+    "max_tokens": 4096,
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "<text: 483 chars 4c4961862990>",
+            "type": "text"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "model": "claude-sonnet-4-5",
+    "output_config": {
+      "format": {
+        "schema": {
+          "additionalProperties": false,
+          "description": "Return a JSON object that conforms to this schema.",
+          "properties": {
+            "contains_no_content_of_requested_type": {
+              "description": "Set to true if the input contains no records. Otherwise, set to false.",
+              "type": "boolean"
+            },
+            "entries": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The date of the record as written. Use null if not stated."
+                  },
+                  "item": {
+                    "description": "The item named in the record.",
+                    "type": "string"
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Remarks about the record. Use null if there are none."
+                  },
+                  "price": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The price stated in the record. Use null if not stated."
+                  },
+                  "quantity": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The quantity stated in the record. Use null if not stated."
+                  },
+                  "record_id": {
+                    "description": "The record heading as written, such as 'Record 001'.",
+                    "type": "string"
+                  },
+                  "source_page": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The page on which the record appears. Use null if not identifiable."
+                  }
+                },
+                "required": [
+                  "record_id",
+                  "item",
+                  "quantity",
+                  "price",
+                  "date",
+                  "source_page",
+                  "notes"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "title": "ExtractionSchema",
+          "type": "object"
+        },
+        "type": "json_schema"
+      }
+    },
+    "system": [
+      {
+        "cache_control": {
+          "type": "ephemeral"
+        },
+        "text": "<text: 2205 chars f550c7cf4324>",
+        "type": "text"
+      }
+    ],
+    "thinking": {
+      "budget_tokens": 3840,
+      "type": "enabled"
+    }
+  },
+  "submission_id": "<submission-2>"
+}
+{
+  "custom_id": "<submission-3>-00000",
+  "doc_id": 3,
+  "idx": 0,
+  "kind": "chunk",
+  "request": {
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "<text: 482 chars ac9e5fad2ca8>"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "generation_config": {
+      "max_output_tokens": 4096,
+      "response_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contains_no_content_of_requested_type": {
+            "description": "Set to true if the input contains no records. Otherwise, set to false.",
+            "type": "boolean"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "date": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The date of the record as written. Use null if not stated."
+                },
+                "item": {
+                  "description": "The item named in the record.",
+                  "type": "string"
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Remarks about the record. Use null if there are none."
+                },
+                "price": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The price stated in the record. Use null if not stated."
+                },
+                "quantity": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The quantity stated in the record. Use null if not stated."
+                },
+                "record_id": {
+                  "description": "The record heading as written, such as 'Record 001'.",
+                  "type": "string"
+                },
+                "source_page": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The page on which the record appears. Use null if not identifiable."
+                }
+              },
+              "required": [
+                "record_id",
+                "item",
+                "quantity",
+                "price",
+                "date",
+                "source_page",
+                "notes"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "contains_no_content_of_requested_type",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "response_mime_type": "application/json",
+      "temperature": 0.0,
+      "thinking_config": {
+        "thinking_budget": 2048
+      },
+      "top_p": 1.0
+    },
+    "system_instruction": {
+      "parts": [
+        {
+          "text": "<text: 2205 chars f550c7cf4324>"
+        }
+      ]
+    }
+  },
+  "submission_id": "<submission-3>"
+}
+{
+  "custom_id": "<submission-3>-00001",
+  "doc_id": 3,
+  "idx": 1,
+  "kind": "chunk",
+  "request": {
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "<text: 483 chars 4c4961862990>"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "generation_config": {
+      "max_output_tokens": 4096,
+      "response_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contains_no_content_of_requested_type": {
+            "description": "Set to true if the input contains no records. Otherwise, set to false.",
+            "type": "boolean"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "date": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The date of the record as written. Use null if not stated."
+                },
+                "item": {
+                  "description": "The item named in the record.",
+                  "type": "string"
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Remarks about the record. Use null if there are none."
+                },
+                "price": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The price stated in the record. Use null if not stated."
+                },
+                "quantity": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The quantity stated in the record. Use null if not stated."
+                },
+                "record_id": {
+                  "description": "The record heading as written, such as 'Record 001'.",
+                  "type": "string"
+                },
+                "source_page": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The page on which the record appears. Use null if not identifiable."
+                }
+              },
+              "required": [
+                "record_id",
+                "item",
+                "quantity",
+                "price",
+                "date",
+                "source_page",
+                "notes"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "contains_no_content_of_requested_type",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "response_mime_type": "application/json",
+      "temperature": 0.0,
+      "thinking_config": {
+        "thinking_budget": 2048
+      },
+      "top_p": 1.0
+    },
+    "system_instruction": {
+      "parts": [
+        {
+          "text": "<text: 2205 chars f550c7cf4324>"
+        }
+      ]
+    }
+  },
+  "submission_id": "<submission-3>"
+}
+{
+  "custom_id": "<submission-4>-00000",
+  "doc_id": 4,
+  "idx": 0,
+  "kind": "chunk",
+  "request": {
+    "input": [
+      {
+        "content": [
+          {
+            "text": "<text: 2205 chars f550c7cf4324>",
+            "type": "input_text"
+          }
+        ],
+        "role": "system"
+      },
+      {
+        "content": [
+          {
+            "text": "<text: 481 chars 01dcf91adf62>",
+            "type": "input_text"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "max_output_tokens": 4096,
+    "model": "gpt-4o",
+    "temperature": 0.0,
+    "text": {
+      "format": {
+        "name": "ExtractionSchema",
+        "schema": {
+          "additionalProperties": false,
+          "properties": {
+            "contains_no_content_of_requested_type": {
+              "description": "Set to true if the input contains no records. Otherwise, set to false.",
+              "type": "boolean"
+            },
+            "entries": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The date of the record as written. Use null if not stated."
+                  },
+                  "item": {
+                    "description": "The item named in the record.",
+                    "type": "string"
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Remarks about the record. Use null if there are none."
+                  },
+                  "price": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The price stated in the record. Use null if not stated."
+                  },
+                  "quantity": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The quantity stated in the record. Use null if not stated."
+                  },
+                  "record_id": {
+                    "description": "The record heading as written, such as 'Record 001'.",
+                    "type": "string"
+                  },
+                  "source_page": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The page on which the record appears. Use null if not identifiable."
+                  }
+                },
+                "required": [
+                  "record_id",
+                  "item",
+                  "quantity",
+                  "price",
+                  "date",
+                  "source_page",
+                  "notes"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "type": "object"
+        },
+        "strict": true,
+        "type": "json_schema"
+      }
+    },
+    "top_p": 1.0
+  },
+  "submission_id": "<submission-4>"
+}
+{
+  "custom_id": "<submission-4>-00001",
+  "doc_id": 4,
+  "idx": 1,
+  "kind": "chunk",
+  "request": {
+    "input": [
+      {
+        "content": [
+          {
+            "text": "<text: 2205 chars f550c7cf4324>",
+            "type": "input_text"
+          }
+        ],
+        "role": "system"
+      },
+      {
+        "content": [
+          {
+            "text": "<text: 484 chars dea3462aba90>",
+            "type": "input_text"
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "max_output_tokens": 4096,
+    "model": "gpt-4o",
+    "temperature": 0.0,
+    "text": {
+      "format": {
+        "name": "ExtractionSchema",
+        "schema": {
+          "additionalProperties": false,
+          "properties": {
+            "contains_no_content_of_requested_type": {
+              "description": "Set to true if the input contains no records. Otherwise, set to false.",
+              "type": "boolean"
+            },
+            "entries": {
+              "items": {
+                "additionalProperties": false,
+                "properties": {
+                  "date": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The date of the record as written. Use null if not stated."
+                  },
+                  "item": {
+                    "description": "The item named in the record.",
+                    "type": "string"
+                  },
+                  "notes": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Remarks about the record. Use null if there are none."
+                  },
+                  "price": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The price stated in the record. Use null if not stated."
+                  },
+                  "quantity": {
+                    "anyOf": [
+                      {
+                        "type": "number"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The quantity stated in the record. Use null if not stated."
+                  },
+                  "record_id": {
+                    "description": "The record heading as written, such as 'Record 001'.",
+                    "type": "string"
+                  },
+                  "source_page": {
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "The page on which the record appears. Use null if not identifiable."
+                  }
+                },
+                "required": [
+                  "record_id",
+                  "item",
+                  "quantity",
+                  "price",
+                  "date",
+                  "source_page",
+                  "notes"
+                ],
+                "type": "object"
+              },
+              "type": "array"
+            }
+          },
+          "required": [
+            "contains_no_content_of_requested_type",
+            "entries"
+          ],
+          "type": "object"
+        },
+        "strict": true,
+        "type": "json_schema"
+      }
+    },
+    "top_p": 1.0
+  },
+  "submission_id": "<submission-4>"
+}
+## submissions
+{
+  "batch_id": "<openai-batch-1>",
+  "counts": null,
+  "error": null,
+  "finalized_at": null,
+  "intent_at": "<datetime>",
+  "last_checked_at": null,
+  "model": "gpt-4o",
+  "part": 1,
+  "provider": "openai",
+  "provider_status": null,
+  "request_count": 2,
+  "run_id": "<run-1>",
+  "status": "cancelled",
+  "submission_id": "<submission-1>",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "upload_ref": "<file-1>"
+}
+{
+  "batch_id": "<anthropic-batch-1>",
+  "counts": null,
+  "error": null,
+  "finalized_at": null,
+  "intent_at": "<datetime>",
+  "last_checked_at": null,
+  "model": "claude-sonnet-4-5",
+  "part": 1,
+  "provider": "anthropic",
+  "provider_status": null,
+  "request_count": 2,
+  "run_id": "<run-2>",
+  "status": "cancelled",
+  "submission_id": "<submission-2>",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "upload_ref": null
+}
+{
+  "batch_id": "<google-batch-1>",
+  "counts": null,
+  "error": null,
+  "finalized_at": null,
+  "intent_at": "<datetime>",
+  "last_checked_at": null,
+  "model": "gemini-2.5-flash",
+  "part": 1,
+  "provider": "google",
+  "provider_status": null,
+  "request_count": 2,
+  "run_id": "<run-3>",
+  "status": "cancelled",
+  "submission_id": "<submission-3>",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "upload_ref": "<file-2>"
+}
+{
+  "batch_id": "<openai-batch-2>",
+  "counts": null,
+  "error": null,
+  "finalized_at": null,
+  "intent_at": "<datetime>",
+  "last_checked_at": null,
+  "model": "gpt-4o",
+  "part": 1,
+  "provider": "openai",
+  "provider_status": null,
+  "request_count": 2,
+  "run_id": "<run-4>",
+  "status": "submitted",
+  "submission_id": "<submission-4>",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "upload_ref": "<file-3>"
+}
+## units
+{
+  "attempts": 0,
+  "content": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 0,
+  "kind": "chunk",
+  "label": "1-17",
+  "model": "gpt-4o",
+  "outcome": null,
+  "provenance": {
+    "chunk_range": [
+      1,
+      17
+    ],
+    "custom_id": "openai_ledger-chunk-1"
+  },
+  "provider": "openai",
+  "response_id": null,
+  "run_id": "<run-1>",
+  "source_index": "1-17",
+  "stale": 0,
+  "status": "pending",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": null,
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 1,
+  "kind": "chunk",
+  "label": "18-35",
+  "model": "gpt-4o",
+  "outcome": null,
+  "provenance": {
+    "chunk_range": [
+      18,
+      35
+    ],
+    "custom_id": "openai_ledger-chunk-2"
+  },
+  "provider": "openai",
+  "response_id": null,
+  "run_id": "<run-1>",
+  "source_index": "18-35",
+  "stale": 0,
+  "status": "pending",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": null,
+  "doc_id": 2,
+  "error": null,
+  "error_type": null,
+  "idx": 0,
+  "kind": "chunk",
+  "label": "1-18",
+  "model": "claude-sonnet-4-5",
+  "outcome": null,
+  "provenance": {
+    "chunk_range": [
+      1,
+      18
+    ],
+    "custom_id": "anthropic_ledger-chunk-1"
+  },
+  "provider": "anthropic",
+  "response_id": null,
+  "run_id": "<run-2>",
+  "source_index": "1-18",
+  "stale": 0,
+  "status": "pending",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": null,
+  "doc_id": 2,
+  "error": null,
+  "error_type": null,
+  "idx": 1,
+  "kind": "chunk",
+  "label": "19-35",
+  "model": "claude-sonnet-4-5",
+  "outcome": null,
+  "provenance": {
+    "chunk_range": [
+      19,
+      35
+    ],
+    "custom_id": "anthropic_ledger-chunk-2"
+  },
+  "provider": "anthropic",
+  "response_id": null,
+  "run_id": "<run-2>",
+  "source_index": "19-35",
+  "stale": 0,
+  "status": "pending",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": null,
+  "doc_id": 3,
+  "error": null,
+  "error_type": null,
+  "idx": 0,
+  "kind": "chunk",
+  "label": "1-18",
+  "model": "gemini-2.5-flash",
+  "outcome": null,
+  "provenance": {
+    "chunk_range": [
+      1,
+      18
+    ],
+    "custom_id": "google_ledger-chunk-1"
+  },
+  "provider": "google",
+  "response_id": null,
+  "run_id": "<run-3>",
+  "source_index": "1-18",
+  "stale": 0,
+  "status": "pending",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": null,
+  "doc_id": 3,
+  "error": null,
+  "error_type": null,
+  "idx": 1,
+  "kind": "chunk",
+  "label": "19-35",
+  "model": "gemini-2.5-flash",
+  "outcome": null,
+  "provenance": {
+    "chunk_range": [
+      19,
+      35
+    ],
+    "custom_id": "google_ledger-chunk-2"
+  },
+  "provider": "google",
+  "response_id": null,
+  "run_id": "<run-3>",
+  "source_index": "19-35",
+  "stale": 0,
+  "status": "pending",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": null,
+  "doc_id": 4,
+  "error": null,
+  "error_type": null,
+  "idx": 0,
+  "kind": "chunk",
+  "label": "1-17",
+  "model": "gpt-4o",
+  "outcome": null,
+  "provenance": {
+    "chunk_range": [
+      1,
+      17
+    ],
+    "custom_id": "done_ledger-chunk-1"
+  },
+  "provider": "openai",
+  "response_id": null,
+  "run_id": "<run-4>",
+  "source_index": "1-17",
+  "stale": 0,
+  "status": "pending",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+{
+  "attempts": 0,
+  "content": null,
+  "doc_id": 4,
+  "error": null,
+  "error_type": null,
+  "idx": 1,
+  "kind": "chunk",
+  "label": "18-35",
+  "model": "gpt-4o",
+  "outcome": null,
+  "provenance": {
+    "chunk_range": [
+      18,
+      35
+    ],
+    "custom_id": "done_ledger-chunk-2"
+  },
+  "provider": "openai",
+  "response_id": null,
+  "run_id": "<run-4>",
+  "source_index": "18-35",
+  "stale": 0,
+  "status": "pending",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": null
+}
+## view entries
+## view chunks
+{
+  "chunk_index": 1,
+  "custom_id": "anthropic_ledger-chunk-1",
+  "document": "anthropic_ledger",
+  "error": null,
+  "error_type": null,
+  "label": "1-18",
+  "model": "claude-sonnet-4-5",
+  "output_text": null,
+  "provider": "anthropic",
+  "run_id": "<run-2>",
+  "source_index": "1-18",
+  "stale": 0,
+  "status": "pending",
+  "usage": null
+}
+{
+  "chunk_index": 2,
+  "custom_id": "anthropic_ledger-chunk-2",
+  "document": "anthropic_ledger",
+  "error": null,
+  "error_type": null,
+  "label": "19-35",
+  "model": "claude-sonnet-4-5",
+  "output_text": null,
+  "provider": "anthropic",
+  "run_id": "<run-2>",
+  "source_index": "19-35",
+  "stale": 0,
+  "status": "pending",
+  "usage": null
+}
+{
+  "chunk_index": 1,
+  "custom_id": "done_ledger-chunk-1",
+  "document": "done_ledger",
+  "error": null,
+  "error_type": null,
+  "label": "1-17",
+  "model": "gpt-4o",
+  "output_text": null,
+  "provider": "openai",
+  "run_id": "<run-4>",
+  "source_index": "1-17",
+  "stale": 0,
+  "status": "pending",
+  "usage": null
+}
+{
+  "chunk_index": 2,
+  "custom_id": "done_ledger-chunk-2",
+  "document": "done_ledger",
+  "error": null,
+  "error_type": null,
+  "label": "18-35",
+  "model": "gpt-4o",
+  "output_text": null,
+  "provider": "openai",
+  "run_id": "<run-4>",
+  "source_index": "18-35",
+  "stale": 0,
+  "status": "pending",
+  "usage": null
+}
+{
+  "chunk_index": 1,
+  "custom_id": "google_ledger-chunk-1",
+  "document": "google_ledger",
+  "error": null,
+  "error_type": null,
+  "label": "1-18",
+  "model": "gemini-2.5-flash",
+  "output_text": null,
+  "provider": "google",
+  "run_id": "<run-3>",
+  "source_index": "1-18",
+  "stale": 0,
+  "status": "pending",
+  "usage": null
+}
+{
+  "chunk_index": 2,
+  "custom_id": "google_ledger-chunk-2",
+  "document": "google_ledger",
+  "error": null,
+  "error_type": null,
+  "label": "19-35",
+  "model": "gemini-2.5-flash",
+  "output_text": null,
+  "provider": "google",
+  "run_id": "<run-3>",
+  "source_index": "19-35",
+  "stale": 0,
+  "status": "pending",
+  "usage": null
+}
+{
+  "chunk_index": 1,
+  "custom_id": "openai_ledger-chunk-1",
+  "document": "openai_ledger",
+  "error": null,
+  "error_type": null,
+  "label": "1-17",
+  "model": "gpt-4o",
+  "output_text": null,
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "1-17",
+  "stale": 0,
+  "status": "pending",
+  "usage": null
+}
+{
+  "chunk_index": 2,
+  "custom_id": "openai_ledger-chunk-2",
+  "document": "openai_ledger",
+  "error": null,
+  "error_type": null,
+  "label": "18-35",
+  "model": "gpt-4o",
+  "output_text": null,
+  "provider": "openai",
+  "run_id": "<run-1>",
+  "source_index": "18-35",
+  "stale": 0,
+  "status": "pending",
+  "usage": null
+}
+## view ranges

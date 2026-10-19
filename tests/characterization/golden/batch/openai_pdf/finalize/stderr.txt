@@ -1,0 +1,3 @@
+[INFO] Scanning '<tmp>/out' for batch submissions...
+[SUCCESS] Finalized out/chronominer.sqlite: submission <submission-1> (openai batch <openai-batch-1>) -> book_output.json, book_output.csv
+[INFO] Batch check: 1 finalized, 0 pending, 0 failed, 0 unresolved.

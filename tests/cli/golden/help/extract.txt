@@ -1,0 +1,129 @@
+usage: chronominer extract --schema NAME|PATH --input PATH [options]
+
+Extract the entries a schema describes from text files, images and PDFs; resumes earlier runs
+unless --force is given.
+
+options:
+  -h, --help            show this help message and exit
+
+input:
+  --input PATH          text (.txt, .md), image or PDF file, or a folder of these
+  --type {auto,text,images,pdf}
+                        input type; auto takes the text, image and PDF files of a folder and
+                        detects a file's type by its extension; default: auto
+  --select EXPR         select items by number (1,3), range (1-5) or name search
+  --all                 process every discovered item
+  --files LIST          comma-separated names of files inside the input folder
+  --recursive, --no-recursive
+                        search the subfolders of the input folder; default: off
+  --pages RANGE         chunks (PDF pages, line ranges): 5, first:5, last:5, 3-7, 3-, -7 or
+                        1,3,5-8; default: all
+
+output:
+  --output DIR          output folder; default: beside the input
+  --beside-input        write outputs beside each input
+  --layout {flat,mirror}
+                        output folder layout: flat (every output in the output folder) or mirror
+                        (the input folder tree); default: flat
+  --formats LIST        comma-separated formats rendered besides {stem}_output.json and
+                        chronominer.sqlite; from csv; default: none
+
+schema and context:
+  --schema NAME|PATH    extraction schema: a file path, a file name in schemas/ without .json, or
+                        the name field of a schema there; default: required
+  --context TEXT|PATH|auto|none
+                        extraction context: topics as text or a path to a text file (overrides
+                        sidecars), auto (the input's {stem}_extract_context.txt, else the folder's
+                        context file) or none; default: auto
+  --fallback-context TEXT|PATH|none
+                        extraction context for inputs without a sidecar under --context auto:
+                        topics as text, a path to a text file, or none; default: none
+  --context-image PATH|auto|none
+                        image sent with every chunk: an image file, auto (the input's
+                        {stem}_extract_context image) or none; default: none
+
+chunking:
+  --chunking {auto,line-ranges,adjust}
+                        text chunking: auto (by --chunk-tokens), line-ranges (the input's
+                        {stem}_line_ranges.txt) or adjust (line ranges whose boundaries the model
+                        moves first); adjust rewrites that file beside the input, not under
+                        --output; default: auto
+  --chunk-tokens N      target tokens per text chunk, also for line ranges written anew; default:
+                        3500
+  --context-window N    lines around each range boundary sent to the model; default: 6; only for
+                        chunking adjust
+
+model:
+  --provider {openai,anthropic,google,openrouter,custom}
+                        model provider; default: inferred from the model name
+  --model NAME          model name; a provider: prefix (anthropic:NAME) selects the provider;
+                        default: gpt-6-luna
+  --endpoint NAME       named custom endpoint from the settings (implies provider custom);
+                        default: none
+  --reasoning-effort {none,minimal,low,medium,high,xhigh,max}
+                        reasoning effort; default: xhigh
+  --verbosity {low,medium,high}
+                        output verbosity; default: medium
+  --max-output-tokens N
+                        maximum output tokens; default: the model's output limit
+  --temperature T       sampling temperature, 0.0 to 2.0; default: 1.0
+  --top-p P             nucleus sampling, 0.0 to 1.0; sent only when supported; default: 1.0
+  --service-tier {auto,default,flex,priority}
+                        OpenAI service tier; default: default; only for provider openai
+  --response-format {schema,json}
+                        schema (API-enforced) or json (prompted, validated); default: schema when
+                        the model supports it, else json
+
+images:
+  --dpi native|N        render resolution: native or a DPI value; default: the provider's
+                        recommended value
+  --image-detail {low,high,auto,original}
+                        image detail sent to the model; default: the provider's recommended value
+  --image-format {jpeg,png}
+                        page image format; default: the provider's recommended value
+  --jpeg-quality N      JPEG quality, 1 to 100; default: the provider's recommended value
+  --grayscale, --no-grayscale
+                        convert page images to grayscale; default: the provider's recommended
+                        value
+
+run control:
+  --batch, --no-batch   submit the chunks to the provider's batch API; default: off
+  --force               extract inputs again from the start: every stored unit of the input is
+                        reset, also outside --pages; stored responses are kept
+  --concurrency N       parallel requests; default: 16
+  --dry-run             plan without API calls or writes
+  --json                print one JSON summary line on stdout
+  --settings FILE       alternate settings file; default: config/settings.yaml
+
+Precedence: a flag wins over the settings defaults: block, which wins over the code default.
+--settings FILE reads another settings file instead of config/settings.yaml.
+
+Exit codes:
+  0    every item completed or, under --batch, was submitted, or
+       nothing was left to do
+  1    an item failed (refused items included), or another run
+       leases one (a killed run keeps its lease until it expires)
+  2    usage or configuration error, no item found, several items
+       without --all, --select or --files, or a --select that
+       matches nothing
+  130  interrupted (Ctrl+C or Ctrl+Break)
+
+With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and
+errors go to stderr.
+
+Examples:
+  Extract the price lists of one text file:
+    chronominer extract --schema price_list_entries --input list.txt
+      --output out
+  Every text, image and PDF file of a folder, with a CSV view:
+    chronominer extract --schema wage_records --input sources --all
+      --output out --formats csv
+  The first three images of a folder:
+    chronominer extract --schema census_households --input scans
+      --type images --select 1-3
+  Text chunks from the line ranges beside each input:
+    chronominer extract --schema trade_records --input ledger.txt
+      --chunking line-ranges
+  Plan a run without API calls and print the summary as JSON:
+    chronominer extract --schema price_list_entries --input sources --all
+      --dry-run --json

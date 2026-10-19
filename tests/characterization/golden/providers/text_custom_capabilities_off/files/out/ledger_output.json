@@ -1,0 +1,182 @@
+{
+  "_chronominer_metadata": {
+    "chunking_method": "auto",
+    "chunking_text_version": 2,
+    "document_total_chunks": 4,
+    "model_name": "org/fake-model",
+    "schema_name": "FlatEntries",
+    "timestamp": "<timestamp>",
+    "total_chunks": 4,
+    "version": 1
+  },
+  "records": [
+    {
+      "chunk_index": 1,
+      "chunk_range": [
+        1,
+        18
+      ],
+      "custom_id": "ledger-chunk-1",
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date record-0",
+              "item": "item record-0",
+              "notes": "notes record-0",
+              "price": 1.5,
+              "quantity": 1.5,
+              "record_id": "record_id record-0",
+              "source_page": "source_page record-0"
+            }
+          ]
+        },
+        "response_data": {
+          "model": "org/fake-model",
+          "provider": "custom",
+          "usage": {
+            "cached_tokens": 0,
+            "input_tokens": 1500,
+            "output_tokens": 400,
+            "reasoning_tokens": 0,
+            "total_tokens": 1900
+          }
+        },
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 1500,
+          "output_tokens": 400,
+          "reasoning_tokens": 0,
+          "total_tokens": 1900
+        }
+      }
+    },
+    {
+      "chunk_index": 2,
+      "chunk_range": [
+        19,
+        36
+      ],
+      "custom_id": "ledger-chunk-2",
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date record-3",
+              "item": "item record-3",
+              "notes": "notes record-3",
+              "price": 4.5,
+              "quantity": 4.5,
+              "record_id": "record_id record-3",
+              "source_page": "source_page record-3"
+            }
+          ]
+        },
+        "response_data": {
+          "model": "org/fake-model",
+          "provider": "custom",
+          "usage": {
+            "cached_tokens": 0,
+            "input_tokens": 1500,
+            "output_tokens": 400,
+            "reasoning_tokens": 0,
+            "total_tokens": 1900
+          }
+        },
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 1500,
+          "output_tokens": 400,
+          "reasoning_tokens": 0,
+          "total_tokens": 1900
+        }
+      }
+    },
+    {
+      "chunk_index": 3,
+      "chunk_range": [
+        37,
+        54
+      ],
+      "custom_id": "ledger-chunk-3",
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date record-6",
+              "item": "item record-6",
+              "notes": "notes record-6",
+              "price": 7.5,
+              "quantity": 7.5,
+              "record_id": "record_id record-6",
+              "source_page": "source_page record-6"
+            }
+          ]
+        },
+        "response_data": {
+          "model": "org/fake-model",
+          "provider": "custom",
+          "usage": {
+            "cached_tokens": 0,
+            "input_tokens": 1500,
+            "output_tokens": 400,
+            "reasoning_tokens": 0,
+            "total_tokens": 1900
+          }
+        },
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 1500,
+          "output_tokens": 400,
+          "reasoning_tokens": 0,
+          "total_tokens": 1900
+        }
+      }
+    },
+    {
+      "chunk_index": 4,
+      "chunk_range": [
+        55,
+        71
+      ],
+      "custom_id": "ledger-chunk-4",
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date record-9",
+              "item": "item record-9",
+              "notes": "notes record-9",
+              "price": 10.5,
+              "quantity": 10.5,
+              "record_id": "record_id record-9",
+              "source_page": "source_page record-9"
+            }
+          ]
+        },
+        "response_data": {
+          "model": "org/fake-model",
+          "provider": "custom",
+          "usage": {
+            "cached_tokens": 0,
+            "input_tokens": 1500,
+            "output_tokens": 400,
+            "reasoning_tokens": 0,
+            "total_tokens": 1900
+          }
+        },
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 1500,
+          "output_tokens": 400,
+          "reasoning_tokens": 0,
+          "total_tokens": 1900
+        }
+      }
+    }
+  ]
+}

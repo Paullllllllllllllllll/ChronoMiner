@@ -1,0 +1,112 @@
+{
+  "name": "ProbateInventories",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "description": "Probate and estate inventories that list the goods of a deceased person with appraised values.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no probate inventory. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "decedent": {
+              "type": "string",
+              "description": "The name of the deceased person, as written."
+            },
+            "decedent_occupation": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The occupation or status of the deceased person. Use null if not stated."
+            },
+            "date": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The date of the inventory or of the death, as written. Use null if the source gives no date."
+            },
+            "place": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The place where the inventory was taken. Use null if not stated."
+            },
+            "currency": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The currency or monetary unit of the appraised values, as written. Use null if not stated."
+            },
+            "items": {
+              "type": "array",
+              "description": "The inventoried goods in the order of the source.",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "description": {
+                    "type": "string",
+                    "description": "The good as described in the source. Example: 'one oak table'."
+                  },
+                  "quantity": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": "null" }
+                    ],
+                    "description": "The number of units listed. Use null if not stated."
+                  },
+                  "appraised_value": {
+                    "anyOf": [
+                      { "type": "number" },
+                      { "type": "null" }
+                    ],
+                    "description": "The appraised value of the line as a decimal number. Use null if not stated."
+                  }
+                },
+                "required": ["description", "quantity", "appraised_value"],
+                "additionalProperties": false
+              }
+            },
+            "source_page": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The page or folio on which the inventory begins. Use null if not identifiable."
+            },
+            "notes": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Remarks about the inventory, such as the appraisers or an uncertain reading. Use null if there are none."
+            }
+          },
+          "required": [
+            "decedent",
+            "decedent_occupation",
+            "date",
+            "place",
+            "currency",
+            "items",
+            "source_page",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

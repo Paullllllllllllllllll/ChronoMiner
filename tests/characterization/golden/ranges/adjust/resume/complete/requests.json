@@ -1,0 +1,33 @@
+{
+  "calls": [],
+  "models": [
+    {
+      "constructor": "ChatOpenAI",
+      "kwargs": {
+        "api_key": "<env:OPENAI_API_KEY>",
+        "disabled_params": {
+          "frequency_penalty": null,
+          "presence_penalty": null
+        },
+        "http_async_client": "<_DefaultAsyncHttpxClient>",
+        "http_client": "<_DefaultHttpxClient>",
+        "max_retries": 0,
+        "max_tokens": 4096,
+        "model": "gpt-4o",
+        "temperature": 0.0,
+        "timeout": {
+          "httpx.Timeout": {
+            "connect": 10.0,
+            "pool": 30.0,
+            "read": 60.0,
+            "write": 30.0
+          }
+        },
+        "top_p": 1.0,
+        "use_responses_api": true
+      },
+      "provider": "openai"
+    }
+  ],
+  "prompts": {}
+}

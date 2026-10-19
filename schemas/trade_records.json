@@ -1,0 +1,95 @@
+{
+  "name": "TradeRecords",
+  "schema_version": "1.0",
+  "type": "json_schema",
+  "strict": true,
+  "description": "Port books, customs ledgers and merchant accounts that record goods moved by a vessel or merchant.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "contains_no_content_of_requested_type": {
+        "type": "boolean",
+        "description": "Set to true if the input text contains no trade records. Otherwise, set to false."
+      },
+      "entries": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "vessel_or_merchant": {
+              "type": "string",
+              "description": "The name of the vessel or of the merchant who shipped or received the goods, as written."
+            },
+            "port": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The port of loading, unloading or registration, as written. Use null if not stated."
+            },
+            "cargo": {
+              "type": "string",
+              "description": "The goods carried, as named in the source. Example: 'raw sugar'."
+            },
+            "quantity": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The quantity with its unit, as written. Example: '40 barrels'. Use null if not stated."
+            },
+            "value": {
+              "anyOf": [
+                { "type": "number" },
+                { "type": "null" }
+              ],
+              "description": "The recorded value of the cargo as a decimal number. Use null if not stated."
+            },
+            "currency": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The currency or monetary unit of the value, as written. Use null if not stated."
+            },
+            "date": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The date of the voyage, arrival or transaction, as written. Use null if the source gives no date."
+            },
+            "source_page": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "The page or folio on which the entry appears. Use null if not identifiable."
+            },
+            "notes": {
+              "anyOf": [
+                { "type": "string" },
+                { "type": "null" }
+              ],
+              "description": "Remarks about the entry, such as the route or an uncertain reading. Use null if there are none."
+            }
+          },
+          "required": [
+            "vessel_or_merchant",
+            "port",
+            "cargo",
+            "quantity",
+            "value",
+            "currency",
+            "date",
+            "source_page",
+            "notes"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": ["contains_no_content_of_requested_type", "entries"],
+    "additionalProperties": false
+  }
+}

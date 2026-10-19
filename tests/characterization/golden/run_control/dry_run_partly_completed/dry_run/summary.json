@@ -1,0 +1,187 @@
+{
+  "exit_code": 0,
+  "json_line": {
+    "blocked": [],
+    "dry_run": true,
+    "items_blocked": 0,
+    "items_complete": 0,
+    "items_failed": 0,
+    "items_skipped": 1,
+    "items_submitted": 0,
+    "items_total": 1,
+    "outputs": [],
+    "refused": [],
+    "skipped": [
+      "alpha.txt"
+    ],
+    "spec": {
+      "chunking.chunk_tokens": {
+        "source": "settings",
+        "value": 160
+      },
+      "chunking.context_window": {
+        "source": "settings",
+        "value": 6
+      },
+      "chunking.mode": {
+        "source": "default",
+        "value": "auto"
+      },
+      "images.detail": {
+        "source": "settings",
+        "value": "high"
+      },
+      "images.dpi": {
+        "source": "settings",
+        "value": 72
+      },
+      "images.format": {
+        "source": "default",
+        "value": null
+      },
+      "images.grayscale": {
+        "source": "settings",
+        "value": true
+      },
+      "images.jpeg_quality": {
+        "source": "settings",
+        "value": 90
+      },
+      "input.all": {
+        "source": "flag",
+        "value": true
+      },
+      "input.files": {
+        "source": "flag",
+        "value": []
+      },
+      "input.pages": {
+        "source": "default",
+        "value": null
+      },
+      "input.path": {
+        "source": "flag",
+        "value": "<tmp>/docs"
+      },
+      "input.recursive": {
+        "source": "flag",
+        "value": true
+      },
+      "input.select": {
+        "source": "flag",
+        "value": null
+      },
+      "input.type": {
+        "source": "default",
+        "value": "auto"
+      },
+      "model.endpoint": {
+        "source": "default",
+        "value": null
+      },
+      "model.max_output_tokens": {
+        "source": "settings",
+        "value": 4096
+      },
+      "model.model": {
+        "source": "settings",
+        "value": "gpt-4o"
+      },
+      "model.provider": {
+        "source": "settings",
+        "value": "openai"
+      },
+      "model.reasoning_effort": {
+        "source": "default",
+        "value": "xhigh"
+      },
+      "model.response_format": {
+        "source": "resolved",
+        "value": "schema"
+      },
+      "model.service_tier": {
+        "source": "default",
+        "value": "default"
+      },
+      "model.temperature": {
+        "source": "settings",
+        "value": 0.0
+      },
+      "model.top_p": {
+        "source": "settings",
+        "value": 1.0
+      },
+      "model.verbosity": {
+        "source": "default",
+        "value": "medium"
+      },
+      "output.directory": {
+        "source": "flag",
+        "value": "out"
+      },
+      "output.formats": {
+        "source": "flag",
+        "value": [
+          "csv"
+        ]
+      },
+      "output.layout": {
+        "source": "default",
+        "value": "flat"
+      },
+      "prompt.context": {
+        "source": "default",
+        "value": null
+      },
+      "prompt.context_image": {
+        "source": "default",
+        "value": "none"
+      },
+      "prompt.fallback_context": {
+        "source": "default",
+        "value": null
+      },
+      "prompt.schema": {
+        "source": "flag",
+        "value": "FlatEntries"
+      },
+      "run.batch": {
+        "source": "default",
+        "value": false
+      },
+      "run.concurrency": {
+        "source": "settings",
+        "value": 1
+      },
+      "run.dry_run": {
+        "source": "flag",
+        "value": true
+      },
+      "run.force": {
+        "source": "default",
+        "value": false
+      },
+      "run.json": {
+        "source": "flag",
+        "value": true
+      }
+    },
+    "to_process": [
+      {
+        "name": "beta.txt",
+        "state": "none",
+        "type": "text"
+      }
+    ],
+    "unstored": [],
+    "usage": {
+      "total": {
+        "cached_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  }
+}

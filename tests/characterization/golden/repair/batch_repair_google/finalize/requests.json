@@ -1,0 +1,46 @@
+{
+  "batch": {
+    "calls": [
+      {
+        "call": "google.batches.get",
+        "name": "<google-batch-1>"
+      },
+      {
+        "call": "google.batches.get",
+        "name": "<google-batch-1>"
+      },
+      {
+        "call": "google.files.download",
+        "file": "<file-2>"
+      },
+      {
+        "call": "google.batches.get",
+        "name": "<google-batch-1>"
+      },
+      {
+        "call": "google.files.delete",
+        "name": "<file-1>"
+      },
+      {
+        "call": "google.files.delete",
+        "name": "<file-2>"
+      }
+    ],
+    "clients": [
+      {
+        "kwargs": {
+          "api_key": "<env:GOOGLE_API_KEY>",
+          "http_options": {
+            "timeout": 60000
+          }
+        },
+        "provider": "google"
+      }
+    ],
+    "prompts": {},
+    "requests": []
+  },
+  "calls": [],
+  "models": [],
+  "prompts": {}
+}

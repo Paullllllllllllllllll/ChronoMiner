@@ -1,0 +1,26 @@
+{
+  "batch": {
+    "calls": [
+      {
+        "call": "google.batches.get",
+        "name": "<google-batch-1>"
+      }
+    ],
+    "clients": [
+      {
+        "kwargs": {
+          "api_key": "<env:GOOGLE_API_KEY>",
+          "http_options": {
+            "timeout": 60000
+          }
+        },
+        "provider": "google"
+      }
+    ],
+    "prompts": {},
+    "requests": []
+  },
+  "calls": [],
+  "models": [],
+  "prompts": {}
+}

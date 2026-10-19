@@ -1,0 +1,13 @@
+<utf-8 bom>record_id,item,quantity,price,date,source_page,notes
+record_id record-0,item record-0,1.5,1.5,date record-0,source_page record-0,notes record-0
+record_id record-2,item record-2,3.5,3.5,date record-2,source_page record-2,notes record-2
+record_id record-3,item record-3,4.5,4.5,date record-3,source_page record-3,notes record-3
+record_id record-4,item record-4,5.5,5.5,date record-4,source_page record-4,notes record-4
+record_id record-5,item record-5,6.5,6.5,date record-5,source_page record-5,notes record-5
+record_id record-6,item record-6,7.5,7.5,date record-6,source_page record-6,notes record-6
+record_id record-7,item record-7,8.5,8.5,date record-7,source_page record-7,notes record-7
+record_id record-8,item record-8,9.5,9.5,date record-8,source_page record-8,notes record-8
+record_id record-9,item record-9,10.5,10.5,date record-9,source_page record-9,notes record-9
+record_id record-10,item record-10,11.5,11.5,date record-10,source_page record-10,notes record-10
+record_id record-11,item record-11,12.5,12.5,date record-11,source_page record-11,notes record-11
+record_id unit,item unit,1.5,1.5,date unit,source_page unit,notes unit

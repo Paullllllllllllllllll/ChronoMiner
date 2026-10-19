@@ -1,0 +1,1323 @@
+## artifacts
+{
+  "created_at": "<timestamp>",
+  "kind": "prompt",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "text": "<text: 1230 chars>"
+}
+{
+  "created_at": "<timestamp>",
+  "kind": "schema",
+  "run_id": "<run-1>",
+  "sha256": "<sha256>",
+  "text": "<text: 2210 chars>"
+}
+## document_meta
+{
+  "doc_id": 1,
+  "metadata": {
+    "chunking_method": "pages",
+    "image_provenance": {
+      "cap_policy": "profile-v1",
+      "detail": "high",
+      "image_config": {
+        "cap_policy": "profile-v1",
+        "detail": "high",
+        "grayscale_conversion": true,
+        "handle_transparency": true,
+        "high_target_box": [
+          768,
+          1536
+        ],
+        "image_high_res_tier": false,
+        "image_original_patch_cap_30k": false,
+        "jpeg_quality": 90,
+        "low_max_side_px": 512,
+        "max_image_bytes": 20000000,
+        "max_pixels_per_page": 24000000,
+        "media_resolution": "high",
+        "model_name": "gemini-2.5-flash",
+        "native_fallback_dpi": 300,
+        "payload_format": "jpeg",
+        "provider": "google",
+        "render_strategy": "direct",
+        "resize_profile": "high",
+        "resolved_detail": "high",
+        "target_dpi": 72
+      },
+      "image_settings_fingerprint": "c73398d2d4b4033f4b90faff06d18a1bac7a774dc76f9ed8045b39f1dbf6bff5",
+      "model_name": "gemini-2.5-flash",
+      "model_type": "google",
+      "pillow_version": "<version>",
+      "pymupdf_version": "<version>",
+      "source_file": "book.pdf",
+      "source_sha256": "<sha256>"
+    },
+    "model_name": "gemini-2.5-flash",
+    "schema_name": "FlatEntries"
+  },
+  "run_id": "<run-1>",
+  "schema_sha256": "ff1e47033cdedea26aadcdcbea0624e08673a5dc4b54ab95bd1e824529da6dfd",
+  "updated_at": "<datetime>"
+}
+## documents
+{
+  "doc_id": 1,
+  "first_run_id": "<run-1>",
+  "image_settings": {
+    "cap_policy": "profile-v1",
+    "detail": "high",
+    "grayscale_conversion": true,
+    "handle_transparency": true,
+    "high_target_box": [
+      768,
+      1536
+    ],
+    "image_high_res_tier": false,
+    "image_original_patch_cap_30k": false,
+    "jpeg_quality": 90,
+    "low_max_side_px": 512,
+    "max_image_bytes": 20000000,
+    "max_pixels_per_page": 24000000,
+    "media_resolution": "high",
+    "model_name": "gemini-2.5-flash",
+    "model_type": "google",
+    "native_fallback_dpi": 300,
+    "payload_format": "jpeg",
+    "provider": "google",
+    "render_strategy": "direct",
+    "resize_profile": "high",
+    "resolved_detail": "high",
+    "target_dpi": 72
+  },
+  "input_path": "<tmp>/docs/book.pdf",
+  "input_sha256": "<sha256>",
+  "kind": "pdf",
+  "last_run_id": "<run-3>",
+  "lease_generation": "<generation>",
+  "lease_run_id": null,
+  "lease_until": null,
+  "name": "book",
+  "status": "complete",
+  "tool": "chronominer",
+  "units_done": 2,
+  "units_failed": 0,
+  "units_pending": 0,
+  "units_total": 2,
+  "updated_at": "<datetime>"
+}
+## entry_rows
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date page-0",
+    "item": "item page-0",
+    "notes": "notes page-0",
+    "price": 1.5,
+    "quantity": 1.5,
+    "record_id": "record_id page-0",
+    "source_page": "source_page page-0"
+  },
+  "entry_index": 0,
+  "f_date": "date page-0",
+  "f_item": "item page-0",
+  "f_notes": "notes page-0",
+  "f_price": 1.5,
+  "f_quantity": 1.5,
+  "f_record_id": "record_id page-0",
+  "f_source_page": "source_page page-0",
+  "idx": 0,
+  "kind": "chunk",
+  "model": "gemini-2.5-flash",
+  "provider": "google",
+  "run_id": "<run-3>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+{
+  "doc_id": 1,
+  "entry": {
+    "date": "date page-1",
+    "item": "item page-1",
+    "notes": "notes page-1",
+    "price": 2.5,
+    "quantity": 2.5,
+    "record_id": "record_id page-1",
+    "source_page": "source_page page-1"
+  },
+  "entry_index": 0,
+  "f_date": "date page-1",
+  "f_item": "item page-1",
+  "f_notes": "notes page-1",
+  "f_price": 2.5,
+  "f_quantity": 2.5,
+  "f_record_id": "record_id page-1",
+  "f_source_page": "source_page page-1",
+  "idx": 1,
+  "kind": "chunk",
+  "model": "gemini-2.5-flash",
+  "provider": "google",
+  "run_id": "<run-3>",
+  "schema_name": "FlatEntries",
+  "tool": "chronominer"
+}
+## meta
+{
+  "component": "chronominer",
+  "version": 1
+}
+{
+  "component": "core",
+  "version": 2
+}
+## notes
+## outputs
+{
+  "doc_id": 1,
+  "format": "csv",
+  "path": "book_output.csv",
+  "rendered_at": "<datetime>",
+  "run_id": "<run-3>",
+  "sha256": "<sha256>",
+  "stale": 0
+}
+{
+  "doc_id": 1,
+  "format": "json",
+  "path": "book_output.json",
+  "rendered_at": "<datetime>",
+  "run_id": "<run-3>",
+  "sha256": "<sha256>",
+  "stale": 0
+}
+## responses
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": "<submission-1>-00000",
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 0,
+  "kind": "chunk",
+  "latency": null,
+  "model": "gemini-2.5-flash",
+  "provider": "google",
+  "raw": {
+    "key": "<submission-1>-00000",
+    "response": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": {
+                  "contains_no_content_of_requested_type": false,
+                  "entries": [
+                    {
+                      "date": "date page-0",
+                      "item": "item page-0",
+                      "notes": "notes page-0",
+                      "price": 1.5,
+                      "quantity": 1.5,
+                      "record_id": "record_id page-0",
+                      "source_page": "source_page page-0"
+                    }
+                  ]
+                }
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP"
+        }
+      ],
+      "usageMetadata": {
+        "candidatesTokenCount": 400,
+        "promptTokenCount": 1500,
+        "totalTokenCount": 1900
+      }
+    }
+  },
+  "raw_kind": "line",
+  "request": {
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "Extract structured data from this image according to the schema."
+          },
+          {
+            "inline_data": {
+              "data": "<omitted base64, 18880 chars>",
+              "mime_type": "image/jpeg"
+            }
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "generation_config": {
+      "max_output_tokens": 4096,
+      "response_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contains_no_content_of_requested_type": {
+            "description": "Set to true if the input contains no records. Otherwise, set to false.",
+            "type": "boolean"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "date": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The date of the record as written. Use null if not stated."
+                },
+                "item": {
+                  "description": "The item named in the record.",
+                  "type": "string"
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Remarks about the record. Use null if there are none."
+                },
+                "price": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The price stated in the record. Use null if not stated."
+                },
+                "quantity": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The quantity stated in the record. Use null if not stated."
+                },
+                "record_id": {
+                  "description": "The record heading as written, such as 'Record 001'.",
+                  "type": "string"
+                },
+                "source_page": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The page on which the record appears. Use null if not identifiable."
+                }
+              },
+              "required": [
+                "record_id",
+                "item",
+                "quantity",
+                "price",
+                "date",
+                "source_page",
+                "notes"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "contains_no_content_of_requested_type",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "response_mime_type": "application/json",
+      "temperature": 0.0,
+      "thinking_config": {
+        "thinking_budget": 2048
+      },
+      "top_p": 1.0
+    },
+    "system_instruction": {
+      "parts": [
+        {
+          "text": "<text: 2434 chars>"
+        }
+      ]
+    }
+  },
+  "response_id": 1,
+  "role": "extract",
+  "run_id": "<run-3>",
+  "submission_id": "<submission-1>",
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempt": 1,
+  "created_at": "<timestamp>",
+  "custom_id": "<submission-1>-00001",
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "http_status": null,
+  "idx": 1,
+  "kind": "chunk",
+  "latency": null,
+  "model": "gemini-2.5-flash",
+  "provider": "google",
+  "raw": {
+    "key": "<submission-1>-00001",
+    "response": {
+      "candidates": [
+        {
+          "content": {
+            "parts": [
+              {
+                "text": {
+                  "contains_no_content_of_requested_type": false,
+                  "entries": [
+                    {
+                      "date": "date page-1",
+                      "item": "item page-1",
+                      "notes": "notes page-1",
+                      "price": 2.5,
+                      "quantity": 2.5,
+                      "record_id": "record_id page-1",
+                      "source_page": "source_page page-1"
+                    }
+                  ]
+                }
+              }
+            ],
+            "role": "model"
+          },
+          "finishReason": "STOP"
+        }
+      ],
+      "usageMetadata": {
+        "candidatesTokenCount": 400,
+        "promptTokenCount": 1500,
+        "totalTokenCount": 1900
+      }
+    }
+  },
+  "raw_kind": "line",
+  "request": {
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "Extract structured data from this image according to the schema."
+          },
+          {
+            "inline_data": {
+              "data": "<omitted base64, 18880 chars>",
+              "mime_type": "image/jpeg"
+            }
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "generation_config": {
+      "max_output_tokens": 4096,
+      "response_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contains_no_content_of_requested_type": {
+            "description": "Set to true if the input contains no records. Otherwise, set to false.",
+            "type": "boolean"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "date": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The date of the record as written. Use null if not stated."
+                },
+                "item": {
+                  "description": "The item named in the record.",
+                  "type": "string"
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Remarks about the record. Use null if there are none."
+                },
+                "price": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The price stated in the record. Use null if not stated."
+                },
+                "quantity": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The quantity stated in the record. Use null if not stated."
+                },
+                "record_id": {
+                  "description": "The record heading as written, such as 'Record 001'.",
+                  "type": "string"
+                },
+                "source_page": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The page on which the record appears. Use null if not identifiable."
+                }
+              },
+              "required": [
+                "record_id",
+                "item",
+                "quantity",
+                "price",
+                "date",
+                "source_page",
+                "notes"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "contains_no_content_of_requested_type",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "response_mime_type": "application/json",
+      "temperature": 0.0,
+      "thinking_config": {
+        "thinking_budget": 2048
+      },
+      "top_p": 1.0
+    },
+    "system_instruction": {
+      "parts": [
+        {
+          "text": "<text: 2434 chars>"
+        }
+      ]
+    }
+  },
+  "response_id": 2,
+  "role": "extract",
+  "run_id": "<run-3>",
+  "submission_id": "<submission-1>",
+  "tool": "chronominer",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+## runs
+{
+  "command": "extract",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-1>",
+  "settings_fingerprint": null,
+  "spec": {
+    "chunking.chunk_tokens": {
+      "source": "settings",
+      "value": 160
+    },
+    "chunking.context_window": {
+      "source": "settings",
+      "value": 6
+    },
+    "chunking.mode": {
+      "source": "default",
+      "value": "auto"
+    },
+    "images.detail": {
+      "source": "settings",
+      "value": "high"
+    },
+    "images.dpi": {
+      "source": "settings",
+      "value": 72
+    },
+    "images.format": {
+      "source": "default",
+      "value": null
+    },
+    "images.grayscale": {
+      "source": "settings",
+      "value": true
+    },
+    "images.jpeg_quality": {
+      "source": "settings",
+      "value": 90
+    },
+    "input.all": {
+      "source": "default",
+      "value": false
+    },
+    "input.files": {
+      "source": "default",
+      "value": []
+    },
+    "input.pages": {
+      "source": "default",
+      "value": null
+    },
+    "input.path": {
+      "source": "flag",
+      "value": "<tmp>/docs/book.pdf"
+    },
+    "input.recursive": {
+      "source": "default",
+      "value": false
+    },
+    "input.select": {
+      "source": "default",
+      "value": null
+    },
+    "input.type": {
+      "source": "default",
+      "value": "auto"
+    },
+    "model.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "model.max_output_tokens": {
+      "source": "settings",
+      "value": 4096
+    },
+    "model.model": {
+      "source": "flag",
+      "value": "gemini-2.5-flash"
+    },
+    "model.provider": {
+      "source": "flag",
+      "value": "google"
+    },
+    "model.reasoning_effort": {
+      "source": "default",
+      "value": "xhigh"
+    },
+    "model.response_format": {
+      "source": "default",
+      "value": null
+    },
+    "model.service_tier": {
+      "source": "default",
+      "value": "default"
+    },
+    "model.temperature": {
+      "source": "settings",
+      "value": 0.0
+    },
+    "model.top_p": {
+      "source": "settings",
+      "value": 1.0
+    },
+    "model.verbosity": {
+      "source": "default",
+      "value": "medium"
+    },
+    "output.directory": {
+      "source": "flag",
+      "value": "<tmp>/out"
+    },
+    "output.formats": {
+      "source": "flag",
+      "value": [
+        "csv"
+      ]
+    },
+    "output.layout": {
+      "source": "default",
+      "value": "flat"
+    },
+    "prompt.context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.context_image": {
+      "source": "default",
+      "value": "none"
+    },
+    "prompt.fallback_context": {
+      "source": "default",
+      "value": null
+    },
+    "prompt.schema": {
+      "source": "flag",
+      "value": "FlatEntries"
+    },
+    "run.batch": {
+      "source": "flag",
+      "value": true
+    },
+    "run.concurrency": {
+      "source": "settings",
+      "value": 1
+    },
+    "run.dry_run": {
+      "source": "default",
+      "value": false
+    },
+    "run.force": {
+      "source": "default",
+      "value": false
+    },
+    "run.json": {
+      "source": "flag",
+      "value": true
+    }
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+{
+  "command": "batch check",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-2>",
+  "settings_fingerprint": null,
+  "spec": {
+    "batch_ids": [],
+    "directory": "<tmp>/out",
+    "formats": [
+      "csv"
+    ],
+    "schema": null
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+{
+  "command": "batch check",
+  "ended_at": "<datetime>",
+  "exit_code": 0,
+  "run_id": "<run-3>",
+  "settings_fingerprint": null,
+  "spec": {
+    "batch_ids": [],
+    "directory": "<tmp>/out",
+    "formats": [
+      "csv"
+    ],
+    "schema": null
+  },
+  "started_at": "<datetime>",
+  "tool": "chronominer",
+  "tool_version": "<version>"
+}
+## submission_requests
+{
+  "custom_id": "<submission-1>-00000",
+  "doc_id": 1,
+  "idx": 0,
+  "kind": "chunk",
+  "request": {
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "Extract structured data from this image according to the schema."
+          },
+          {
+            "inline_data": {
+              "data": "<omitted base64, 18880 chars>",
+              "mime_type": "image/jpeg"
+            }
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "generation_config": {
+      "max_output_tokens": 4096,
+      "response_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contains_no_content_of_requested_type": {
+            "description": "Set to true if the input contains no records. Otherwise, set to false.",
+            "type": "boolean"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "date": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The date of the record as written. Use null if not stated."
+                },
+                "item": {
+                  "description": "The item named in the record.",
+                  "type": "string"
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Remarks about the record. Use null if there are none."
+                },
+                "price": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The price stated in the record. Use null if not stated."
+                },
+                "quantity": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The quantity stated in the record. Use null if not stated."
+                },
+                "record_id": {
+                  "description": "The record heading as written, such as 'Record 001'.",
+                  "type": "string"
+                },
+                "source_page": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The page on which the record appears. Use null if not identifiable."
+                }
+              },
+              "required": [
+                "record_id",
+                "item",
+                "quantity",
+                "price",
+                "date",
+                "source_page",
+                "notes"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "contains_no_content_of_requested_type",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "response_mime_type": "application/json",
+      "temperature": 0.0,
+      "thinking_config": {
+        "thinking_budget": 2048
+      },
+      "top_p": 1.0
+    },
+    "system_instruction": {
+      "parts": [
+        {
+          "text": "<text: 2434 chars 8e40030f8391>"
+        }
+      ]
+    }
+  },
+  "submission_id": "<submission-1>"
+}
+{
+  "custom_id": "<submission-1>-00001",
+  "doc_id": 1,
+  "idx": 1,
+  "kind": "chunk",
+  "request": {
+    "contents": [
+      {
+        "parts": [
+          {
+            "text": "Extract structured data from this image according to the schema."
+          },
+          {
+            "inline_data": {
+              "data": "<omitted base64, 18880 chars>",
+              "mime_type": "image/jpeg"
+            }
+          }
+        ],
+        "role": "user"
+      }
+    ],
+    "generation_config": {
+      "max_output_tokens": 4096,
+      "response_json_schema": {
+        "additionalProperties": false,
+        "properties": {
+          "contains_no_content_of_requested_type": {
+            "description": "Set to true if the input contains no records. Otherwise, set to false.",
+            "type": "boolean"
+          },
+          "entries": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "date": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The date of the record as written. Use null if not stated."
+                },
+                "item": {
+                  "description": "The item named in the record.",
+                  "type": "string"
+                },
+                "notes": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "Remarks about the record. Use null if there are none."
+                },
+                "price": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The price stated in the record. Use null if not stated."
+                },
+                "quantity": {
+                  "anyOf": [
+                    {
+                      "type": "number"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The quantity stated in the record. Use null if not stated."
+                },
+                "record_id": {
+                  "description": "The record heading as written, such as 'Record 001'.",
+                  "type": "string"
+                },
+                "source_page": {
+                  "anyOf": [
+                    {
+                      "type": "string"
+                    },
+                    {
+                      "type": "null"
+                    }
+                  ],
+                  "description": "The page on which the record appears. Use null if not identifiable."
+                }
+              },
+              "required": [
+                "record_id",
+                "item",
+                "quantity",
+                "price",
+                "date",
+                "source_page",
+                "notes"
+              ],
+              "type": "object"
+            },
+            "type": "array"
+          }
+        },
+        "required": [
+          "contains_no_content_of_requested_type",
+          "entries"
+        ],
+        "type": "object"
+      },
+      "response_mime_type": "application/json",
+      "temperature": 0.0,
+      "thinking_config": {
+        "thinking_budget": 2048
+      },
+      "top_p": 1.0
+    },
+    "system_instruction": {
+      "parts": [
+        {
+          "text": "<text: 2434 chars 8e40030f8391>"
+        }
+      ]
+    }
+  },
+  "submission_id": "<submission-1>"
+}
+## submissions
+{
+  "batch_id": "<google-batch-1>",
+  "counts": {
+    "completed": 2,
+    "failed": 0,
+    "pending": 0,
+    "total": 2
+  },
+  "error": null,
+  "finalized_at": "<datetime>",
+  "intent_at": "<datetime>",
+  "last_checked_at": "<datetime>",
+  "model": "gemini-2.5-flash",
+  "part": 1,
+  "provider": "google",
+  "provider_status": "JOB_STATE_SUCCEEDED",
+  "request_count": 2,
+  "run_id": "<run-1>",
+  "status": "finalized",
+  "submission_id": "<submission-1>",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "upload_ref": "<file-1>"
+}
+## units
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date page-0",
+        "item": "item page-0",
+        "notes": "notes page-0",
+        "price": 1.5,
+        "quantity": 1.5,
+        "record_id": "record_id page-0",
+        "source_page": "source_page page-0"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 0,
+  "kind": "chunk",
+  "label": "page_0001",
+  "model": "gemini-2.5-flash",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": null,
+    "custom_id": "book-page-1",
+    "image_provenance": {
+      "byte_size": "<byte_size>",
+      "cap_policy": "profile-v1",
+      "downscale_reason": "none",
+      "dpi_source": "numeric",
+      "effective_dpi": 72,
+      "format_fallback": false,
+      "height": 1536,
+      "image_sha256": "<sha256>",
+      "mime_type": "image/jpeg",
+      "payload_format": "jpeg",
+      "render_dpi": 72,
+      "sent_dpi": null,
+      "source_dpi_x": 72.0,
+      "source_dpi_y": 72.0,
+      "source_height": 300,
+      "source_width": 200,
+      "width": 768
+    },
+    "response": {
+      "response_data": {
+        "usage": {
+          "input_tokens": 1500,
+          "output_tokens": 400
+        }
+      }
+    }
+  },
+  "provider": "google",
+  "response_id": 1,
+  "run_id": "<run-3>",
+  "source_index": 0,
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "attempts": 1,
+  "content": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date page-1",
+        "item": "item page-1",
+        "notes": "notes page-1",
+        "price": 2.5,
+        "quantity": 2.5,
+        "record_id": "record_id page-1",
+        "source_page": "source_page page-1"
+      }
+    ]
+  },
+  "doc_id": 1,
+  "error": null,
+  "error_type": null,
+  "idx": 1,
+  "kind": "chunk",
+  "label": "page_0002",
+  "model": "gemini-2.5-flash",
+  "outcome": "ok",
+  "provenance": {
+    "chunk_range": null,
+    "custom_id": "book-page-2",
+    "image_provenance": {
+      "byte_size": "<byte_size>",
+      "cap_policy": "profile-v1",
+      "downscale_reason": "none",
+      "dpi_source": "numeric",
+      "effective_dpi": 72,
+      "format_fallback": false,
+      "height": 1536,
+      "image_sha256": "<sha256>",
+      "mime_type": "image/jpeg",
+      "payload_format": "jpeg",
+      "render_dpi": 72,
+      "sent_dpi": null,
+      "source_dpi_x": 72.0,
+      "source_dpi_y": 72.0,
+      "source_height": 300,
+      "source_width": 200,
+      "width": 768
+    },
+    "response": {
+      "response_data": {
+        "usage": {
+          "input_tokens": 1500,
+          "output_tokens": 400
+        }
+      }
+    }
+  },
+  "provider": "google",
+  "response_id": 2,
+  "run_id": "<run-3>",
+  "source_index": 1,
+  "stale": 0,
+  "status": "done",
+  "tool": "chronominer",
+  "updated_at": "<datetime>",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+## view entries
+{
+  "chunk_index": 1,
+  "date": "date page-0",
+  "document": "book",
+  "entry_index": 0,
+  "item": "item page-0",
+  "model": "gemini-2.5-flash",
+  "notes": "notes page-0",
+  "price": 1.5,
+  "provider": "google",
+  "quantity": 1.5,
+  "record_id": "record_id page-0",
+  "run_id": "<run-3>",
+  "schema": "FlatEntries",
+  "source_page": "source_page page-0"
+}
+{
+  "chunk_index": 2,
+  "date": "date page-1",
+  "document": "book",
+  "entry_index": 0,
+  "item": "item page-1",
+  "model": "gemini-2.5-flash",
+  "notes": "notes page-1",
+  "price": 2.5,
+  "provider": "google",
+  "quantity": 2.5,
+  "record_id": "record_id page-1",
+  "run_id": "<run-3>",
+  "schema": "FlatEntries",
+  "source_page": "source_page page-1"
+}
+## view chunks
+{
+  "chunk_index": 1,
+  "custom_id": "book-page-1",
+  "document": "book",
+  "error": null,
+  "error_type": null,
+  "label": "page_0001",
+  "model": "gemini-2.5-flash",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date page-0",
+        "item": "item page-0",
+        "notes": "notes page-0",
+        "price": 1.5,
+        "quantity": 1.5,
+        "record_id": "record_id page-0",
+        "source_page": "source_page page-0"
+      }
+    ]
+  },
+  "provider": "google",
+  "run_id": "<run-3>",
+  "source_index": 0,
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+{
+  "chunk_index": 2,
+  "custom_id": "book-page-2",
+  "document": "book",
+  "error": null,
+  "error_type": null,
+  "label": "page_0002",
+  "model": "gemini-2.5-flash",
+  "output_text": {
+    "contains_no_content_of_requested_type": false,
+    "entries": [
+      {
+        "date": "date page-1",
+        "item": "item page-1",
+        "notes": "notes page-1",
+        "price": 2.5,
+        "quantity": 2.5,
+        "record_id": "record_id page-1",
+        "source_page": "source_page page-1"
+      }
+    ]
+  },
+  "provider": "google",
+  "run_id": "<run-3>",
+  "source_index": 1,
+  "stale": 0,
+  "status": "done",
+  "usage": {
+    "cached_tokens": 0,
+    "input_tokens": 1500,
+    "output_tokens": 400,
+    "reasoning_tokens": 0,
+    "total_tokens": 1900
+  }
+}
+## view ranges

@@ -1,0 +1,107 @@
+{
+  "_chronominer_metadata": {
+    "chunking_method": "pages",
+    "image_provenance": {
+      "cap_policy": "profile-v1",
+      "detail": "low",
+      "image_config": {
+        "cap_policy": "profile-v1",
+        "detail": "low",
+        "grayscale_conversion": true,
+        "handle_transparency": true,
+        "high_target_box": [
+          768,
+          1536
+        ],
+        "image_high_res_tier": false,
+        "image_original_patch_cap_30k": false,
+        "jpeg_quality": 90,
+        "low_max_side_px": 512,
+        "max_image_bytes": 10000000,
+        "max_pixels_per_page": 24000000,
+        "model_name": "claude-sonnet-4-5",
+        "native_fallback_dpi": 300,
+        "payload_format": "jpeg",
+        "provider": "anthropic",
+        "render_strategy": "direct",
+        "resize_profile": "low",
+        "resolved_detail": "low",
+        "target_dpi": 72
+      },
+      "image_settings_fingerprint": "62c9095a4bd5c9f2ece053723524b6c4caf811401099cf04e8fcfa1f1240dc59",
+      "model_name": "claude-sonnet-4-5",
+      "model_type": "anthropic",
+      "pillow_version": "<version>",
+      "pymupdf_version": "<version>",
+      "source_file": "page.png",
+      "source_sha256": "<sha256>"
+    },
+    "model_name": "claude-sonnet-4-5",
+    "schema_name": "FlatEntries",
+    "timestamp": "<timestamp>",
+    "total_chunks": 1,
+    "version": 1
+  },
+  "records": [
+    {
+      "chunk_index": 1,
+      "chunk_range": null,
+      "custom_id": "page-page-1",
+      "image_provenance": {
+        "byte_size": "<byte_size>",
+        "cap_policy": "profile-v1",
+        "downscale_reason": "profile",
+        "dpi_source": "file",
+        "effective_dpi": null,
+        "file_dpi_metadata": null,
+        "format_fallback": false,
+        "height": 512,
+        "image_sha256": "<sha256>",
+        "mime_type": "image/jpeg",
+        "payload_format": "jpeg",
+        "render_dpi": null,
+        "sent_dpi": null,
+        "source_dpi_x": null,
+        "source_dpi_y": null,
+        "source_height": 600,
+        "source_sha256": "<sha256>",
+        "source_width": 400,
+        "width": 341
+      },
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date page-0",
+              "item": "item page-0",
+              "notes": "notes page-0",
+              "price": 1.5,
+              "quantity": 1.5,
+              "record_id": "record_id page-0",
+              "source_page": "source_page page-0"
+            }
+          ]
+        },
+        "response_data": {
+          "model": "claude-sonnet-4-5",
+          "provider": "anthropic",
+          "usage": {
+            "cached_tokens": 0,
+            "input_tokens": 1500,
+            "output_tokens": 400,
+            "reasoning_tokens": 0,
+            "total_tokens": 1900
+          }
+        },
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 1500,
+          "output_tokens": 400,
+          "reasoning_tokens": 0,
+          "total_tokens": 1900
+        }
+      }
+    }
+  ]
+}

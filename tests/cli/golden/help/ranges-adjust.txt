@@ -1,0 +1,75 @@
+usage: chronominer ranges adjust --input PATH --schema NAME|PATH [options]
+
+Ask the model where the entries of a schema begin near each range boundary, store the decisions
+and render {stem}_line_ranges.txt from them again.
+
+options:
+  -h, --help            show this help message and exit
+
+input:
+  --input PATH          text file, or a folder of text files, whose line ranges to adjust
+  --recursive, --no-recursive
+                        search the subfolders of the input folder; default: off
+  --pages RANGE         line ranges: 5, first:5, last:5, 3-7, 3-, -7 or 1,3,5-8; default: all
+
+schema and context:
+  --schema NAME|PATH    schema of the entries whose boundaries the model looks for: a file path, a
+                        file name in schemas/ or a schema's name field; default: required
+  --context TEXT|PATH|auto|none
+                        adjust context: topics as text or a path to a text file (overrides
+                        sidecars), auto (the input's {stem}_adjust_context.txt, else the folder's
+                        context file) or none; default: auto
+  --fallback-context TEXT|PATH|none
+                        adjust context for inputs without a sidecar under --context auto: topics
+                        as text, a path to a text file, or none; default: none
+
+chunking:
+  --context-window N    lines around each range boundary sent to the model; default: 6
+
+model:
+  --provider {openai,anthropic,google,openrouter,custom}
+                        model provider; default: inferred from the model name
+  --model NAME          model name; a provider: prefix (anthropic:NAME) selects the provider;
+                        default: gpt-6-luna
+  --endpoint NAME       named custom endpoint from the settings (implies provider custom);
+                        default: none
+  --reasoning-effort {none,minimal,low,medium,high,xhigh,max}
+                        reasoning effort; default: xhigh
+  --verbosity {low,medium,high}
+                        output verbosity; default: medium
+  --max-output-tokens N
+                        maximum output tokens; default: the model's output limit
+  --temperature T       sampling temperature, 0.0 to 2.0; default: 1.0
+  --top-p P             nucleus sampling, 0.0 to 1.0; sent only when supported; default: 1.0
+  --service-tier {auto,default,flex,priority}
+                        OpenAI service tier; default: default; only for provider openai
+  --response-format {schema,json}
+                        schema (API-enforced) or json (prompted, validated); default: schema when
+                        the model supports it, else json
+
+run control:
+  --force               adjust the line ranges again: the stored decisions are reset
+  --concurrency N       parallel requests; default: 16
+  --dry-run             plan without API calls or writes
+  --json                print one JSON summary line on stdout
+  --settings FILE       alternate settings file; default: config/settings.yaml
+
+Precedence: a flag wins over the settings defaults: block, which wins over the code default.
+--settings FILE reads another settings file instead of config/settings.yaml.
+
+Exit codes:
+  0    every text file was adjusted
+  1    a text file failed
+  2    usage or configuration error (an unknown schema, an unset key
+       variable), or no text file with a line-ranges file
+  130  interrupted (Ctrl+C or Ctrl+Break)
+
+With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and
+errors go to stderr.
+
+Examples:
+  Move the range boundaries of one file to entry boundaries:
+    chronominer ranges adjust --input ledger.txt --schema trade_records
+  Adjust again from the start, with more lines around each boundary:
+    chronominer ranges adjust --input texts --schema wage_records
+      --context-window 10 --force

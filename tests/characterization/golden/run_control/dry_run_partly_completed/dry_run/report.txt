@@ -1,0 +1,2 @@
+[INFO] [DRY RUN] 2 discovered; 1 would be processed, 1 skipped (already complete).
+[INFO] [DRY RUN]   would process: beta.txt (text)

@@ -1,0 +1,28 @@
+{
+  "exit_code": 0,
+  "json_line": {
+    "dry_run": false,
+    "items_blocked": 0,
+    "items_complete": 3,
+    "items_failed": 0,
+    "items_skipped": 0,
+    "items_submitted": 0,
+    "items_total": 3,
+    "outputs": [
+      "<tmp>/docs/ledger_line_ranges.txt",
+      "<tmp>/docs/notes_line_ranges.txt",
+      "<tmp>/docs/sub/short_line_ranges.txt",
+      "<tmp>/docs/chronominer.sqlite",
+      "<tmp>/docs/sub/chronominer.sqlite"
+    ],
+    "usage": {
+      "total": {
+        "cached_tokens": 0,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "reasoning_tokens": 0,
+        "total_tokens": 0
+      }
+    }
+  }
+}

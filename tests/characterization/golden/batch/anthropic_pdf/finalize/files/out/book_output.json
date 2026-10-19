@@ -1,0 +1,168 @@
+{
+  "_chronominer_metadata": {
+    "batch_tracking": {
+      "batch_ids": [
+        "<anthropic-batch-1>"
+      ],
+      "completed_batches": 1,
+      "failed_batches": 0,
+      "fully_completed": true,
+      "missing_batches": [],
+      "ordered_by_custom_id": true,
+      "parts": 1,
+      "processed_at": "<datetime>",
+      "provider": "anthropic",
+      "recovered_batch_ids": [],
+      "tracking": [
+        {
+          "batch_id": "<anthropic-batch-1>",
+          "metadata": {
+            "model": "claude-sonnet-4-5",
+            "request_count": 2,
+            "submission_id": "<submission-1>"
+          },
+          "provider": "anthropic",
+          "request_count": 2,
+          "schema_name": "FlatEntries",
+          "status": "finalized",
+          "timestamp": "<timestamp>"
+        }
+      ]
+    },
+    "chunking_method": "pages",
+    "image_provenance": {
+      "cap_policy": "profile-v1",
+      "detail": "low",
+      "image_config": {
+        "cap_policy": "profile-v1",
+        "detail": "low",
+        "grayscale_conversion": true,
+        "handle_transparency": true,
+        "high_target_box": [
+          768,
+          1536
+        ],
+        "image_high_res_tier": false,
+        "image_original_patch_cap_30k": false,
+        "jpeg_quality": 90,
+        "low_max_side_px": 512,
+        "max_image_bytes": 10000000,
+        "max_pixels_per_page": 24000000,
+        "model_name": "claude-sonnet-4-5",
+        "native_fallback_dpi": 300,
+        "payload_format": "jpeg",
+        "provider": "anthropic",
+        "render_strategy": "direct",
+        "resize_profile": "low",
+        "resolved_detail": "low",
+        "target_dpi": 72
+      },
+      "image_settings_fingerprint": "62c9095a4bd5c9f2ece053723524b6c4caf811401099cf04e8fcfa1f1240dc59",
+      "model_name": "claude-sonnet-4-5",
+      "model_type": "anthropic",
+      "pillow_version": "<version>",
+      "pymupdf_version": "<version>",
+      "source_file": "book.pdf",
+      "source_sha256": "<sha256>"
+    },
+    "model_name": "claude-sonnet-4-5",
+    "schema_name": "FlatEntries",
+    "timestamp": "<timestamp>",
+    "total_chunks": 2,
+    "version": 1
+  },
+  "records": [
+    {
+      "chunk_index": 1,
+      "chunk_range": null,
+      "custom_id": "book-page-1",
+      "image_provenance": {
+        "byte_size": "<byte_size>",
+        "cap_policy": "profile-v1",
+        "downscale_reason": "none",
+        "dpi_source": "numeric",
+        "effective_dpi": 72,
+        "format_fallback": false,
+        "height": 300,
+        "image_sha256": "<sha256>",
+        "mime_type": "image/jpeg",
+        "payload_format": "jpeg",
+        "render_dpi": 72,
+        "sent_dpi": 72.0,
+        "source_dpi_x": 72.0,
+        "source_dpi_y": 72.0,
+        "source_height": 300,
+        "source_width": 200,
+        "width": 200
+      },
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date page-0",
+              "item": "item page-0",
+              "notes": "notes page-0",
+              "price": 1.5,
+              "quantity": 1.5,
+              "record_id": "record_id page-0",
+              "source_page": "source_page page-0"
+            }
+          ]
+        },
+        "response_data": {
+          "usage": {
+            "input_tokens": 1500,
+            "output_tokens": 400
+          }
+        }
+      }
+    },
+    {
+      "chunk_index": 2,
+      "chunk_range": null,
+      "custom_id": "book-page-2",
+      "image_provenance": {
+        "byte_size": "<byte_size>",
+        "cap_policy": "profile-v1",
+        "downscale_reason": "none",
+        "dpi_source": "numeric",
+        "effective_dpi": 72,
+        "format_fallback": false,
+        "height": 300,
+        "image_sha256": "<sha256>",
+        "mime_type": "image/jpeg",
+        "payload_format": "jpeg",
+        "render_dpi": 72,
+        "sent_dpi": 72.0,
+        "source_dpi_x": 72.0,
+        "source_dpi_y": 72.0,
+        "source_height": 300,
+        "source_width": 200,
+        "width": 200
+      },
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date page-1",
+              "item": "item page-1",
+              "notes": "notes page-1",
+              "price": 2.5,
+              "quantity": 2.5,
+              "record_id": "record_id page-1",
+              "source_page": "source_page page-1"
+            }
+          ]
+        },
+        "response_data": {
+          "usage": {
+            "input_tokens": 1500,
+            "output_tokens": 400
+          }
+        }
+      }
+    }
+  ]
+}

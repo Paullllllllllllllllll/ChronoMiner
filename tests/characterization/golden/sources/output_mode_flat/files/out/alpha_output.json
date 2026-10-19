@@ -1,0 +1,56 @@
+{
+  "_chronominer_metadata": {
+    "chunking_method": "auto",
+    "chunking_text_version": 2,
+    "document_total_chunks": 1,
+    "model_name": "gpt-4o",
+    "schema_name": "FlatEntries",
+    "timestamp": "<timestamp>",
+    "total_chunks": 1,
+    "version": 1
+  },
+  "records": [
+    {
+      "chunk_index": 1,
+      "chunk_range": [
+        1,
+        17
+      ],
+      "custom_id": "alpha-chunk-1",
+      "response": {
+        "output_text": {
+          "contains_no_content_of_requested_type": false,
+          "entries": [
+            {
+              "date": "date record-0",
+              "item": "item record-0",
+              "notes": "notes record-0",
+              "price": 1.5,
+              "quantity": 1.5,
+              "record_id": "record_id record-0",
+              "source_page": "source_page record-0"
+            }
+          ]
+        },
+        "response_data": {
+          "model": "gpt-4o",
+          "provider": "openai",
+          "usage": {
+            "cached_tokens": 0,
+            "input_tokens": 1500,
+            "output_tokens": 400,
+            "reasoning_tokens": 0,
+            "total_tokens": 1900
+          }
+        },
+        "usage": {
+          "cached_tokens": 0,
+          "input_tokens": 1500,
+          "output_tokens": 400,
+          "reasoning_tokens": 0,
+          "total_tokens": 1900
+        }
+      }
+    }
+  ]
+}

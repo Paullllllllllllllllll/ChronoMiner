@@ -1,0 +1,328 @@
+{
+  "batch": {
+    "calls": [
+      {
+        "call": "google.files.upload",
+        "display_name": "batch-extraction-<submission-1>-p1",
+        "lines": 2
+      },
+      {
+        "call": "google.batches.create",
+        "config": {
+          "display_name": "batch-extraction-<submission-1>-p1"
+        },
+        "model": "models/gemini-2.5-flash",
+        "src": "<file-1>"
+      }
+    ],
+    "clients": [
+      {
+        "kwargs": {
+          "api_key": "<env:GOOGLE_API_KEY>",
+          "http_options": {
+            "timeout": 60000
+          }
+        },
+        "provider": "google"
+      }
+    ],
+    "prompts": {
+      "batch-prompt-1": "You are a structured data extraction expert with advanced image analysis capabilities. Your task is to extract structured data from the provided image according to the JSON schema below.\n\nTASK DEFINITION\n1. Analyze the JSON schema to understand what data to extract\n2. Carefully read and interpret all text, tables, and visual content in the image\n3. Reason hard to extract **all data** from the image and organize it into the entries array\n\nDATA EXTRACTION RULES\n- If the image contains no content of the requested type, set contains_no_content_of_requested_type to true and return an empty entries array\n- Fill a field from the image or from what follows directly from it (e.g. a city's country); otherwise use `null` (or any explicit placeholder described in the schema). Never invent data\n- The rules block below, when present, is binding and applies per entry\n- If the image is illegible, blurred, or otherwise unreadable, do your best to extract what is possible and note uncertainty in any applicable schema fields\n\nOUTPUT REQUIREMENTS\n- Return only valid JSON matching the schema below—no commentary, code fences, or additional fields\n\nThe JSON schema:\n{\"type\":\"object\",\"properties\":{\"contains_no_content_of_requested_type\":{\"type\":\"boolean\",\"description\":\"Set to true if the input contains no records. Otherwise, set to false.\"},\"entries\":{\"type\":\"array\",\"items\":{\"type\":\"object\",\"properties\":{\"record_id\":{\"type\":\"string\",\"description\":\"The record heading as written, such as 'Record 001'.\"},\"item\":{\"type\":\"string\",\"description\":\"The item named in the record.\"},\"quantity\":{\"anyOf\":[{\"type\":\"number\"},{\"type\":\"null\"}],\"description\":\"The quantity stated in the record. Use null if not stated.\"},\"price\":{\"anyOf\":[{\"type\":\"number\"},{\"type\":\"null\"}],\"description\":\"The price stated in the record. Use null if not stated.\"},\"date\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"The date of the record as written. Use null if not stated.\"},\"source_page\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"The page on which the record appears. Use null if not identifiable.\"},\"notes\":{\"anyOf\":[{\"type\":\"string\"},{\"type\":\"null\"}],\"description\":\"Remarks about the record. Use null if there are none.\"}},\"required\":[\"record_id\",\"item\",\"quantity\",\"price\",\"date\",\"source_page\",\"notes\"],\"additionalProperties\":false}}},\"required\":[\"contains_no_content_of_requested_type\",\"entries\"],\"additionalProperties\":false}\n\n"
+    },
+    "requests": [
+      {
+        "batch_id": "<google-batch-1>",
+        "body": {
+          "contents": [
+            {
+              "parts": [
+                {
+                  "text": "Extract structured data from this image according to the schema."
+                },
+                {
+                  "inline_data": {
+                    "data": {
+                      "image": {
+                        "height": 1536,
+                        "mime": "image/jpeg",
+                        "page": 0,
+                        "width": 768
+                      }
+                    },
+                    "mime_type": "image/jpeg"
+                  }
+                }
+              ],
+              "role": "user"
+            }
+          ],
+          "generation_config": {
+            "max_output_tokens": 4096,
+            "response_json_schema": {
+              "additionalProperties": false,
+              "properties": {
+                "contains_no_content_of_requested_type": {
+                  "description": "Set to true if the input contains no records. Otherwise, set to false.",
+                  "type": "boolean"
+                },
+                "entries": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "date": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The date of the record as written. Use null if not stated."
+                      },
+                      "item": {
+                        "description": "The item named in the record.",
+                        "type": "string"
+                      },
+                      "notes": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Remarks about the record. Use null if there are none."
+                      },
+                      "price": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The price stated in the record. Use null if not stated."
+                      },
+                      "quantity": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The quantity stated in the record. Use null if not stated."
+                      },
+                      "record_id": {
+                        "description": "The record heading as written, such as 'Record 001'.",
+                        "type": "string"
+                      },
+                      "source_page": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The page on which the record appears. Use null if not identifiable."
+                      }
+                    },
+                    "required": [
+                      "record_id",
+                      "item",
+                      "quantity",
+                      "price",
+                      "date",
+                      "source_page",
+                      "notes"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "contains_no_content_of_requested_type",
+                "entries"
+              ],
+              "type": "object"
+            },
+            "response_mime_type": "application/json",
+            "temperature": 0.0,
+            "thinking_config": {
+              "thinking_budget": 2048
+            },
+            "top_p": 1.0
+          },
+          "system_instruction": {
+            "parts": [
+              {
+                "text": {
+                  "chars": 2434,
+                  "prompt": "batch-prompt-1"
+                }
+              }
+            ]
+          }
+        },
+        "custom_id": "<submission-1>-00000",
+        "provider": "google",
+        "unit": "page-0"
+      },
+      {
+        "batch_id": "<google-batch-1>",
+        "body": {
+          "contents": [
+            {
+              "parts": [
+                {
+                  "text": "Extract structured data from this image according to the schema."
+                },
+                {
+                  "inline_data": {
+                    "data": {
+                      "image": {
+                        "height": 1536,
+                        "mime": "image/jpeg",
+                        "page": 1,
+                        "width": 768
+                      }
+                    },
+                    "mime_type": "image/jpeg"
+                  }
+                }
+              ],
+              "role": "user"
+            }
+          ],
+          "generation_config": {
+            "max_output_tokens": 4096,
+            "response_json_schema": {
+              "additionalProperties": false,
+              "properties": {
+                "contains_no_content_of_requested_type": {
+                  "description": "Set to true if the input contains no records. Otherwise, set to false.",
+                  "type": "boolean"
+                },
+                "entries": {
+                  "items": {
+                    "additionalProperties": false,
+                    "properties": {
+                      "date": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The date of the record as written. Use null if not stated."
+                      },
+                      "item": {
+                        "description": "The item named in the record.",
+                        "type": "string"
+                      },
+                      "notes": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "Remarks about the record. Use null if there are none."
+                      },
+                      "price": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The price stated in the record. Use null if not stated."
+                      },
+                      "quantity": {
+                        "anyOf": [
+                          {
+                            "type": "number"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The quantity stated in the record. Use null if not stated."
+                      },
+                      "record_id": {
+                        "description": "The record heading as written, such as 'Record 001'.",
+                        "type": "string"
+                      },
+                      "source_page": {
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "null"
+                          }
+                        ],
+                        "description": "The page on which the record appears. Use null if not identifiable."
+                      }
+                    },
+                    "required": [
+                      "record_id",
+                      "item",
+                      "quantity",
+                      "price",
+                      "date",
+                      "source_page",
+                      "notes"
+                    ],
+                    "type": "object"
+                  },
+                  "type": "array"
+                }
+              },
+              "required": [
+                "contains_no_content_of_requested_type",
+                "entries"
+              ],
+              "type": "object"
+            },
+            "response_mime_type": "application/json",
+            "temperature": 0.0,
+            "thinking_config": {
+              "thinking_budget": 2048
+            },
+            "top_p": 1.0
+          },
+          "system_instruction": {
+            "parts": [
+              {
+                "text": {
+                  "chars": 2434,
+                  "prompt": "batch-prompt-1"
+                }
+              }
+            ]
+          }
+        },
+        "custom_id": "<submission-1>-00001",
+        "provider": "google",
+        "unit": "page-1"
+      }
+    ]
+  },
+  "calls": [],
+  "models": [],
+  "prompts": {}
+}

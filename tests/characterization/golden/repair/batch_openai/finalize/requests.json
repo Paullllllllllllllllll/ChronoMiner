@@ -1,0 +1,59 @@
+{
+  "batch": {
+    "calls": [
+      {
+        "batch_id": "<openai-batch-1>",
+        "call": "openai.batches.retrieve"
+      },
+      {
+        "batch_id": "<openai-batch-1>",
+        "call": "openai.batches.retrieve"
+      },
+      {
+        "call": "openai.files.content",
+        "file_id": "<file-2>"
+      },
+      {
+        "call": "openai.files.content",
+        "file_id": "<file-3>"
+      },
+      {
+        "batch_id": "<openai-batch-1>",
+        "call": "openai.batches.retrieve"
+      },
+      {
+        "call": "openai.files.delete",
+        "file_id": "<file-1>"
+      },
+      {
+        "call": "openai.files.delete",
+        "file_id": "<file-2>"
+      },
+      {
+        "call": "openai.files.delete",
+        "file_id": "<file-3>"
+      }
+    ],
+    "clients": [
+      {
+        "kwargs": {
+          "api_key": "<env:OPENAI_API_KEY>",
+          "timeout": {
+            "httpx.Timeout": {
+              "connect": 10.0,
+              "pool": 30.0,
+              "read": 60.0,
+              "write": 30.0
+            }
+          }
+        },
+        "provider": "openai"
+      }
+    ],
+    "prompts": {},
+    "requests": []
+  },
+  "calls": [],
+  "models": [],
+  "prompts": {}
+}

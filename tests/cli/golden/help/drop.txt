@@ -1,0 +1,37 @@
+usage: chronominer drop --input PATH (--select EXPR | --files LIST | --all)
+
+Delete the selected documents of a store with their rows and rendered files, without model calls.
+
+options:
+  -h, --help     show this help message and exit
+
+input:
+  --input PATH   output folder holding chronominer.sqlite, or the database
+  --select EXPR  select documents by number (1,3), range (1-5) or name search
+  --all          drop every stored document
+  --files LIST   comma-separated document names or input file names
+
+run control:
+  --dry-run      plan without API calls or writes
+  --json         print one JSON summary line on stdout
+
+drop deletes each selected document with its chunks, line ranges, responses and entries, and the
+rendered files whose contents still match the recorded hash; a file changed outside the tool is
+kept and named. A document that another run leases, or whose chunks an open or unresolved batch
+holds, is refused. The next extraction processes a dropped document from the start.
+
+Exit codes:
+  0    every selected document was dropped (or, with --dry-run, would be)
+  1    a document was refused: a live run or a batch holds it
+  2    usage error, no store at --input, or a --select or --files that
+       matches no stored document
+  130  interrupted (Ctrl+C or Ctrl+Break)
+
+With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and
+errors go to stderr.
+
+Examples:
+  List what dropping two documents would delete:
+    chronominer drop --input out --select 1-2 --dry-run
+  Drop one document by its input file name:
+    chronominer drop --input out --files ledger.txt

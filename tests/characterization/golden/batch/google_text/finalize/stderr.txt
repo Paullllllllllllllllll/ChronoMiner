@@ -1,0 +1,3 @@
+[INFO] Scanning '<tmp>/out' for batch submissions...
+[SUCCESS] Finalized out/chronominer.sqlite: submission <submission-1> (google batch <google-batch-1>) -> ledger_output.json, ledger_output.csv
+[INFO] Batch check: 1 finalized, 0 pending, 0 failed, 0 unresolved.

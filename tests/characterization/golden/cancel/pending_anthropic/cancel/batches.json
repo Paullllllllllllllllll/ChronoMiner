@@ -1,0 +1,8 @@
+[
+  {
+    "batch_id": "<anthropic-batch-1>",
+    "polls": 1,
+    "provider": "anthropic",
+    "state": "cancelled"
+  }
+]
