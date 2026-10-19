@@ -22,7 +22,7 @@ from chronominer.common.contract import (
     SummaryEmitter,
     usage_field,
 )
-from chronominer.common.log_setup import configure_logging
+from chronominer.common.log_setup import SIMPLE_FORMAT, configure_logging
 from chronominer.common.options import OptionTable
 from chronominer.common.store import StoreError
 from chronominer.common.usage import Usage, UsageTotals
@@ -53,6 +53,9 @@ __all__ = [
 ]
 
 LOGGER_NAME = "chronominer"
+
+# The phrase that marks a wait announcement; matched case-insensitively.
+_WAIT_PHRASE = "waiting until"
 
 logger = logging.getLogger(__name__)
 
@@ -279,15 +282,44 @@ def report_usage_error(error: UsageError, argv: Sequence[str]) -> int:
 def setup_logging(settings: Settings | None = None) -> None:
     """Send the tool's log records to the settings' log file.
 
-    The console handler only shows critical records; the tool reports to
-    the console through its own messages. Without *settings* no file is
-    written.
+    The console handler only shows critical records, plus the warnings that
+    announce a wait (:class:`_WaitLineHandler`); the tool reports to the
+    console through its own messages. Without *settings* no file is written.
     """
     configure_logging(
         logger_name=LOGGER_NAME,
         level=logging.CRITICAL,
         log_file=settings.log_file() if settings is not None else None,
     )
+    tool = logging.getLogger(LOGGER_NAME)
+    for handler in list(tool.handlers):
+        if isinstance(handler, _WaitLineHandler):
+            tool.removeHandler(handler)
+    tool.addHandler(_WaitLineHandler())
+
+
+class _WaitLineHandler(logging.StreamHandler):  # type: ignore[type-arg]
+    """Write the warnings that announce a wait until a set time to stderr.
+
+    A run that pauses until a reset logs a warning containing ``waiting
+    until`` once when the wait starts. Showing that line on stderr lets a
+    supervisor that reads only the console tell a waiting run from a stalled
+    one; every other record below critical stays in the log file.
+    """
+
+    def __init__(self) -> None:
+        logging.Handler.__init__(self, logging.WARNING)
+        self.setFormatter(logging.Formatter(SIMPLE_FORMAT))
+
+    @property
+    def stream(self) -> TextIO:
+        return sys.stderr
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        return (
+            record.levelno < logging.CRITICAL
+            and _WAIT_PHRASE in record.getMessage().casefold()
+        )
 
 
 def load_settings(flags: Mapping[str, Any]) -> Settings:

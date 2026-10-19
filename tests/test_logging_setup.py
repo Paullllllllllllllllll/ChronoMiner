@@ -88,6 +88,24 @@ def test_setup_logging_writes_module_records_to_the_settings_file(
     assert capsys.readouterr().err == ""
 
 
+def test_a_wait_announcement_also_reaches_stderr(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    setup_logging(make_settings(logs_dir=tmp_path / "run"))
+    setup_logging(make_settings(logs_dir=tmp_path / "run"))
+
+    probe = logging.getLogger("chronominer.tests.probe")
+    probe.warning("Limit reached. Waiting until %s for the reset.", "00:01")
+    probe.warning("Provider unavailable; waiting until %s.", "tomorrow")
+    probe.warning("an ordinary warning")
+    probe.info("waiting until never")
+
+    assert capsys.readouterr().err == (
+        "[WARNING] Limit reached. Waiting until 00:01 for the reset.\n"
+        "[WARNING] Provider unavailable; waiting until tomorrow.\n"
+    )
+
+
 def test_without_settings_no_file_is_written(tmp_path: Path) -> None:
     setup_logging()
     logging.getLogger("chronominer.tests.probe").warning("probe")
