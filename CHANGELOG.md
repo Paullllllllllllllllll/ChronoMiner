@@ -1,5 +1,10 @@
 # Changelog
 
+- **v1.0.2** (26 October 2026) -- Security patch: the lockfile moves Pillow to
+  13.0.0, which closes the Pillow 12.3.0 advisories, among them the TIFF decoder
+  reads GHSA-c6hw-5grf-ff96 and GHSA-q45j-58j2-45rg and the MIC frame-count loop
+  GHSA-22hg-r758-rrw9, which scanned page images can reach. Dependency versions
+  only; no code changes.
 - **v1.0.1** (24 October 2026) -- Security patch: the lockfile moves certifi to
   2026.10.23, which closes GHSA-6q48-6c7w-9gw2, and urllib3 to 2.8.0, which closes
   GHSA-8988-9cw3-xx77, GHSA-vxq7-64xx-v4gw and GHSA-gh4c-6fx4-qh6g. Dependency versions
