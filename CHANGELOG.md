@@ -1,5 +1,12 @@
 # Changelog
 
+- **v1.0.4** (27 October 2026) -- The capability table knows `gpt-6.1-terra`:
+  it takes text and image input and structured outputs like `gpt-6.1-sol`,
+  accepts the reasoning efforts none to max, and shares the GPT-6 handling of
+  verbosity, Flex and prompt caching. Before, the model resolved as text-only
+  and image extraction refused it. The vendored `chronominer/common/` modules
+  now meet the Google docstring rules as well, so ruff no longer exempts them;
+  the copies stay byte-identical with AutoExcerpter and ChronoTranscriber.
 - **v1.0.3** (27 October 2026) -- Documentation patch: ruff now checks
   docstrings against the Google convention (pydocstyle rules `D`, without D105
   and D107; tests, notebooks, scratch and the vendored `chronominer/common/`
