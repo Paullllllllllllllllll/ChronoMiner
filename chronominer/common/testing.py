@@ -323,6 +323,7 @@ class ScriptedChatModel(BaseChatModel):
     def model_copy(
         self, *, update: Mapping[str, Any] | None = None, deep: bool = False
     ) -> ScriptedChatModel:
+        """Return a copy that adds *update* to ``bound``."""
         copied = super().model_copy(update=update, deep=deep)
         copied.bound = {**self.bound, **dict(update or {})}
         return copied
@@ -335,6 +336,7 @@ class ScriptedChatModel(BaseChatModel):
         method: str = "function_calling",
         **kwargs: Any,
     ) -> ScriptedStructured:
+        """Return a runnable that sends *schema* and *method* with each request."""
         return ScriptedStructured(self, StructuredCall(schema, method, include_raw))
 
     def _respond(
@@ -384,6 +386,7 @@ class ScriptedStructured(Runnable[LanguageModelInput, Any]):
         config: RunnableConfig | None = None,
         **kwargs: Any,
     ) -> Any:
+        """Ask the scripted model and parse its answer."""
         kwargs[STRUCTURED_KWARG] = self.call
         raw = self.model.invoke(input, config, **kwargs)
         return self._finish(raw)
@@ -394,6 +397,7 @@ class ScriptedStructured(Runnable[LanguageModelInput, Any]):
         config: RunnableConfig | None = None,
         **kwargs: Any,
     ) -> Any:
+        """Ask the scripted model asynchronously and parse its answer."""
         kwargs[STRUCTURED_KWARG] = self.call
         raw = await self.model.ainvoke(input, config, **kwargs)
         return self._finish(raw)

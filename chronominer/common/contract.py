@@ -54,11 +54,11 @@ def usage_field(by_role: Mapping[str, Usage] | None = None) -> dict[str, Any]:
 
 
 def write_json_line(stream: TextIO, obj: Mapping[str, Any]) -> None:
-    """Write *obj* as one JSON line to *stream* and flush.
+    r"""Write *obj* as one JSON line to *stream* and flush.
 
     Non-ASCII text is written as is; when the stream's encoding cannot
     represent it (a legacy console code page), the line falls back to
-    ASCII ``\\uXXXX`` escapes, which decode to the same object.
+    ASCII ``\uXXXX`` escapes, which decode to the same object.
     """
     try:
         line = json.dumps(obj, ensure_ascii=False) + "\n"

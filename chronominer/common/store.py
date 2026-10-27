@@ -1806,10 +1806,10 @@ class Store:
     async def delete_units(
         self, lease: Lease, kind: str, *, count: int | None = None
     ) -> int:
-        """Delete the units of other kinds than *kind* and, with *count*, the
-        units of *kind* from index *count* on; responses stay.
+        """Delete the units of every kind but *kind*; responses stay.
 
-        The requests of settled submissions go with the units. A tool's own
+        With *count*, the units of *kind* from index *count* on go too. The
+        requests of settled submissions go with the units. A tool's own
         rows that reference a unit are the caller's to delete first.
         Returns the number of units deleted.
 
@@ -2238,8 +2238,10 @@ class Store:
         return await self._set_status(submission_id, "cancelled", values)
 
     async def abandon_submission(self, submission_id: str) -> Submission:
-        """Abandon an unresolved or submitted submission; its units not done
-        become pending. The provider batch of a submitted one is not touched.
+        """Abandon an unresolved or submitted submission.
+
+        Its units that are not done become pending. The provider batch of a
+        submitted one is not touched.
         """
         run_id = self._run_id
 
@@ -2738,8 +2740,10 @@ def _plan_drop(
 
 
 def _doc_tables(connection: sqlite3.Connection) -> list[str]:
-    """Return the tables with a ``doc_id`` column, except the three core ones
-    :func:`_delete_documents` empties in order."""
+    """Return the tables with a ``doc_id`` column, except the three core ones.
+
+    :func:`_delete_documents` empties the core tables itself, in order.
+    """
     names = [
         str(row[0])
         for row in connection.execute(

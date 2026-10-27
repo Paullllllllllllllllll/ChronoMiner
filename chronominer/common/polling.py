@@ -60,9 +60,15 @@ class WaitLimits:
 
 @dataclass(frozen=True)
 class WaitTick:
-    """The state before a sleep: *passes* run so far, the work they left
-    *pending*, the seconds *elapsed* since the first pass began, the seconds
-    until the next pass (*next_in*) and the *timeout*."""
+    """Record the polling state before a sleep.
+
+    Attributes:
+        passes: Passes run so far.
+        pending: Work the passes left pending.
+        elapsed: Seconds since the first pass began.
+        next_in: Seconds until the next pass.
+        timeout: Seconds after which polling gives up.
+    """
 
     passes: int
     pending: int

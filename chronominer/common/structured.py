@@ -162,11 +162,12 @@ def sanitize_schema_for_anthropic(schema: Mapping[str, Any]) -> dict[str, Any]:
 
 @dataclass(frozen=True)
 class PreparedRequest:
-    """What to invoke for one call: the runnable, its kwargs, and whether the
-    provider enforces the schema.
+    """Hold what to invoke for one call.
 
-    The remaining fields are the inputs of :func:`prepare_request`, so
-    :meth:`for_model` can build the same request for another client.
+    *runnable* and *kwargs* make the call; *enforced* says whether the
+    provider enforces the schema. The remaining fields are the inputs of
+    :func:`prepare_request`, so :meth:`for_model` can build the same request
+    for another client.
     """
 
     runnable: Any
@@ -188,8 +189,11 @@ class PreparedRequest:
 
 
 def _bind(model: Any, kwargs: Mapping[str, Any]) -> Any:
-    """Copy *kwargs* onto the model's fields; a structured-output wrapper does
-    not forward invoke-time kwargs to the inner model."""
+    """Copy *kwargs* onto the model's fields.
+
+    A structured-output wrapper does not forward invoke-time kwargs to the
+    inner model.
+    """
     if not kwargs:
         return model
     return model.model_copy(update=dict(kwargs))
@@ -251,11 +255,11 @@ def anthropic_union_count(spec: Mapping[str, Any]) -> int:
 def fit_response_format(
     provider: str, response_format: ResponseFormat, spec: Mapping[str, Any] | None
 ) -> ResponseFormat:
-    """Return *response_format*, or ``json`` where Anthropic would reject the
-    schema of *spec* for having more than :data:`ANTHROPIC_UNION_LIMIT` union
-    parameters.
+    """Return *response_format*, or ``json`` where Anthropic would reject it.
 
-    The switch is logged once per schema at info level.
+    Anthropic rejects a schema of *spec* with more than
+    :data:`ANTHROPIC_UNION_LIMIT` union parameters. The switch is logged once
+    per schema at info level.
     """
     if provider != "anthropic" or response_format != "schema":
         return response_format
@@ -641,8 +645,11 @@ class StructuredResult:
 
     @property
     def not_object(self) -> bool:
-        """Whether an answer in a JSON format holds no JSON object (a bare
-        number, a string, plain text): it fails its unit in every tool."""
+        """Whether an answer in a JSON format holds no JSON object.
+
+        Such an answer (a bare number, a string, plain text) fails its unit in
+        every tool.
+        """
         return (
             self.response_format != "text"
             and bool(self.text)
@@ -652,8 +659,9 @@ class StructuredResult:
 
 
 async def default_invoke(request: PreparedRequest, messages: Sequence[Any]) -> Any:
-    """Call the request's runnable asynchronously, in a worker thread if it is
-    sync-only.
+    """Call the request's runnable asynchronously.
+
+    A sync-only runnable runs in a worker thread.
 
     Raises:
         ProviderResponseError: The provider answered HTTP 200 with an error
@@ -708,8 +716,7 @@ async def _invoke_once(
     call: Invoker,
     fallback: bool,
 ) -> tuple[Any, PreparedRequest, bool]:
-    """Make one call, switching to prompted JSON on an Anthropic schema
-    rejection."""
+    """Make one call; switch to prompted JSON when Anthropic rejects the schema."""
     response_format: ResponseFormat = "json" if fallback else request.response_format
     prepared = prepare_request(
         model, request.provider, response_format, request.schema, request.invoke_kwargs

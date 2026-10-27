@@ -507,8 +507,10 @@ def abandon_option(help: str) -> Option:
 
 
 def batch_cancel_options(*, settings_target: str | None = None) -> list[Option]:
-    """Return the rows of ``batch cancel``: exactly one target, ``--json``
-    and ``--settings``."""
+    """Return the option rows of ``batch cancel``.
+
+    The rows are the exactly-one target group, ``--json`` and ``--settings``.
+    """
     return [
         batch_ids_option(
             "comma-separated batch IDs to cancel", exclusive="cancel_target"

@@ -812,9 +812,9 @@ _POWERSHELL_QUOTES = re.compile("(['‘’‚‛])")
 
 
 def _powershell_quote(word: str) -> str:
-    """Quote ``word`` for PowerShell unless it reads literally as it is.
+    r"""Quote ``word`` for PowerShell unless it reads literally as it is.
 
-    Words left bare hold only letters, digits and ``_./\\:=+-`` and inner
+    Words left bare hold only letters, digits and ``_./\:=+-`` and inner
     commas, and do not begin with ``-`` unless they are a plain option name,
     since PowerShell splits ``-a.b`` at the dot. Any other word goes in single
     quotes, in which only a single quote is special; PowerShell also reads

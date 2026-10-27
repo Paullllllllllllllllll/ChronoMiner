@@ -104,8 +104,6 @@ max-args = 8
 "tests/**" = ["PLR0913", "D"]
 "notebooks/**" = ["D"]
 "scratch/**" = ["D"]
-# Vendored byte-identically from the shared modules; documented at the source.
-"chronominer/common/**" = ["D"]
 "chronominer/cli/**" = ["T201"]
 "chronominer/ui/**" = ["T201"]
 

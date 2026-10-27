@@ -159,8 +159,11 @@ class Part:
 
 
 def _samplers(plan: RequestPlan) -> dict[str, Any]:
-    """Return the samplers a model accepts: temperature and top_p where they
-    are set, the penalties (as 0) where the model takes them."""
+    """Return the samplers the model accepts.
+
+    Temperature and top_p are included where they are set, the penalties (as
+    0) where the model takes them.
+    """
     caps = plan.caps
     values: dict[str, Any] = {}
     if caps.supports_temperature and plan.temperature is not None:
@@ -416,8 +419,11 @@ def system_blocks(prompt: str, control: Mapping[str, Any] | None) -> str | Conte
 
 
 def system_content(plan: RequestPlan, prompt: str) -> str | Content:
-    """Return the system prompt as sent: one text block with the cache
-    breakpoint where there is one (:func:`cache_control`), else the text."""
+    """Return the system prompt as sent.
+
+    The prompt is one text block with the cache breakpoint where there is one
+    (:func:`cache_control`), else the plain text.
+    """
     return system_blocks(prompt, cache_control(plan.provider, plan.model, plan.caching))
 
 

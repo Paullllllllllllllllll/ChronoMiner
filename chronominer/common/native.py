@@ -19,12 +19,20 @@ TargetDpi = int | Literal["native"]
 
 @dataclass(frozen=True)
 class NativeDpi:
+    """Scan resolution of a PDF page per axis.
+
+    Attributes:
+        source: ``"image"`` when measured from the page's scan, ``"fallback"``
+            when the configured fallback DPI was used.
+    """
+
     dpi_x: float
     dpi_y: float
     source: str
 
     @property
     def dpi(self) -> float:
+        """Higher of the two axis resolutions."""
         return max(self.dpi_x, self.dpi_y)
 
 
@@ -90,6 +98,15 @@ def native_page_dpi(page: Any, fallback_dpi: int) -> NativeDpi:
 
 @dataclass(frozen=True)
 class ImageCap:
+    """A model's image size limit.
+
+    Attributes:
+        max_side: Longest edge in pixels.
+        patches: Patch budget per image.
+        patch_px: Edge of one patch in pixels.
+        policy: Versioned name of the cap, recorded in the page provenance.
+    """
+
     max_side: int
     patches: int
     patch_px: int
@@ -236,6 +253,7 @@ def guarded_payload(
 
 
 def image_settings_fingerprint(settings: dict[str, Any]) -> str:
+    """Return the SHA-256 hex digest of *settings* as canonical JSON."""
     canonical = json.dumps(
         settings,
         sort_keys=True,

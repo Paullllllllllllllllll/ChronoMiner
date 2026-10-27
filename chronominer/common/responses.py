@@ -335,8 +335,11 @@ def _json_body(body: bytes | str | None) -> Mapping[str, Any] | None:
 
 
 def _choice_error(data: Mapping[str, Any]) -> Any:
-    """Return the ``error`` of the first choice that ended with
-    ``finish_reason`` ``error`` (``""`` when it has none), else None."""
+    """Return the ``error`` of the first choice that ended in error, else None.
+
+    A choice ended in error when its ``finish_reason`` is ``error``; ``""``
+    stands for such a choice without an ``error``.
+    """
     choices = data.get("choices")
     for choice in choices if isinstance(choices, list) else ():
         if isinstance(choice, Mapping) and choice.get("finish_reason") == "error":
@@ -351,11 +354,11 @@ def _mapping_error(error: Mapping[str, Any]) -> ProviderResponseError:
 def finish_error_of(
     response: Any, body: bytes | str | None = None
 ) -> ProviderResponseError | None:
-    """Return the error of a response whose choice ended with ``finish_reason``
-    ``error``, else None.
+    """Return the error of a response whose choice ended in error, else None.
 
-    The SDK keeps no error object of the choice in the response metadata;
-    *body*, the captured HTTP body, supplies it where it has one.
+    A choice ended in error when its ``finish_reason`` is ``error``. The SDK
+    keeps no error object of the choice in the response metadata; *body*, the
+    captured HTTP body, supplies it where it has one.
     """
     meta = get_response_metadata(response)
     if meta.get("finish_reason") != "error":
@@ -376,8 +379,11 @@ def finish_error_of(
 
 
 def stop_of(exc: BaseException) -> ResponseOutcome | None:
-    """Return the outcome that ends a unit an SDK error stands for, else None:
-    a truncation (:func:`truncation_of`) or an in-body content filter."""
+    """Return the outcome that ends the unit an SDK error stands for, else None.
+
+    The outcome is a truncation (:func:`truncation_of`) or an in-body content
+    filter.
+    """
     truncated = truncation_of(exc)
     if truncated is not None:
         return truncated

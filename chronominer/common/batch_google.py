@@ -385,6 +385,7 @@ class GoogleBatchBackend(BatchBackend):
         )
 
     def status(self, handle: BatchHandle) -> BatchStatusInfo:
+        """Return the status of the batch job from its state name."""
         job = self.client.batches.get(name=handle.batch_id)
         state = _state_name(job)
         status = _STATUS_MAP.get(state, BatchStatus.UNKNOWN)
@@ -515,6 +516,7 @@ class GoogleBatchBackend(BatchBackend):
         self.client.batches.cancel(name=handle.batch_id)
 
     def cleanup(self, handle: BatchHandle) -> None:
+        """Delete the uploaded input file and the result file; never raises."""
         output_name = None
         try:
             job = self.client.batches.get(name=handle.batch_id)
@@ -539,6 +541,7 @@ class GoogleBatchBackend(BatchBackend):
                 logger.warning("Failed to delete Google file %s: %s", name, exc)
 
     def list_active(self, *, page_size: int = 100) -> list[BatchSummary]:
+        """Return the batch jobs that have not reached a terminal state."""
         active: list[BatchSummary] = []
         for job in self.client.batches.list(config={"page_size": page_size}):
             state = _state_name(job)

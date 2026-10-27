@@ -150,8 +150,11 @@ def list_folder_images(
 
 
 def sequence_number(image_path: Path) -> int:
-    """Page number in an image filename: the trailing ``_N``, else the last
-    number in the stem, else 0."""
+    """Return the page number in an image filename.
+
+    The number is the trailing ``_N`` of the stem, else the last number in
+    the stem, else 0.
+    """
     last = image_path.stem.split("_")[-1]
     if last.isdecimal():
         return int(last)
@@ -621,7 +624,7 @@ class PdfPageSource(PageSource):
         return provenance
 
     def close(self) -> None:
-        # The lock keeps the document open until an in-flight render ends.
+        """Close the PDF document once any in-flight render has ended."""
         with self._render_lock:
             if self._doc is not None:
                 self._doc.close()

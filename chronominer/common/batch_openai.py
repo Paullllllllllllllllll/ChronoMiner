@@ -401,6 +401,7 @@ class OpenAIBatchBackend(BatchBackend):
         )
 
     def status(self, handle: BatchHandle) -> BatchStatusInfo:
+        """Return the batch status from its status field and request counts."""
         batch = self.client.batches.retrieve(handle.batch_id)
         provider_status = str(get_field(batch, "status") or "")
         status = _STATUS_MAP.get(provider_status, BatchStatus.UNKNOWN)
@@ -456,6 +457,7 @@ class OpenAIBatchBackend(BatchBackend):
         self.client.batches.cancel(handle.batch_id)
 
     def cleanup(self, handle: BatchHandle) -> None:
+        """Delete the input, output and error files of the batch; never raises."""
         output_file_id = error_file_id = None
         try:
             batch = self.client.batches.retrieve(handle.batch_id)
@@ -480,6 +482,7 @@ class OpenAIBatchBackend(BatchBackend):
                 logger.warning("Failed to delete OpenAI file %s: %s", file_id, exc)
 
     def list_active(self, *, page_size: int = 100) -> list[BatchSummary]:
+        """Return the batches that have not reached a terminal state."""
         active: list[BatchSummary] = []
         for batch in self.client.batches.list(limit=page_size):
             provider_status = str(get_field(batch, "status") or "")

@@ -272,6 +272,7 @@ class AnthropicBatchBackend(BatchBackend):
         )
 
     def status(self, handle: BatchHandle) -> BatchStatusInfo:
+        """Return the batch status from its ``processing_status`` and counts."""
         batch = self.client.messages.batches.retrieve(handle.batch_id)
         status, error_message, counts = _map_status(batch)
         processing_status = str(get_field(batch, "processing_status") or "")
@@ -313,6 +314,7 @@ class AnthropicBatchBackend(BatchBackend):
         self.client.messages.batches.cancel(handle.batch_id)
 
     def list_active(self, *, page_size: int = 100) -> list[BatchSummary]:
+        """Return the message batches whose processing has not ended."""
         active: list[BatchSummary] = []
         for batch in self.client.messages.batches.list(limit=page_size):
             processing_status = str(get_field(batch, "processing_status") or "")

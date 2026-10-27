@@ -322,9 +322,10 @@ async def adopt(
 
 
 async def abandon(store: Store, submission: Submission, clients: Clients) -> Submission:
-    """Abandon the unresolved or submitted *submission*: units pending,
-    upload deleted. A submitted batch is not cancelled at the provider; its
-    results are no longer collected.
+    """Abandon the unresolved or submitted *submission*.
+
+    Its units return to pending and its upload is deleted. A submitted batch
+    is not cancelled at the provider; its results are no longer collected.
 
     Raises:
         SubmissionStateError: The submission is neither unresolved nor

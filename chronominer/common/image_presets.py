@@ -91,19 +91,29 @@ class ImageValues(Protocol):
     """A run's image options; None leaves the preset's value."""
 
     @property
-    def dpi(self) -> Any: ...
+    def dpi(self) -> Any:
+        """Rendering resolution of PDF pages, or None."""
+        ...
 
     @property
-    def detail(self) -> Any: ...
+    def detail(self) -> Any:
+        """Detail level sent with each image, or None."""
+        ...
 
     @property
-    def format(self) -> Any: ...
+    def format(self) -> Any:
+        """Image file format of the prepared pages, or None."""
+        ...
 
     @property
-    def jpeg_quality(self) -> Any: ...
+    def jpeg_quality(self) -> Any:
+        """JPEG quality of the prepared pages, or None."""
+        ...
 
     @property
-    def grayscale(self) -> Any: ...
+    def grayscale(self) -> Any:
+        """Whether pages are converted to grayscale, or None."""
+        ...
 
 
 @dataclass(frozen=True)

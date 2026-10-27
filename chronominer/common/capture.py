@@ -62,8 +62,11 @@ class CapturedResponse:
 
 
 class CaptureScope:
-    """The responses captured during one provider attempt, in arrival order,
-    and the body of the last request sent."""
+    """Hold the responses captured during one provider attempt.
+
+    The responses are kept in arrival order, with the body of the last request
+    sent.
+    """
 
     def __init__(self) -> None:
         self._lock = threading.Lock()
@@ -228,7 +231,9 @@ class AttemptRecord:
 class AttemptRecorder(Protocol):
     """Stores attempt records; returns the stored response id, or None."""
 
-    async def record(self, record: AttemptRecord) -> int | None: ...
+    async def record(self, record: AttemptRecord) -> int | None:
+        """Store *record*; return the stored response id, or None."""
+        ...
 
 
 _RECORDER: ContextVar[AttemptRecorder | None] = ContextVar(
