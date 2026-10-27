@@ -788,11 +788,12 @@ def _check_access(
 def _run_choices(
     store: Store, doc_id: int
 ) -> tuple[ContextText, ContextText, ContextChoice]:
-    """Return the ``--context``, ``--fallback-context`` and ``--context-image``
-    of the extraction run.
+    """Return the context choices of the document's extraction run.
 
-    The latest ``extract`` run that wrote a unit of the document counts;
-    without one, the context is looked up and no context image is sent.
+    The choices are ``--context``, ``--fallback-context`` and
+    ``--context-image``, in that order. The latest ``extract`` run that
+    wrote a unit of the document counts; without one, the context is looked
+    up and no context image is sent.
     """
 
     def query(connection: sqlite3.Connection) -> Any:

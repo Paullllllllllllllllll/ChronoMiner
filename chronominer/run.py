@@ -325,8 +325,10 @@ class RunPlan:
         return tuple(item for item in self.blocked if item.resume.leased_by)
 
     def effective_spec(self) -> dict[str, dict[str, Any]]:
-        """Return ``{field: {"value": ..., "source": ...}}`` for every field,
-        as the store records it with the run."""
+        """Return every field's value and source as the store records them.
+
+        The mapping has the shape ``{field: {"value": ..., "source": ...}}``.
+        """
         return effective_spec(self.spec, self.sources)
 
     def resolved_spec(self) -> dict[str, dict[str, Any]]:

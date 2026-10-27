@@ -128,7 +128,9 @@ class BoundaryCaller(Protocol):
 
     async def call(
         self, messages: Sequence[Any], request: StructuredRequest, *, label: str
-    ) -> StructuredResult: ...
+    ) -> StructuredResult:
+        """Send one boundary request; *label* names it in logs and errors."""
+        ...
 
 
 class AdjustDegradedError(RuntimeError):

@@ -154,8 +154,9 @@ def output_limit(model: ModelSpec, caps: Capabilities) -> int | None:
 def request_plan(
     model: ModelSpec, settings: Settings, caps: Capabilities | None = None
 ) -> RequestPlan:
-    """Return the request plan of *model*; *caps* defaults to
-    :func:`model_capabilities`.
+    """Return the request plan of *model*.
+
+    *caps* defaults to :func:`model_capabilities`.
 
     Raises:
         ValueError: A custom model names no endpoint.

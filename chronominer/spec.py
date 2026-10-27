@@ -461,8 +461,11 @@ class BatchCheckSpec:
 
 @dataclass(frozen=True)
 class BatchCancelSpec:
-    """Cancel the named batches, every unfinished batch with ``all``, or the
-    open submissions of the databases below ``directory``."""
+    """The options of ``batch cancel``.
+
+    The command cancels the named batches, every unfinished batch with
+    ``all``, or the open submissions of the databases below ``directory``.
+    """
 
     batch_ids: tuple[str, ...]
     all: bool

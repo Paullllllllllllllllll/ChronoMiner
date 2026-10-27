@@ -1,5 +1,13 @@
 # Changelog
 
+- **v1.0.3** (27 October 2026) -- Documentation patch: ruff now checks
+  docstrings against the Google convention (pydocstyle rules `D`, without D105
+  and D107; tests, notebooks, scratch and the vendored `chronominer/common/`
+  are exempt). The protocol members of the batch, event and extraction
+  interfaces gained docstrings, summaries that ran over two lines were split
+  into a one-line summary and a body, and the prompt helpers in
+  `chronominer/llm/prompt_utils.py` moved from NumPy-style sections to Google
+  prose. Behavior is unchanged.
 - **v1.0.2** (26 October 2026) -- Security patch: the lockfile moves Pillow to
   13.0.0, which closes the Pillow 12.3.0 advisories, among them the TIFF decoder
   reads GHSA-c6hw-5grf-ff96 and GHSA-q45j-58j2-45rg and the MIC frame-count loop

@@ -1,10 +1,10 @@
-"""Token-based line ranges and the chunk texts they cut.
+r"""Token-based line ranges and the chunk texts they cut.
 
 A chunk grows line by line until the next line would push it past the
 token limit (``--chunk-tokens``); a single line longer than the limit
 forms a chunk of its own. Tokens are counted with the tiktoken encoding of
 the model, ``cl100k_base`` for models tiktoken does not know, and every line
-counts with its newline, since chunks join their lines with ``"\\n"``.
+counts with its newline, since chunks join their lines with ``"\n"``.
 
 :func:`ranges_for_file` computes the ranges ``ranges generate`` writes;
 :func:`auto_ranges` the in-memory ranges of ``extract --chunking auto``;
@@ -119,7 +119,7 @@ def auto_ranges(lines: Sequence[str], chunk_tokens: int, model: str) -> list[Ran
 
 
 def chunk_texts(lines: Sequence[str], ranges: Sequence[Range]) -> list[str]:
-    """Return the text of each range: its lines joined with ``"\\n"``."""
+    r"""Return the text of each range: its lines joined with ``"\n"``."""
     return ["\n".join(lines[start - 1 : end]) for start, end in ranges]
 
 

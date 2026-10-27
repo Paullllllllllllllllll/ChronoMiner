@@ -115,19 +115,29 @@ class SubmitDocument(Protocol):
     """
 
     @property
-    def store(self) -> Store: ...
+    def store(self) -> Store:
+        """The output store the document's units are written to."""
+        ...
 
     @property
-    def lease(self) -> Lease: ...
+    def lease(self) -> Lease:
+        """The document lease held for the submission."""
+        ...
 
     @property
-    def doc_id(self) -> int: ...
+    def doc_id(self) -> int:
+        """The document's id in the store."""
+        ...
 
     @property
-    def name(self) -> str: ...
+    def name(self) -> str:
+        """The document name used in errors and log messages."""
+        ...
 
     @property
-    def kind(self) -> str: ...
+    def kind(self) -> str:
+        """The kind of the units the submission creates."""
+        ...
 
 
 def _probe_id(position: int) -> str:

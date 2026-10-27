@@ -706,8 +706,12 @@ def image_changes(recorded: Mapping[str, Any], current: Mapping[str, Any]) -> li
 def _image_changes(
     resume: ResumeState, image_settings: ImageSettings | None
 ) -> tuple[dict[str, Any] | None, list[str], bool]:
-    """Return the recorded settings, the changed user settings, and whether
-    the records differ in other fields only."""
+    """Compare a resumed document's recorded image settings with the current ones.
+
+    Returns:
+        The recorded settings, the changed user settings, and whether the
+        records differ in other fields only.
+    """
     stored = resume.image_settings
     recorded = _plain(stored) if isinstance(stored, Mapping) else None
     if callable(image_settings):

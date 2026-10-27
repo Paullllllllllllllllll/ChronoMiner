@@ -52,10 +52,14 @@ class SubmitOutcome(Protocol):
     """
 
     @property
-    def status(self) -> str: ...
+    def status(self) -> str:
+        """The submission status: ``submitted``, ``refused`` or ``unresolved``."""
+        ...
 
     @property
-    def detail(self) -> str | None: ...
+    def detail(self) -> str | None:
+        """Why the submission was not accepted; None when it was."""
+        ...
 
 
 class BatchSubmitter(Protocol):
@@ -71,7 +75,9 @@ class BatchSubmitter(Protocol):
         schema_path: Path | None,
         context: str | None = None,
         context_image: Path | None = None,
-    ) -> SubmitOutcome: ...
+    ) -> SubmitOutcome:
+        """Submit the chunk *payloads* of *document*."""
+        ...
 
 
 @dataclass(frozen=True)
@@ -153,11 +159,22 @@ class ExtractionMethod(Protocol):
     raising when the item fails; ``close`` releases the resources.
     """
 
-    async def open(self) -> None: ...
+    async def open(self) -> None:
+        """Build what every item shares before the first item."""
+        ...
 
-    async def extract(self, item: Item) -> list[Path]: ...
+    async def extract(self, item: Item) -> list[Path]:
+        """Write the chunks of *item* to its store document.
 
-    async def close(self) -> None: ...
+        Returns:
+            The files the extraction wrote itself; empty when the run core
+            renders the item.
+        """
+        ...
+
+    async def close(self) -> None:
+        """Release the resources built by :meth:`open`."""
+        ...
 
 
 @dataclass
@@ -171,6 +188,7 @@ class ChunkCounter:
     done: int = field(default=0, init=False)
 
     def __call__(self, index: int, failed: bool) -> None:
+        """Count chunk *index* (0-based) as done and report it."""
         self.done += 1
         self.events.chunk_done(
             ChunkDone(

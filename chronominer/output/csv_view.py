@@ -1,4 +1,4 @@
-"""The ``{stem}_output.csv`` view: one row per entry, columns from the schema.
+r"""The ``{stem}_output.csv`` view: one row per entry, columns from the schema.
 
 The columns follow the schema's entry object in schema order. A field whose
 schema is an object (with properties) becomes one column per property,
@@ -11,7 +11,7 @@ entry order. Without a stored schema the columns are the entries' own keys
 in first-seen order, nested objects again dotted.
 
 The file is UTF-8 with a byte-order mark (for spreadsheet programs), comma
-separated with minimal quoting, one ``\\n`` per row, and holds the header
+separated with minimal quoting, one ``\n`` per row, and holds the header
 alone when the document has no entries.
 """
 

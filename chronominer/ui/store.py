@@ -401,9 +401,12 @@ def _document_mode(state: State) -> str:
 
 
 class _DocumentQuestions:
-    """Which stored documents to drop: all (``--all``), by name search
-    (``--select``), or by number, range or from the list (``--files``, the
-    chosen documents' names)."""
+    """Ask which stored documents to drop.
+
+    The choices are all (``--all``), by name search (``--select``), or by
+    number, range or from the list (``--files``, the chosen documents'
+    names).
+    """
 
     def __init__(self, ctx: StepContext) -> None:
         self.ctx = ctx

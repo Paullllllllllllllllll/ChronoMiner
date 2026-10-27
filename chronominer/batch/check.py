@@ -215,8 +215,11 @@ class CheckResult:
 
     @property
     def had_failure(self) -> bool:
-        """Whether a submission failed, waits for the user or finalized a
-        failed chunk (:func:`failed_units`); exit code 1."""
+        """Whether the check should exit with code 1.
+
+        True when a submission failed, waits for the user or finalized a
+        failed chunk (:func:`failed_units`).
+        """
         return self.stats.had_failure or failed_units(self.submissions) > 0
 
     @property

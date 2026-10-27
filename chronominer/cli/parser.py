@@ -274,6 +274,7 @@ class Parser(argparse.ArgumentParser):
     """
 
     def error(self, message: str) -> NoReturn:
+        """Raise :class:`UsageError` with *message* and the usage text."""
         raise UsageError(message, prog=self.prog, usage=self.format_usage())
 
 
@@ -291,8 +292,11 @@ def _add_command(
     epilog: str,
     usage: str | None = None,
 ) -> argparse.ArgumentParser:
-    """Add a subcommand; the extension's arguments join the commands that call
-    providers (:data:`~chronominer.spec.PROVIDER_TABLES`)."""
+    """Add a subcommand built from its option table.
+
+    The extension's arguments join the commands that call providers
+    (:data:`~chronominer.spec.PROVIDER_TABLES`).
+    """
     parser: argparse.ArgumentParser = commands.add_parser(
         name,
         help=help,

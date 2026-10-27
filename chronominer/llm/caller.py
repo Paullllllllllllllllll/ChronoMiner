@@ -308,7 +308,6 @@ class ModelCaller:
         Raises:
             PageTimeoutError: The call ran past the page deadline.
         """
-
         numbers = itertools.count(1)
         watchdog = None if self.deadline is None else asyncio.timeout(self.deadline)
         deadline = _Deadline(watchdog)
