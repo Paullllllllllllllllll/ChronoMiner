@@ -91,7 +91,7 @@ _LOW_TO_XHIGH = ("low", "medium", "high", "xhigh")
 _PRO = ("medium", "high", "xhigh")
 _LOW_TO_HIGH = ("low", "medium", "high")
 
-_GPT6 = ("gpt-6-luna", "gpt-6-sol", "gpt-6-astra", "gpt-6.1-sol")
+_GPT6 = ("gpt-6-luna", "gpt-6-sol", "gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra")
 _GPT56 = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6")
 _CODEX = ("gpt-5.2-codex", "gpt-5.3-codex")
 _OLD_CHAT = ("gpt-5-chat-latest", "gpt-5.1-chat-latest", "gpt-5.2-chat-latest")
@@ -130,6 +130,13 @@ STRUCTURE: tuple[AddRule | DropRule | Rematch, ...] = (
         _OA + "models: gpt-5.3 and gpt-5.3-chat are no OpenAI ids",
         prefixes=("gpt-5-",),
         exact=("gpt-5",),
+    ),
+    AddRule(
+        "gpt-6.1-terra",
+        "gpt-6.1-sol",
+        _OA + "models/gpt-6.1-terra: text and image input, structured outputs",
+        like="gpt-6.1-sol",
+        prefixes=("gpt-6.1-terra",),
     ),
     AddRule(
         "gpt-5.2-pro",
@@ -408,6 +415,12 @@ FACTS: tuple[Fact, ...] = (
         "reasoning_efforts",
         _NONE_TO_MAX,
         _OA + "models/gpt-6-luna: none, low, medium (default), high, xhigh, max",
+    ),
+    Fact(
+        ("gpt-6.1-terra",),
+        "reasoning_efforts",
+        _NONE_TO_MAX,
+        _OA + "models/gpt-6.1-terra: none, low, medium (default), high, xhigh, max",
     ),
     Fact(
         ("gpt-5.5", "gpt-5.4", "gpt-5.4-mini", "gpt-5.4-nano", "gpt-5.2"),
