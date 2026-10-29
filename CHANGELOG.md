@@ -1,5 +1,9 @@
 # Changelog
 
+- **v1.1.2** (29 October 2026) -- The Pillow requirement is raised to
+  13.0, the first release that fixes the FlashPix, TIFF-writer and
+  multi-frame loader advisories, so that no install resolves a vulnerable
+  Pillow. The lock already held 13.0.0.
 - **v1.1.1** (29 October 2026) -- The guided UI asks for the decision-model
   pre-pass of a new extraction after the page images: off, shadow or apply,
   and with the pass on, the decision model, its API and its endpoint. The
