@@ -1,4 +1,4 @@
-# ChronoMiner v1.1.0
+# ChronoMiner v1.1.1
 
 ChronoMiner extracts structured data from text files, images and PDFs with language
 models. A JSON schema describes the entries to find, such as the items of a price list
@@ -310,7 +310,8 @@ then asks for the input, the type and, for a folder of several items, `Which ite
 (all, by number or range, by name search, or from the list), then chunking, the units
 to extract (`Which pages?`, `Which line ranges?` or `Which chunks?`: all, or a range in
 the `--pages` syntax), output and formats, model, prompt and context (response
-format, schema, context and context image), page images and the run options, whose
+format, schema, context and context image), page images, the decision-model
+pre-pass (its model, API and endpoint only when it is on) and the run options, whose
 `Parallel requests:` is asked only for a synchronous run; a step appears only for the
 inputs that use it. The context is `Automatic (sidecar)`, with a fallback for items
 without a sidecar, `Topics as text`, `A text file` or `None`. Every list offers Back,

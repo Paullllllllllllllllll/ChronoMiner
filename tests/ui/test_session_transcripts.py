@@ -108,6 +108,7 @@ def _text_answers(source: Path, out: Path) -> list[Any]:
         KEEP,  # response format
         "PriceListEntries",
         *[KEEP] * 3,  # context, fallback context, context image
+        KEEP,  # decision pre-pass
         KEEP,  # submission
         [],  # run options
         KEEP,  # concurrency
@@ -136,6 +137,7 @@ def _image_answers(source: Path, out: Path) -> list[Any]:
         "WageRecords",
         *[KEEP] * 3,  # context, fallback context, context image
         KEEP,  # page images
+        KEEP,  # decision pre-pass
         True,  # submission: batch API
         [],  # run options; no parallel requests for a batch run
         "run",

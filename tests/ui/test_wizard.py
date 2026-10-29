@@ -78,6 +78,7 @@ def _pdf_answers(pdf: Path, images: Sequence[Any], end: Sequence[Any]) -> list[A
         KEEP,  # fallback context: none
         KEEP,  # context image
         *images,
+        KEEP,  # decision pre-pass
         KEEP,  # submission
         [],  # run options
         KEEP,  # concurrency
@@ -91,10 +92,6 @@ def test_the_steps_set_every_option_but_json_and_settings(session: Session) -> N
     assert set().union(*(step.sets for step in steps)) == set(OPTIONS.names) - {
         "json",
         "settings",
-        "decisions",
-        "decision_model",
-        "decision_provider",
-        "decision_endpoint",
     }
 
 
@@ -249,11 +246,11 @@ def test_steps_of_other_inputs_are_skipped(
     common = ["task", "input", "type"]
     tail = ["output", "model", "response"]
     state.set("input", text_file)
-    assert applicable() == [*common, "chunking", "pages", *tail, "run"]
+    assert applicable() == [*common, "chunking", "pages", *tail, "decisions", "run"]
     state.set("input", scanned_pdf)
-    assert applicable() == [*common, "pages", *tail, "images", "run"]
+    assert applicable() == [*common, "pages", *tail, "images", "decisions", "run"]
     state.set("input", image_folder)
-    assert applicable() == [*common, *tail, "images", "run"]
+    assert applicable() == [*common, *tail, "images", "decisions", "run"]
 
 
 def test_a_step_applying_again_after_an_edit_gets_its_answers_back(

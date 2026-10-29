@@ -79,7 +79,8 @@ def _model_and_response() -> list[Any]:
 
 def _run_answers(flags: Sequence[str], end: str, *, batch: bool = False) -> list[Any]:
     concurrency = [] if batch else [KEEP]  # not asked for a batch run
-    return [batch, list(flags), *concurrency, end]  # submission, run options
+    # decision pre-pass, submission, run options
+    return [KEEP, batch, list(flags), *concurrency, end]
 
 
 def _text_answers(

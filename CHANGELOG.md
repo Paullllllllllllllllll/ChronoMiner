@@ -1,5 +1,10 @@
 # Changelog
 
+- **v1.1.1** (29 October 2026) -- The guided UI asks for the decision-model
+  pre-pass of a new extraction after the page images: off, shadow or apply,
+  and with the pass on, the decision model, its API and its endpoint. The
+  printed command carries the answers as `--decisions`, `--decision-model`,
+  `--decision-provider` and `--decision-endpoint`.
 - **v1.1.0** (29 October 2026) -- `extract --decisions shadow|apply` adds a
   decision-model pre-pass: OpenAI's `/v1/decisions` or OpenRouter's decision API
   (default `typesafe/jev-1.14`) answers per chunk still to extract whether its text

@@ -156,6 +156,14 @@ ChronoMiner | new extraction   step 7
   answer: Recommended for openai models
 
 ChronoMiner | new extraction   step 8
+? Decision-model pre-pass (chunk relevance before extraction):
+ > Off
+   Shadow  record relevance only
+   Apply  skip chunks under a threshold
+   Back
+  answer: Off
+
+ChronoMiner | new extraction   step 9
 ? Submission:
  > Synchronous  results now
    Batch API  collected later with batch check

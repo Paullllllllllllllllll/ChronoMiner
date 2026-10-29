@@ -78,10 +78,6 @@ EXEMPT: Final[Mapping[str, str]] = MappingProxyType(
     {
         "json": "agent-contract output (one JSON line on stdout); no use in the UI",
         "settings": "given to the ui itself (ui --settings) and added to the command",
-        "decisions": "decision-model pre-pass; set by flag or settings default",
-        "decision_model": "decision-model pre-pass; set by flag or settings default",
-        "decision_provider": "decision-model pre-pass; set by flag or settings default",
-        "decision_endpoint": "decision-model pre-pass; set by flag or settings default",
         "skipped": "repairs the decision pre-pass's skips; set by flag",
         "wait": "batch check in the ui makes one pass",
         "poll_minutes": "only with --wait, which the ui does not offer",
@@ -311,6 +307,10 @@ def pdf_customized(ws: Workspace) -> Script:
         "jpeg",
         "80",
         False,
+        "shadow",  # decision pre-pass
+        "openai/gpt-6-luna",
+        "openrouter",
+        "https://example.org/decide",
         True,
         [],
         "copy",
@@ -342,6 +342,7 @@ def text_reasoning_and_schema_file(ws: Workspace) -> Script:
         "none",
         "auto",
         KEEP,
+        KEEP,  # decision pre-pass
         ["force", "dry_run"],
         "4",
         "copy",
@@ -366,6 +367,7 @@ def text_line_ranges(ws: Workspace) -> Script:
         "text",  # fallback context
         "wage ledgers",
         KEEP,  # context image
+        KEEP,  # decision pre-pass
         KEEP,
         [],
         KEEP,
@@ -390,6 +392,7 @@ def text_adjusted_ranges_with_back(ws: Workspace) -> Script:
         KEEP,
         SCHEMA,
         *CONTEXT_KEEPS,
+        KEEP,  # decision pre-pass
         KEEP,
         [],
         KEEP,
@@ -417,6 +420,7 @@ def images_at_named_endpoint(ws: Workspace) -> Script:
         SCHEMA,
         *CONTEXT_KEEPS,
         "recommended",
+        KEEP,  # decision pre-pass
         [],
         KEEP,
         "copy",
@@ -441,6 +445,7 @@ def mixed_folder_auto(ws: Workspace) -> Script:
         SCHEMA,
         *CONTEXT_KEEPS,
         KEEP,
+        KEEP,  # decision pre-pass
         KEEP,
         [],
         KEEP,
@@ -468,6 +473,7 @@ def provider_without_implied_model(ws: Workspace) -> Script:
         SCHEMA,
         *CONTEXT_KEEPS,
         KEEP,
+        KEEP,  # decision pre-pass
         [],
         KEEP,
         "copy",
@@ -501,6 +507,7 @@ def extract_settings_defaults(ws: Workspace) -> Script:
         KEEP,  # schema of the settings
         *CONTEXT_KEEPS,
         KEEP,
+        KEEP,  # decision pre-pass
         KEEP,
         KEEP,
         KEEP,
@@ -525,6 +532,7 @@ def extract_defaults_unnamed(ws: Workspace) -> Script:
         KEEP,
         KEEP,  # schema of the settings
         *CONTEXT_KEEPS,
+        KEEP,  # decision pre-pass
         KEEP,
         KEEP,
         KEEP,
@@ -561,6 +569,7 @@ def extract_force_action(ws: Workspace) -> Script:
         KEEP,
         SCHEMA,
         *CONTEXT_KEEPS,
+        KEEP,  # decision pre-pass
         KEEP,
         [],
         KEEP,
@@ -1142,6 +1151,8 @@ def _texts(ws: Workspace) -> list[tuple[str, list[str]]]:
         ("Text file or folder", [str(path) for path in ranged]),
         ("Line ranges to adjust", ["", "1", "first:1"]),
         ("Tokenizer model", ["gpt-4o", "gpt-5.6-luna"]),
+        ("Decision model id:", ["openai/gpt-6-luna", "gpt-5.6-luna"]),
+        ("Decision endpoint URL", ["", "https://example.org/decide"]),
         ("Context window", ["6", "12"]),
         ("Folder, chronominer.sqlite or file", [str(ws.text), str(ws.jobs)]),
         ("Schema name or file:", [SCHEMA, "Custom Records", str(ws.schema)]),

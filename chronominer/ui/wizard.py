@@ -2,7 +2,8 @@
 
 Steps in order: input, input type and items, chunking, pages, output and
 formats, model, prompt and context (response format, schema, context and
-context image), page images, and the run options. Each :class:`Step` names
+context image), page images, the decision-model pre-pass, and the run
+options. Each :class:`Step` names
 the options it may set and applies only to the inputs that use them:
 chunking to text items, pages to text and PDF items, page images to image
 and PDF items. Answers act like command-line flags over the settings
@@ -52,6 +53,7 @@ from chronominer.ui.session import (
 
 __all__ = [
     "CHUNKING_TITLES",
+    "DECISION_OPTIONS",
     "RESPONSE_STEP_OPTIONS",
     "RUN_FLAGS",
     "RUN_OPTIONS",
@@ -77,7 +79,14 @@ STEP_NAMES: Final = (
     "model",
     "response",
     "images",
+    "decisions",
     "run",
+)
+DECISION_OPTIONS: Final = (
+    "decisions",
+    "decision_model",
+    "decision_provider",
+    "decision_endpoint",
 )
 RESPONSE_STEP_OPTIONS: Final = (
     "response_format",
@@ -644,6 +653,53 @@ def _images_step(session: Session) -> Step:
     )
 
 
+def _ask_decisions(ctx: StepContext) -> Nav:
+    state = ctx.state
+
+    def active() -> bool:
+        return bool(state.value("decisions") != "off")
+
+    def mode() -> Nav:
+        return ctx.select_option(
+            "decisions",
+            "Decision-model pre-pass (chunk relevance before extraction):",
+            [
+                Choice("off", "Off"),
+                Choice("shadow", "Shadow", "record relevance only"),
+                Choice("apply", "Apply", "skip chunks under a threshold"),
+            ],
+        )
+
+    def model() -> Nav | None:
+        if not active():
+            return None
+        return ctx.text_option("decision_model", "Decision model id:")
+
+    def provider() -> Nav | None:
+        if not active():
+            return None
+        return ctx.select_option(
+            "decision_provider",
+            "Decision API:",
+            [
+                Choice(None, "From the model id", "vendor/model ids go to OpenRouter"),
+                Choice("openai", "OpenAI"),
+                Choice("openrouter", "OpenRouter"),
+            ],
+        )
+
+    def endpoint() -> Nav | None:
+        if not active():
+            return None
+        return ctx.text_option(
+            "decision_endpoint",
+            "Decision endpoint URL (empty = the provider's):",
+            empty=None,
+        )
+
+    return StepContext.sequence([mode, model, provider, endpoint])
+
+
 def batch_available(state: State, session: Session) -> bool:
     """Whether the run may use the batch API: provider and extension."""
     try:
@@ -732,5 +788,6 @@ def build_steps(session: Session) -> list[Step]:
         _model_step(session),
         _response_step(session),
         _images_step(session),
+        Step("decisions", "Decision model", ask=_ask_decisions, sets=DECISION_OPTIONS),
         _run_step(session),
     ]
