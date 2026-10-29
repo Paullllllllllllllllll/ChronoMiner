@@ -20,6 +20,7 @@
   "sha256": "<sha256>",
   "text": "<text: 2210 chars>"
 }
+## chunk_decisions
 ## document_meta
 {
   "doc_id": 1,
@@ -378,7 +379,7 @@
 ## meta
 {
   "component": "chronominer",
-  "version": 1
+  "version": 2
 }
 {
   "component": "core",
@@ -755,6 +756,22 @@
     "chunking.mode": {
       "source": "default",
       "value": "auto"
+    },
+    "decision.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "decision.mode": {
+      "source": "default",
+      "value": "off"
+    },
+    "decision.model": {
+      "source": "default",
+      "value": "typesafe/jev-1.14"
+    },
+    "decision.provider": {
+      "source": "default",
+      "value": null
     },
     "images.detail": {
       "source": "settings",
@@ -1272,11 +1289,13 @@
 {
   "chunk_index": 1,
   "custom_id": "book-page-1",
+  "decision_probability": null,
   "document": "book",
   "error": null,
   "error_type": null,
   "label": "page_0001",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -1307,11 +1326,13 @@
 {
   "chunk_index": 2,
   "custom_id": "book-page-2",
+  "decision_probability": null,
   "document": "book",
   "error": null,
   "error_type": null,
   "label": "page_0002",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -1342,11 +1363,13 @@
 {
   "chunk_index": 1,
   "custom_id": "ledger-chunk-1",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "1-17",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -1377,11 +1400,13 @@
 {
   "chunk_index": 2,
   "custom_id": "ledger-chunk-2",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "18-35",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -1412,11 +1437,13 @@
 {
   "chunk_index": 1,
   "custom_id": "scan-page-1",
+  "decision_probability": null,
   "document": "scan",
   "error": null,
   "error_type": null,
   "label": "scan.png",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [

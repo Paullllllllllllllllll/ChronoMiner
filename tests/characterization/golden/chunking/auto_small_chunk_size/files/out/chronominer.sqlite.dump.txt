@@ -13,6 +13,7 @@
   "sha256": "<sha256>",
   "text": "<text: 2210 chars>"
 }
+## chunk_decisions
 ## document_meta
 {
   "doc_id": 1,
@@ -376,7 +377,7 @@
 ## meta
 {
   "component": "chronominer",
-  "version": 1
+  "version": 2
 }
 {
   "component": "core",
@@ -1130,6 +1131,22 @@
     "chunking.mode": {
       "source": "flag",
       "value": "auto"
+    },
+    "decision.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "decision.mode": {
+      "source": "default",
+      "value": "off"
+    },
+    "decision.model": {
+      "source": "default",
+      "value": "typesafe/jev-1.14"
+    },
+    "decision.provider": {
+      "source": "default",
+      "value": null
     },
     "images.detail": {
       "source": "settings",
@@ -2038,11 +2055,13 @@
 {
   "chunk_index": 1,
   "custom_id": "ledger-chunk-1",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "1-7",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2073,11 +2092,13 @@
 {
   "chunk_index": 2,
   "custom_id": "ledger-chunk-2",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "8-13",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2108,11 +2129,13 @@
 {
   "chunk_index": 3,
   "custom_id": "ledger-chunk-3",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "14-19",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2143,11 +2166,13 @@
 {
   "chunk_index": 4,
   "custom_id": "ledger-chunk-4",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "20-25",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2178,11 +2203,13 @@
 {
   "chunk_index": 5,
   "custom_id": "ledger-chunk-5",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "26-31",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2213,11 +2240,13 @@
 {
   "chunk_index": 6,
   "custom_id": "ledger-chunk-6",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "32-37",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2248,11 +2277,13 @@
 {
   "chunk_index": 7,
   "custom_id": "ledger-chunk-7",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "38-43",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2283,11 +2314,13 @@
 {
   "chunk_index": 8,
   "custom_id": "ledger-chunk-8",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "44-49",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2318,11 +2351,13 @@
 {
   "chunk_index": 9,
   "custom_id": "ledger-chunk-9",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "50-55",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2353,11 +2388,13 @@
 {
   "chunk_index": 10,
   "custom_id": "ledger-chunk-10",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "56-61",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2388,11 +2425,13 @@
 {
   "chunk_index": 11,
   "custom_id": "ledger-chunk-11",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "62-67",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -2423,11 +2462,13 @@
 {
   "chunk_index": 12,
   "custom_id": "ledger-chunk-12",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "68-71",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [

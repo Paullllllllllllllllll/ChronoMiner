@@ -74,6 +74,20 @@ model:
                         schema (API-enforced) or json (prompted, validated); default: schema when
                         the model supports it, else json
 
+decision model:
+  --decisions {off,shadow,apply}
+                        decision-model pre-pass: shadow records each chunk's relevance to the
+                        schema; apply also skips the chunks below the validated threshold;
+                        default: off
+  --decision-model ID   decision model id; default: typesafe/jev-1.14; only for decisions apply,
+                        shadow
+  --decision-provider {openai,openrouter}
+                        decision API dialect; default: from the model id; only for decisions
+                        apply, shadow
+  --decision-endpoint URL
+                        decision endpoint URL; default: the provider's; only for decisions apply,
+                        shadow
+
 images:
   --dpi native|N        render resolution: native or a DPI value; default: the provider's
                         recommended value

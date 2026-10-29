@@ -78,6 +78,11 @@ EXEMPT: Final[Mapping[str, str]] = MappingProxyType(
     {
         "json": "agent-contract output (one JSON line on stdout); no use in the UI",
         "settings": "given to the ui itself (ui --settings) and added to the command",
+        "decisions": "decision-model pre-pass; set by flag or settings default",
+        "decision_model": "decision-model pre-pass; set by flag or settings default",
+        "decision_provider": "decision-model pre-pass; set by flag or settings default",
+        "decision_endpoint": "decision-model pre-pass; set by flag or settings default",
+        "skipped": "repairs the decision pre-pass's skips; set by flag",
         "wait": "batch check in the ui makes one pass",
         "poll_minutes": "only with --wait, which the ui does not offer",
         "wait_hours": "only with --wait, which the ui does not offer",

@@ -106,8 +106,8 @@ def extra_argv(args: argparse.Namespace | None) -> tuple[str, ...]:
     return ()
 
 
-CLIENT_KINDS: Final = ("chat", "batch")
-"""The client kinds: chat models and batch API clients."""
+CLIENT_KINDS: Final = ("chat", "batch", "decision")
+"""The client kinds: chat models, batch API clients and decision models."""
 
 ROLES: Final = ("extract", "adjust")
 """The call roles: extraction chunks and line-range boundary decisions."""

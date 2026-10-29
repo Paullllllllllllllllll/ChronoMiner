@@ -13,6 +13,7 @@
   "sha256": "<sha256>",
   "text": "<text: 2210 chars>"
 }
+## chunk_decisions
 ## document_meta
 {
   "doc_id": 1,
@@ -136,7 +137,7 @@
 ## meta
 {
   "component": "chronominer",
-  "version": 1
+  "version": 2
 }
 {
   "component": "core",
@@ -241,6 +242,22 @@
     "chunking.mode": {
       "source": "default",
       "value": "auto"
+    },
+    "decision.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "decision.mode": {
+      "source": "default",
+      "value": "off"
+    },
+    "decision.model": {
+      "source": "default",
+      "value": "typesafe/jev-1.14"
+    },
+    "decision.provider": {
+      "source": "default",
+      "value": null
     },
     "images.detail": {
       "source": "settings",
@@ -474,11 +491,13 @@
 {
   "chunk_index": 1,
   "custom_id": "page-page-1",
+  "decision_probability": null,
   "document": "page",
   "error": null,
   "error_type": null,
   "label": "page.png",
   "model": "claude-sonnet-4-5",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [

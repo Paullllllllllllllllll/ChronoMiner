@@ -1,4 +1,4 @@
-# ChronoMiner v1.0.4
+# ChronoMiner v1.1.0
 
 ChronoMiner extracts structured data from text files, images and PDFs with language
 models. A JSON schema describes the entries to find, such as the items of a price list
@@ -96,6 +96,10 @@ both.
 | `--top-p P` | nucleus sampling, 0.0 to 1.0; sent only when supported | 1.0 | yes |
 | `--service-tier {auto,default,flex,priority}` | OpenAI service tier; only for provider openai | default | yes |
 | `--response-format {schema,json}` | schema (API-enforced) or json (prompted, validated) | schema when the model supports it, else json | yes |
+| `--decisions {off,shadow,apply}` | decision-model pre-pass: shadow records each chunk's relevance to the schema; apply also skips the chunks below the validated threshold | off | yes |
+| `--decision-model ID` | decision model id; only for decisions apply, shadow | typesafe/jev-1.14 | yes |
+| `--decision-provider {openai,openrouter}` | decision API dialect; only for decisions apply, shadow | from the model id | yes |
+| `--decision-endpoint URL` | decision endpoint URL; only for decisions apply, shadow | the provider's | yes |
 | `--dpi native\|N` | render resolution: native or a DPI value | the provider's recommended value | yes |
 | `--image-detail {low,high,auto,original}` | image detail sent to the model | the provider's recommended value | yes |
 | `--image-format {jpeg,png}` | page image format | the provider's recommended value | yes |
@@ -195,6 +199,7 @@ settings defaults.
 | `--input PATH` | folder, chronominer.sqlite or input whose failed chunks to run again; subfolders included | the current directory | no |
 | `--schema NAME` | repair only documents extracted with this schema | every schema | no |
 | `--indices LIST` | 0-based chunk indices (order in the document) among the failed chunks: 0,5,12 or 3-7 | every failed chunk | no |
+| `--skipped` | extract the chunks the decision pre-pass skipped as irrelevant instead of the failed ones | | no |
 | `--batch`, `--no-batch` | submit the repairs to the provider's batch API | off | yes |
 | `--dry-run` | plan without API calls or writes | | no |
 | `--json` | print one JSON summary line on stdout | | no |
@@ -394,6 +399,12 @@ prompt_caching:
   openrouter:
     anthropic_cache_control: true
 
+# Decision-model pre-pass of --decisions shadow|apply (chunk relevance, skips).
+decisions:
+  image_max_px: 768       # longer side of the page images sent
+  timeout_s: 120
+  thresholds: {}          # request fingerprint: relevance below which apply skips
+
 # Folder of the state files of extensions; '' means ~/.chronominer.
 state_dir: ''
 
@@ -519,6 +530,27 @@ a boolean `contains_no_content_of_requested_type` and an `entries` array. Each
 top-level property of the entry object becomes a column of the `entries` view and of
 the CSV. Save the file in `schemas/` to call it by name, or pass its path.
 
+### Decision pre-pass
+
+With `--decisions shadow` or `apply`, a decision model answers one question per
+chunk still to extract before extraction: whether the chunk's text or page image
+holds at least one entry of the kind the schema asks for. The question is built
+from the schema's `name` and `description`; a top-level `decision_question` text in
+the schema file replaces it. Page images go out downscaled to
+`decisions.image_max_px`, and the relevance lands in the store's `chunk_decisions`
+table and the `decision_probability` column of `chunks`. The decision model is
+OpenAI's `/v1/decisions` (a model id without `/`) or OpenRouter's decision API (a
+model id with `/`, the default `typesafe/jev-1.14`); it uses the provider's key
+variable from the settings.
+
+`shadow` only records. `apply` also skips the chunks whose relevance falls below a
+threshold, marks them done with the outcome `skipped_irrelevant` and without
+entries, and extracts the rest. A threshold holds only for the request settings it
+was validated on: `decisions.thresholds` maps a request fingerprint (the hash of
+tool, provider, model, endpoint, question and image settings) to the threshold, and
+`apply` without an entry for the run's fingerprint records only and names the
+fingerprint in a warning. `repair --skipped` extracts skipped chunks.
+
 ## Inputs and Chunking
 
 With `--type auto`, a folder yields its text, image and PDF files in natural order
@@ -613,7 +645,7 @@ which stay stable; the tables behind them may change.
 | View | One row per | Columns |
 | --- | --- | --- |
 | `entries` | extracted entry of a done chunk, by document, chunk and entry | `document`, `chunk_index`, `entry_index`, `schema`, `model`, `provider`, `run_id` |
-| `chunks` | chunk unit, by document and chunk | `document`, `chunk_index`, `source_index`, `label`, `status`, `model`, `provider`, `usage`, `output_text`, `error`, `error_type`, `custom_id`, `stale`, `run_id` |
+| `chunks` | chunk unit, by document and chunk | `document`, `chunk_index`, `source_index`, `label`, `status`, `model`, `provider`, `usage`, `output_text`, `error`, `error_type`, `custom_id`, `stale`, `run_id`, `outcome`, `decision_probability` |
 | `ranges` | line range of a text, by document and range | `document`, `range_index`, `original_start`, `original_end`, `adjusted_start`, `adjusted_end`, `should_delete`, `status` |
 
 A document is named by its `{stem}_output.json` path relative to the output root,
@@ -623,7 +655,10 @@ schema's entry object sits between `schema` and `model`, typed TEXT, INTEGER or 
 column appears as `field_<name>`. Field columns are added when a schema first writes
 entries, and the fields of other schemas are NULL. In `chunks`, `chunk_index` is
 1-based, `source_index` the line range (`start-end`), image name or 0-based PDF page,
-`status` `pending`, `done` or `failed`, and `usage` JSON token counts
+`status` `pending`, `done` or `failed`, `outcome` `ok`, `no_content`, `unparsed`,
+`failed` or `skipped_irrelevant` (skipped by `--decisions apply`),
+`decision_probability` the relevance the decision pre-pass gave the chunk (NULL
+without one), and `usage` JSON token counts
 (`input_tokens`, `output_tokens`, `total_tokens`, `cached_tokens`,
 `reasoning_tokens`, in synchronous and batch rows alike). In `ranges`,
 `range_index` is 1-based, `original_start` and `original_end` are the starting bounds,

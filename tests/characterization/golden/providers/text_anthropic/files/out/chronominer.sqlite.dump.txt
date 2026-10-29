@@ -13,6 +13,7 @@
   "sha256": "<sha256>",
   "text": "<text: 2210 chars>"
 }
+## chunk_decisions
 ## document_meta
 {
   "doc_id": 1,
@@ -160,7 +161,7 @@
 ## meta
 {
   "component": "chronominer",
-  "version": 1
+  "version": 2
 }
 {
   "component": "core",
@@ -442,6 +443,22 @@
     "chunking.mode": {
       "source": "default",
       "value": "auto"
+    },
+    "decision.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "decision.mode": {
+      "source": "default",
+      "value": "off"
+    },
+    "decision.model": {
+      "source": "default",
+      "value": "typesafe/jev-1.14"
+    },
+    "decision.provider": {
+      "source": "default",
+      "value": null
     },
     "images.detail": {
       "source": "settings",
@@ -846,11 +863,13 @@
 {
   "chunk_index": 1,
   "custom_id": "ledger-chunk-1",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "1-18",
   "model": "claude-sonnet-4-5",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -881,11 +900,13 @@
 {
   "chunk_index": 2,
   "custom_id": "ledger-chunk-2",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "19-36",
   "model": "claude-sonnet-4-5",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -916,11 +937,13 @@
 {
   "chunk_index": 3,
   "custom_id": "ledger-chunk-3",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "37-54",
   "model": "claude-sonnet-4-5",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -951,11 +974,13 @@
 {
   "chunk_index": 4,
   "custom_id": "ledger-chunk-4",
+  "decision_probability": null,
   "document": "ledger",
   "error": null,
   "error_type": null,
   "label": "55-71",
   "model": "claude-sonnet-4-5",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [

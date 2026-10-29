@@ -32,6 +32,7 @@ from chronominer.common.settings_loader import SettingsError, load_settings
 from chronominer.common.settings_schema import (
     DEFAULT_API_KEYS,
     BlockParser,
+    Decisions,
     Endpoint,
     Images,
     PromptCaching,
@@ -42,6 +43,7 @@ from chronominer.common.settings_schema import (
     log_file,
     read_api_keys,
     read_concurrency,
+    read_decisions,
     read_endpoints,
     read_extensions,
     read_images,
@@ -133,6 +135,7 @@ class Settings:
     concurrency: Concurrency = field(default_factory=Concurrency)
     images: Images = field(default_factory=Images)
     prompt_caching: PromptCaching = field(default_factory=PromptCaching)
+    decisions: Decisions = field(default_factory=Decisions)
     state_dir: Path | None = None
     logs_dir: Path | None = None
     defaults: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
@@ -223,6 +226,7 @@ class Settings:
             prompt_caching=read_prompt_caching(
                 reader, data.get("prompt_caching"), PromptCaching()
             ),
+            decisions=read_decisions(reader, data.get("decisions"), Decisions()),
             state_dir=read_state_dir(reader, data),
             logs_dir=read_logs_dir(reader, data),
             defaults=MappingProxyType(dict(defaults or {})),
@@ -241,6 +245,7 @@ _TOP_KEYS = frozenset(
         "concurrency",
         "images",
         "prompt_caching",
+        "decisions",
         "state_dir",
         "logs_dir",
     }

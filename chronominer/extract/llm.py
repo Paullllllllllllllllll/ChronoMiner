@@ -29,6 +29,9 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any
 
+import httpx
+
+from chronominer.common.decisions import MalformedAnswer
 from chronominer.common.store import (
     BLOCKING_SUBMISSIONS,
     PlannedUnit,
@@ -48,6 +51,11 @@ from chronominer.extract.chunks import (
     text_chunks,
     text_ranges,
 )
+from chronominer.extract.decide import (
+    SKIPPED_CONTENT,
+    SKIPPED_OUTCOME,
+    ChunkDecider,
+)
 from chronominer.extract.extraction import ROLE, ChunkExtractor
 from chronominer.extract.images import (
     FolderPages,
@@ -63,13 +71,21 @@ from chronominer.llm.caller import ModelCaller
 from chronominer.llm.options import model_capabilities, response_format_for
 from chronominer.output.store import (
     ENTRY_TABLE,
+    chunk_decision_rows,
+    clear_chunk_decisions,
     image_changes,
     image_settings_record,
     metadata_writer,
 )
 from chronominer.ranges.adjust import AdjustOptions
 from chronominer.ranges.lines import Range, read_lines
-from chronominer.spec import ImageSpec, ResolvedSchema, RunSpec, resolve_schema
+from chronominer.spec import (
+    ImageSpec,
+    ResolvedSchema,
+    RunSpec,
+    SpecError,
+    resolve_schema,
+)
 
 __all__ = [
     "ADJUST_ROLE",
@@ -155,6 +171,7 @@ class Extractor:
         self.schema: ResolvedSchema | None = None
         self._client: ChunkExtractor | None = None
         self._adjust: ModelCaller | None = None
+        self._decider: ChunkDecider | None = None
 
     def _schema(self) -> ResolvedSchema:
         if self.schema is None:
@@ -171,9 +188,19 @@ class Extractor:
             OSError: The key variable is unset.
         """
         schema = self._schema()
+        spec = self.job.spec
+        if spec.decision.mode != "off":
+            try:
+                self._decider = ChunkDecider(
+                    spec.decision,
+                    self.job.env,
+                    schema,
+                    concurrency=spec.run.concurrency,
+                )
+            except ValueError as exc:
+                raise SpecError(str(exc)) from exc
         if self.job.batch:
             return
-        spec = self.job.spec
         self._client = ChunkExtractor(
             spec.model,
             self.job.env,
@@ -187,10 +214,13 @@ class Extractor:
         """Close the clients."""
         client, self._client = self._client, None
         adjust, self._adjust = self._adjust, None
+        decider, self._decider = self._decider, None
         if client is not None:
             await client.close()
         if adjust is not None:
             await adjust.aclose()
+        if decider is not None:
+            await decider.aclose()
 
     def _adjust_caller(self) -> ModelCaller:
         if self._adjust is None:
@@ -325,6 +355,7 @@ class Extractor:
         await handle.plan(planned)
         if self.job.force:
             await handle.reset()
+            await handle.store.write(handle.lease, clear_chunk_decisions(handle.doc_id))
 
     @staticmethod
     async def _drop_chunks(handle: DocumentHandle) -> None:
@@ -340,6 +371,7 @@ class Extractor:
                 f"DELETE FROM {ENTRY_TABLE} WHERE doc_id = ? AND kind = ?",
                 (doc_id, kind),
             )
+            clear_chunk_decisions(doc_id)(connection)
             connection.execute(
                 "DELETE FROM submission_requests WHERE doc_id = ? AND kind = ? "
                 "AND submission_id NOT IN (SELECT submission_id FROM submissions "
@@ -367,7 +399,8 @@ class Extractor:
             self._images(handle),
             self.job.settings.images.original_max_side_px,
         )
-        await self._record_settings(handle, image_settings_record(img_cfg, model_type))
+        record = image_settings_record(img_cfg, model_type)
+        await self._record_settings(handle, record)
         if self.job.force:
             stored = handle.store.units(handle.doc_id, kind=handle.kind)
             if {unit.idx for unit in stored} - {unit.idx for unit in units}:
@@ -375,6 +408,7 @@ class Extractor:
         await handle.plan(units)
         if self.job.force:
             await handle.reset()
+            await handle.store.write(handle.lease, clear_chunk_decisions(handle.doc_id))
         await self._write_metadata(
             handle,
             item,
@@ -401,7 +435,7 @@ class Extractor:
                     page, custom_id=custom_id(item.path, item.source, page.index)
                 )
 
-        await self._process(item, handle, selected, source)
+        await self._process(item, handle, selected, source, upstream=record)
 
     @staticmethod
     def _units(path: Path, is_pdf: bool) -> list[PlannedUnit]:
@@ -420,13 +454,19 @@ class Extractor:
         handle: DocumentHandle,
         selected: list[int],
         source: Any,
+        *,
+        upstream: Mapping[str, Any] | None = None,
     ) -> None:
-        """Extract or submit the selected chunks that are still to do."""
+        """Extract or submit the selected chunks that are still to do.
+
+        *upstream* is the image-settings record of page chunks, None for text.
+        """
         todo = set(handle.todo(retry_errors=self.job.retry_errors))
         needed = [index for index in selected if index in todo]
         already = len(selected) - len(needed)
         if already:
             logger.info("Skipped %d chunks already stored for %s", already, item.name)
+        needed = await self._decide(handle, needed, source, upstream)
         if not needed:
             return
         if self._client is not None:
@@ -452,6 +492,81 @@ class Extractor:
             on_unit=counter,
             entries=EntrySchema(schema.schema, schema.name),
         )
+
+    async def _decide(
+        self,
+        handle: DocumentHandle,
+        needed: list[int],
+        source: Any,
+        upstream: Mapping[str, Any] | None,
+    ) -> list[int]:
+        """Record the relevance of *needed*; return the chunks still to send.
+
+        Without a decision model, *needed* comes back unchanged. Under
+        ``apply`` with a threshold for the request, chunks below it are
+        written as skipped and left out of the returned list.
+        """
+        decider = self._decider
+        if decider is None or not needed:
+            return needed
+
+        async def chunks() -> AsyncIterator[Any]:
+            async for chunk in source(needed):
+                if chunk.render_error is None:
+                    yield chunk
+
+        try:
+            decisions = await decider.classify(handle.name, chunks())
+        except (httpx.HTTPError, MalformedAnswer, OSError) as exc:
+            self.job.events.warning(
+                f"The decision pre-pass failed for '{handle.name}' ({exc}); "
+                "its chunks are extracted without it."
+            )
+            return needed
+        if not decisions:
+            return needed
+        fingerprint = decider.fingerprint(upstream)
+        await handle.store.write(
+            handle.lease,
+            chunk_decision_rows(
+                handle.doc_id,
+                [(d.idx, d.relevance) for d in decisions],
+                question_sha256=decider.question_sha,
+                model=decider.spec.model,
+                fingerprint=fingerprint,
+                run_id=handle.run_id,
+            ),
+        )
+        mode = self.job.spec.decision.mode
+        threshold = decider.threshold(fingerprint)
+        if mode != "apply" or threshold is None:
+            if mode == "apply":
+                self.job.events.warning(
+                    f"No validated decision threshold for request {fingerprint}; "
+                    f"'{handle.name}' is recorded only (see decisions.thresholds)."
+                )
+            return needed
+        skipped = {d.idx: d for d in decisions if d.relevance < threshold}
+        for idx, decision in skipped.items():
+            await handle.write(
+                idx,
+                status="done",
+                content=SKIPPED_CONTENT,
+                outcome=SKIPPED_OUTCOME,
+                provenance={
+                    "decision": {
+                        "relevance": round(decision.relevance, 4),
+                        "threshold": threshold,
+                        "question_sha256": decider.question_sha,
+                        "fingerprint": fingerprint,
+                    }
+                },
+                model=decider.spec.model,
+                provider=decider.dialect,
+            )
+        if skipped:
+            logger.info("Skipped %d irrelevant chunks in %s", len(skipped), handle.name)
+        return [idx for idx in needed if idx not in skipped]
 
     async def _write_metadata(
         self,

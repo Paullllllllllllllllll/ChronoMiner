@@ -1,4 +1,5 @@
 ## artifacts
+## chunk_decisions
 ## document_meta
 ## documents
 {
@@ -45,7 +46,7 @@
 ## meta
 {
   "component": "chronominer",
-  "version": 1
+  "version": 2
 }
 {
   "component": "core",

@@ -75,6 +75,8 @@ CHUNKS_COLUMNS = (
     "custom_id",
     "stale",
     "run_id",
+    "outcome",
+    "decision_probability",
 )
 
 RANGES_COLUMNS = (
@@ -214,7 +216,7 @@ def query(database: Path, sql: str) -> tuple[tuple[str, ...], list[tuple[Any, ..
         connection.close()
 
 
-def test_the_component_adds_tables_and_views_at_version_1(tmp_path: Path) -> None:
+def test_the_component_adds_tables_and_views_at_version_2(tmp_path: Path) -> None:
     database = build_store(tmp_path, [chunk(0)])
 
     _, meta = query(database, "SELECT component, version FROM meta ORDER BY 1")
@@ -229,7 +231,7 @@ def test_the_component_adds_tables_and_views_at_version_1(tmp_path: Path) -> Non
 
     assert database.name == DATABASE_NAME
     assert COMPONENT.name == TOOL
-    assert meta == [("chronominer", 1), ("core", 2)]
+    assert meta == [("chronominer", 2), ("core", 2)]
     assert sorted(name for (name,) in views) == sorted(VIEWS)
     assert tables == [("document_meta",), ("entry_rows",)]
 
@@ -262,15 +264,15 @@ def test_chunks_returns_every_chunk_unit_in_order(tmp_path: Path) -> None:
     first, third = answer({"item": "item 0"}), answer({"item": "item 2"})
     assert rows == [
         (NAME, 1, "1-17", None, "done", MODEL, PROVIDER, usage, first, None, None,
-         "ledger-chunk-1", 0, run_id),
+         "ledger-chunk-1", 0, run_id, None, None),
         (NAME, 2, "18-34", None, "failed", MODEL, PROVIDER, None, None,
-         "Error code: 400", "api_error", "ledger-chunk-2", 0, run_id),
+         "Error code: 400", "api_error", "ledger-chunk-2", 0, run_id, None, None),
         (NAME, 3, "35-51", None, "done", MODEL, PROVIDER, usage, third, None, None,
-         "ledger-chunk-3", 0, run_id),
+         "ledger-chunk-3", 0, run_id, None, None),
         (NAME, 4, "52-68", None, "pending", MODEL, PROVIDER, None, None, None, None,
-         None, 0, run_id),
+         None, 0, run_id, None, None),
         ("scans", 1, "a.png", "a.png", "done", MODEL, PROVIDER, None, answer(),
-         None, None, "scans-page-1", 0, run_id),
+         None, None, "scans-page-1", 0, run_id, None, None),
     ]  # fmt: skip
 
 

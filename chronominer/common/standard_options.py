@@ -19,6 +19,9 @@ from typing import Any, Literal
 from .options import Condition, Kind, Option
 
 __all__ = [
+    "DECISION_MODES",
+    "DECISION_PROVIDERS",
+    "DEFAULT_DECISION_MODEL",
     "DRY_RUN_HELP",
     "IMAGE_DETAILS",
     "IMAGE_FORMATS",
@@ -39,6 +42,7 @@ __all__ = [
     "bounded_float",
     "check_input_option",
     "concurrency_option",
+    "decision_options",
     "dpi_value",
     "dry_run_option",
     "flag_option",
@@ -54,6 +58,9 @@ __all__ = [
     "settings_option",
 ]
 
+DECISION_MODES = ("off", "shadow", "apply")
+DECISION_PROVIDERS = ("openai", "openrouter")
+DEFAULT_DECISION_MODEL = "typesafe/jev-1.14"
 REASONING_EFFORTS = ("none", "minimal", "low", "medium", "high", "xhigh", "max")
 VERBOSITIES = ("low", "medium", "high")
 SERVICE_TIERS = ("auto", "default", "flex", "priority")
@@ -575,4 +582,68 @@ def render_options(
         flag_option("force", "replace files changed outside the tool", target="force"),
         dry_run_option("dry_run", dry_run_help),
         json_option("json", json_help),
+    ]
+
+
+def decision_options(
+    mode_help: str,
+    *,
+    target: str = "decision",
+    default_model: str = DEFAULT_DECISION_MODEL,
+    suggestions: Callable[[], Sequence[str]] | None = None,
+) -> list[Option]:
+    """Return the decision-model block: mode, model, provider and endpoint.
+
+    ``--decisions`` (``off``, ``shadow``, ``apply``) fills ``<target>.mode``;
+    *mode_help* says what ``apply`` does in the tool. The other rows fill
+    ``<target>.model``, ``<target>.provider`` and ``<target>.endpoint`` and
+    apply only while the mode is not ``off``. They never fall back to the
+    chat model's rows. A provider left unset is resolved from the model id
+    (``vendor/model`` ids go to OpenRouter).
+    """
+    active = Condition("decisions", frozenset({"shadow", "apply"}))
+    group = "decision model"
+    return [
+        Option(
+            "decisions",
+            "--decisions",
+            mode_help,
+            group=group,
+            choices=DECISION_MODES,
+            default="off",
+            target=f"{target}.mode",
+        ),
+        Option(
+            "decision_model",
+            "--decision-model",
+            "decision model id",
+            group=group,
+            type=nonempty_text,
+            choice_provider=suggestions,
+            default=default_model,
+            metavar="ID",
+            condition=active,
+            target=f"{target}.model",
+        ),
+        Option(
+            "decision_provider",
+            "--decision-provider",
+            "decision API dialect",
+            group=group,
+            choices=DECISION_PROVIDERS,
+            default_help="from the model id",
+            condition=active,
+            target=f"{target}.provider",
+        ),
+        Option(
+            "decision_endpoint",
+            "--decision-endpoint",
+            "decision endpoint URL",
+            group=group,
+            type=nonempty_text,
+            default_help="the provider's",
+            metavar="URL",
+            condition=active,
+            target=f"{target}.endpoint",
+        ),
     ]

@@ -13,6 +13,7 @@
   "sha256": "<sha256>",
   "text": "<text: 2210 chars>"
 }
+## chunk_decisions
 ## document_meta
 {
   "doc_id": 1,
@@ -376,7 +377,7 @@
 ## meta
 {
   "component": "chronominer",
-  "version": 1
+  "version": 2
 }
 {
   "component": "core",
@@ -665,6 +666,22 @@
       "source": "default",
       "value": "auto"
     },
+    "decision.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "decision.mode": {
+      "source": "default",
+      "value": "off"
+    },
+    "decision.model": {
+      "source": "default",
+      "value": "typesafe/jev-1.14"
+    },
+    "decision.provider": {
+      "source": "default",
+      "value": null
+    },
     "images.detail": {
       "source": "settings",
       "value": "high"
@@ -826,6 +843,22 @@
     "chunking.mode": {
       "source": "default",
       "value": "auto"
+    },
+    "decision.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "decision.mode": {
+      "source": "default",
+      "value": "off"
+    },
+    "decision.model": {
+      "source": "default",
+      "value": "typesafe/jev-1.14"
+    },
+    "decision.provider": {
+      "source": "default",
+      "value": null
     },
     "images.detail": {
       "source": "settings",
@@ -1221,11 +1254,13 @@
 {
   "chunk_index": 1,
   "custom_id": "page_001-page-1",
+  "decision_probability": null,
   "document": "page_001",
   "error": null,
   "error_type": null,
   "label": "page_001.png",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -1256,11 +1291,13 @@
 {
   "chunk_index": 1,
   "custom_id": "page_002-page-1",
+  "decision_probability": null,
   "document": "page_002",
   "error": null,
   "error_type": null,
   "label": "page_002.jpg",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [
@@ -1291,11 +1328,13 @@
 {
   "chunk_index": 1,
   "custom_id": "page_003-page-1",
+  "decision_probability": null,
   "document": "page_003",
   "error": null,
   "error_type": null,
   "label": "page_003.png",
   "model": "gpt-4o",
+  "outcome": "ok",
   "output_text": {
     "contains_no_content_of_requested_type": false,
     "entries": [

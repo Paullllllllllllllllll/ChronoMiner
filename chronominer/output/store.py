@@ -72,7 +72,10 @@ them may change between versions, the views stay stable.
     ``chunk_index`` (1-based), ``source_index``, ``label``, ``status``
     (pending, done or failed), ``model``, ``provider``, ``usage`` (JSON
     token counts), ``output_text`` (the answer as received), ``error``,
-    ``error_type``, ``custom_id``, ``stale`` and ``run_id``.
+    ``error_type``, ``custom_id``, ``stale``, ``run_id``, ``outcome`` (ok,
+    no_content, unparsed, failed or skipped_irrelevant) and
+    ``decision_probability`` (the relevance the decision pre-pass gave the
+    chunk, from the ``chunk_decisions`` table; NULL without one).
 
 ``ranges``
     One row per range unit, ordered by document and range: ``document``,
@@ -148,7 +151,9 @@ __all__ = [
     "Classification",
     "ImageSettings",
     "ItemState",
+    "chunk_decision_rows",
     "classify",
+    "clear_chunk_decisions",
     "create_entries_view",
     "database_path",
     "document_metadata",
@@ -298,8 +303,97 @@ def _version_1(connection: sqlite3.Connection) -> None:
     create_entries_view(connection)
 
 
-COMPONENT: Final = Component(TOOL, (_version_1,))
-"""The tool's schema component: version 1 adds the content tables and views."""
+_DECISIONS_V2 = """
+CREATE TABLE chunk_decisions (
+    doc_id INTEGER NOT NULL REFERENCES documents (doc_id),
+    idx INTEGER NOT NULL,
+    probability REAL NOT NULL,
+    question_sha256 TEXT NOT NULL,
+    model TEXT NOT NULL,
+    fingerprint TEXT NOT NULL,
+    run_id TEXT,
+    created_at TEXT NOT NULL,
+    PRIMARY KEY (doc_id, idx)
+);
+DROP VIEW chunks;
+CREATE VIEW chunks AS
+SELECT
+    d.name AS document,
+    u.idx + 1 AS chunk_index,
+    u.source_index AS source_index,
+    u.label AS label,
+    u.status AS status,
+    u.model AS model,
+    u.provider AS provider,
+    u.usage AS usage,
+    u.content AS output_text,
+    u.error AS error,
+    u.error_type AS error_type,
+    json_extract(u.provenance, '$.custom_id') AS custom_id,
+    u.stale AS stale,
+    u.run_id AS run_id,
+    u.outcome AS outcome,
+    cd.probability AS decision_probability
+FROM units AS u
+JOIN documents AS d ON d.doc_id = u.doc_id
+LEFT JOIN chunk_decisions AS cd ON cd.doc_id = u.doc_id AND cd.idx = u.idx
+WHERE u.kind = 'chunk'
+ORDER BY d.name, u.idx
+"""
+
+
+def _version_2(connection: sqlite3.Connection) -> None:
+    for statement in _DECISIONS_V2.split(";"):
+        if statement.strip():
+            connection.execute(statement)
+
+
+COMPONENT: Final = Component(TOOL, (_version_1, _version_2))
+"""The tool's schema component: version 1 adds the content tables and views,
+version 2 the ``chunk_decisions`` table and the decision columns of
+``chunks``."""
+
+
+def clear_chunk_decisions(doc_id: int) -> Callable[[sqlite3.Connection], None]:
+    """Return a write that deletes the relevance rows of a document's chunks."""
+
+    def write(connection: sqlite3.Connection) -> None:
+        connection.execute("DELETE FROM chunk_decisions WHERE doc_id = ?", (doc_id,))
+
+    return write
+
+
+def chunk_decision_rows(
+    doc_id: int,
+    decisions: Sequence[tuple[int, float]],
+    *,
+    question_sha256: str,
+    model: str,
+    fingerprint: str,
+    run_id: str | None,
+) -> Callable[[sqlite3.Connection], None]:
+    """Return a write that replaces the relevance of the document's chunks.
+
+    *decisions* holds ``(idx, probability)``; pass the write to
+    ``Store.write`` so it runs under the document's lease. The rows belong to
+    the document's id, so dropping the document removes them.
+    """
+    now = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+    rows = [
+        (doc_id, idx, probability, question_sha256, model, fingerprint, run_id, now)
+        for idx, probability in decisions
+    ]
+
+    def write(connection: sqlite3.Connection) -> None:
+        connection.executemany(
+            "INSERT OR REPLACE INTO chunk_decisions (doc_id, idx, probability, "
+            "question_sha256, model, fingerprint, run_id, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            rows,
+        )
+
+    return write
+
 
 _COMPONENTS: Final = (COMPONENT,)
 

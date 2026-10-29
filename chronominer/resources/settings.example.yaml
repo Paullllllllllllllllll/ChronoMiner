@@ -63,6 +63,12 @@ prompt_caching:
   openrouter:
     anthropic_cache_control: true
 
+# Decision-model pre-pass of --decisions shadow|apply (chunk relevance, skips).
+decisions:
+  image_max_px: 768       # longer side of the page images sent
+  timeout_s: 120
+  thresholds: {}          # request fingerprint: relevance below which apply skips
+
 # Folder of the state files of extensions; '' means ~/.chronominer.
 state_dir: ''
 

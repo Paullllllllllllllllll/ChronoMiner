@@ -60,7 +60,7 @@ def test_startup_hooks_pass_through() -> None:
 
 def test_roles_are_extract_and_adjust_without_audio_clients() -> None:
     assert ext.ROLES == ("extract", "adjust")
-    assert ext.CLIENT_KINDS == ("chat", "batch")
+    assert ext.CLIENT_KINDS == ("chat", "batch", "decision")
     with pytest.raises(ValueError, match="client kind"):
         ext.attempt(
             "extract",

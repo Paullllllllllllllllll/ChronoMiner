@@ -47,6 +47,7 @@ from chronominer.batch.repair import batch_refusal
 from chronominer.common.batch import supports_batch
 from chronominer.common.context import ContextError
 from chronominer.common.contract import ExitCode, exit_code_for
+from chronominer.common.decisions import dialect_for
 from chronominer.common.options import Source
 from chronominer.common.selection import PageRange, parse_page_range, select_items
 from chronominer.common.spec_view import resolved_view
@@ -585,6 +586,18 @@ def _missing_keys(
         variable = _missing_key(model, settings, kind, args, total)
         if variable is not None:
             missing.append(MissingKey(variable, model.provider, reason))
+    decision = spec.decision
+    if decision.mode != "off":
+        dialect = dialect_for(decision.model, decision.provider)
+        try:
+            variables = ext.key_variables(
+                dialect, kind="decision", settings=settings, args=args
+            )
+        except SettingsError as exc:
+            raise ConfigurationError(str(exc), items_total=total) from exc
+        if variables and not any(os.environ.get(name) for name in variables):
+            needs_flag = f"--decisions {decision.mode}"
+            missing.append(MissingKey(variables[0], dialect, needs_flag))
     return tuple(missing)
 
 

@@ -91,6 +91,10 @@ def test_the_steps_set_every_option_but_json_and_settings(session: Session) -> N
     assert set().union(*(step.sets for step in steps)) == set(OPTIONS.names) - {
         "json",
         "settings",
+        "decisions",
+        "decision_model",
+        "decision_provider",
+        "decision_endpoint",
     }
 
 

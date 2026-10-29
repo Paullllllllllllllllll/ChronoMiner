@@ -6,7 +6,8 @@ one database file, or the document of one file (the nearest database at or
 above it whose outputs registry lists the file, else the nearest one that
 records the file as a document's input). ``--schema`` keeps the documents
 extracted with that schema and *files* those whose name, input file or
-rendered file names match. It selects each document's failed chunk units,
+rendered file names match. It selects each document's failed chunk units
+(with ``--skipped`` the units the decision pre-pass skipped instead),
 narrowed by ``--indices`` (0-based chunk indices), leaves out the units an
 open or unresolved batch submission holds and the documents whose input
 changed since extraction (counted as failed), picks the image settings the
@@ -74,6 +75,7 @@ from chronominer.common.store import (
 )
 from chronominer.events import NullEvents, RunEvents
 from chronominer.extract.chunks import TextChunk, custom_id, extract_payload
+from chronominer.extract.decide import SKIPPED_OUTCOME
 from chronominer.extract.extraction import ChunkExtractor
 from chronominer.extract.images import (
     PageImage,
@@ -548,7 +550,9 @@ def _select(
     failures = [
         unit
         for unit in store.units(document.doc_id, kind=KIND_CHUNK)
-        if unit.status == "failed"
+        if (
+            unit.outcome == SKIPPED_OUTCOME if spec.skipped else unit.status == "failed"
+        )
     ]
     tally.failed += len(failures)
     if spec.indices is not None:
@@ -1160,7 +1164,9 @@ class _Session:
         return sum(
             1
             for unit in self.store.units(self.handle.doc_id, kind=self.handle.kind)
-            if unit.idx in wanted and unit.status == "done"
+            if unit.idx in wanted
+            and unit.status == "done"
+            and unit.outcome != SKIPPED_OUTCOME
         )
 
 

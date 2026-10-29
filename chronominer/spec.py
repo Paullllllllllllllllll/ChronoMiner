@@ -21,7 +21,7 @@ from __future__ import annotations
 import json
 import logging
 from collections.abc import Callable, Iterable, Mapping, Sequence
-from dataclasses import asdict, dataclass, fields, is_dataclass, replace
+from dataclasses import asdict, dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
 from typing import Any, Final, Literal, cast
 
@@ -45,6 +45,7 @@ from chronominer.common.options import (
 from chronominer.common.polling import DEFAULT_POLL_MINUTES, wait_options
 from chronominer.common.selection import parse_page_range
 from chronominer.common.standard_options import (
+    DEFAULT_DECISION_MODEL,
     DRY_RUN_HELP,
     IMAGE_DETAILS,
     IMAGE_FORMATS,
@@ -60,6 +61,7 @@ from chronominer.common.standard_options import (
     batch_option,
     check_input_option,
     concurrency_option,
+    decision_options,
     dry_run_option,
     force_option,
     image_options,
@@ -118,6 +120,7 @@ __all__ = [
     "ContextChoice",
     "ContextText",
     "Dpi",
+    "DecisionSpec",
     "DropSpec",
     "ImageSpec",
     "InputSpec",
@@ -352,6 +355,19 @@ class RunControl:
 
 
 @dataclass(frozen=True)
+class DecisionSpec:
+    """The decision-model pre-pass: mode, model id, dialect and endpoint.
+
+    ``provider`` None resolves the dialect from the model id.
+    """
+
+    mode: str
+    model: str
+    provider: str | None
+    endpoint: str | None
+
+
+@dataclass(frozen=True)
 class RunSpec:
     """Everything one extract run needs besides the machine settings."""
 
@@ -362,6 +378,9 @@ class RunSpec:
     model: ModelSpec
     images: ImageSpec
     run: RunControl
+    decision: DecisionSpec = field(
+        default_factory=lambda: DecisionSpec("off", DEFAULT_DECISION_MODEL, None, None)
+    )
 
 
 @dataclass(frozen=True)
@@ -424,6 +443,7 @@ class RepairSpec:
 
     ``schema`` limits the repair to documents extracted with that schema;
     ``indices`` to the given 0-based chunk indices among the failed ones.
+    ``skipped`` selects the chunks the decision pre-pass skipped instead.
     """
 
     input: Path
@@ -432,6 +452,7 @@ class RepairSpec:
     model: ModelSpec
     images: ImageSpec
     run: RepairControl
+    skipped: bool = False
 
 
 @dataclass(frozen=True)
@@ -838,6 +859,13 @@ def _model_options() -> list[Option]:
     )
 
 
+def _decision_options() -> list[Option]:
+    return decision_options(
+        "decision-model pre-pass: shadow records each chunk's relevance to the "
+        "schema; apply also skips the chunks below the validated threshold"
+    )
+
+
 def _image_options() -> list[Option]:
     return image_options()
 
@@ -848,6 +876,7 @@ _GROUP_TITLES = {
     "prompt": "schema and context",
     "chunking": "chunking",
     "model": "model",
+    "decision model": "decision model",
     "images": "images",
     "selection": "chunks to repair",
     "batch": "batches",
@@ -992,6 +1021,7 @@ OPTIONS = OptionTable(
         *_prompt_options(),
         *_chunking_options(),
         *_model_options(),
+        *_decision_options(),
         *_image_options(),
         *_run_options(),
     ],
@@ -1122,6 +1152,17 @@ REPAIR_OPTIONS = OptionTable(
             metavar="LIST",
             default_help="every failed chunk",
             settable=False,
+        ),
+        Option(
+            "skipped",
+            "--skipped",
+            "extract the chunks the decision pre-pass skipped as irrelevant "
+            "instead of the failed ones",
+            group="selection",
+            kind=Kind.FLAG,
+            default=False,
+            settable=False,
+            target="skipped",
         ),
         *(OPTIONS[name] for name in (*_MODEL_NAMES, *_IMAGE_NAMES)),
         batch_option("submit the repairs to the provider's batch API"),
@@ -1495,6 +1536,7 @@ def resolve_spec(
         model=_model_spec(values),
         images=ImageSpec(**_part(values, "images")),
         run=RunControl(**_part(values, "run")),
+        decision=DecisionSpec(**_part(values, "decision")),
     )
     return Resolution(spec, sources)
 
@@ -1568,6 +1610,7 @@ def resolve_repair(
         model=_model_spec(values),
         images=ImageSpec(**_part(values, "images")),
         run=RepairControl(**_part(values, "run")),
+        skipped=values["skipped"],
     )
     return Resolution(spec, sources)
 

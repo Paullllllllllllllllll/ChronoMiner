@@ -13,6 +13,7 @@
   "sha256": "<sha256>",
   "text": "<text: 2210 chars>"
 }
+## chunk_decisions
 ## document_meta
 {
   "doc_id": 1,
@@ -151,7 +152,7 @@
 ## meta
 {
   "component": "chronominer",
-  "version": 1
+  "version": 2
 }
 {
   "component": "core",
@@ -179,6 +180,22 @@
     "chunking.mode": {
       "source": "default",
       "value": "auto"
+    },
+    "decision.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "decision.mode": {
+      "source": "default",
+      "value": "off"
+    },
+    "decision.model": {
+      "source": "default",
+      "value": "typesafe/jev-1.14"
+    },
+    "decision.provider": {
+      "source": "default",
+      "value": null
     },
     "images.detail": {
       "source": "settings",
@@ -342,6 +359,22 @@
       "source": "default",
       "value": "auto"
     },
+    "decision.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "decision.mode": {
+      "source": "default",
+      "value": "off"
+    },
+    "decision.model": {
+      "source": "default",
+      "value": "typesafe/jev-1.14"
+    },
+    "decision.provider": {
+      "source": "default",
+      "value": null
+    },
     "images.detail": {
       "source": "settings",
       "value": "low"
@@ -504,6 +537,22 @@
       "source": "default",
       "value": "auto"
     },
+    "decision.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "decision.mode": {
+      "source": "default",
+      "value": "off"
+    },
+    "decision.model": {
+      "source": "default",
+      "value": "typesafe/jev-1.14"
+    },
+    "decision.provider": {
+      "source": "default",
+      "value": null
+    },
     "images.detail": {
       "source": "settings",
       "value": "high"
@@ -665,6 +714,22 @@
     "chunking.mode": {
       "source": "default",
       "value": "auto"
+    },
+    "decision.endpoint": {
+      "source": "default",
+      "value": null
+    },
+    "decision.mode": {
+      "source": "default",
+      "value": "off"
+    },
+    "decision.model": {
+      "source": "default",
+      "value": "typesafe/jev-1.14"
+    },
+    "decision.provider": {
+      "source": "default",
+      "value": null
     },
     "images.detail": {
       "source": "settings",
@@ -2204,11 +2269,13 @@
 {
   "chunk_index": 1,
   "custom_id": "anthropic_ledger-chunk-1",
+  "decision_probability": null,
   "document": "anthropic_ledger",
   "error": null,
   "error_type": null,
   "label": "1-18",
   "model": "claude-sonnet-4-5",
+  "outcome": null,
   "output_text": null,
   "provider": "anthropic",
   "run_id": "<run-2>",
@@ -2220,11 +2287,13 @@
 {
   "chunk_index": 2,
   "custom_id": "anthropic_ledger-chunk-2",
+  "decision_probability": null,
   "document": "anthropic_ledger",
   "error": null,
   "error_type": null,
   "label": "19-35",
   "model": "claude-sonnet-4-5",
+  "outcome": null,
   "output_text": null,
   "provider": "anthropic",
   "run_id": "<run-2>",
@@ -2236,11 +2305,13 @@
 {
   "chunk_index": 1,
   "custom_id": "done_ledger-chunk-1",
+  "decision_probability": null,
   "document": "done_ledger",
   "error": null,
   "error_type": null,
   "label": "1-17",
   "model": "gpt-4o",
+  "outcome": null,
   "output_text": null,
   "provider": "openai",
   "run_id": "<run-4>",
@@ -2252,11 +2323,13 @@
 {
   "chunk_index": 2,
   "custom_id": "done_ledger-chunk-2",
+  "decision_probability": null,
   "document": "done_ledger",
   "error": null,
   "error_type": null,
   "label": "18-35",
   "model": "gpt-4o",
+  "outcome": null,
   "output_text": null,
   "provider": "openai",
   "run_id": "<run-4>",
@@ -2268,11 +2341,13 @@
 {
   "chunk_index": 1,
   "custom_id": "google_ledger-chunk-1",
+  "decision_probability": null,
   "document": "google_ledger",
   "error": null,
   "error_type": null,
   "label": "1-18",
   "model": "gemini-2.5-flash",
+  "outcome": null,
   "output_text": null,
   "provider": "google",
   "run_id": "<run-3>",
@@ -2284,11 +2359,13 @@
 {
   "chunk_index": 2,
   "custom_id": "google_ledger-chunk-2",
+  "decision_probability": null,
   "document": "google_ledger",
   "error": null,
   "error_type": null,
   "label": "19-35",
   "model": "gemini-2.5-flash",
+  "outcome": null,
   "output_text": null,
   "provider": "google",
   "run_id": "<run-3>",
@@ -2300,11 +2377,13 @@
 {
   "chunk_index": 1,
   "custom_id": "openai_ledger-chunk-1",
+  "decision_probability": null,
   "document": "openai_ledger",
   "error": null,
   "error_type": null,
   "label": "1-17",
   "model": "gpt-4o",
+  "outcome": null,
   "output_text": null,
   "provider": "openai",
   "run_id": "<run-1>",
@@ -2316,11 +2395,13 @@
 {
   "chunk_index": 2,
   "custom_id": "openai_ledger-chunk-2",
+  "decision_probability": null,
   "document": "openai_ledger",
   "error": null,
   "error_type": null,
   "label": "18-35",
   "model": "gpt-4o",
+  "outcome": null,
   "output_text": null,
   "provider": "openai",
   "run_id": "<run-1>",

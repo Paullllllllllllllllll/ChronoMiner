@@ -1,5 +1,21 @@
 # Changelog
 
+- **v1.1.0** (29 October 2026) -- `extract --decisions shadow|apply` adds a
+  decision-model pre-pass: OpenAI's `/v1/decisions` or OpenRouter's decision API
+  (default `typesafe/jev-1.14`) answers per chunk still to extract whether its text
+  or page image holds an entry of the schema's kind, built from the schema's name
+  and description or its `decision_question` key. The relevance lands in the new
+  `chunk_decisions` table and the `decision_probability` column of `chunks`, which
+  also gains `outcome` (store component version 2). `apply` skips chunks below a
+  threshold with the outcome `skipped_irrelevant`, but only where
+  `decisions.thresholds` holds one for the run's request fingerprint;
+  `repair --skipped` extracts such chunks. A skipped chunk is stored and rendered
+  as a no-content answer. A pre-pass that fails leaves every chunk to extraction,
+  and decision retries keep the timeout and validation budgets. The vendored
+  common package matches ChronoTranscriber v1.1.1: it gains `decisions.py`
+  (request bodies and typed answers for both dialects), `decision_client.py`,
+  `page_types.py`, the shared decision-model options and the `decisions` settings
+  schema.
 - **v1.0.4** (27 October 2026) -- The capability table knows `gpt-6.1-terra`:
   it takes text and image input and structured outputs like `gpt-6.1-sol`,
   accepts the reasoning efforts none to max, and shares the GPT-6 handling of

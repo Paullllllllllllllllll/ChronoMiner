@@ -18,6 +18,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Literal
 
+from .page_types import DEFAULT_PROFILE, PROFILES
 from .retry import RetryPolicy
 from .settings_loader import SettingsError
 
@@ -33,6 +34,7 @@ __all__ = [
     "PAGE_TIMEOUT_HEADROOM",
     "BlockParser",
     "Concurrency",
+    "Decisions",
     "Endpoint",
     "Images",
     "PromptCaching",
@@ -44,6 +46,7 @@ __all__ = [
     "log_file",
     "read_api_keys",
     "read_concurrency",
+    "read_decisions",
     "read_endpoints",
     "read_extensions",
     "read_images",
@@ -487,6 +490,53 @@ class PromptCaching:
     anthropic_ttl: str = "5m"
     openai_retention: str | None = None
     openrouter_cache_control: bool = True
+
+
+@dataclass(frozen=True)
+class Decisions:
+    """Settings of a tool's decision-model pass.
+
+    Pages are sent at most ``image_max_px`` on their longer side, at most
+    ``pages_per_request`` to a request, and classified under ``profile`` (see
+    ``page_types``). ``thresholds`` maps a request fingerprint
+    (``decisions.request_fingerprint``) to the probability at which ``apply``
+    acts; a request whose fingerprint is not listed runs ``shadow`` only.
+    """
+
+    image_max_px: int = 768
+    pages_per_request: int = 20
+    profile: str = DEFAULT_PROFILE
+    timeout_s: float = 120.0
+    thresholds: Mapping[str, float] = MappingProxyType({})
+
+
+def read_decisions[D: Decisions](reader: Reader, raw: Any, base: D) -> D:
+    """Return the ``decisions`` block over *base*."""
+    keys = frozenset(
+        {"image_max_px", "pages_per_request", "profile", "timeout_s", "thresholds"}
+    )
+    section = reader.section(raw, "decisions", keys)
+    path = "decisions."
+    raw_thresholds = reader.section(section.get("thresholds"), path + "thresholds")
+    thresholds = dict(base.thresholds)
+    for fingerprint in raw_thresholds:
+        where = f"{path}thresholds.{fingerprint}"
+        if raw_thresholds[fingerprint] is None:
+            raise reader.fail(where, "needs a number; remove the entry to unset it")
+        value = reader.number(raw_thresholds, fingerprint, 1.0, f"{path}thresholds.")
+        if not 0.0 < value <= 1.0:
+            raise reader.fail(where, "must be above 0 and at most 1")
+        thresholds[str(fingerprint)] = value
+    return replace(
+        base,
+        image_max_px=reader.positive(section, "image_max_px", base.image_max_px, path),
+        pages_per_request=reader.positive(
+            section, "pages_per_request", base.pages_per_request, path
+        ),
+        profile=reader.choice(section, "profile", base.profile, path, PROFILES),
+        timeout_s=reader.number(section, "timeout_s", base.timeout_s, path),
+        thresholds=MappingProxyType(thresholds),
+    )
 
 
 def read_prompt_caching[P: PromptCaching](reader: Reader, raw: Any, base: P) -> P:

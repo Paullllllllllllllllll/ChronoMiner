@@ -16,6 +16,8 @@ batches:
 chunks to repair:
   --indices LIST        0-based chunk indices (order in the document) among the failed chunks:
                         0,5,12 or 3-7; default: every failed chunk
+  --skipped             extract the chunks the decision pre-pass skipped as irrelevant instead of
+                        the failed ones
 
 model:
   --provider {openai,anthropic,google,openrouter,custom}
