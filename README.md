@@ -1,5 +1,7 @@
 # ChronoMiner v1.2.2
 
+<img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
+
 ChronoMiner extracts structured data from text files, images and PDFs with language
 models. A JSON schema describes the entries to find, such as the items of a price list
 or the households of a census return; the model reads each chunk of a source and
