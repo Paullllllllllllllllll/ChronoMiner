@@ -1027,8 +1027,10 @@ def classify(  # noqa: PLR0913 - keyword-only options of run.py and tests
     work = pending + (failed if retry_errors else ())
     if not work:
         missing = tuple(output for output in outputs if not output.is_file())
+        # A file without a row was not rendered from this store; rendering it
+        # lets the overwrite guard keep it with a warning or record it.
         stale = any(
-            details.outputs.get(_path_key(output, root)) == 1 for output in outputs
+            details.outputs.get(_path_key(output, root)) != 0 for output in outputs
         )
         render = bool(missing) or stale
         reason = "all units stored"

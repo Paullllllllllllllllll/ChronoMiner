@@ -1909,18 +1909,23 @@ class Store:
     async def set_units_stale(
         self, lease: Lease, kind: str, idxs: Sequence[int], *, stale: bool = True
     ) -> int:
-        """Flag units whose inputs changed; returns the number of units flagged."""
+        """Flag units whose inputs changed; returns the number of units flagged.
+
+        The document's rendered files are marked stale when a unit matched.
+        """
         values = (int(stale), lease.doc_id, kind, json.dumps(list(idxs)))
-        return await self._leased(
-            lease,
-            lambda connection: int(
-                connection.execute(
-                    "UPDATE units SET stale = ? WHERE doc_id = ? AND kind = ? "
-                    "AND idx IN (SELECT value FROM json_each(?))",
-                    values,
-                ).rowcount
-            ),
-        )
+
+        def write(connection: sqlite3.Connection) -> int:
+            count = connection.execute(
+                "UPDATE units SET stale = ? WHERE doc_id = ? AND kind = ? "
+                "AND idx IN (SELECT value FROM json_each(?))",
+                values,
+            ).rowcount
+            if count:
+                _outputs_stale(connection, lease.doc_id)
+            return int(count)
+
+        return await self._leased(lease, write)
 
     async def write(self, lease: Lease, func: Callable[[sqlite3.Connection], T]) -> T:
         """Run *func* in one write transaction that first checks *lease*.

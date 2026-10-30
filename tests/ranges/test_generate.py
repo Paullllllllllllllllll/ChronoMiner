@@ -7,6 +7,7 @@ from pathlib import Path
 import pytest
 
 from chronominer.common.selection import parse_page_range
+from chronominer.common.sqlite import read_rows
 from chronominer.output.store import DATABASE_NAME
 from chronominer.ranges.generate import (
     auto_ranges,
@@ -110,6 +111,23 @@ async def test_generate_files_writes_the_selected_ranges(tmp_path: Path) -> None
 
     assert (report.total, report.written) == (len(every), 2)
     assert read_ranges(ranges_path(ledger)) == every[-2:]
+
+
+async def test_generate_files_keeps_the_ranges_of_a_text_without_ranges(
+    tmp_path: Path,
+) -> None:
+    ledger = make_text_file(tmp_path / "ledger.txt", 12)
+    await generate_files([ledger], chunk_tokens=60, model="gpt-4o")
+    before = read_ranges(ranges_path(ledger))
+    stored = read_rows(tmp_path / DATABASE_NAME, "units")
+    ledger.write_text("", encoding="utf-8")
+
+    (report,) = await generate_files([ledger], chunk_tokens=60, model="gpt-4o")
+
+    assert not report.ok
+    assert "No line ranges" in str(report.error)
+    assert read_ranges(ranges_path(ledger)) == before
+    assert read_rows(tmp_path / DATABASE_NAME, "units") == stored
 
 
 async def test_generate_files_reports_a_failed_file(tmp_path: Path) -> None:

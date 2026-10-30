@@ -1,4 +1,4 @@
-# ChronoMiner v1.2.1
+# ChronoMiner v1.2.2
 
 ChronoMiner extracts structured data from text files, images and PDFs with language
 models. A JSON schema describes the entries to find, such as the items of a price list
@@ -724,9 +724,10 @@ skipped with a warning in the log.
 
 ## Line Ranges
 
-`ranges generate` writes `{stem}_line_ranges.txt` beside every text file of its input.
-Each line holds one range as `(start, end)`, 1-based and inclusive. The file is an
-input: you can edit it by hand, and `--chunking line-ranges` extracts one chunk per
+`ranges generate` writes `{stem}_line_ranges.txt` beside every text file of its input;
+a text that yields no range fails and keeps its stored ranges and file. Each line
+holds one range as `(start, end)`, 1-based and inclusive. The file is an input: you
+can edit it by hand, and `--chunking line-ranges` extracts one chunk per
 range. `ranges adjust` asks the model, for each range, where the entries of the schema
 begin in a window of `--context-window` lines around the range start, and moves,
 keeps or deletes the boundary. Each decision is stored at once, and the file is then
@@ -926,7 +927,7 @@ Resume is the default and reads only the store; a dry run shows each item's stat
 | --- | --- | --- |
 | `none` | no stored units | extract from the start |
 | `partial` | chunks are pending or failed | extract those chunks |
-| `complete` | no pending or failed chunks | skip; missing or stale files are rendered again without calls (a run that writes units marks every rendered file of the document stale and renders only its own formats) |
+| `complete` | no pending or failed chunks | skip; missing or stale files are rendered again without calls (a run that writes units marks every rendered file of the document stale and renders only its own formats; a file the store holds no record of counts as stale) |
 | `unstored` | a rendered file exists without store rows, for example after `drop` kept it | skip and list; `--force` extracts it again |
 | `blocked` | another live run holds the item, or its chunks wait for a batch | skip; a held item makes the run exit 1 |
 | `refused` | the input's content changed since its extraction, or units remain but the stored pages used other image settings or the done chunks another schema | not processed, counted as failed; `--force` starts it over |

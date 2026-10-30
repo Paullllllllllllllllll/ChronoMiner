@@ -1,5 +1,12 @@
 # Changelog
 
+- **v1.2.2** (30 October 2026) -- A complete document no longer takes a
+  requested file the store holds no record of as current: such a file is
+  rendered, so the overwrite guard records it when it matches the rendering and
+  otherwise keeps it with a warning. `ranges generate` fails for a text that
+  yields no line range and keeps its stored ranges and file; earlier it deleted
+  the stored ranges, wrote no file and reported success. The vendored common
+  package matches ChronoTranscriber v1.2.3.
 - **v1.2.1** (30 October 2026) -- The vendored common package matches
   ChronoTranscriber v1.2.2: a write that creates, writes, resets or deletes a
   document's units marks every rendered file of the document stale, the

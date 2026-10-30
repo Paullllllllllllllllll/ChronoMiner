@@ -73,6 +73,52 @@ def test_set_units_stale_flags_only_the_given_units(tmp_path: Path) -> None:
     assert _stale(db) == seen[1]
 
 
+def test_unit_changes_mark_the_rendered_files_stale(tmp_path: Path) -> None:
+    db = tmp_path / "tool.sqlite"
+    output = tmp_path / "doc.txt"
+    output.write_text("rendered", encoding="utf-8")
+
+    async def main() -> list[tuple[str, int]]:
+        seen: list[tuple[str, int]] = []
+        async with Store(db, "tool") as store:
+            await store.begin_run("run")
+            doc_id = await store.ensure_document("doc")
+            lease = await store.acquire(doc_id)
+            assert lease is not None
+
+            async def plan() -> int:
+                units = [PlannedUnit(idx) for idx in range(2)]
+                return await store.plan_units(
+                    lease, "page", units, model="model-a", provider="openai"
+                )
+
+            changes = {
+                "plan": plan,
+                "plan nothing new": plan,
+                "flag a unit": lambda: store.set_units_stale(lease, "page", [0]),
+                "flag no unit": lambda: store.set_units_stale(lease, "page", [9]),
+                "reset": lambda: store.reset_units(lease, kind="page"),
+                "delete": lambda: store.delete_units(lease, "page", count=1),
+                "delete nothing": lambda: store.delete_units(lease, "page", count=1),
+            }
+            for name, change in changes.items():
+                await store.register_output(lease, output, format="txt")
+                await change()
+                (row,) = read_rows(db, "outputs")
+                seen.append((name, row["stale"]))
+        return seen
+
+    assert asyncio.run(main()) == [
+        ("plan", 1),
+        ("plan nothing new", 0),
+        ("flag a unit", 1),
+        ("flag no unit", 0),
+        ("reset", 1),
+        ("delete", 1),
+        ("delete nothing", 0),
+    ]
+
+
 def test_delete_units_drops_other_kinds_and_units_past_the_count(
     tmp_path: Path,
 ) -> None:

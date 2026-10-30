@@ -215,6 +215,13 @@ async def _generate_one(
     try:
         generated = ranges_for_file(text_file, chunk_tokens, model)
         selected = select_ranges(generated, pages)
+        if not selected:
+            message = (
+                f"No line ranges for {text_file.name}: the text is empty or the "
+                "selection keeps none. Its stored ranges and file are left as they are."
+            )
+            events.warning(message)
+            return GenerateReport(text_file, target, len(generated), 0, error=message)
         rendered = await replace_ranges(store, text_file, selected, model=model)
     except Exception as exc:  # reported per file; the others go on
         logger.exception("Line-range generation failed for %s", text_file)
