@@ -1,5 +1,6 @@
 ## artifacts
 ## chunk_decisions
+## classification_rows
 ## document_meta
 ## documents
 {
@@ -26,7 +27,11 @@
 ## meta
 {
   "component": "chronominer",
-  "version": 2
+  "version": 3
+}
+{
+  "component": "classifications",
+  "version": 1
 }
 {
   "component": "core",
@@ -122,3 +127,4 @@
   "should_delete": null,
   "status": "done"
 }
+## view classifications

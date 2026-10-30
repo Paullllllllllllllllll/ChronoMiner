@@ -113,6 +113,7 @@ from chronominer.ranges.lines import ranges_path
 from chronominer.ranges.store import group_by_folder, open_folder_store
 from chronominer.settings import Settings, SettingsError
 from chronominer.spec import (
+    InputSpec,
     ModelSpec,
     RangesAdjustSpec,
     RangesGenerateSpec,
@@ -138,11 +139,13 @@ __all__ = [
     "RunResult",
     "StoreRefusedError",
     "discover",
+    "discover_inputs",
     "item_names",
     "plan",
     "plan_ranges",
     "run",
     "run_ranges",
+    "writer_options",
 ]
 
 logger = logging.getLogger(__name__)
@@ -399,7 +402,7 @@ _WANTED: Mapping[str, str] = {
 }
 
 
-def _found(spec: RunSpec, input_path: Path) -> list[SourceItem]:
+def _found(inputs: InputSpec, input_path: Path) -> list[SourceItem]:
     """Return every item of the input type at *input_path*, or the named files.
 
     Raises:
@@ -409,14 +412,14 @@ def _found(spec: RunSpec, input_path: Path) -> list[SourceItem]:
     try:
         items = discover_items(
             input_path,
-            spec.input.type,
-            files=spec.input.files,
-            recursive=spec.input.recursive,
+            inputs.type,
+            files=inputs.files,
+            recursive=inputs.recursive,
         )
     except DiscoveryError as exc:
         raise InputError(str(exc)) from exc
     if not items:
-        wanted = _WANTED.get(spec.input.type, f"{spec.input.type} files")
+        wanted = _WANTED.get(inputs.type, f"{inputs.type} files")
         raise NoItemsError(f"No {wanted} found to process in: {input_path}")
     return items
 
@@ -433,7 +436,7 @@ def item_names(items: Sequence[SourceItem], input_path: Path) -> list[str]:
 
 
 def _chosen(
-    spec: RunSpec, input_path: Path, items: list[SourceItem]
+    inputs: InputSpec, input_path: Path, items: list[SourceItem]
 ) -> tuple[list[SourceItem], tuple[str, ...]]:
     """Return the items the selection keeps and the selection's warnings.
 
@@ -445,9 +448,9 @@ def _chosen(
         NoItemsError: ``--select`` matches no item.
         InputError: Several items and no selection.
     """
-    if spec.input.files:
+    if inputs.files:
         return items, ()
-    expr = spec.input.select
+    expr = inputs.select
     if expr is not None:
         names = item_names(items, input_path)
         selection = select_items(names, expr)
@@ -462,7 +465,7 @@ def _chosen(
             for part in selection.unmatched
         )
         return selection.pick(items), warnings
-    if spec.input.all or len(items) == 1:
+    if inputs.all or len(items) == 1:
         return items, ()
     raise InputError(
         f"{input_path} holds {len(items)} items; choose them with --all, "
@@ -471,16 +474,16 @@ def _chosen(
     )
 
 
-def _discover(
-    spec: RunSpec, input_path: Path
+def discover_inputs(
+    inputs: InputSpec, input_path: Path
 ) -> tuple[list[SourceItem], tuple[str, ...]]:
-    """Return the items the run processes and the selection's warnings.
+    """Return the items *inputs* select at *input_path* and the warnings.
 
     Raises:
         PlanError: The input cannot serve the input type, holds no item, or
             several items without a selection.
     """
-    return _chosen(spec, input_path, _found(spec, input_path))
+    return _chosen(inputs, input_path, _found(inputs, input_path))
 
 
 def discover(spec: RunSpec) -> list[SourceItem]:
@@ -490,7 +493,7 @@ def discover(spec: RunSpec) -> list[SourceItem]:
         PlanError: The input is missing or holds nothing to process, or a
             folder of several items has no selection.
     """
-    return _discover(spec, _input_path(spec))[0]
+    return discover_inputs(spec.input, _input_path(spec))[0]
 
 
 def _schema(argument: str, total: int = 0) -> ResolvedSchema:
@@ -764,7 +767,7 @@ def plan(
     output_dir = _output_dir(spec)
     input_path = _input_path(spec)
     logger.info("Input=%s, Output=%s", input_path, output_dir or "beside input")
-    discovered, warnings = _discover(spec, input_path)
+    discovered, warnings = discover_inputs(spec.input, input_path)
     schema = _schema(spec.prompt.schema, len(discovered))
 
     classifier = _Classifier(
@@ -947,7 +950,7 @@ class RunResult:
         )
 
 
-def _writer_options(events: RunEvents) -> WriterOptions:
+def writer_options(events: RunEvents) -> WriterOptions:
     """Return the writer options of a run: busy waits warn through *events*."""
 
     def on_busy(path: Path, waited: float) -> None:
@@ -1002,7 +1005,7 @@ class _Stores:
         if store is not None:
             return store
         key.mkdir(parents=True, exist_ok=True)
-        store = open_store(key, writer=_writer_options(self._events))
+        store = open_store(key, writer=writer_options(self._events))
         try:
             await store.open()
         except StoreError as exc:

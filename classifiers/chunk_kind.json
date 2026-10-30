@@ -1,0 +1,10 @@
+{
+  "name": "chunk_kind",
+  "version": 1,
+  "unit": "chunk",
+  "description": "The kind of page or text of each extraction chunk, in the shared page-type taxonomy.",
+  "per_request": 5,
+  "questions": [
+    {"name": "kind", "type": "page_types", "profile": "general"}
+  ]
+}

@@ -25,11 +25,18 @@ _HANDLERS: dict[tuple[str, ...], tuple[str, str]] = {
     ("repair",): ("chronominer.cli.repair", "execute_repair"),
     ("render",): ("chronominer.cli.store", "execute_render"),
     ("drop",): ("chronominer.cli.store", "execute_drop"),
+    ("classify", "chunks"): ("chronominer.cli.classify", "execute_chunks"),
+    ("classify", "entries"): ("chronominer.cli.classify", "execute_entries"),
+    ("classify", "documents"): ("chronominer.cli.classify", "execute_documents"),
     ("ui",): ("chronominer.ui.app", "execute"),
 }
 
 # Commands that only hold subcommands, with the attribute naming the chosen one.
-_GROUPS = {"ranges": "ranges_command", "batch": "batch_command"}
+_GROUPS = {
+    "ranges": "ranges_command",
+    "batch": "batch_command",
+    "classify": "classify_command",
+}
 
 
 def _command(namespace: argparse.Namespace) -> tuple[str, ...]:

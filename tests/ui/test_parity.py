@@ -8,7 +8,8 @@ the session's answers resolve to; it must also do so with an empty defaults
 block. The service tier of a provider other than OpenAI is left out of the
 command and of the comparison. Seeded random sessions keep that property. The
 round trip ``parse(to_argv(spec)) == spec`` lives in
-``tests/core/test_spec_roundtrip.py``.
+``tests/core/test_spec_roundtrip.py``. Every subcommand but ``ui`` is a task,
+unless :data:`NOT_IN_UI` exempts it with a reason.
 """
 
 from __future__ import annotations
@@ -84,6 +85,17 @@ EXEMPT: Final[Mapping[str, str]] = MappingProxyType(
         "wait_hours": "only with --wait, which the ui does not offer",
     }
 )
+_CLASSIFY_REASON: Final = (
+    "shadow-only decision-model answers for scripts and agents; no wizard flow"
+)
+NOT_IN_UI: Final[Mapping[tuple[str, ...], str]] = MappingProxyType(
+    {
+        ("classify", "chunks"): _CLASSIFY_REASON,
+        ("classify", "entries"): _CLASSIFY_REASON,
+        ("classify", "documents"): _CLASSIFY_REASON,
+    }
+)
+"""Subcommands that are no guided-UI task, with the reason."""
 WIDTH: Final = 100
 SCHEMA: Final = "WageRecords"
 FLAT_SCHEMA: Final = (
@@ -956,6 +968,33 @@ def test_the_ui_parser_accepts_the_settings_option(tmp_path: Path) -> None:
     path = tmp_path / "other.yaml"
     args = build_parser().parse_args(["ui", "--settings", str(path)])
     assert args.settings == path
+
+
+def _leaf_commands(
+    parser: argparse.ArgumentParser, prefix: tuple[str, ...] = ()
+) -> set[tuple[str, ...]]:
+    """Return the word paths of the subcommands that hold no subcommands."""
+    groups = [
+        action
+        for action in parser._actions
+        if isinstance(action, argparse._SubParsersAction)
+    ]
+    if not groups:
+        return {prefix}
+    return {
+        path
+        for group in groups
+        for word, child in group.choices.items()
+        for path in _leaf_commands(child, (*prefix, word))
+    }
+
+
+def test_every_command_is_a_task_or_exempt_with_a_reason() -> None:
+    commands = _leaf_commands(build_parser()) - {("ui",)}
+    tasks = {FLOWS[task]().program[1:] for task in FLOWS}
+    assert all(reason.strip() for reason in NOT_IN_UI.values())
+    assert not tasks & set(NOT_IN_UI)
+    assert commands == tasks | set(NOT_IN_UI)
 
 
 def test_the_tasks_are_the_flows() -> None:

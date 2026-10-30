@@ -1,0 +1,29 @@
+{
+  "name": "goods_category",
+  "version": 1,
+  "unit": "entry",
+  "description": "The main category of the goods listed in each probate inventory, and whether they include luxury goods.",
+  "schema": "ProbateInventories",
+  "fields": ["items", "decedent_occupation"],
+  "per_request": 5,
+  "questions": [
+    {
+      "name": "main_category",
+      "type": "choice",
+      "instructions": "Which category of goods makes up most of the appraised value?",
+      "choices": {
+        "household_furnishings": "Furniture, bedding, kitchenware and other household goods.",
+        "clothing_and_linen": "Clothes, linen and textiles for the household.",
+        "tools_and_stock_in_trade": "Tools, materials and goods held for a trade or shop.",
+        "livestock_and_produce": "Animals, crops, grain and farm equipment.",
+        "money_and_debts": "Cash, plate held as money, and debts owed to the deceased.",
+        "mixed": "No category dominates."
+      }
+    },
+    {
+      "name": "luxury",
+      "type": "predicate",
+      "instructions": "The listed goods include luxury goods, such as silver, jewellery, porcelain, clocks, paintings or books."
+    }
+  ]
+}

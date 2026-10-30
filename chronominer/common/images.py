@@ -52,6 +52,7 @@ POINTS_PER_INCH = 72.0
 DEFAULT_LOW_MAX_SIDE_PX = 512
 DEFAULT_HIGH_TARGET_BOX = (768, 1536)
 DEFAULT_JPEG_QUALITY = 95
+DECISION_JPEG_QUALITY = 85
 IMAGE_EXTENSIONS = frozenset(
     {".jpg", ".jpeg", ".png", ".tiff", ".tif", ".bmp", ".gif", ".webp"}
 )
@@ -169,6 +170,38 @@ def sha256_of_file(path: Path) -> str:
         while chunk := fh.read(_HASH_CHUNK_SIZE):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+def decision_jpeg(data: bytes, max_px: int) -> bytes:
+    """Return image *data* as the RGB JPEG sent to a decision model.
+
+    The EXIF orientation is applied, 16-bit depth reduced as in
+    :func:`preprocess_image`, transparency (an alpha channel or a
+    transparent colour) flattened onto white; the longer side is at most
+    *max_px* (never enlarged) and the quality is
+    :data:`DECISION_JPEG_QUALITY`. A request fingerprint covers *max_px*, so
+    this encoding stays fixed.
+
+    Raises:
+        PIL.UnidentifiedImageError: *data* is no image Pillow reads.
+    """
+    with Image.open(io.BytesIO(data)) as opened:
+        image = ImageOps.exif_transpose(opened)
+    if image.mode in _SIXTEEN_BIT_MODES:
+        if image.mode != "I":
+            image = image.convert("I")
+        image = image.point(lambda v: v * (1 / 256)).convert("L")
+    if "transparency" in image.info:
+        image = image.convert("RGBA")
+    if image.mode in ("RGBA", "LA", "PA"):
+        background = Image.new("RGB", image.size, _WHITE)
+        background.paste(image, mask=image.getchannel("A"))
+        image = background
+    image = image.convert("RGB")
+    image.thumbnail((max_px, max_px))
+    buffer = io.BytesIO()
+    image.save(buffer, "JPEG", quality=DECISION_JPEG_QUALITY)
+    return buffer.getvalue()
 
 
 def resampling_filter(img_cfg: Mapping[str, Any] | None = None) -> Image.Resampling:
@@ -765,6 +798,7 @@ async def stream_payloads(
 
 
 __all__ = [
+    "DECISION_JPEG_QUALITY",
     "DEFAULT_HIGH_TARGET_BOX",
     "DEFAULT_JPEG_QUALITY",
     "DEFAULT_LOW_MAX_SIDE_PX",
@@ -781,6 +815,7 @@ __all__ = [
     "PdfPageSource",
     "check_failure_rate",
     "content_scale_factor",
+    "decision_jpeg",
     "google_media_resolution",
     "list_folder_images",
     "natural_sort_key",

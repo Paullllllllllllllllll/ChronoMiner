@@ -1,5 +1,27 @@
 # Changelog
 
+- **v1.2.0** (30 October 2026) -- `chronominer classify chunks`, `classify entries`
+  and `classify documents` ask a decision model the questions of a classifier file
+  about the extraction chunks of input items, the entries of finished documents, or
+  each item's leading chunks or first pages, and record the answers in the new
+  `classifications` view of `chronominer.sqlite` without changing any extraction.
+  Classifiers resolve like schemas from the new `classifiers/` folder, which ships
+  `chunk_kind`, `language`, `document_type` and six entry classifiers for the
+  example schemas. Chunks are cut as `extract` cuts them without writing to the
+  extraction: a stored document keeps its stored line ranges, and `--chunking
+  adjust` is refused. Answers with an unchanged fingerprint, input and content are
+  reused and recorded again under the run unless `--force`, an item whose stored
+  input changed is refused, and entry answers are written under the document's
+  lease. The vendored common package matches ChronoTranscriber's shared core:
+  `classifiers.py`, `decision_runner.py`, `classify_store.py` (the
+  `classifications` component), `images.decision_jpeg`, unleased store writes, the
+  classifier options, migrations refused under another run's live lease, and
+  malformed decision answers that keep their billed usage. The relevance pre-pass
+  now asks through the shared runner, so such usage counts toward the run's totals.
+  The tool's store component steps to version 3, whose triggers flag the answers
+  about a chunk's entries stale whenever any writer replaces, resets or deletes the
+  chunk, and a document's chunk answers when its stored chunk layout changes; an
+  older ChronoMiner refuses the stepped store.
 - **v1.1.2** (29 October 2026) -- The Pillow requirement is raised to
   13.0, the first release that fixes the FlashPix, TIFF-writer and
   multi-frame loader advisories, so that no install resolves a vulnerable

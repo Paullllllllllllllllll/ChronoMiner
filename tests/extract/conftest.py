@@ -13,7 +13,7 @@ import pytest
 from chronominer.common.sqlite import read_rows
 from chronominer.common.store import PlannedUnit, Store
 from chronominer.extract.units import UNIT_KIND, DocumentHandle
-from chronominer.output.store import COMPONENT
+from chronominer.output.store import COMPONENTS
 from tests.llm.conftest import Sleeps
 
 TOOL = "chronominer"
@@ -37,7 +37,7 @@ class FakePayload:
 
 def make_store(db: Path, **kwargs: Any) -> Store:
     """Return a store at *db* with ChronoMiner's content tables, not yet open."""
-    return Store(db, TOOL, components=(COMPONENT,), **kwargs)
+    return Store(db, TOOL, components=COMPONENTS, **kwargs)
 
 
 def payloads(count: int) -> list[FakePayload]:

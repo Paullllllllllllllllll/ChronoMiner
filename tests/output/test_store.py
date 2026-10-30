@@ -216,7 +216,7 @@ def query(database: Path, sql: str) -> tuple[tuple[str, ...], list[tuple[Any, ..
         connection.close()
 
 
-def test_the_component_adds_tables_and_views_at_version_2(tmp_path: Path) -> None:
+def test_the_component_adds_tables_and_views_at_version_3(tmp_path: Path) -> None:
     database = build_store(tmp_path, [chunk(0)])
 
     _, meta = query(database, "SELECT component, version FROM meta ORDER BY 1")
@@ -231,7 +231,7 @@ def test_the_component_adds_tables_and_views_at_version_2(tmp_path: Path) -> Non
 
     assert database.name == DATABASE_NAME
     assert COMPONENT.name == TOOL
-    assert meta == [("chronominer", 2), ("core", 2)]
+    assert meta == [("chronominer", 3), ("classifications", 1), ("core", 2)]
     assert sorted(name for (name,) in views) == sorted(VIEWS)
     assert tables == [("document_meta",), ("entry_rows",)]
 

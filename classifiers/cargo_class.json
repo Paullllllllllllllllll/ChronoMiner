@@ -1,0 +1,26 @@
+{
+  "name": "cargo_class",
+  "version": 1,
+  "unit": "entry",
+  "description": "The class of goods of each trade record's cargo.",
+  "schema": "TradeRecords",
+  "fields": ["cargo", "quantity", "notes"],
+  "per_request": 20,
+  "questions": [
+    {
+      "name": "cargo_class",
+      "type": "choice",
+      "instructions": "Which class of goods makes up most of the cargo?",
+      "choices": {
+        "foodstuffs": "Grain, fish, meat, dairy, fruit and other food.",
+        "beverages": "Wine, beer and spirits.",
+        "colonial_goods": "Sugar, spices, tobacco, coffee, tea and dyestuffs.",
+        "textiles_and_fibres": "Cloth, yarn, wool, flax, hemp and cotton.",
+        "timber_and_naval_stores": "Timber, pitch, tar and masts.",
+        "metals_and_minerals": "Iron, copper, lead, coal, salt and stone.",
+        "manufactured_goods": "Tools, wares and other finished goods.",
+        "mixed_or_unspecified": "Several classes, ballast, or no stated goods."
+      }
+    }
+  ]
+}

@@ -10,9 +10,12 @@ tests/
 ├── test_logging_setup.py  # logging is configured at run time, not on import
 ├── test_example_schemas.py, test_schema_invariants.py
 │                          # the shipped example schemas
+├── test_shipped_classifiers.py  # the shipped example classifiers
 ├── matrix_golden.py       # golden JSON of the request and image matrices
 ├── batch/                 # batch submit, check, finalize, reconcile, cancel
 │                          # and repair on the store, over fake batch APIs
+├── classify/              # the classify commands over a fake decision API,
+│                          # reuse, refusals and the entry staleness triggers
 ├── cli/                   # the console script: help goldens, commands, warnings
 ├── common/                # chronominer/common/: hash check, SQLite, store,
 │                          # capture, selection and the batch backends

@@ -1,0 +1,22 @@
+{
+  "name": "document_type",
+  "version": 1,
+  "unit": "document",
+  "description": "The type of each source, judged from its first pages or its leading text.",
+  "questions": [
+    {
+      "name": "type",
+      "type": "choice",
+      "instructions": "What type of source is this document?",
+      "choices": {
+        "printed_book": "A printed book or pamphlet.",
+        "periodical_or_newspaper": "A newspaper, magazine, journal or other serial.",
+        "manuscript_or_letter": "A handwritten text, such as a letter, diary or notebook.",
+        "account_book_or_ledger": "An account book, ledger, payroll or other book of accounts.",
+        "register_or_list": "A register, census, inventory, catalogue or other list of records.",
+        "printed_form_or_ephemera": "A printed form, price current, tariff, bill, poster or other ephemera.",
+        "other": "Another type of source."
+      }
+    }
+  ]
+}

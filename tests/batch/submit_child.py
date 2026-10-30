@@ -25,7 +25,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from chronominer.batch.submit import submit_batch
 from chronominer.common.store import Store
 from chronominer.output.store import (
-    COMPONENT,
+    COMPONENTS,
     TOOL,
     database_path,
 )
@@ -50,9 +50,7 @@ async def submit(root: Path, state: Path, lease_ttl: float) -> None:
         time.sleep(300)
 
     world.hooks["accepted"] = accepted
-    store = Store(
-        database_path(root), TOOL, components=(COMPONENT,), lease_ttl=lease_ttl
-    )
+    store = Store(database_path(root), TOOL, components=COMPONENTS, lease_ttl=lease_ttl)
     async with store:
         await store.begin_run("extract")
         handle = await leased_document(store)

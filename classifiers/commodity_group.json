@@ -1,0 +1,28 @@
+{
+  "name": "commodity_group",
+  "version": 1,
+  "unit": "entry",
+  "description": "The commodity group of each price-list entry.",
+  "schema": "PriceListEntries",
+  "fields": ["item", "unit", "notes"],
+  "per_request": 20,
+  "questions": [
+    {
+      "name": "group",
+      "type": "choice",
+      "instructions": "To which commodity group does the priced item belong?",
+      "choices": {
+        "grain_and_bread": "Grain, flour, bread and pulses.",
+        "meat_and_fish": "Meat, poultry, fish and their products.",
+        "dairy_and_eggs": "Milk, butter, cheese and eggs.",
+        "fruit_and_vegetables": null,
+        "beverages": "Wine, beer, spirits, tea, coffee and chocolate.",
+        "colonial_goods": "Sugar, spices, tobacco and other overseas goods.",
+        "textiles": "Fibres, cloth, yarn and clothing.",
+        "fuel_and_light": "Wood, coal, peat, candles and oil for lighting.",
+        "materials_and_metals": "Building materials, metals and other raw materials.",
+        "other": "Another commodity, or a service."
+      }
+    }
+  ]
+}

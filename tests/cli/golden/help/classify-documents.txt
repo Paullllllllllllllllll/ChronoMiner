@@ -1,0 +1,91 @@
+usage: chronominer classify documents --classifier NAME --input PATH [options]
+
+Ask a document classifier about each input item in one request: its leading text chunks or its
+first pages, as the classifier selects.
+
+options:
+  -h, --help            show this help message and exit
+
+input:
+  --input PATH          text (.txt, .md), image or PDF file, or a folder of these
+  --type {auto,text,images,pdf}
+                        input type; auto takes the text, image and PDF files of a folder and
+                        detects a file's type by its extension; default: auto
+  --select EXPR         select items by number (1,3), range (1-5) or name search
+  --all                 process every discovered item
+  --files LIST          comma-separated names of files inside the input folder
+  --recursive, --no-recursive
+                        search the subfolders of the input folder; default: off
+
+output:
+  --output DIR          output folder whose chronominer.sqlite holds the answers; default: beside
+                        the input
+  --beside-input        use the chronominer.sqlite beside each input
+  --layout {flat,mirror}
+                        output folder layout: flat (every output in the output folder) or mirror
+                        (the input folder tree); default: flat
+
+chunking:
+  --chunking {auto,line-ranges,adjust}
+                        text chunking of items the store does not hold: auto (by --chunk-tokens)
+                        or line-ranges (the input's {stem}_line_ranges.txt, which must exist);
+                        adjust is refused; default: auto
+  --chunk-tokens N      target tokens per text chunk under --chunking auto; default: 3500
+
+model:
+  --model NAME          model whose tokenizer counts the chunk tokens and whose image presets size
+                        the pages of items the store does not hold; default: gpt-6-luna
+
+images:
+  --dpi native|N        render resolution: native or a DPI value; default: the provider's
+                        recommended value
+  --image-detail {low,high,auto,original}
+                        image detail sent to the model; default: the provider's recommended value
+  --image-format {jpeg,png}
+                        page image format; default: the provider's recommended value
+  --jpeg-quality N      JPEG quality, 1 to 100; default: the provider's recommended value
+  --grayscale, --no-grayscale
+                        convert page images to grayscale; default: the provider's recommended
+                        value
+
+classifier:
+  --classifier NAME|PATH
+                        classifier: a file path, a file name in the classifier folder without
+                        .json, or the name field of a classifier there; default: required
+
+decision model:
+  --decision-model ID   decision model id; default: typesafe/jev-1.14
+  --decision-provider {openai,openrouter}
+                        decision API dialect; default: from the model id
+  --decision-endpoint URL
+                        decision endpoint URL; default: the provider's
+
+run control:
+  --force               ask about every document again instead of reusing the stored answers
+  --dry-run             plan without API calls or writes
+  --json                print one JSON summary line on stdout
+  --settings FILE       alternate settings file; default: config/settings.yaml
+
+Precedence: a flag wins over the settings defaults: block, which wins over the code default.
+--settings FILE reads another settings file instead of config/settings.yaml.
+
+Classification is shadow only: answers go to the classifications view of chronominer.sqlite and
+never change an extraction. A request whose stored answers match its fingerprint, input and
+content is reused unless --force.
+
+Exit codes:
+  0    every document was classified, or nothing was left to ask
+  1    a request failed, a document's input changed since the store
+       recorded it (refused), or another run leases it
+  2    usage or configuration error: an unknown classifier or one of
+       another unit, --chunking adjust, a missing line-ranges file,
+       an unset key variable, or nothing to classify
+  130  interrupted (Ctrl+C or Ctrl+Break)
+
+With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and
+errors go to stderr.
+
+Examples:
+  The type of every source of a folder, from its first pages or chunks:
+    chronominer classify documents --classifier document_type --input
+      sources --all --output out

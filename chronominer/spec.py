@@ -8,8 +8,10 @@ those options applies there too. Image options left unset take the
 provider's recommended value (:func:`recommended_images`).
 
 ``--schema`` names a schema file or a schema of the repository's
-``schemas/`` folder; :func:`resolve_schema` finds it. A spec keeps the
-argument as given.
+``schemas/`` folder; :func:`resolve_schema` finds it. ``--classifier`` of
+the classify commands names a classifier file of ``classifiers/`` the same
+way (:func:`~chronominer.common.classifiers.resolve_classifier`). A spec
+keeps the argument as given.
 
 A run that calls a model refuses a provider set at a higher precedence level
 than a model of another provider. List options given more than once
@@ -25,6 +27,7 @@ from dataclasses import asdict, dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
 from typing import Any, Final, Literal, cast
 
+from chronominer.common.classifiers import load_classifier
 from chronominer.common.image_presets import (
     DetailCheck,
     DetailRules,
@@ -60,6 +63,7 @@ from chronominer.common.standard_options import (
     batch_ids_option,
     batch_option,
     check_input_option,
+    classifier_options,
     concurrency_option,
     decision_options,
     dry_run_option,
@@ -85,6 +89,11 @@ __all__ = [
     "BATCH_CANCEL_OPTIONS",
     "BATCH_CHECK_OPTIONS",
     "CHUNKING_MODES",
+    "CLASSIFIERS_DIR",
+    "CLASSIFY_CHUNKS_OPTIONS",
+    "CLASSIFY_DOCUMENTS_OPTIONS",
+    "CLASSIFY_ENTRIES_OPTIONS",
+    "CLASSIFY_UNITS",
     "CONTEXT_AUTO",
     "CONTEXT_NONE",
     "DEFAULT_CHUNK_TOKENS",
@@ -116,6 +125,13 @@ __all__ = [
     "BatchCancelSpec",
     "BatchCheckSpec",
     "ChunkingSpec",
+    "ClassifierChoice",
+    "ClassifyChunking",
+    "ClassifyControl",
+    "ClassifyEntriesSpec",
+    "ClassifyItemsSpec",
+    "ClassifyOutput",
+    "ClassifySpec",
     "CommandSpec",
     "ContextChoice",
     "ContextText",
@@ -138,6 +154,7 @@ __all__ = [
     "RunControl",
     "RunSpec",
     "SpecError",
+    "classifier_names",
     "condition_warnings",
     "effective_spec",
     "inapplicable",
@@ -154,6 +171,8 @@ __all__ = [
     "recommended_images",
     "resolve_batch_cancel",
     "resolve_batch_check",
+    "resolve_classify_entries",
+    "resolve_classify_items",
     "resolve_drop",
     "resolve_ranges_adjust",
     "resolve_ranges_generate",
@@ -193,6 +212,9 @@ CONTEXT_NONE: Final = "none"
 
 SCHEMAS_DIR = Path(__file__).resolve().parent.parent / "schemas"
 """The repository's schema folder; public and private schemas share it."""
+
+CLASSIFIERS_DIR = Path(__file__).resolve().parent.parent / "classifiers"
+"""The repository's classifier folder, read like :data:`SCHEMAS_DIR`."""
 
 MODEL_SUGGESTIONS: Mapping[str, tuple[str, ...]] = {
     "openai": (
@@ -517,6 +539,76 @@ class DropSpec:
     json: bool = False
 
 
+@dataclass(frozen=True)
+class ClassifierChoice:
+    """The classifier of a classify command and its decision model.
+
+    ``classifier`` is the ``--classifier`` argument as given;
+    ``provider`` None resolves the dialect from the model id. ``force``
+    asks again instead of reusing stored answers.
+    """
+
+    classifier: str
+    force: bool
+    model: str
+    provider: str | None
+    endpoint: str | None
+
+
+@dataclass(frozen=True)
+class ClassifyControl:
+    """The agent-contract switches of a classify command."""
+
+    dry_run: bool
+    json: bool
+
+
+@dataclass(frozen=True)
+class ClassifyOutput:
+    """The output root whose store a classify command reads and writes."""
+
+    directory: Path | None
+    layout: str
+
+
+@dataclass(frozen=True)
+class ClassifyChunking:
+    """How a classify command cuts text items the store does not hold."""
+
+    mode: str
+    chunk_tokens: int
+
+
+@dataclass(frozen=True)
+class ClassifyItemsSpec:
+    """``classify chunks`` or ``classify documents`` over input items.
+
+    ``unit`` is ``chunk`` or ``document``. ``model`` names the model whose
+    tokenizer counts ``chunk_tokens`` and whose image presets size the
+    pages of items the store does not hold.
+    """
+
+    unit: str
+    input: InputSpec
+    output: ClassifyOutput
+    chunking: ClassifyChunking
+    model: str
+    images: ImageSpec
+    classify: ClassifierChoice
+    run: ClassifyControl
+
+
+@dataclass(frozen=True)
+class ClassifyEntriesSpec:
+    """``classify entries`` over the stores at or below ``input``."""
+
+    input: Path
+    classify: ClassifierChoice
+    run: ClassifyControl
+
+
+type ClassifySpec = ClassifyItemsSpec | ClassifyEntriesSpec
+
 type CommandSpec = (
     RunSpec
     | RangesGenerateSpec
@@ -526,6 +618,8 @@ type CommandSpec = (
     | BatchCancelSpec
     | RenderSpec
     | DropSpec
+    | ClassifyItemsSpec
+    | ClassifyEntriesSpec
 )
 
 
@@ -612,6 +706,20 @@ def resolve_schema(argument: str, schemas_dir: Path | None = None) -> ResolvedSc
         f"unknown schema {argument!r}: not a file, and no schema in {folder} "
         f"has that file or name; available: {listing}"
     )
+
+
+def classifier_names(folder: Path | None = None) -> tuple[str, ...]:
+    """Return the names of the valid classifiers in *folder* (the repo's)."""
+    folder = CLASSIFIERS_DIR if folder is None else folder
+    if not folder.is_dir():
+        return ()
+    names: list[str] = []
+    for path in sorted(folder.glob("*.json")):
+        try:
+            names.append(load_classifier(path).name)
+        except (OSError, ValueError) as exc:
+            logger.warning("Skipping classifier file: %s", exc)
+    return tuple(names)
 
 
 IMAGE_PRESETS = ImagePresets(
@@ -880,6 +988,7 @@ _GROUP_TITLES = {
     "images": "images",
     "selection": "chunks to repair",
     "batch": "batches",
+    "classify": "classifier",
     "run": "run control",
 }
 
@@ -1244,14 +1353,99 @@ DROP_OPTIONS = OptionTable(
     group_titles=_GROUP_TITLES,
 )
 
+CLASSIFY_UNITS: Final = ("chunk", "entry", "document")
+"""The units of ``classify chunks``, ``classify entries`` and ``classify documents``."""
+
+
+def _classifier_rows(unit: str) -> list[Option]:
+    """Return the classifier and decision-model rows, then ``--force``."""
+    rows = classifier_options(
+        force_help=(
+            f"ask about every {unit} again instead of reusing the stored answers"
+        ),
+        choice_provider=classifier_names,
+    )
+    return sorted(rows, key=lambda option: option.name == "force")
+
+
+def _classify_items_table(unit: str) -> OptionTable:
+    """Return the table of ``classify chunks`` or ``classify documents``."""
+    pages = [OPTIONS["pages"]] if unit == "chunk" else []
+    return OptionTable(
+        [
+            replace(
+                OPTIONS["input"],
+                help="text (.txt, .md), image or PDF file, or a folder of these",
+            ),
+            *(OPTIONS[name] for name in ("type", "select", "all", "files")),
+            OPTIONS["recursive"],
+            *pages,
+            replace(
+                OPTIONS["output"],
+                help="output folder whose chronominer.sqlite holds the answers",
+            ),
+            replace(
+                OPTIONS["beside_input"],
+                help="use the chronominer.sqlite beside each input",
+            ),
+            OPTIONS["layout"],
+            replace(
+                OPTIONS["chunking"],
+                help=(
+                    "text chunking of items the store does not hold: auto (by "
+                    "--chunk-tokens) or line-ranges (the input's "
+                    "{stem}_line_ranges.txt, which must exist); adjust is refused"
+                ),
+            ),
+            replace(
+                OPTIONS["chunk_tokens"],
+                help="target tokens per text chunk under --chunking auto",
+            ),
+            replace(
+                OPTIONS["model"],
+                help=(
+                    "model whose tokenizer counts the chunk tokens and whose image "
+                    "presets size the pages of items the store does not hold"
+                ),
+                target="model",
+            ),
+            *(OPTIONS[name] for name in _IMAGE_NAMES),
+            *_classifier_rows(unit),
+            dry_run_option("run.dry_run"),
+            json_option("run.json"),
+            settings_option(),
+        ],
+        group_titles=_GROUP_TITLES,
+    )
+
+
+CLASSIFY_CHUNKS_OPTIONS = _classify_items_table("chunk")
+CLASSIFY_DOCUMENTS_OPTIONS = _classify_items_table("document")
+CLASSIFY_ENTRIES_OPTIONS = OptionTable(
+    [
+        _input_option(
+            "output folder or chronominer.sqlite whose entries to classify; "
+            "subfolders included"
+        ),
+        *_classifier_rows("entry"),
+        dry_run_option("run.dry_run"),
+        json_option("run.json"),
+        settings_option(),
+    ],
+    group_titles=_GROUP_TITLES,
+)
+
 PROVIDER_TABLES: Final = (
     OPTIONS,
     RANGES_ADJUST_OPTIONS,
     REPAIR_OPTIONS,
     BATCH_CHECK_OPTIONS,
     BATCH_CANCEL_OPTIONS,
+    CLASSIFY_CHUNKS_OPTIONS,
+    CLASSIFY_ENTRIES_OPTIONS,
+    CLASSIFY_DOCUMENTS_OPTIONS,
 )
-"""The tables of the commands that call providers; ``ui`` starts them too."""
+"""The tables of the commands that call providers; ``ui`` starts the first five."""
 
 
 def _parse_table(table: OptionTable, argv: Sequence[str]) -> dict[str, Any]:
@@ -1667,6 +1861,68 @@ def resolve_drop(flags: Mapping[str, Any]) -> Resolution[DropSpec]:
     if sum(chosen) != 1:
         raise SpecError("give exactly one of --select, --files and --all")
     return Resolution(DropSpec(**values), sources)
+
+
+def _require_classifier(value: str | None) -> None:
+    if value is None:
+        raise SpecError("a classifier is required (--classifier NAME|PATH)")
+
+
+def resolve_classify_items(
+    unit: str, flags: Mapping[str, Any], defaults: Mapping[str, Any] | None = None
+) -> Resolution[ClassifyItemsSpec]:
+    """Resolve ``classify chunks`` (*unit* chunk) or ``classify documents`` options.
+
+    Settings defaults apply to the options shared with extract.
+
+    Raises:
+        SpecError: No input path, no classifier, or ``--chunking adjust``,
+            which would move line ranges with the model.
+    """
+    table = CLASSIFY_CHUNKS_OPTIONS if unit == "chunk" else CLASSIFY_DOCUMENTS_OPTIONS
+    resolved = _resolve_table(table, flags, defaults)
+    values, sources = table.by_targets(resolved)
+    if values["input.path"] is None:
+        raise SpecError("an input path is required (--input PATH)")
+    _require_classifier(values["classify.classifier"])
+    if values["chunking.mode"] == "adjust":
+        raise SpecError(
+            "classify moves no line ranges, so --chunking adjust is refused; run "
+            "'chronominer ranges adjust' first, then classify with --chunking "
+            "line-ranges"
+        )
+    spec = ClassifyItemsSpec(
+        unit=unit,
+        input=InputSpec(**{"pages": None, **_part(values, "input")}),
+        output=ClassifyOutput(**_part(values, "output")),
+        chunking=ClassifyChunking(**_part(values, "chunking")),
+        model=values["model"],
+        images=ImageSpec(**_part(values, "images")),
+        classify=ClassifierChoice(**_part(values, "classify")),
+        run=ClassifyControl(**_part(values, "run")),
+    )
+    return Resolution(spec, sources)
+
+
+def resolve_classify_entries(
+    flags: Mapping[str, Any], defaults: Mapping[str, Any] | None = None
+) -> Resolution[ClassifyEntriesSpec]:
+    """Resolve ``classify entries`` options; settings defaults apply to shared ones.
+
+    Raises:
+        SpecError: No input path or no classifier.
+    """
+    resolved = _resolve_table(CLASSIFY_ENTRIES_OPTIONS, flags, defaults)
+    values, sources = CLASSIFY_ENTRIES_OPTIONS.by_targets(resolved)
+    if values["input"] is None:
+        raise SpecError("an input path is required (--input PATH)")
+    _require_classifier(values["classify.classifier"])
+    spec = ClassifyEntriesSpec(
+        input=values["input"],
+        classify=ClassifierChoice(**_part(values, "classify")),
+        run=ClassifyControl(**_part(values, "run")),
+    )
+    return Resolution(spec, sources)
 
 
 def parse(argv: Sequence[str], defaults: Mapping[str, Any] | None = None) -> RunSpec:

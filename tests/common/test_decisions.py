@@ -17,6 +17,7 @@ from chronominer.common.decisions import (
     MAX_QUESTIONS,
     Choice,
     ChoiceAnswer,
+    DecisionUsage,
     Image,
     Json,
     Level,
@@ -204,6 +205,20 @@ def test_openai_score_labels_stay_labels_even_when_numeric() -> None:
     answer = parse_response("openai", {"answers": [entry]}, (question,)).answers["n"]
     assert isinstance(answer, ScoreAnswer)
     assert dict(answer.probabilities) == {"1": 0.7, "2": 0.3}
+
+
+@pytest.mark.parametrize("score", [-0.1, 1.01, float("nan"), float("inf")])
+def test_a_score_outside_its_levels_is_malformed(score: float) -> None:
+    entry = {"type": "score", "score": score, "probabilities": {}}
+    with pytest.raises(MalformedAnswer, match="score from 0 to 1"):
+        parse_response("openrouter", {"answers": {"legible": entry}}, QUESTIONS[2:])
+
+
+def test_a_malformed_response_keeps_its_usage() -> None:
+    response = {"answers": {}, "usage": {"input_tokens": 12, "output_tokens": 1}}
+    with pytest.raises(MalformedAnswer) as raised:
+        parse_response("openrouter", response, QUESTIONS[:1])
+    assert raised.value.usage == DecisionUsage(12, 1)
 
 
 def test_an_error_envelope_names_its_message() -> None:

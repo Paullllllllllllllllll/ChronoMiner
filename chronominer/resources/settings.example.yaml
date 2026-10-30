@@ -63,9 +63,10 @@ prompt_caching:
   openrouter:
     anthropic_cache_control: true
 
-# Decision-model pre-pass of --decisions shadow|apply (chunk relevance, skips).
+# Decision models: the --decisions pre-pass (chunk relevance, skips) and classify.
 decisions:
   image_max_px: 768       # longer side of the page images sent
+  pages_per_request: 20   # classify: most images in one request
   timeout_s: 120
   thresholds: {}          # request fingerprint: relevance below which apply skips
 

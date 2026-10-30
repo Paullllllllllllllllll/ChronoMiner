@@ -1,0 +1,52 @@
+usage: chronominer classify entries --classifier NAME --input PATH [options]
+
+Ask an entry classifier about each entry of the finished documents extracted with its schema,
+under each document's lease.
+
+options:
+  -h, --help            show this help message and exit
+
+input:
+  --input PATH          output folder or chronominer.sqlite whose entries to classify; subfolders
+                        included
+
+classifier:
+  --classifier NAME|PATH
+                        classifier: a file path, a file name in the classifier folder without
+                        .json, or the name field of a classifier there; default: required
+
+decision model:
+  --decision-model ID   decision model id; default: typesafe/jev-1.14
+  --decision-provider {openai,openrouter}
+                        decision API dialect; default: from the model id
+  --decision-endpoint URL
+                        decision endpoint URL; default: the provider's
+
+run control:
+  --force               ask about every entry again instead of reusing the stored answers
+  --dry-run             plan without API calls or writes
+  --json                print one JSON summary line on stdout
+  --settings FILE       alternate settings file; default: config/settings.yaml
+
+Precedence: a flag wins over the settings defaults: block, which wins over the code default.
+--settings FILE reads another settings file instead of config/settings.yaml.
+
+Classification is shadow only: answers go to the classifications view of chronominer.sqlite and
+never change an extraction. A request whose stored answers match its fingerprint, input and
+content is reused unless --force.
+
+Exit codes:
+  0    every document was classified, or nothing was left to ask
+  1    a request failed, a document's input changed since the store
+       recorded it (refused), or another run leases it
+  2    usage or configuration error: an unknown classifier or one of
+       another unit, --chunking adjust, a missing line-ranges file,
+       an unset key variable, or nothing to classify
+  130  interrupted (Ctrl+C or Ctrl+Break)
+
+With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and
+errors go to stderr.
+
+Examples:
+  The commodity group of every extracted price-list entry below a folder:
+    chronominer classify entries --classifier commodity_group --input out

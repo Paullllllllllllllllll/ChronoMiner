@@ -35,6 +35,10 @@ CASES = {
     "repair": ("repair",),
     "render": ("render",),
     "drop": ("drop",),
+    "classify": ("classify",),
+    "classify-chunks": ("classify", "chunks"),
+    "classify-entries": ("classify", "entries"),
+    "classify-documents": ("classify", "documents"),
     "ui": ("ui",),
 }
 

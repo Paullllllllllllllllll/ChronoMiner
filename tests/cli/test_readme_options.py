@@ -16,6 +16,9 @@ from chronominer.settings import EXAMPLE_SETTINGS_PATH
 from chronominer.spec import (
     BATCH_CANCEL_OPTIONS,
     BATCH_CHECK_OPTIONS,
+    CLASSIFY_CHUNKS_OPTIONS,
+    CLASSIFY_DOCUMENTS_OPTIONS,
+    CLASSIFY_ENTRIES_OPTIONS,
     DROP_OPTIONS,
     OPTIONS,
     RANGES_ADJUST_OPTIONS,
@@ -42,11 +45,16 @@ TABLES: dict[str, OptionTable] = {
     "repair": REPAIR_OPTIONS,
     "render": RENDER_OPTIONS,
     "drop": DROP_OPTIONS,
+    "classify chunks": CLASSIFY_CHUNKS_OPTIONS,
+    "classify entries": CLASSIFY_ENTRIES_OPTIONS,
+    "classify documents": CLASSIFY_DOCUMENTS_OPTIONS,
     "ui": OPTIONS.subset(("settings",)),
 }
 SHARED_GROUPS = frozenset({"model", "images"})
 """Groups whose extract options these commands take; their sections may omit them."""
-SHARING_COMMANDS = frozenset({"ranges adjust", "repair"})
+SHARING_COMMANDS = frozenset(
+    {"ranges adjust", "repair", "classify chunks", "classify documents"}
+)
 
 
 def _section(text: str, heading: str) -> list[str]:
@@ -268,8 +276,10 @@ def test_readme_view_columns_match_the_store(tmp_path: Path) -> None:
 
 DRIFT = [
     pytest.param(
+        "| `--beside-input` | write outputs beside each input | | no |\n"
         "| `--layout {flat,mirror}` | output folder layout: flat (every output in "
         "the output folder) or mirror (the input folder tree) | flat | yes |",
+        "| `--beside-input` | write outputs beside each input | | no |\n"
         "| `--layout {flat,mirror}` | output folder layout: flat (every output in "
         "the output folder) or mirror (the input folder tree) | mirror | yes |",
         "extract: --layout: default",

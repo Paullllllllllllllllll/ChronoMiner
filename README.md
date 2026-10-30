@@ -1,4 +1,4 @@
-# ChronoMiner v1.1.2
+# ChronoMiner v1.2.0
 
 ChronoMiner extracts structured data from text files, images and PDFs with language
 models. A JSON schema describes the entries to find, such as the items of a price list
@@ -18,7 +18,10 @@ folder, committed with the provider response and its parsed entries as soon as t
 answer arrives. `{stem}_output.json` and, on request, a CSV are rendered from the
 database, so an interrupted run resumes from it and `render` rewrites the files
 without model calls. For `prices.txt` and `--output out`, a run writes
-`out/prices_output.json` and `out/chronominer.sqlite`.
+`out/prices_output.json` and `out/chronominer.sqlite`. The `classify` commands ask
+a decision model a [classifier](#classifiers)'s questions about chunks, entries or
+whole documents and record the answers in the same database, without changing the
+extraction.
 
 ## Installation
 
@@ -46,6 +49,7 @@ uv run chronominer extract --schema wage_records --input sources --all --formats
 uv run chronominer ranges generate --input texts --chunk-tokens 3000
 uv run chronominer extract --schema trade_records --input portbook.txt --chunking adjust
 uv run chronominer extract --schema census_households --input scans --select 1-3 --dry-run --json
+uv run chronominer classify entries --classifier commodity_group --input out
 uv run chronominer ui
 ```
 
@@ -231,6 +235,83 @@ refused.
 | `--dry-run` | plan without API calls or writes | | no |
 | `--json` | print one JSON summary line on stdout | | no |
 
+### classify chunks
+
+`--classifier` and `--input` are required, and the classifier's unit must be
+`chunk`. `classify chunks` also takes the image options of `extract`, with their
+defaults and settings defaults; they size the pages of items the store does not
+hold, while a document with stored pages keeps the settings it was extracted with.
+
+| Flag | Description | Default | In `defaults:` |
+| --- | --- | --- | --- |
+| `--input PATH` | text (.txt, .md), image or PDF file, or a folder of these | | no |
+| `--type {auto,text,images,pdf}` | input type; auto takes the text, image and PDF files of a folder and detects a file's type by its extension | auto | yes |
+| `--select EXPR` | select items by number (1,3), range (1-5) or name search | | yes |
+| `--all` | process every discovered item | | yes |
+| `--files LIST` | comma-separated names of files inside the input folder | | no |
+| `--recursive`, `--no-recursive` | search the subfolders of the input folder | off | yes |
+| `--pages RANGE` | chunks (PDF pages, line ranges): 5, first:5, last:5, 3-7, 3-, -7 or 1,3,5-8 | all | no |
+| `--output DIR` | output folder whose chronominer.sqlite holds the answers | beside the input | yes |
+| `--beside-input` | use the chronominer.sqlite beside each input | | no |
+| `--layout {flat,mirror}` | output folder layout: flat (every output in the output folder) or mirror (the input folder tree) | flat | yes |
+| `--chunking {auto,line-ranges,adjust}` | text chunking of items the store does not hold: auto (by --chunk-tokens) or line-ranges (the input's {stem}_line_ranges.txt, which must exist); adjust is refused | auto | yes |
+| `--chunk-tokens N` | target tokens per text chunk under --chunking auto | 3500 | yes |
+| `--model NAME` | model whose tokenizer counts the chunk tokens and whose image presets size the pages of items the store does not hold | gpt-6-luna | yes |
+| `--classifier NAME\|PATH` | classifier: a file path, a file name in the classifier folder without .json, or the name field of a classifier there | required | no |
+| `--decision-model ID` | decision model id | typesafe/jev-1.14 | yes |
+| `--decision-provider {openai,openrouter}` | decision API dialect | from the model id | yes |
+| `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
+| `--force` | ask about every chunk again instead of reusing the stored answers | | no |
+| `--dry-run` | plan without API calls or writes | | no |
+| `--json` | print one JSON summary line on stdout | | no |
+| `--settings FILE` | alternate settings file | config/settings.yaml | no |
+
+### classify entries
+
+`--classifier` and `--input` are required, and the classifier's unit must be
+`entry`.
+
+| Flag | Description | Default | In `defaults:` |
+| --- | --- | --- | --- |
+| `--input PATH` | output folder or chronominer.sqlite whose entries to classify; subfolders included | | no |
+| `--classifier NAME\|PATH` | classifier: a file path, a file name in the classifier folder without .json, or the name field of a classifier there | required | no |
+| `--decision-model ID` | decision model id | typesafe/jev-1.14 | yes |
+| `--decision-provider {openai,openrouter}` | decision API dialect | from the model id | yes |
+| `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
+| `--force` | ask about every entry again instead of reusing the stored answers | | no |
+| `--dry-run` | plan without API calls or writes | | no |
+| `--json` | print one JSON summary line on stdout | | no |
+| `--settings FILE` | alternate settings file | config/settings.yaml | no |
+
+### classify documents
+
+`--classifier` and `--input` are required, and the classifier's unit must be
+`document`. `classify documents` also takes the image options of `extract`, as
+`classify chunks` does.
+
+| Flag | Description | Default | In `defaults:` |
+| --- | --- | --- | --- |
+| `--input PATH` | text (.txt, .md), image or PDF file, or a folder of these | | no |
+| `--type {auto,text,images,pdf}` | input type; auto takes the text, image and PDF files of a folder and detects a file's type by its extension | auto | yes |
+| `--select EXPR` | select items by number (1,3), range (1-5) or name search | | yes |
+| `--all` | process every discovered item | | yes |
+| `--files LIST` | comma-separated names of files inside the input folder | | no |
+| `--recursive`, `--no-recursive` | search the subfolders of the input folder | off | yes |
+| `--output DIR` | output folder whose chronominer.sqlite holds the answers | beside the input | yes |
+| `--beside-input` | use the chronominer.sqlite beside each input | | no |
+| `--layout {flat,mirror}` | output folder layout: flat (every output in the output folder) or mirror (the input folder tree) | flat | yes |
+| `--chunking {auto,line-ranges,adjust}` | text chunking of items the store does not hold: auto (by --chunk-tokens) or line-ranges (the input's {stem}_line_ranges.txt, which must exist); adjust is refused | auto | yes |
+| `--chunk-tokens N` | target tokens per text chunk under --chunking auto | 3500 | yes |
+| `--model NAME` | model whose tokenizer counts the chunk tokens and whose image presets size the pages of items the store does not hold | gpt-6-luna | yes |
+| `--classifier NAME\|PATH` | classifier: a file path, a file name in the classifier folder without .json, or the name field of a classifier there | required | no |
+| `--decision-model ID` | decision model id | typesafe/jev-1.14 | yes |
+| `--decision-provider {openai,openrouter}` | decision API dialect | from the model id | yes |
+| `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
+| `--force` | ask about every document again instead of reusing the stored answers | | no |
+| `--dry-run` | plan without API calls or writes | | no |
+| `--json` | print one JSON summary line on stdout | | no |
+| `--settings FILE` | alternate settings file | config/settings.yaml | no |
+
 ### ui
 
 | Flag | Description | Default | In `defaults:` |
@@ -242,8 +323,8 @@ refused.
 | Code | Meaning |
 | --- | --- |
 | 0 | every item completed or, under `--batch`, was submitted, or nothing was left to do |
-| 1 | an item failed (refused items included), another run leases an item (the final message names each blocked item with its reason and a lease with its expiry; an item waiting for a batch is named but does not change the exit code), a repaired chunk stayed unrepaired, a batch failed or waits unresolved, `batch check --wait` reached `--wait-hours` with batches pending, a cancellation failed, a file could not be rendered or its document was held by another run, `drop` refused a document, or an unexpected error |
-| 2 | usage or configuration error: invalid flags or settings, an unknown schema, an unset API key variable (outside a dry run), a provider without a batch API under `--batch`, a model without image input for image or PDF items, no items in the input, a folder of several items without `--all`, `--select` or `--files`, a `--select` or `--files` that matches no item or stored document, a missing input path or folder, no store at the `drop` input, two inputs that share one output, a database without schema version, newer than the tool or unreadable |
+| 1 | an item failed (refused items included), another run leases an item (the final message names each blocked item with its reason and a lease with its expiry; an item waiting for a batch is named but does not change the exit code), a repaired chunk stayed unrepaired, a batch failed or waits unresolved, `batch check --wait` reached `--wait-hours` with batches pending, a cancellation failed, a file could not be rendered or its document was held by another run, `drop` refused a document, a `classify` request failed or a document to classify was refused or leased, or an unexpected error |
+| 2 | usage or configuration error: invalid flags or settings, an unknown schema, an unset API key variable (outside a dry run), a provider without a batch API under `--batch`, a model without image input for image or PDF items, no items in the input, a folder of several items without `--all`, `--select` or `--files`, a `--select` or `--files` that matches no item or stored document, a missing input path or folder, no store at the `drop` input, two inputs that share one output, an unknown classifier or one of another unit, `classify --chunking adjust`, a missing line-ranges file under `classify --chunking line-ranges`, no document to classify, a database without schema version, newer than the tool, unreadable or due a schema step while another run holds a lease |
 | 130 | interrupted (Ctrl+C, or Ctrl+Break on Windows) |
 
 Each command's `--help` lists its own exit codes. Progress, warnings and errors go to
@@ -261,6 +342,7 @@ zero where nothing ran, unless stated otherwise.
 | `repair` | `command` (`repair`), `repaired`, `failed`, `usage` |
 | `render` | `command` (`render`), `databases`, `documents`, `written`, `unchanged`, `kept`, `stale`, `skipped`, `outputs` |
 | `drop` | `command` (`drop`), `dropped`, `refused`, `deleted_files`, `kept_files` |
+| `classify chunks`, `classify entries`, `classify documents` | `command` (`classify`), `unit`, `classifier`, `items_total`, `items_classified`, `items_refused`, `items_blocked`, `items_failed`, `items_skipped`, `units_asked`, `units_reused`, `outputs`, `usage` |
 
 `items_total` counts the items processed (on a plan error, those the run would have
 processed), `items_skipped` the complete, unstored and blocked items and those of which
@@ -292,7 +374,15 @@ that could not be replaced and `skipped` documents another run holds. For `drop`
 `dropped` names the documents deleted (in a dry run, those it would delete),
 `refused` lists each document left in place as `doc_id`, `name` and `reason`,
 `deleted_files` the files removed and `kept_files` each file left in place as `path`
-and `reason`.
+and `reason`. For `classify`, the `items_` fields count documents: `items_refused`
+those whose input changed since the store recorded it, `items_blocked` those another
+run leases (both exit 1), `items_skipped` those with nothing to ask (an unfinished
+extraction, no entries, or a `--pages` that selects no chunk); `units_asked` counts
+the units asked about, `units_reused` those whose stored answers were kept, `outputs`
+the databases written and `usage` the decision-model tokens under `classify`. A dry
+run counts the units it would ask about and reuse, and adds `targets` (each
+document's `name`, `document`, `state`, `reason`, `units_asked` and `units_reused`)
+and `spec`.
 
 When the environment variable `CHRONO_HEARTBEAT_FILE` names a file, `extract` and
 `batch check --wait` also write their progress there as one JSON object for a job
@@ -400,9 +490,10 @@ prompt_caching:
   openrouter:
     anthropic_cache_control: true
 
-# Decision-model pre-pass of --decisions shadow|apply (chunk relevance, skips).
+# Decision models: the --decisions pre-pass (chunk relevance, skips) and classify.
 decisions:
   image_max_px: 768       # longer side of the page images sent
+  pages_per_request: 20   # classify: most images in one request
   timeout_s: 120
   thresholds: {}          # request fingerprint: relevance below which apply skips
 
@@ -552,6 +643,56 @@ tool, provider, model, endpoint, question and image settings) to the threshold, 
 `apply` without an entry for the run's fingerprint records only and names the
 fingerprint in a warning. `repair --skipped` extracts skipped chunks.
 
+## Classifiers
+
+A classifier is a JSON file of questions that a decision model answers about one
+unit at a time; the format and its validation are documented in
+`chronominer/common/classifiers.py`, shared with ChronoTranscriber. `--classifier`
+resolves like `--schema`: an existing file path, a file `<name>.json` in the
+repository's `classifiers/` folder, or a classifier there whose `name` field equals
+the argument. A question is a predicate, a choice, a score, or the shared page-type
+choice (`page_types`, for chunks only). The repository ships nine examples:
+
+| Classifier | Unit | Asks |
+| --- | --- | --- |
+| `chunk_kind` | chunk | the page type of the shared taxonomy, `general` profile |
+| `language` | chunk | the main language of the text |
+| `document_type` | document | printed book, periodical or newspaper, manuscript or letter, account book or ledger, register or list, printed form or ephemera, or other |
+| `commodity_group` | entry of `PriceListEntries` | the commodity group of the priced item |
+| `occupation_sector` | entry of `WageRecords` | the economic sector of the paid work |
+| `cargo_class` | entry of `TradeRecords` | the class of goods of the cargo |
+| `goods_category` | entry of `ProbateInventories` | the main category of the listed goods, and whether they include luxury goods |
+| `subject_class` | entry of `BibliographicCatalogueEntries` | the subject class of the publication |
+| `letter_topic` | entry of `CorrespondenceMetadata` | the main topic of the letter |
+
+`classify chunks` asks a chunk classifier about each chunk of the input items, cut
+as `extract` cuts them, and writes nothing to the extraction: a document the store
+holds keeps its stored line ranges, a text the store lacks is cut in memory under
+`--chunking auto` or by its `{stem}_line_ranges.txt` under `line-ranges` (missing:
+exit 2, naming `ranges generate` and `ranges adjust`), and `--chunking adjust` is
+refused. Pages are rendered by the extraction's page sources and sent as JPEG of at
+most `decisions.image_max_px` on the longer side. `classify entries` asks an entry
+classifier about each entry of the finished documents (no pending chunk) whose run
+used the classifier's `schema`, sending the entry's `fields` as JSON; it leases each
+document while it asks, and a document another run leases is blocked.
+`classify documents` asks about each item once, from its leading text chunks up to
+the classifier's `selection.max_tokens` (default 20,000) or its first
+`selection.first_pages` pages (default 10, at most `decisions.pages_per_request`).
+A classifier's `per_request` units go into one request; entries of different
+chunks never share one.
+
+Classification is shadow only: it never changes, skips or gates an extraction.
+Every answer is one row of the `classifications` view (see [Store](#store)). A
+request whose units all have stored answers for the same request fingerprint
+(decision model, dialect, endpoint, classifier and page image settings), input and
+content is reused instead of asked again and recorded once more under the current
+run; `--force` asks again. An item whose stored document records another input
+content is refused (exit 1) until it is extracted again. Database triggers make the
+answers about a chunk's entries stale whenever any writer extracts the chunk again,
+resets, flags or deletes it, so the next `classify entries` asks about them again,
+and make a document's chunk answers stale when its stored chunk layout changes; an
+older ChronoMiner refuses a database with these triggers.
+
 ## Inputs and Chunking
 
 With `--type auto`, a folder yields its text, image and PDF files in natural order
@@ -648,6 +789,7 @@ which stay stable; the tables behind them may change.
 | `entries` | extracted entry of a done chunk, by document, chunk and entry | `document`, `chunk_index`, `entry_index`, `schema`, `model`, `provider`, `run_id` |
 | `chunks` | chunk unit, by document and chunk | `document`, `chunk_index`, `source_index`, `label`, `status`, `model`, `provider`, `usage`, `output_text`, `error`, `error_type`, `custom_id`, `stale`, `run_id`, `outcome`, `decision_probability` |
 | `ranges` | line range of a text, by document and range | `document`, `range_index`, `original_start`, `original_end`, `adjusted_start`, `adjusted_end`, `should_delete`, `status` |
+| `classifications` | current answer of a classifier question about one unit | `document`, `doc_id`, `unit`, `locator`, `ordinal`, `input_sha256`, `content_sha256`, `request_sha256`, `classifier`, `classifier_version`, `classifier_sha256`, `question`, `kind`, `value`, `probability`, `probabilities`, `refusal`, `model`, `dialect`, `fingerprint`, `run_id`, `created_at`, `reused` |
 
 A document is named by its `{stem}_output.json` path relative to the output root,
 without that suffix (`sub/book`). In `entries`, one column per top-level field of the
@@ -664,9 +806,21 @@ without one), and `usage` JSON token counts
 `reasoning_tokens`, in synchronous and batch rows alike). In `ranges`,
 `range_index` is 1-based, `original_start` and `original_end` are the starting bounds,
 and `adjusted_start`, `adjusted_end` and `should_delete` (0 or 1) hold the boundary
-decision of `ranges adjust` or `--chunking adjust`, NULL for a range without one. Open
-the database read-only and close it after the query, so a running extraction never
-waits on the reader:
+decision of `ranges adjust` or `--chunking adjust`, NULL for a range without one.
+`classifications` shows, per document, unit, locator and classifier, the latest
+answer to each question of the classifier's latest revision, leaving out stale
+answers and those of a document whose input changed. Its units: `chunk` (locator
+`lines 120-180`, `page 3` or the image file name; `ordinal` the `chunk_index` at
+classification time, so join chunk answers on `document` and `locator`, not on
+`ordinal`; a change of the stored chunk layout makes them stale),
+`entry` (locator `chunk_index:entry_index`, as in `entries`; `ordinal` the
+`chunk_index`; `doc_id` set) and `document` (locator `document`, `ordinal` 0).
+`value` is a choice's value or a score's expected 0-based level, `probability` a
+predicate's probability, the chosen value's or a score's confidence,
+`probabilities` a JSON object by value or level label, and `refusal` the reason
+the model declined (the answer columns are then NULL); `reused` is 1 for an answer
+kept from an earlier run. Open the database read-only and close it after the
+query, so a running extraction never waits on the reader:
 
 ```python
 import sqlite3
@@ -810,9 +964,11 @@ chronominer/
   extract/      chunks, extraction calls, answer parsing, the unit pipeline
   ranges/       line-range format, generation, adjustment and their store
   batch/        submit, check, finalize, reconcile, cancel and repair
+  classify/     classify commands: plan, units, decision-model requests
   output/       store views, resume classification, renderers
   resources/    prompts and the settings example
 schemas/        example extraction schemas
+classifiers/    example classifiers
 ```
 
 The core imports nothing from `cli/` or `ui/`; it never prints, prompts or exits and

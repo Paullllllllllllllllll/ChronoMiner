@@ -34,10 +34,12 @@ if TYPE_CHECKING:
     from chronominer.run import PlannedItem, RunPlan
 
 __all__ = [
+    "CLASSIFY_UNITS",
     "LOGGER_NAME",
     "Summary",
     "cancel_fields",
     "check_fields",
+    "classify_fields",
     "condition_warnings",
     "drop_fields",
     "guarded",
@@ -199,6 +201,51 @@ def render_fields(
     }
 
 
+CLASSIFY_UNITS = {"chunks": "chunk", "entries": "entry", "documents": "document"}
+"""The unit of each classify subcommand."""
+
+
+def classify_fields(  # noqa: PLR0913 - one keyword per summary field
+    *,
+    unit: str = "",
+    classifier: str = "",
+    total: int = 0,
+    classified: int = 0,
+    refused: int = 0,
+    blocked: int = 0,
+    failed: int = 0,
+    skipped: int = 0,
+    asked: int = 0,
+    reused: int = 0,
+    outputs: Sequence[str] = (),
+    usage: Mapping[str, Usage] | None = None,
+) -> dict[str, Any]:
+    """Return the fields of the classify summary.
+
+    The ``items_`` counts are documents: the ones planned, classified,
+    refused (input changed), blocked (leased by another run), failed and
+    skipped. ``units_asked`` counts the units asked about (in a dry run:
+    that would be asked), ``units_reused`` those whose stored answers were
+    kept; ``outputs`` lists the databases written and *usage* holds the
+    decision-model tokens per role.
+    """
+    return {
+        "command": "classify",
+        "unit": unit,
+        "classifier": classifier,
+        "items_total": total,
+        "items_classified": classified,
+        "items_refused": refused,
+        "items_blocked": blocked,
+        "items_failed": failed,
+        "items_skipped": skipped,
+        "units_asked": asked,
+        "units_reused": reused,
+        "outputs": list(outputs),
+        USAGE_KEY: usage_field(usage),
+    }
+
+
 def drop_fields(
     *,
     dropped: Sequence[str] = (),
@@ -269,6 +316,9 @@ def summary_for(argv: Sequence[str]) -> Summary:
         return Summary(stream, render_fields(), dry_run=dry_run)
     if words[:1] == ["drop"]:
         return Summary(stream, drop_fields(), dry_run=dry_run)
+    if words[:1] == ["classify"]:
+        unit = CLASSIFY_UNITS.get(words[1] if len(words) > 1 else "", "")
+        return Summary(stream, classify_fields(unit=unit), dry_run=dry_run)
     return Summary(stream, summary_fields(), dry_run=dry_run)
 
 

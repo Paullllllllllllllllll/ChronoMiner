@@ -1,0 +1,27 @@
+{
+  "name": "occupation_sector",
+  "version": 1,
+  "unit": "entry",
+  "description": "The economic sector of the work behind each wage record.",
+  "schema": "WageRecords",
+  "fields": ["occupation", "employer", "notes"],
+  "per_request": 20,
+  "questions": [
+    {
+      "name": "sector",
+      "type": "choice",
+      "instructions": "In which sector did the person earn this wage?",
+      "choices": {
+        "agriculture": "Farming, gardening, forestry and fishing.",
+        "construction": "Building trades and earthworks.",
+        "manufacturing_and_crafts": "Workshops, mills, mines and manufactories.",
+        "transport_and_trade": "Carrying, shipping, shops and markets.",
+        "domestic_service": "Servants of a household.",
+        "public_service": "Officials, soldiers, sailors of a navy and other public servants.",
+        "professions_and_clergy": "Clergy, teachers, physicians, lawyers and clerks.",
+        "unskilled_labour": "Day labourers without a stated trade.",
+        "unknown": "The record does not tell."
+      }
+    }
+  ]
+}

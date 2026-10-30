@@ -87,6 +87,21 @@ them may change between versions, the views stay stable.
     failed; a decision made without a usable answer is ``failed`` and is
     decided again by the next run).
 
+``classifications``
+    The answers of ``chronominer classify``, one row per unit, classifier and
+    question, from the shared component
+    (:mod:`chronominer.common.classify_store`, where its columns and rules
+    are documented). ChronoMiner's units: ``chunk`` (``ordinal`` the
+    ``chunk_index``, ``locator`` ``lines 120-180``, ``page 3`` or the image
+    file name), ``entry`` (``ordinal`` the ``chunk_index``, ``locator``
+    ``chunk_index:entry_index`` as in ``entries``, ``doc_id`` set) and
+    ``document`` (``ordinal`` 0, ``locator`` ``document``). Join chunk answers
+    to ``chunks`` on ``document`` and ``locator`` (the line range, page or
+    image name), not on ``ordinal``: a chunk's position changes with the
+    layout. Entry answers go stale when their chunk is extracted again,
+    reset or dropped; a document's chunk answers go stale when its stored
+    chunk layout changes.
+
 Open the database read-only and close it after the query, so that a running
 extraction never waits on the reader::
 
@@ -121,6 +136,7 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any, Final
 
+from chronominer.common.classify_store import COMPONENT as CLASSIFICATIONS
 from chronominer.common.native import MODEL_DERIVED_IMAGE_KEYS, changed_image_settings
 from chronominer.common.sqlite import read, read_only
 from chronominer.common.store import (
@@ -128,6 +144,7 @@ from chronominer.common.store import (
     ResumeState,
     SchemaState,
     Store,
+    StoreError,
     UnitKey,
     WriterOptions,
     check_schema,
@@ -135,10 +152,13 @@ from chronominer.common.store import (
 )
 
 __all__ = [
+    "CLASSIFICATIONS",
     "COMPONENT",
+    "COMPONENTS",
     "DATABASE_NAME",
     "ENTRY_COLUMNS",
     "ENTRY_FIELD_PREFIX",
+    "ENTRY_LOCATOR",
     "ENTRY_TABLE",
     "KIND_CHUNK",
     "KIND_RANGE",
@@ -151,6 +171,7 @@ __all__ = [
     "Classification",
     "ImageSettings",
     "ItemState",
+    "MissingComponentError",
     "chunk_decision_rows",
     "classify",
     "clear_chunk_decisions",
@@ -178,7 +199,7 @@ KIND_CHUNK: Final = "chunk"
 KIND_RANGE: Final = "range"
 UNIT_KINDS: Final = (KIND_CHUNK, KIND_RANGE)
 
-VIEWS: Final = ("entries", "chunks", "ranges")
+VIEWS: Final = ("entries", "chunks", "ranges", "classifications")
 
 ENTRY_TABLE: Final = "entry_rows"
 ENTRY_FIELD_PREFIX: Final = "f_"
@@ -348,10 +369,112 @@ def _version_2(connection: sqlite3.Connection) -> None:
             connection.execute(statement)
 
 
-COMPONENT: Final = Component(TOOL, (_version_1, _version_2))
+def _stale_entries(row: str) -> str:
+    """Return the trigger body that flags the entry answers of chunk *row*.
+
+    *row* is ``NEW`` or ``OLD``: a row of ``entry_rows`` or ``units`` with
+    ``doc_id`` and ``idx``. Every answer of a request that asked about an
+    entry of that chunk goes stale, since its answers were formed together.
+    """
+    return f"""
+    UPDATE classification_rows SET stale = 1
+    WHERE stale = 0 AND doc_id = {row}.doc_id AND request_sha256 IN (
+        SELECT request_sha256 FROM classification_rows
+        WHERE doc_id = {row}.doc_id AND unit = 'entry'
+        AND ordinal = {row}.idx + 1 AND stale = 0
+    );"""
+
+
+def _stale_chunks(row: str) -> str:
+    """Return the trigger body that flags the chunk answers of *row*'s document.
+
+    Chunk answers carry no ``doc_id``, so the document is matched by name.
+    """
+    return f"""
+    UPDATE classification_rows SET stale = 1
+    WHERE stale = 0 AND unit = 'chunk'
+    AND document = (SELECT name FROM documents WHERE doc_id = {row}.doc_id);"""
+
+
+_TRIGGERS_V3 = f"""
+CREATE TRIGGER chunk_layout_stale_on_update AFTER UPDATE ON units
+WHEN OLD.kind = 'chunk' AND (
+    OLD.source_index IS NOT NEW.source_index OR OLD.idx IS NOT NEW.idx
+    OR OLD.doc_id IS NOT NEW.doc_id
+)
+BEGIN{_stale_chunks("OLD")}
+END;
+CREATE TRIGGER chunk_layout_stale_on_delete AFTER DELETE ON units
+WHEN OLD.kind = 'chunk'
+BEGIN{_stale_chunks("OLD")}
+END;
+CREATE TRIGGER entry_rows_stale_on_insert AFTER INSERT ON entry_rows
+BEGIN{_stale_entries("NEW")}
+END;
+CREATE TRIGGER entry_rows_stale_on_delete AFTER DELETE ON entry_rows
+BEGIN{_stale_entries("OLD")}
+END;
+CREATE TRIGGER entry_rows_stale_on_update AFTER UPDATE ON entry_rows
+BEGIN{_stale_entries("OLD")}{_stale_entries("NEW")}
+END;
+CREATE TRIGGER chunk_units_stale_on_update AFTER UPDATE ON units
+WHEN OLD.kind = 'chunk' AND (
+    OLD.status IS NOT NEW.status OR OLD.stale IS NOT NEW.stale
+    OR OLD.run_id IS NOT NEW.run_id OR OLD.content IS NOT NEW.content
+    OR OLD.idx IS NOT NEW.idx OR OLD.doc_id IS NOT NEW.doc_id
+)
+BEGIN{_stale_entries("OLD")}
+END;
+CREATE TRIGGER chunk_units_stale_on_delete AFTER DELETE ON units
+WHEN OLD.kind = 'chunk'
+BEGIN{_stale_entries("OLD")}
+END;
+"""
+
+
+class MissingComponentError(StoreError):
+    """The tool's component was opened without the classifications component."""
+
+
+def _version_3(connection: sqlite3.Connection) -> None:
+    """Install the staleness triggers; refuse a store without the answer table.
+
+    Raising inside the migration transaction rolls it back, so no version is
+    recorded.
+    """
+    found = connection.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' "
+        "AND name = 'classification_rows'"
+    ).fetchone()
+    if found is None:
+        raise MissingComponentError(
+            f"the {TOOL} component version 3 needs the classifications "
+            "component opened before it (use COMPONENTS)"
+        )
+    statement = ""
+    for line in _TRIGGERS_V3.splitlines(keepends=True):
+        statement += line
+        if sqlite3.complete_statement(statement):
+            connection.execute(statement)
+            statement = ""
+
+
+COMPONENT: Final = Component(TOOL, (_version_1, _version_2, _version_3))
 """The tool's schema component: version 1 adds the content tables and views,
 version 2 the ``chunk_decisions`` table and the decision columns of
-``chunks``."""
+``chunks``, version 3 the triggers that flag ``classifications`` answers
+stale whenever any writer, of any version, changes them underneath: the
+answers about a chunk's entries when the chunk's entry rows are inserted,
+deleted or changed or its unit is reset, flagged, replaced or deleted, and
+every chunk answer of a document when its chunk layout (a unit's line range,
+page or index) changes or a chunk unit is deleted. Version 3 needs the
+classifications component (:data:`COMPONENTS`); without it the migration is
+refused (:class:`MissingComponentError`). An older ChronoMiner refuses a
+store at version 3."""
+
+ENTRY_LOCATOR: Final = "{chunk_index}:{entry_index}"
+"""The locator of an entry's classification rows; their ``ordinal`` is the
+entry's ``chunk_index`` (1-based), so a chunk's entries are flagged together."""
 
 
 def clear_chunk_decisions(doc_id: int) -> Callable[[sqlite3.Connection], None]:
@@ -395,7 +518,9 @@ def chunk_decision_rows(
     return write
 
 
-_COMPONENTS: Final = (COMPONENT,)
+COMPONENTS: Final = (CLASSIFICATIONS, COMPONENT)
+"""The store's components; ``classifications`` comes first because the tool's
+triggers name its table, so every store of the tool opens with both."""
 
 
 def tool_version() -> str:
@@ -426,14 +551,14 @@ def open_store(
         database_path(root),
         TOOL,
         tool_version=tool_version(),
-        components=_COMPONENTS,
+        components=COMPONENTS,
         clock=clock,
         writer=writer,
     )
 
 
 def _schema(root: Path) -> SchemaState:
-    return check_schema(database_path(root), _COMPONENTS, tool=TOOL)
+    return check_schema(database_path(root), COMPONENTS, tool=TOOL)
 
 
 def read_store(root: Path) -> Store | None:
@@ -446,7 +571,7 @@ def read_store(root: Path) -> Store | None:
     state = _schema(root)
     if not state.exists or state.empty:
         return None
-    return Store(state.path, TOOL, components=_COMPONENTS)
+    return Store(state.path, TOOL, components=COMPONENTS)
 
 
 @contextlib.contextmanager
@@ -862,7 +987,7 @@ def classify(  # noqa: PLR0913 - keyword-only options of run.py and tests
     state = _schema(root)
     store = None
     if state.exists and not state.empty:
-        store = Store(path, TOOL, components=_COMPONENTS)
+        store = Store(path, TOOL, components=COMPONENTS)
     resume = store.resume_state(name) if store is not None else None
     doc_id = resume.doc_id if resume is not None else None
     details = None

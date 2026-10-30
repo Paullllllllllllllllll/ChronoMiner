@@ -1,0 +1,24 @@
+{
+  "name": "letter_topic",
+  "version": 1,
+  "unit": "entry",
+  "description": "The main topic of each letter, judged from its summary.",
+  "schema": "CorrespondenceMetadata",
+  "fields": ["summary", "sender", "recipient"],
+  "per_request": 20,
+  "questions": [
+    {
+      "name": "topic",
+      "type": "choice",
+      "instructions": "What is the main topic of the letter?",
+      "choices": {
+        "business_and_trade": "Orders, payments, prices, shipments and other business.",
+        "family_and_personal": "Family news, health, friendship and private affairs.",
+        "politics_and_administration": "Government, war, office and public affairs.",
+        "religion": "Church, faith and religious life.",
+        "learning_and_science": "Books, scholarship, science and education.",
+        "other": "Another topic, or one the summary does not tell."
+      }
+    }
+  ]
+}

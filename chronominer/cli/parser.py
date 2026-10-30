@@ -11,6 +11,9 @@ from chronominer.common.options import HelpFormatter, OptionTable
 from chronominer.spec import (
     BATCH_CANCEL_OPTIONS,
     BATCH_CHECK_OPTIONS,
+    CLASSIFY_CHUNKS_OPTIONS,
+    CLASSIFY_DOCUMENTS_OPTIONS,
+    CLASSIFY_ENTRIES_OPTIONS,
     DROP_OPTIONS,
     OPTIONS,
     PROVIDER_TABLES,
@@ -243,6 +246,63 @@ Examples:
 """
 )
 
+CLASSIFY_EPILOG = (
+    PRECEDENCE
+    + """\
+Classification is shadow only: answers go to the classifications view of \
+chronominer.sqlite and never change an extraction. A request whose stored \
+answers match its fingerprint, input and content is reused unless --force.
+
+"""
+    + _exit_codes(
+        ("0", "every document was classified, or nothing was left to ask"),
+        (
+            "1",
+            "a request failed, a document's input changed since the store\n"
+            "       recorded it (refused), or another run leases it",
+        ),
+        (
+            "2",
+            "usage or configuration error: an unknown classifier or one of\n"
+            "       another unit, --chunking adjust, a missing line-ranges file,\n"
+            "       an unset key variable, or nothing to classify",
+        ),
+    )
+    + JSON_CONTRACT
+)
+
+CLASSIFY_CHUNKS_EPILOG = (
+    CLASSIFY_EPILOG
+    + """
+Examples:
+  Label the chunks of a stored extraction with the shared page types:
+    chronominer classify chunks --classifier chunk_kind --input list.txt
+      --output out
+  The language of the pages of a PDF, as a dry run:
+    chronominer classify chunks --classifier language --input book.pdf
+      --dry-run --json
+"""
+)
+
+CLASSIFY_ENTRIES_EPILOG = (
+    CLASSIFY_EPILOG
+    + """
+Examples:
+  The commodity group of every extracted price-list entry below a folder:
+    chronominer classify entries --classifier commodity_group --input out
+"""
+)
+
+CLASSIFY_DOCUMENTS_EPILOG = (
+    CLASSIFY_EPILOG
+    + """
+Examples:
+  The type of every source of a folder, from its first pages or chunks:
+    chronominer classify documents --classifier document_type --input
+      sources --all --output out
+"""
+)
+
 UI_DESCRIPTION = (
     "Guided run: choose a task (extract, ranges generate, ranges adjust, batch "
     "check, batch cancel, repair, render or drop), answer its steps "
@@ -461,6 +521,59 @@ def add_drop_command(commands: Commands) -> argparse.ArgumentParser:
     )
 
 
+def add_classify_command(commands: Commands) -> argparse.ArgumentParser:
+    """Add the classify subcommand with its chunks, entries and documents."""
+    classify, actions = _add_group(
+        commands,
+        "classify",
+        help="record decision-model answers about chunks, entries or documents",
+        description=(
+            "Ask a classifier's questions about the chunks of input items, the "
+            "entries of finished extractions or a selection of each item, and "
+            "record the answers in the store; extractions are never changed."
+        ),
+        dest="classify_command",
+    )
+    _add_command(
+        actions,
+        "chunks",
+        CLASSIFY_CHUNKS_OPTIONS,
+        help="classify each chunk of the input items",
+        description=(
+            "Ask a chunk classifier about each chunk of the input items, cut as "
+            "extract cuts them: a stored document keeps its stored chunks."
+        ),
+        epilog=CLASSIFY_CHUNKS_EPILOG,
+        usage="%(prog)s --classifier NAME --input PATH [options]",
+    )
+    _add_command(
+        actions,
+        "entries",
+        CLASSIFY_ENTRIES_OPTIONS,
+        help="classify the entries of finished extractions",
+        description=(
+            "Ask an entry classifier about each entry of the finished documents "
+            "extracted with its schema, under each document's lease."
+        ),
+        epilog=CLASSIFY_ENTRIES_EPILOG,
+        usage="%(prog)s --classifier NAME --input PATH [options]",
+    )
+    _add_command(
+        actions,
+        "documents",
+        CLASSIFY_DOCUMENTS_OPTIONS,
+        help="classify each input item from a selection of it",
+        description=(
+            "Ask a document classifier about each input item in one request: "
+            "its leading text chunks or its first pages, as the classifier "
+            "selects."
+        ),
+        epilog=CLASSIFY_DOCUMENTS_EPILOG,
+        usage="%(prog)s --classifier NAME --input PATH [options]",
+    )
+    return classify
+
+
 def add_ui_command(commands: Commands) -> argparse.ArgumentParser:
     """Add the ui subcommand: the settings option and the extension arguments."""
     ui: argparse.ArgumentParser = commands.add_parser(
@@ -482,6 +595,7 @@ SUBCOMMANDS: tuple[Callable[[Commands], argparse.ArgumentParser], ...] = (
     add_repair_command,
     add_render_command,
     add_drop_command,
+    add_classify_command,
     add_ui_command,
 )
 

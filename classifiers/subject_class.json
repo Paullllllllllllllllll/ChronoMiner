@@ -1,0 +1,26 @@
+{
+  "name": "subject_class",
+  "version": 1,
+  "unit": "entry",
+  "description": "The subject class of each catalogued publication.",
+  "schema": "BibliographicCatalogueEntries",
+  "fields": ["title", "author", "notes"],
+  "per_request": 20,
+  "questions": [
+    {
+      "name": "subject",
+      "type": "choice",
+      "instructions": "To which subject class does the publication belong?",
+      "choices": {
+        "religion": "Theology, devotion, sermons and church matters.",
+        "law_and_politics": "Law, government, politics and economics.",
+        "history_and_geography": "History, biography, travel and geography.",
+        "science_and_medicine": "Natural philosophy, mathematics, medicine and technology.",
+        "literature_and_language": "Poetry, drama, fiction, classics, grammars and dictionaries.",
+        "household_and_cookery": "Cookery, household management, gardening and husbandry.",
+        "arts": "Music, painting, architecture and other arts.",
+        "other": "Another subject, or one the entry does not tell."
+      }
+    }
+  ]
+}

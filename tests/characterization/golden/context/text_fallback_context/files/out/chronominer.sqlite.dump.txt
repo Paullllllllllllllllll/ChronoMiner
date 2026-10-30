@@ -21,6 +21,7 @@
   "text": "Fallback context: grain deliveries, one per line."
 }
 ## chunk_decisions
+## classification_rows
 ## document_meta
 {
   "doc_id": 1,
@@ -114,7 +115,11 @@
 ## meta
 {
   "component": "chronominer",
-  "version": 2
+  "version": 3
+}
+{
+  "component": "classifications",
+  "version": 1
 }
 {
   "component": "core",
@@ -644,3 +649,4 @@
   }
 }
 ## view ranges
+## view classifications

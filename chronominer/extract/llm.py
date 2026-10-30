@@ -94,6 +94,7 @@ __all__ = [
     "ChunkingChangedError",
     "Extractor",
     "ImageSettingsChangedError",
+    "chunk_ranges",
     "image_record",
 ]
 
@@ -150,7 +151,7 @@ def _same_layout(units: Sequence[UnitRow], planned: Sequence[PlannedUnit]) -> bo
     )
 
 
-def _stored_ranges(units: Sequence[UnitRow]) -> list[Range]:
+def chunk_ranges(units: Sequence[UnitRow]) -> list[Range]:
     """Return the line ranges of stored text chunks; none when one is unplaced."""
     if any(unit.source_index is None for unit in units):
         return []
@@ -274,7 +275,7 @@ class Extractor:
         ranges: list[Range] = []
         if spec.chunking.mode == "auto" and not self.job.force:
             stored = handle.store.units(handle.doc_id, kind=handle.kind)
-            ranges = _stored_ranges(stored)
+            ranges = chunk_ranges(stored)
         if not ranges:
             ranges = await text_ranges(
                 item.path,

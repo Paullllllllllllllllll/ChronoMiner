@@ -14,6 +14,7 @@ commands:
     repair    run the failed chunks of extractions again
     render    render the JSON, CSV and line-range views from the store again
     drop      delete stored documents so that the next run starts them anew
+    classify  record decision-model answers about chunks, entries or documents
     ui        guided run in an interactive terminal
 
 Run 'chronominer <command> --help' for the options of a command.

@@ -99,4 +99,6 @@ class DecisionClient:
         try:
             return parse_response(self.dialect, payload, questions)
         except MalformedAnswer as exc:  # the text may echo the response
-            raise MalformedAnswer(str(exc).replace(self._api_key, "***")) from None
+            raise MalformedAnswer(
+                str(exc).replace(self._api_key, "***"), exc.usage
+            ) from None

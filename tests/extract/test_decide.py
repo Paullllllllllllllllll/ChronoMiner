@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import base64
+import io
 import json
 from collections.abc import AsyncIterator
 from dataclasses import replace
@@ -11,7 +13,10 @@ from typing import Any
 
 import httpx
 import pytest
+from PIL import Image as PILImage
 
+from chronominer.common.decision_runner import DecisionRunner
+from chronominer.common.decisions import Image
 from chronominer.common.settings_schema import Decisions
 from chronominer.extract.chunks import TextChunk
 from chronominer.extract.decide import (
@@ -20,6 +25,7 @@ from chronominer.extract.decide import (
     ChunkDecision,
     relevance_question,
 )
+from chronominer.extract.images import PageImage
 from chronominer.extract.llm import Extractor
 from chronominer.llm.caller import CallEnv
 from chronominer.settings import Settings
@@ -86,6 +92,60 @@ def test_each_chunk_is_one_request_with_the_document_and_schema() -> None:
         "schema": "WageRecords",
     }
     assert env.usage.get("decide").input_tokens == 150
+
+
+def test_the_pre_pass_asks_through_the_shared_runner_as_before() -> None:
+    seen: list[dict[str, Any]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = json.loads(request.content)
+        seen.append(body)
+        refused = "sermon" in body["state"][1]["text"]
+        answer = (
+            {"type": "refusal", "reason": "unreadable"}
+            if refused
+            else {"type": "noul", "noul": 0.7}
+        )
+        usage = {"input_tokens": 5, "output_tokens": 1}
+        return httpx.Response(
+            200, json={"answers": {"relevant": answer}, "usage": usage}
+        )
+
+    env = _env()
+    decider = ChunkDecider(SPEC, env, SCHEMA)
+    decider._http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+    chunks = [TextChunk(0, 1, 9, "a wage"), TextChunk(1, 10, 19, "a sermon")]
+
+    decisions = asyncio.run(decider.classify("ledger", _stream(chunks)))
+
+    assert isinstance(decider.runner, DecisionRunner)
+    assert [(d.idx, d.relevance) for d in decisions] == [(0, 0.7)]
+    instructions = relevance_question(SCHEMA).instructions
+    assert seen[0]["model"] == SPEC.model
+    assert seen[0]["questions"] == {
+        "relevant": {"type": "noul", "instructions": instructions}
+    }
+    assert [part["type"] for part in seen[0]["state"]] == ["text", "text"]
+    assert seen[0]["state"][1]["text"] == "a wage"
+    assert env.usage.get("decide").input_tokens == 10
+
+
+@pytest.mark.parametrize("mode", ["RGB", "L"])
+def test_page_images_go_out_as_the_earlier_downscale_sent_them(mode: str) -> None:
+    buffer = io.BytesIO()
+    PILImage.new(mode, (1200, 800), 180).save(buffer, "JPEG", quality=95)
+    data = buffer.getvalue()
+    with PILImage.open(io.BytesIO(data)) as opened:
+        earlier = opened.convert("RGB")
+    earlier.thumbnail((768, 768))
+    expected = io.BytesIO()
+    earlier.save(expected, "JPEG", quality=85)
+    page = PageImage(0, "page_0001", base64=base64.b64encode(data).decode())
+
+    part = ChunkDecider(SPEC, _env(), SCHEMA)._content(page)
+
+    assert isinstance(part, Image)
+    assert part.data == expected.getvalue()
 
 
 def test_a_threshold_applies_only_to_its_request_fingerprint() -> None:

@@ -3,9 +3,10 @@
 The builders return :class:`~.options.Option` rows for the model block, the
 page-image block, the output location, run control (``--force``,
 ``--concurrency``, ``--batch``, ``--dry-run``, ``--json``, ``--settings``),
-batch check and cancel, and ``render``. Each tool passes its own defaults,
-help texts and conditions, and arranges the rows into its option tables;
-the rows themselves are declared once here. The value converters the rows
+batch check and cancel, ``render``, the decision-model block and a classify
+command (``--classifier`` with the decision-model rows). Each tool passes
+its own defaults, help texts and conditions, and arranges the rows into its
+option tables; the rows themselves are declared once here. The value converters the rows
 use are public, so a tool's own rows convert values the same way.
 """
 
@@ -41,6 +42,7 @@ __all__ = [
     "batch_option",
     "bounded_float",
     "check_input_option",
+    "classifier_options",
     "concurrency_option",
     "decision_options",
     "dpi_value",
@@ -602,17 +604,64 @@ def decision_options(
     (``vendor/model`` ids go to OpenRouter).
     """
     active = Condition("decisions", frozenset({"shadow", "apply"}))
-    group = "decision model"
     return [
         Option(
             "decisions",
             "--decisions",
             mode_help,
-            group=group,
+            group="decision model",
             choices=DECISION_MODES,
             default="off",
             target=f"{target}.mode",
         ),
+        *_decision_model_rows(target, default_model, suggestions, active),
+    ]
+
+
+def classifier_options(
+    *,
+    force_help: str,
+    target: str = "classify",
+    choice_provider: Callable[[], Sequence[str]] | None = None,
+    default_model: str = DEFAULT_DECISION_MODEL,
+    suggestions: Callable[[], Sequence[str]] | None = None,
+) -> list[Option]:
+    """Return the rows of a classify command: classifier, force, decision model.
+
+    ``--classifier NAME|PATH`` is required (no default; the tool refuses a
+    run without it) and fills ``<target>.classifier``; *choice_provider*
+    lists the classifier names found. ``--force`` fills ``<target>.force``;
+    *force_help* says what is asked again. The decision-model rows are those
+    of :func:`decision_options` without the mode and its condition.
+    """
+    return [
+        Option(
+            "classifier",
+            "--classifier",
+            "classifier: a file path, a file name in the classifier folder "
+            "without .json, or the name field of a classifier there",
+            group="classify",
+            type=nonempty_text,
+            metavar="NAME|PATH",
+            choice_provider=choice_provider,
+            default_help="required",
+            target=f"{target}.classifier",
+            settable=False,
+        ),
+        force_option(force_help, target=f"{target}.force"),
+        *_decision_model_rows(target, default_model, suggestions, None),
+    ]
+
+
+def _decision_model_rows(
+    target: str,
+    default_model: str,
+    suggestions: Callable[[], Sequence[str]] | None,
+    condition: Condition | None,
+) -> list[Option]:
+    """Return the decision model, provider and endpoint rows under *condition*."""
+    group = "decision model"
+    return [
         Option(
             "decision_model",
             "--decision-model",
@@ -622,7 +671,7 @@ def decision_options(
             choice_provider=suggestions,
             default=default_model,
             metavar="ID",
-            condition=active,
+            condition=condition,
             target=f"{target}.model",
         ),
         Option(
@@ -632,7 +681,7 @@ def decision_options(
             group=group,
             choices=DECISION_PROVIDERS,
             default_help="from the model id",
-            condition=active,
+            condition=condition,
             target=f"{target}.provider",
         ),
         Option(
@@ -643,7 +692,7 @@ def decision_options(
             type=nonempty_text,
             default_help="the provider's",
             metavar="URL",
-            condition=active,
+            condition=condition,
             target=f"{target}.endpoint",
         ),
     ]

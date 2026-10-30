@@ -1,0 +1,26 @@
+{
+  "name": "language",
+  "version": 1,
+  "unit": "chunk",
+  "description": "The main language of each extraction chunk.",
+  "per_request": 5,
+  "questions": [
+    {
+      "name": "language",
+      "type": "choice",
+      "instructions": "In which language is most of the text written?",
+      "choices": {
+        "latin": null,
+        "english": null,
+        "french": null,
+        "german": null,
+        "dutch": null,
+        "italian": null,
+        "spanish": null,
+        "portuguese": null,
+        "other": "Another language.",
+        "none": "No readable text."
+      }
+    }
+  ]
+}

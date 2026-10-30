@@ -19,6 +19,9 @@ COMMANDS: tuple[tuple[str, ...], ...] = (
     ("repair",),
     ("render",),
     ("drop",),
+    ("classify", "chunks"),
+    ("classify", "entries"),
+    ("classify", "documents"),
     ("ui",),
 )
 
@@ -43,7 +46,8 @@ def test_the_bare_command_prints_help_and_exits_0(
     assert entry.main([]) == 0
     bare = capsys.readouterr().out
     assert "usage: chronominer" in bare
-    names = ("extract", "ranges", "batch", "repair", "render", "drop", "ui")
+    names = ("extract", "ranges", "batch", "repair", "render", "drop", "classify")
+    names += ("ui",)
     for name in names:
         assert name in bare
     assert "guided run in an interactive terminal" in bare
@@ -81,7 +85,11 @@ def test_extract_help_never_splits_a_flag(
 
 @pytest.mark.parametrize(
     ("group", "commands"),
-    [("batch", ("check", "cancel")), ("ranges", ("generate", "adjust"))],
+    [
+        ("batch", ("check", "cancel")),
+        ("ranges", ("generate", "adjust")),
+        ("classify", ("chunks", "entries", "documents")),
+    ],
 )
 def test_a_group_without_a_subcommand_prints_its_help(
     group: str, commands: tuple[str, ...], capsys: pytest.CaptureFixture[str]
@@ -102,6 +110,9 @@ EXIT_CODES: dict[tuple[str, ...], tuple[str, ...]] = {
     ("repair",): ("a targeted chunk stayed unrepaired",),
     ("render",): ("another run holds a document",),
     ("drop",): ("a document was refused",),
+    ("classify", "chunks"): ("a missing line-ranges file",),
+    ("classify", "entries"): ("another run leases it",),
+    ("classify", "documents"): ("an unknown classifier",),
 }
 
 

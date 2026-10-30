@@ -12,6 +12,8 @@ from chronominer.common.standard_options import (
     batch_cancel_options,
     batch_option,
     bounded_float,
+    classifier_options,
+    decision_options,
     dpi_value,
     image_options,
     jpeg_quality,
@@ -95,6 +97,29 @@ def test_block_rows_build_valid_tables() -> None:
     )
     assert render["input"].default == Path(".")
     assert render["formats"].choices == ("txt",)
+
+
+def test_classifier_rows_reuse_the_decision_rows_without_a_mode() -> None:
+    table = OptionTable(classifier_options(force_help="ask again"))
+    decision = OptionTable(decision_options("skip"))
+
+    assert table.names == (
+        "classifier",
+        "force",
+        "decision_model",
+        "decision_provider",
+        "decision_endpoint",
+    )
+    assert table["classifier"].default is None
+    assert table["classifier"].default_help == "required"
+    assert table["classifier"].target == "classify.classifier"
+    assert table["force"].target == "classify.force"
+    assert "decisions" not in table.names
+    for name in ("decision_model", "decision_provider", "decision_endpoint"):
+        assert table[name].condition is None
+        assert decision[name].condition is not None
+        assert table[name].target == f"classify.{name.removeprefix('decision_')}"
+        assert table[name].default == decision[name].default
 
 
 @pytest.mark.parametrize(

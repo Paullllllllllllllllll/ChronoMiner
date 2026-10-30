@@ -5,11 +5,14 @@ the chunk's text or page image holds at least one entry of the kind the
 schema extracts. The question comes from the schema's ``name`` and
 ``description``, or from its wrapper key ``decision_question``. Chunks are
 read from their stream ``--concurrency`` at a time; page images are
-downscaled to ``decisions.image_max_px`` on their longer side. Calls run under
-the role ``decide`` through the extension seam (client kind ``decision``), the
+converted with :func:`~chronominer.common.images.decision_jpeg` at
+``decisions.image_max_px``. Each chunk is one request of the run's
+:class:`~chronominer.llm.decision_model.DecisionModel` under the role
+``decide``: through the extension seam (client kind ``decision``), the
 provider's rate limiter and the shared retry ladder, which follows each failed
-attempt's decision; their usage, failed attempts included, counts toward the
-run's totals. The attempts are not stored in the store's attempt rows.
+attempt's decision; their usage, failed attempts and the billed responses of
+malformed answers included, counts toward the run's totals. The attempts are
+not stored in the store's attempt rows.
 
 A threshold is looked up by the request's fingerprint
 (:meth:`ChunkDecider.fingerprint`), which covers the question and the
@@ -21,43 +24,24 @@ from __future__ import annotations
 
 import asyncio
 import base64
-import contextlib
 import hashlib
-import io
-import os
 from collections.abc import AsyncIterable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any, Final
 
-import httpx
-from PIL import Image as PILImage
-
-from chronominer import ext
-from chronominer.common.capture import async_capture_hooks
-from chronominer.common.decision_client import DecisionClient
+from chronominer.common.classifiers import Classifier, parse_classifier
+from chronominer.common.decision_runner import Request, Unit
 from chronominer.common.decisions import (
-    DecisionResult,
     Image,
     Json,
-    MalformedAnswer,
     Part,
     Predicate,
-    PredicateAnswer,
-    Question,
     Text,
-    dialect_for,
     request_fingerprint,
 )
-from chronominer.common.retry import (
-    Decision,
-    ErrorKind,
-    RetryHooks,
-    call_with_retry,
-    classify_error,
-)
-from chronominer.common.usage import Usage
+from chronominer.common.images import decision_jpeg
 from chronominer.llm.caller import CallEnv
-from chronominer.llm.retrying import AttemptDecisions
+from chronominer.llm.decision_model import KIND, DecisionModel
 from chronominer.spec import DecisionSpec, ResolvedSchema
 
 __all__ = [
@@ -72,7 +56,6 @@ __all__ = [
 ]
 
 ROLE: Final = "decide"
-KIND: Final = "decision"
 QUESTION_KEY: Final = "decision_question"
 """The schema wrapper key whose text replaces the built relevance question."""
 SKIPPED_OUTCOME: Final = "skipped_irrelevant"
@@ -112,17 +95,26 @@ def relevance_question(schema: ResolvedSchema) -> Predicate:
     )
 
 
-def _downscale(data: bytes, max_px: int) -> bytes:
-    """Return *data* as a JPEG whose longer side is at most *max_px*."""
-    with PILImage.open(io.BytesIO(data)) as opened:
-        image = opened.convert("RGB")
-    image.thumbnail((max_px, max_px))
-    buffer = io.BytesIO()
-    image.save(buffer, "JPEG", quality=85)
-    return buffer.getvalue()
+def _relevance_classifier(question: Predicate) -> Classifier:
+    """Return the one-question classifier the pre-pass asks about each chunk."""
+    return parse_classifier(
+        {
+            "name": "relevance",
+            "version": 1,
+            "unit": "chunk",
+            "questions": [
+                {
+                    "name": question.name,
+                    "type": "predicate",
+                    "instructions": question.instructions,
+                }
+            ],
+        },
+        "relevance pre-pass",
+    )
 
 
-class ChunkDecider:
+class ChunkDecider(DecisionModel):
     """Ask the run's decision model whether chunks hold requested entries.
 
     Raises:
@@ -138,25 +130,21 @@ class ChunkDecider:
         *,
         concurrency: int = 1,
     ) -> None:
-        settings = env.settings
-        block = settings.decisions
         self.spec = spec
-        self.env = env
         self.schema_name = schema.name
         self.question = relevance_question(schema)
-        self.dialect = dialect_for(spec.model, spec.provider)
+        self.classifier = _relevance_classifier(self.question)
+        block = env.settings.decisions
         self.image_max_px = block.image_max_px
         self.concurrency = max(1, concurrency)
         self._thresholds = block.thresholds
-        self._policy = settings.retry.policy()
-        self._timeout_attempts = settings.retry.timeout_attempts
-        variables = ext.key_variables(self.dialect, kind=KIND, settings=settings)
-        if variables and not any(os.environ.get(name) for name in variables):
-            raise OSError(f"the decision model needs the key variable {variables[0]}")
-        self._http = httpx.AsyncClient(
-            timeout=block.timeout_s, event_hooks=async_capture_hooks()
+        super().__init__(
+            model=spec.model,
+            provider=spec.provider,
+            endpoint=spec.endpoint,
+            env=env,
+            role=ROLE,
         )
-        self._clients: dict[str, DecisionClient] = {}
 
     @property
     def question_sha(self) -> str:
@@ -216,14 +204,16 @@ class ChunkDecider:
         return [decision for decision in found if decision is not None]
 
     async def _one(self, document: str, chunk: Any) -> ChunkDecision | None:
-        parts: list[Part] = [
-            Json({"document": document, "schema": self.schema_name}),
-            self._content(chunk),
-        ]
+        request = Request(
+            self.classifier,
+            document,
+            (Unit(f"chunk {chunk.index + 1}", chunk.index, (self._content(chunk),)),),
+            (Json({"document": document, "schema": self.schema_name}),),
+        )
         label = f"{document} relevance {chunk.index}"
-        result = await self._call(parts, (self.question,), label)
-        answer = result.answers[_NAME]
-        if not isinstance(answer, PredicateAnswer):
+        result = await self.runner.ask(request, label=label)
+        answer = result.units[0].answers[0]
+        if answer.refusal is not None or answer.probability is None:
             return None
         return ChunkDecision(chunk.index, answer.probability)
 
@@ -231,96 +221,4 @@ class ChunkDecider:
         if getattr(chunk, "mime_type", "") == "text/plain" or not chunk.base64:
             return Text(chunk.text)
         data = base64.b64decode(chunk.base64)
-        return Image(_downscale(data, self.image_max_px))
-
-    def client_for(self, identity: ext.Identity) -> DecisionClient:
-        """Return the client for an attempt identity, building it if new.
-
-        The client takes the extension's client options of the identity.
-
-        Raises:
-            OSError: The identity's key variable is unset.
-        """
-        client = self._clients.get(identity.api_key_env)
-        if client is None:
-            options = ext.client_options(identity)
-            key = options.api_key or os.environ.get(identity.api_key_env, "").strip()
-            if not key:
-                raise OSError(
-                    f"the decision model needs the key variable {identity.api_key_env}"
-                )
-            client = DecisionClient(
-                self._http,
-                dialect=self.dialect,
-                api_key=key,
-                endpoint=options.base_url or self.spec.endpoint,
-            )
-            self._clients[identity.api_key_env] = client
-        return client
-
-    async def _call(
-        self, parts: Sequence[Part], questions: Sequence[Question], label: str
-    ) -> DecisionResult:
-        decisions = AttemptDecisions()
-
-        async def one_attempt() -> DecisionResult:
-            attempt = ext.attempt(
-                ROLE,
-                self.dialect,
-                None,
-                settings=self.env.settings,
-                build_client=self.client_for,
-                endpoint=None,
-                model=self.spec.model,
-                kind=KIND,
-            )
-            async with contextlib.AsyncExitStack() as stack:
-                call = await decisions.enter(
-                    stack, attempt, on_failure=lambda: self._record(attempt.usage)
-                )
-                try:
-                    result = await call.client.decide(self.spec.model, parts, questions)
-                except Exception as exc:
-                    decisions.failed(call, exc)
-                    self._record(call.usage)
-                    raise
-                call.commit(
-                    Usage(
-                        input_tokens=result.usage.input_tokens,
-                        output_tokens=result.usage.output_tokens,
-                        total_tokens=result.usage.input_tokens
-                        + result.usage.output_tokens,
-                        cached_tokens=result.usage.cached_tokens,
-                    )
-                )
-                self._record(call.usage)
-                return result
-
-        timeouts = 0
-
-        def decide(exc: BaseException) -> Decision:
-            nonlocal timeouts
-            decision = decisions.decide(exc)
-            retrying = decision in (Decision.RETRY, Decision.SWITCH_KEY)
-            if not retrying or classify_error(exc) is not ErrorKind.TIMEOUT:
-                return decision
-            timeouts += 1
-            return decision if timeouts < self._timeout_attempts else Decision.FAIL
-
-        hooks = RetryHooks(on_error=decide, gate=self.env.limiters.get(self.dialect))
-        return await call_with_retry(
-            one_attempt,
-            policy=self._policy,
-            hooks=hooks,
-            label=label,
-            validation_errors=(MalformedAnswer,),
-        )
-
-    def _record(self, usage: Usage | None) -> None:
-        if usage is not None:
-            self.env.record(ROLE, usage)
-
-    async def aclose(self) -> None:
-        """Close the HTTP client. Never raises."""
-        with contextlib.suppress(Exception):
-            await self._http.aclose()
+        return Image(decision_jpeg(data, self.image_max_px))

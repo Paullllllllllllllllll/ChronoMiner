@@ -40,11 +40,13 @@ __all__ = [
     "GenerateReport",
     "auto_ranges",
     "chunk_texts",
+    "count_tokens",
     "generate_files",
     "ranges_for_file",
     "select_ranges",
     "text_chunks",
     "token_ranges",
+    "truncate_tokens",
 ]
 
 logger = logging.getLogger(__name__)
@@ -83,6 +85,19 @@ def _encoder(lines: Sequence[str], model: str) -> Callable[[str], list[int]]:
     if pattern is None or pattern.search("\n".join(lines)) is None:
         return encoding.encode_ordinary
     return functools.partial(encoding.encode, disallowed_special=())
+
+
+def count_tokens(text: str, model: str) -> int:
+    """Return the tokens of *text* in *model*'s encoding, as chunks count them."""
+    return len(_encoder([text], model)(text))
+
+
+def truncate_tokens(text: str, max_tokens: int, model: str) -> str:
+    """Return *text* cut to its first *max_tokens* tokens in *model*'s encoding."""
+    tokens = _encoder([text], model)(text)
+    if len(tokens) <= max_tokens:
+        return text
+    return _encoding(model).decode(tokens[:max_tokens])
 
 
 def token_ranges(lines: Sequence[str], chunk_tokens: int, model: str) -> list[Range]:

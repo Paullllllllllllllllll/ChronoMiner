@@ -16,7 +16,10 @@ Opening a database applies the missing migration steps of every component
 additively in one transaction. A database with a newer schema, one with
 tables but no ``meta`` (not a store) and one SQLite cannot read are refused
 with a :class:`StoreError` (exit code 2), and none of them is recreated or
-modified. Only a writer creates a missing file.
+modified. A database that needs a migration step while a document lease has
+not expired is refused the same way (:class:`MigrationBlockedError`), since
+the lease holder is another run that may still write under the old schema.
+Only a writer creates a missing file.
 
 Writes run through one :class:`~.sqlite.SqliteWriter` per store, each in one
 short transaction that never spans a network call; a busy database delays a
@@ -93,6 +96,7 @@ __all__ = [
     "Lease",
     "LeaseKeeper",
     "LeaseLostError",
+    "MigrationBlockedError",
     "NewerSchemaError",
     "OutputRow",
     "PlannedUnit",
@@ -500,6 +504,10 @@ class UnreadableDatabaseError(StoreError):
     """SQLite cannot read the file as a database."""
 
 
+class MigrationBlockedError(StoreError):
+    """The database needs a migration while another run holds a document lease."""
+
+
 class LeaseLostError(RuntimeError):
     """This holder no longer holds the document's lease; the write was refused."""
 
@@ -696,10 +704,43 @@ def _migrate(
     components: Sequence[Component],
     path: Path,
     tool: str,
+    now: float,
 ) -> dict[str, int]:
     state = _schema(connection, path)
     _check(state, components, tool)
+    _refuse_under_leases(connection, state, components, now)
     return _upgrade(connection, components, state.versions)
+
+
+def _refuse_under_leases(
+    connection: sqlite3.Connection,
+    state: SchemaState,
+    components: Sequence[Component],
+    now: float,
+) -> None:
+    """Raise :class:`MigrationBlockedError` if a step is due under a live lease."""
+    if "documents" not in state.tables:
+        return
+    pending = [
+        f"{component.name!r} {state.versions.get(component.name, 0)} to "
+        f"{component.version}"
+        for component in (CORE_COMPONENT, *components)
+        if state.versions.get(component.name, 0) < component.version
+    ]
+    if not pending:
+        return
+    count, until = connection.execute(
+        "SELECT count(*), max(lease_until) FROM documents "
+        "WHERE lease_run_id IS NOT NULL AND lease_until > ?",
+        (now,),
+    ).fetchone()
+    if count:
+        raise MigrationBlockedError(
+            f"{state.path} needs a schema update ({', '.join(pending)}), but "
+            f"another run holds {count} document(s) in this store under a lease "
+            f"until {_iso(float(until))}; let it finish, then run again. The "
+            "store is left as it is."
+        )
 
 
 def _upgrade(
@@ -1376,7 +1417,7 @@ class Store:
         try:
             await writer.transaction(
                 lambda connection: _migrate(
-                    connection, self.components, self.path, self.tool
+                    connection, self.components, self.path, self.tool, self.clock()
                 )
             )
         except BaseException:
@@ -1870,6 +1911,16 @@ class Store:
         check and commits with it, or rolls back when it raises.
         """
         return await self._leased(lease, func)
+
+    async def write_unleased(self, func: Callable[[sqlite3.Connection], T]) -> T:
+        """Run *func* in one short write transaction without a lease check.
+
+        Only for a component's tables outside the leased documents, such as
+        classification rows of units that belong to no stored document;
+        rows of a leased document go through :meth:`write`. *func* commits
+        with the transaction or rolls it back when it raises.
+        """
+        return await self._write(func)
 
     # ------------------------------------------------------------ responses
 

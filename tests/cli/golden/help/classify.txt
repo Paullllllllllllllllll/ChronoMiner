@@ -1,0 +1,13 @@
+usage: chronominer classify [-h] COMMAND ...
+
+Ask a classifier's questions about the chunks of input items, the entries of finished extractions
+or a selection of each item, and record the answers in the store; extractions are never changed.
+
+options:
+  -h, --help   show this help message and exit
+
+commands:
+  COMMAND
+    chunks     classify each chunk of the input items
+    entries    classify the entries of finished extractions
+    documents  classify each input item from a selection of it

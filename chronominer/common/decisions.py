@@ -90,7 +90,15 @@ _IMAGE_TYPES: Final = (
 
 
 class MalformedAnswer(ValueError):
-    """A response does not answer the questions asked."""
+    """A response does not answer the questions asked.
+
+    ``usage`` holds the token counts the response reported, if it was a
+    decoded response: a billed response counts although it is discarded.
+    """
+
+    def __init__(self, message: str, usage: DecisionUsage | None = None) -> None:
+        super().__init__(message)
+        self.usage = usage
 
 
 @dataclass(frozen=True)
@@ -430,8 +438,16 @@ def _score_answer(
 ) -> ScoreAnswer:
     where = question.name
     score = entry.get("score")
-    if isinstance(score, bool) or not isinstance(score, int | float):
-        raise MalformedAnswer(f"{where}: expected a score, got {score!r}")
+    if (
+        isinstance(score, bool)
+        or not isinstance(score, int | float)
+        or not math.isfinite(score)
+        or not 0 <= score <= len(question.levels) - 1
+    ):
+        raise MalformedAnswer(
+            f"{where}: expected a score from 0 to {len(question.levels) - 1}, "
+            f"got {score!r}"
+        )
     raw = _probabilities(entry.get("probabilities", {}), where)
     labels = [level.label for level in question.levels]
     if dialect == "openrouter":  # keyed by level index; OpenAI keys by label
@@ -477,10 +493,29 @@ def parse_response(
 
     Raises:
         MalformedAnswer: The response holds no answers, misses a question, or
-            an answer does not fit its question.
+            an answer does not fit its question; it carries the response's
+            usage when the response is a JSON object.
     """
     if not isinstance(payload, Mapping):
         raise MalformedAnswer("the response is not a JSON object")
+    usage = _usage(payload.get("usage"))
+    try:
+        answers = _answers(dialect, payload, questions)
+    except MalformedAnswer as exc:
+        raise MalformedAnswer(str(exc), usage) from None
+    model = payload.get("model")
+    request_id = payload.get("id")
+    return DecisionResult(
+        MappingProxyType(answers),
+        model if isinstance(model, str) else "",
+        usage,
+        request_id if isinstance(request_id, str) else None,
+    )
+
+
+def _answers(
+    dialect: Dialect, payload: Mapping[str, Any], questions: Sequence[Question]
+) -> dict[str, Answer]:
     raw = payload.get("answers")
     if dialect == "openai" and isinstance(raw, list):
         raw = {entry.get("name"): entry for entry in raw if isinstance(entry, Mapping)}
@@ -489,15 +524,7 @@ def parse_response(
         message = error.get("message") if isinstance(error, Mapping) else None
         detail = f": {message[:200]}" if isinstance(message, str) else ""
         raise MalformedAnswer(f"the response holds no answers{detail}")
-    answers = {q.name: _answer(dialect, q, raw.get(q.name)) for q in questions}
-    model = payload.get("model")
-    request_id = payload.get("id")
-    return DecisionResult(
-        MappingProxyType(answers),
-        model if isinstance(model, str) else "",
-        _usage(payload.get("usage")),
-        request_id if isinstance(request_id, str) else None,
-    )
+    return {q.name: _answer(dialect, q, raw.get(q.name)) for q in questions}
 
 
 def group_indices(
