@@ -1142,6 +1142,17 @@ def _touch(
     )
 
 
+def _outputs_stale(connection: sqlite3.Connection, doc_id: int) -> None:
+    """Mark a document's rendered files stale after its units changed.
+
+    Rendering clears the flag of each file it records, so a format a run
+    does not render is rendered again by the next run that asks for it.
+    """
+    connection.execute(
+        "UPDATE outputs SET stale = 1 WHERE doc_id = ? AND stale = 0", (doc_id,)
+    )
+
+
 def bounded_error(text: str | None, limit: int = ERROR_TEXT_LIMIT) -> str | None:
     """Return *text* cut to its first *limit* characters, marked when cut.
 
@@ -1779,6 +1790,8 @@ class Store:
             before = connection.total_changes
             connection.executemany(_PLAN_UNIT, rows)
             created = connection.total_changes - before
+            if created:
+                _outputs_stale(connection, lease.doc_id)
             _touch(connection, lease.doc_id, run_id, now)
             return created
 
@@ -1795,6 +1808,7 @@ class Store:
 
         *extra* runs first in the same transaction, for a tool's content row
         of the unit, so that the row and the unit commit or roll back together.
+        The document's rendered files are marked stale.
         """
         run_id = self._require_run()
         now = _iso(self.clock())
@@ -1804,6 +1818,7 @@ class Store:
             if extra is not None:
                 extra(connection)
             connection.execute(_UPSERT_UNIT, params)
+            _outputs_stale(connection, lease.doc_id)
             _touch(connection, lease.doc_id, run_id, now)
 
         await self._leased(lease, write)
@@ -1839,6 +1854,8 @@ class Store:
 
         def write(connection: sqlite3.Connection) -> int:
             count = connection.execute(sql, params).rowcount
+            if count:
+                _outputs_stale(connection, lease.doc_id)
             _touch(connection, lease.doc_id, run_id, now)
             return int(count)
 
@@ -1882,6 +1899,8 @@ class Store:
                 f"DELETE FROM submission_requests WHERE {chosen}", values
             )
             deleted = connection.execute(f"DELETE FROM units WHERE {chosen}", values)
+            if deleted.rowcount:
+                _outputs_stale(connection, lease.doc_id)
             _touch(connection, lease.doc_id, run_id, now)
             return int(deleted.rowcount)
 
@@ -2311,6 +2330,7 @@ class Store:
                 "WHERE submission_id = ?",
                 (submission_id,),
             ).fetchall():
+                _outputs_stale(connection, int(doc_id))
                 _touch(connection, int(doc_id), run_id, stamp)
 
         return await self._set_status(submission_id, "abandoned", {}, after)

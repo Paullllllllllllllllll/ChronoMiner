@@ -46,7 +46,7 @@
   "rendered_at": "<datetime>",
   "run_id": "<run-1>",
   "sha256": "<sha256>",
-  "stale": 0
+  "stale": 1
 }
 ## responses
 {

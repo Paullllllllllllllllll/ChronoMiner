@@ -1,4 +1,4 @@
-# ChronoMiner v1.2.0
+# ChronoMiner v1.2.1
 
 ChronoMiner extracts structured data from text files, images and PDFs with language
 models. A JSON schema describes the entries to find, such as the items of a price list
@@ -926,7 +926,7 @@ Resume is the default and reads only the store; a dry run shows each item's stat
 | --- | --- | --- |
 | `none` | no stored units | extract from the start |
 | `partial` | chunks are pending or failed | extract those chunks |
-| `complete` | no pending or failed chunks | skip; missing or stale files are rendered again without calls |
+| `complete` | no pending or failed chunks | skip; missing or stale files are rendered again without calls (a run that writes units marks every rendered file of the document stale and renders only its own formats) |
 | `unstored` | a rendered file exists without store rows, for example after `drop` kept it | skip and list; `--force` extracts it again |
 | `blocked` | another live run holds the item, or its chunks wait for a batch | skip; a held item makes the run exit 1 |
 | `refused` | the input's content changed since its extraction, or units remain but the stored pages used other image settings or the done chunks another schema | not processed, counted as failed; `--force` starts it over |

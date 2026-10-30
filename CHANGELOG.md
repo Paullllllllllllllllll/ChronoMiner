@@ -1,5 +1,13 @@
 # Changelog
 
+- **v1.2.1** (30 October 2026) -- The vendored common package matches
+  ChronoTranscriber v1.2.2: a write that creates, writes, resets or deletes a
+  document's units marks every rendered file of the document stale, the
+  line-ranges file included, and rendering clears the flag of each file it
+  records. A format left out of the run that completed a document, such as the
+  CSV after a `--formats json` resume of a partial document, is therefore
+  rendered again by the next run that asks for it; earlier it kept the rows of
+  the partial run.
 - **v1.2.0** (30 October 2026) -- `chronominer classify chunks`, `classify entries`
   and `classify documents` ask a decision model the questions of a classifier file
   about the extraction chunks of input items, the entries of finished documents, or
