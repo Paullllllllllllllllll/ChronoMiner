@@ -373,6 +373,14 @@ ROWS = [
         sets={"chunking.mode": "adjust", "chunking.context_window": 9},
     ),
     _row(
+        "marker_length",
+        "--chunking",
+        "adjust",
+        "--marker-length",
+        "8-20",
+        sets={"chunking.mode": "adjust", "chunking.marker_length": (8, 20)},
+    ),
+    _row(
         "provider",
         "--provider",
         "openrouter",
@@ -875,7 +883,12 @@ def test_repair_keeps_the_shared_settings_defaults_and_ignores_the_others() -> N
 
 
 def test_ranges_take_the_shared_settings_defaults() -> None:
-    defaults = {"chunk_tokens": 900, "model": "gpt-5.6-terra", "context_window": 9}
+    defaults = {
+        "chunk_tokens": 900,
+        "model": "gpt-5.6-terra",
+        "context_window": 9,
+        "marker_length": "8-20",
+    }
     generate = _resolve(COMMANDS["ranges generate"], ("--input", "t.txt"), defaults)
     assert (generate.spec.chunk_tokens, generate.spec.model) == (900, "gpt-5.6-terra")
     assert generate.sources["chunk_tokens"] is SETTINGS
@@ -884,6 +897,8 @@ def test_ranges_take_the_shared_settings_defaults() -> None:
     )
     assert adjust.spec.context_window == 9
     assert adjust.sources["context_window"] is SETTINGS
+    assert adjust.spec.marker_length == (8, 20)
+    assert adjust.sources["marker_length"] is SETTINGS
     assert adjust.spec.model.model == "gpt-5.6-terra"
 
 

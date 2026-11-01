@@ -1,5 +1,15 @@
 # Changelog
 
+- **v1.4.0** (1 November 2026) -- Line-range adjustment keeps boundaries on entry
+  starts. While the model asks for more context, the window doubles, up to 64 times its
+  first radius on each side. A range whose entry start lies beyond the last window or
+  past its end, and whose interior holds no start, is merged into the range before it
+  (unit outcome `merged`, at most three per range) instead of keeping a cut inside the
+  entry. Merges and deletions wait until every range holds a decision, and a marker
+  that matches several lines resolves to a line it begins. The new `--marker-length
+  MIN-MAX` (default 5-15) of `ranges adjust` and `extract --chunking adjust` sets the
+  marker length the prompt asks for, and shorter markers are rejected and asked for
+  again. A heartbeat renews the document leases while ranges are adjusted.
 - **v1.3.0** (1 November 2026) -- Refresh the dependencies within their current majors
   and cap `anthropic`, `openai` and PyMuPDF below their next majors. PDF code imports
   `pymupdf` instead of the deprecated `fitz`, whose warning broke the interrupt and

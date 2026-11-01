@@ -119,6 +119,7 @@ def adjust_script(path: Path, *, start: str = "run") -> list[Any]:
         KEEP,
         SCHEMA,
         KEEP,
+        KEEP,
         "none",
         *MODEL_KEEPS,
         KEEP,

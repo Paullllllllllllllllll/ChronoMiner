@@ -16,8 +16,8 @@ transaction that writes the unit.
 ``provenance`` holds the decision on the range, ``{"decision": ...,
 "settings": ...}``: the :class:`~chronominer.ranges.decision.RangeResult`
 in its stored form and the adjust settings it was made with. A decided range
-is ``done`` with ``outcome`` ``moved``, ``kept``, ``on_target`` or
-``deleted``; a range whose model calls all failed is ``failed`` with
+is ``done`` with ``outcome`` ``moved``, ``kept``, ``on_target``,
+``merged`` or ``deleted``; a range whose model calls all failed is ``failed`` with
 ``outcome`` ``degraded`` and decided again by the next run; a range whose
 call raised is ``failed`` without a decision. Generated ranges are ``done``
 with ``outcome`` ``generated`` and no decision.
@@ -188,7 +188,7 @@ def layout(
         for unit in units
     ]
     entries = [
-        DecidedRange(unit.original, unit.result if unit.status != "pending" else None)
+        DecidedRange(unit.original, unit.result if unit.decided else None)
         for unit in current
     ]
     contents: dict[int, Range | None] = {unit.idx: None for unit in current}

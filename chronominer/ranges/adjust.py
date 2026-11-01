@@ -55,9 +55,9 @@ from chronominer.llm.prompts import boundary_prompt, system_content
 from chronominer.output.store import KIND_RANGE
 from chronominer.ranges.decision import (
     DEFAULT_CONTEXT_WINDOW,
-    SEMANTIC_BOUNDARY_SCHEMA,
     DecidedRange,
     RangeResult,
+    boundary_schema,
     decide_range,
     final_ranges,
     unsure_payload,
@@ -86,6 +86,7 @@ from chronominer.ranges.store import (
     write_result,
 )
 from chronominer.settings import PromptCaching
+from chronominer.spec import DEFAULT_MARKER_LENGTH
 
 __all__ = [
     "BOUNDARY_SENTINEL",
@@ -155,12 +156,15 @@ class AdjustOptions:
     position; the others keep their bounds. *chunk_tokens* generates a
     missing ``_line_ranges.txt``; without it a missing file is an error.
     *prompt_caching* marks the system prompt for caching as extraction does.
+    *marker_length* is the ``(minimum, maximum)`` characters the prompt asks
+    markers to have; shorter markers are rejected.
     """
 
     boundary_type: str
     context: str | None = None
     response_format: ResponseFormat = "schema"
     context_window: int = DEFAULT_CONTEXT_WINDOW
+    marker_length: tuple[int, int] = DEFAULT_MARKER_LENGTH
     pages: PageRange | None = None
     force: bool = False
     chunk_tokens: int | None = None
@@ -203,10 +207,12 @@ def boundary_user_text(
     start: int,
     window: Range,
     failed_markers: Sequence[str] = (),
+    marker_length: tuple[int, int] = DEFAULT_MARKER_LENGTH,
 ) -> str:
     """Return the user message: the window's lines and the failed markers.
 
-    The sentinel goes above line *start* when the window shows it.
+    The sentinel goes above line *start* when the window shows it; the
+    request for a new marker names *marker_length*.
     """
     block: list[str] = []
     for number in range(window[0], window[1] + 1):
@@ -216,10 +222,12 @@ def boundary_user_text(
     text = "Input text:\n\n" + "\n".join(block) + "\n"
     failed = [marker.strip() for marker in failed_markers if marker.strip()]
     if failed:
+        low, high = marker_length
         text += (
-            "\nThe following semantic markers previously failed to match the "
-            "source text. Do not reuse any of them. Provide a new 5-15 character "
-            "substring that excludes these markers:\n"
+            "\nThe following semantic markers were rejected: they matched no line "
+            f"of the source text or had fewer than {low} characters. Do not return "
+            "any of them again; a longer substring from the start of the same line "
+            f"is allowed. Provide a {low}-{high} character substring:\n"
             + "\n".join(f"- {marker}" for marker in failed)
             + "\n"
         )
@@ -283,7 +291,10 @@ async def adjust_ranges(
     lines = read_lines(text_file)
     name = document or ranges_document(text_file)
     system = boundary_prompt(
-        options.boundary_type, SEMANTIC_BOUNDARY_SCHEMA, options.context
+        options.boundary_type,
+        boundary_schema(options.marker_length),
+        options.context,
+        marker_length=options.marker_length,
     )
     report = AdjustReport(text_file, ranges_file, "adjusted")
     tally = _Tally()
@@ -321,9 +332,7 @@ def _current_ranges(store: Store, doc_id: int) -> list[Range]:
     units = stored_ranges(store, doc_id)
     return final_ranges(
         [
-            DecidedRange(
-                unit.original, unit.result if unit.status != "pending" else None
-            )
+            DecidedRange(unit.original, unit.result if unit.decided else None)
             for unit in units
         ]
     )
@@ -440,7 +449,7 @@ async def _decide_one(
     request = StructuredRequest(
         provider=context.caller.provider,
         response_format=context.options.response_format,
-        schema=SEMANTIC_BOUNDARY_SCHEMA,
+        schema=boundary_schema(context.options.marker_length),
         required=(),
     )
     system = SystemMessage(
@@ -458,7 +467,13 @@ async def _decide_one(
         nonlocal calls, degraded
         calls += 1
         tally.total += 1
-        text = boundary_user_text(context.lines, unit.original[0], window, failed)
+        text = boundary_user_text(
+            context.lines,
+            unit.original[0],
+            window,
+            failed,
+            marker_length=context.options.marker_length,
+        )
         label = f"{context.name} range {unit.idx + 1} window {window_index}"
         try:
             answer = await context.caller.call(
@@ -493,6 +508,7 @@ async def _decide_one(
                 unit.idx + 1,
                 context_window=context.options.context_window,
                 boundary_type=context.options.boundary_type,
+                min_marker_length=context.options.marker_length[0],
             )
         except Exception as exc:
             await write_failure(
@@ -532,13 +548,15 @@ async def adjust_files(
     """Run ``ranges adjust``: adjust each file with the store of its folder.
 
     Each folder's ``chronominer.sqlite`` records one run. A file that fails
-    is returned with its exception and the others go on.
+    is returned with its exception and the others go on. A heartbeat renews
+    the document leases, so a range whose calls wait out long retries keeps
+    its file.
     """
     sink = events or NullEvents()
     outcomes: list[tuple[Path, AdjustReport | BaseException]] = []
     total = len(text_files)
     for folder, files in group_by_folder(text_files).items():
-        async with open_folder_store(folder) as store:
+        async with open_folder_store(folder) as store, store.heartbeat():
             await store.begin_run("ranges adjust", spec=run_spec)
             failed = False
             for text_file in files:

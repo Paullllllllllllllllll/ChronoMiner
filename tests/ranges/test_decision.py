@@ -12,6 +12,7 @@ import pytest
 from chronominer.ranges import decision as decision_module
 from chronominer.ranges.decision import (
     MAX_LOW_CERTAINTY_RETRIES,
+    MAX_MERGED_RANGES,
     BoundaryDecision,
     DecidedRange,
     RangeResult,
@@ -22,9 +23,16 @@ from chronominer.ranges.decision import (
     final_layout,
     final_ranges,
     remove_overlaps,
+    unsure_payload,
     verify_no_content,
 )
+from chronominer.ranges.store import RangeUnit, layout
 from tests.ranges.fakes import boundary
+
+
+def unsure_decision() -> BoundaryDecision:
+    return BoundaryDecision.from_payload(unsure_payload())
+
 
 pytestmark = pytest.mark.unit
 
@@ -100,22 +108,111 @@ def test_result_body_round_trips_through_json() -> None:
     assert body["total_llm_calls"] == 1
     assert RangeResult.from_body(3, body) == result
     assert result.outcome == "moved"
+    assert "merged" not in body
+    merged = RangeResult(3, (10, 50), (10, 50), False, result.decision, merged=True)
+    assert RangeResult.from_body(3, json.loads(json.dumps(merged.to_body()))) == merged
 
 
 ENTRIES = [f"Entry number {i} begins here" for i in range(1, 41)]
 
 
-async def test_a_marker_past_the_range_end_moves_to_the_next_window() -> None:
-    script = Script(always(boundary(marker="Entry number 11 begins here")))
+async def test_a_marker_past_the_range_end_in_every_window_merges_the_range() -> None:
+    script = Script(
+        always(boundary(marker="Entry number 11 begins here")),
+        scan=boundary(more_context=True),
+    )
 
     result = await decide_range(script, ENTRIES, (5, 10), 1, context_window=20)
 
     assert script.boundary_calls == 2
     assert result.adjusted == (5, 10)
     assert result.should_delete is False
+    assert result.merged is True
+    assert result.outcome == "merged"
     beyond = [a for a in result.attempts if a["decision_type"] == "marker_beyond_end"]
     assert len(beyond) == 2
     assert all(attempt["matched_line"] == 11 for attempt in beyond)
+
+
+LONG_ENTRY = [f"line {i} of a long entry" for i in range(1, 401)]
+LONG_ENTRY[99] = "Il pollo lesso in gelatina"
+
+
+async def test_more_context_widens_until_the_entry_start_is_in_view() -> None:
+    def answer(window: Window, _index: int) -> Mapping[str, Any]:
+        if window[0] <= 100:
+            return boundary(marker="Il pollo lesso")
+        return boundary(more_context=True)
+
+    script = Script(answer)
+
+    result = await decide_range(script, LONG_ENTRY, (160, 280), 1, context_window=6)
+
+    assert script.boundary_calls == 5
+    assert result.adjusted == (100, 280)
+    assert result.merged is False
+
+
+async def test_an_entry_start_beyond_every_window_merges_the_range() -> None:
+    script = Script(
+        always(boundary(more_context=True)), scan=boundary(more_context=True)
+    )
+
+    result = await decide_range(script, LONG_ENTRY, (160, 280), 1, context_window=1)
+
+    assert script.boundary_calls == len(list(context_windows(160, 400, 1)))
+    assert script.calls[-1][1] == -1
+    assert result.adjusted == (160, 280)
+    assert result.should_delete is False
+    assert result.merged is True
+
+
+@pytest.mark.parametrize(
+    "scan",
+    [
+        boundary(on_target=True),
+        boundary(marker="Entry number 5 begins here"),
+        boundary(more_context=True, certainty=50),
+        unsure_payload(),
+    ],
+    ids=["on_target", "marker_at_start", "unsure", "failed_call"],
+)
+async def test_a_scan_that_confirms_or_doubts_the_start_keeps_the_range(
+    scan: Mapping[str, Any],
+) -> None:
+    script = Script(always(boundary(more_context=True)), scan=scan)
+
+    result = await decide_range(script, ENTRIES, (5, 10), 1, context_window=20)
+
+    assert result.adjusted == (5, 10)
+    assert result.merged is False
+    assert result.outcome != "merged"
+
+
+async def test_a_scan_that_stops_before_the_range_end_keeps_the_range(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(decision_module, "MAX_VERIFY_WINDOW_LINES", 4)
+    script = Script(
+        always(boundary(more_context=True)), scan=boundary(more_context=True)
+    )
+
+    result = await decide_range(script, ENTRIES, (5, 15), 1, context_window=20)
+
+    assert [a["window"] for a in result.attempts if a["window_index"] < 0] == [[5, 8]]
+    assert result.merged is False
+
+
+async def test_a_merge_yields_to_a_start_the_interior_scan_finds() -> None:
+    script = Script(
+        always(boundary(more_context=True)),
+        scan=boundary(marker="Entry number 8 begins here"),
+    )
+
+    result = await decide_range(script, ENTRIES, (5, 10), 1, context_window=20)
+
+    assert result.adjusted == (8, 10)
+    assert result.merged is False
 
 
 async def test_a_marker_inside_the_range_moves_the_start() -> None:
@@ -295,6 +392,7 @@ def _decided(
     adjusted: tuple[int, int] | None = None,
     *,
     delete: bool = False,
+    merged: bool = False,
 ) -> DecidedRange:
     result = RangeResult(
         index=1,
@@ -302,6 +400,7 @@ def _decided(
         adjusted=adjusted or original,
         should_delete=delete,
         decision=BoundaryDecision(delete, False, 90),
+        merged=merged,
     )
     return DecidedRange(original, result)
 
@@ -336,6 +435,62 @@ def test_a_forward_move_extends_the_preceding_range() -> None:
 def test_no_line_is_lost_before_a_moved_start(gap: int) -> None:
     entries = [_decided((1, 10)), _decided((11, 20), (11 + gap, 20))]
     assert final_ranges(entries) == [(1, 10 + gap), (11 + gap, 20)]
+
+
+def test_merged_ranges_join_the_range_before_them_once_all_are_decided() -> None:
+    entries = [
+        _decided((1, 10), (3, 10)),
+        _decided((11, 20), merged=True),
+        _decided((21, 30), merged=True),
+        DecidedRange((31, 40)),
+    ]
+    assert final_ranges(entries) == [(1, 10), (11, 20), (21, 30), (31, 40)]
+    entries[3] = _decided((31, 40))
+    assert final_layout(entries) == [(0, (1, 30)), (3, (31, 40))]
+
+
+def test_one_range_absorbs_at_most_the_merge_limit() -> None:
+    entries = [_decided((1, 10))] + [
+        _decided((11 + 10 * i, 20 + 10 * i), merged=True)
+        for i in range(MAX_MERGED_RANGES + 2)
+    ]
+    limit = 10 * (MAX_MERGED_RANGES + 1)
+    assert final_ranges(entries) == [(1, limit), (limit + 1, limit + 20)]
+
+
+def test_a_failed_range_keeps_merges_and_deletions_waiting() -> None:
+    decision = BoundaryDecision(False, False, 90)
+    units = [
+        RangeUnit(
+            0, (1, 10), "done", result=RangeResult(1, (1, 10), (1, 10), False, decision)
+        ),
+        RangeUnit(
+            1,
+            (11, 20),
+            "done",
+            result=RangeResult(2, (11, 20), (11, 20), False, decision, merged=True),
+        ),
+        RangeUnit(
+            2,
+            (21, 30),
+            "failed",
+            result=RangeResult(3, (21, 30), (21, 30), False, unsure_decision()),
+        ),
+    ]
+    assert layout(units) == {0: (1, 10), 1: (11, 20), 2: (21, 30)}
+
+
+def test_a_merged_range_first_or_after_a_deletion_keeps_its_bounds() -> None:
+    assert final_ranges([_decided((1, 10), merged=True), _decided((11, 20))]) == [
+        (1, 10),
+        (11, 20),
+    ]
+    entries = [
+        _decided((1, 10)),
+        _decided((11, 20), delete=True),
+        _decided((21, 30), merged=True),
+    ]
+    assert final_ranges(entries) == [(1, 10), (21, 30)]
 
 
 def test_lines_after_a_deleted_span_join_the_next_range() -> None:

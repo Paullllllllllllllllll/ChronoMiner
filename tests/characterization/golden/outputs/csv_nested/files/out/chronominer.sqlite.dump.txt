@@ -241,6 +241,13 @@
       "source": "settings",
       "value": 6
     },
+    "chunking.marker_length": {
+      "source": "default",
+      "value": [
+        5,
+        15
+      ]
+    },
     "chunking.mode": {
       "source": "default",
       "value": "auto"

@@ -25,7 +25,7 @@ import logging
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import asdict, dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
-from typing import Any, Final, Literal, cast
+from typing import Any, Final, Literal, NamedTuple, cast
 
 from chronominer.common.classifiers import load_classifier
 from chronominer.common.image_presets import (
@@ -100,6 +100,7 @@ __all__ = [
     "DEFAULT_CONCURRENCY",
     "DEFAULT_CONTEXT_WINDOW",
     "DEFAULT_FORMATS",
+    "DEFAULT_MARKER_LENGTH",
     "DEFAULT_MODEL",
     "DROP_OPTIONS",
     "IMAGE_DETAILS",
@@ -140,6 +141,7 @@ __all__ = [
     "DropSpec",
     "ImageSpec",
     "InputSpec",
+    "MarkerLength",
     "ModelSpec",
     "OutputSpec",
     "PromptSpec",
@@ -164,6 +166,7 @@ __all__ = [
     "parse_batch_cancel",
     "parse_batch_check",
     "parse_drop",
+    "parse_marker_length",
     "parse_ranges_adjust",
     "parse_ranges_generate",
     "parse_render",
@@ -203,6 +206,32 @@ DEFAULT_SERVICE_TIER = "default"
 DEFAULT_CONCURRENCY = 16
 DEFAULT_CHUNK_TOKENS = 3500
 DEFAULT_CONTEXT_WINDOW = 6
+
+
+class MarkerLength(NamedTuple):
+    """The characters a boundary marker should have; written ``MIN-MAX``."""
+
+    minimum: int
+    maximum: int
+
+    def __str__(self) -> str:
+        return f"{self.minimum}-{self.maximum}"
+
+
+def parse_marker_length(value: str) -> MarkerLength:
+    """Convert ``MIN-MAX``, such as ``5-15``, with 1 <= MIN <= MAX."""
+    low, separator, high = value.strip().partition("-")
+    if not separator:
+        raise ValueError("expected MIN-MAX, such as 5-15")
+    parsed = MarkerLength(int(low), int(high))
+    if not 1 <= parsed.minimum <= parsed.maximum:
+        raise ValueError("needs 1 <= MIN <= MAX")
+    return parsed
+
+
+DEFAULT_MARKER_LENGTH = MarkerLength(5, 15)
+"""The marker length the boundary prompt asks for; a shorter marker is
+rejected and asked for again, a longer one is accepted."""
 WAIT_HOURS = 50.0
 """Default ``--wait-hours`` of ``batch check``: the longest provider batch
 window (Gemini, 48 hours) plus time to collect the results."""
@@ -312,12 +341,14 @@ class ChunkingSpec:
     ``mode`` auto cuts by ``chunk_tokens``; line-ranges reads the input's
     ``{stem}_line_ranges.txt`` (written by ``chunk_tokens`` when missing);
     adjust also moves the range boundaries with the model, looking at
-    ``context_window`` lines around each boundary.
+    ``context_window`` lines around each boundary and asking for markers of
+    ``marker_length`` characters.
     """
 
     mode: str
     chunk_tokens: int
     context_window: int
+    marker_length: MarkerLength = DEFAULT_MARKER_LENGTH
 
 
 @dataclass(frozen=True)
@@ -448,6 +479,7 @@ class RangesAdjustSpec:
     model: ModelSpec
     run: RangesControl
     fallback_context: ContextText = None
+    marker_length: MarkerLength = DEFAULT_MARKER_LENGTH
 
 
 @dataclass(frozen=True)
@@ -948,6 +980,18 @@ def _chunking_options() -> list[Option]:
             condition=_ADJUST,
             target="chunking.context_window",
         ),
+        Option(
+            "marker_length",
+            "--marker-length",
+            "characters the model's boundary marker should have, MIN-MAX; "
+            "shorter markers are rejected and asked for again",
+            group="chunking",
+            type=parse_marker_length,
+            metavar="MIN-MAX",
+            default=DEFAULT_MARKER_LENGTH,
+            condition=_ADJUST,
+            target="chunking.marker_length",
+        ),
     ]
 
 
@@ -1187,6 +1231,7 @@ RANGES_ADJUST_OPTIONS = OptionTable(
             target="schema",
         ),
         replace(OPTIONS["context_window"], condition=None, target="context_window"),
+        replace(OPTIONS["marker_length"], condition=None, target="marker_length"),
         replace(
             OPTIONS["context"],
             help=(
@@ -1770,6 +1815,7 @@ def resolve_ranges_adjust(
         recursive=values["recursive"],
         schema=values["schema"],
         context_window=values["context_window"],
+        marker_length=values["marker_length"],
         context=values["context"],
         fallback_context=values["fallback_context"],
         pages=values["pages"],

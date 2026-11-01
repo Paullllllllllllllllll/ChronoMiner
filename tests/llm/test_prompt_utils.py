@@ -189,7 +189,10 @@ class TestPreparePromptWithContext:
 
         assert label.endswith(":")
         assert label not in empty
-        assert "{{" not in empty.replace("{{BOUNDARY_TYPE}}", "")
+        filled_later = ("{{BOUNDARY_TYPE}}", "{{MARKER_LENGTH}}")
+        for token in filled_later:
+            empty = empty.replace(token, "")
+        assert "{{" not in empty
         assert given.endswith(f"{label}\nctx")
 
 

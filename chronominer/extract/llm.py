@@ -317,6 +317,7 @@ class Extractor:
             context=item.adjust_context,
             response_format=response_format_for(spec.model, caps),
             context_window=chunking.context_window,
+            marker_length=chunking.marker_length,
             chunk_tokens=chunking.chunk_tokens,
             prompt_caching=self.job.settings.prompt_caching,
             force=self.job.force,

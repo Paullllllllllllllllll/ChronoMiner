@@ -1818,7 +1818,7 @@ async def _run_adjust(
     databases: list[str] = []
     try:
         for folder, files in group_by_folder(list(ranges_plan.files)).items():
-            async with open_folder_store(folder) as store:
+            async with open_folder_store(folder) as store, store.heartbeat():
                 databases.append(str(store.path.resolve()))
                 await store.begin_run(
                     ranges_plan.command, spec=ranges_plan.effective_spec()
@@ -1830,6 +1830,7 @@ async def _run_adjust(
                         context=ranges_plan.contexts.get(text_file),
                         response_format=ranges_plan.response_format,
                         context_window=spec.context_window,
+                        marker_length=spec.marker_length,
                         pages=ranges_plan.pages,
                         force=spec.run.force,
                         prompt_caching=env.settings.prompt_caching,

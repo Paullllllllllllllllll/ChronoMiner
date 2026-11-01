@@ -496,7 +496,13 @@ def _ask_chunking(ctx: StepContext) -> Nav:
             return None
         return ctx.text_option("context_window", "Lines around each boundary:")
 
-    return StepContext.sequence([mode, tokens, window])
+    def marker() -> Nav | None:
+        if state.value("chunking") != "adjust":
+            state.clear("marker_length")
+            return None
+        return ctx.text_option("marker_length", "Boundary marker length (MIN-MAX):")
+
+    return StepContext.sequence([mode, tokens, window, marker])
 
 
 def _page_range(text: str) -> str | None:
@@ -769,7 +775,7 @@ def build_steps(session: Session) -> list[Step]:
             "chunking",
             "Text chunking",
             ask=_ask_chunking,
-            sets=("chunking", "chunk_tokens", "context_window"),
+            sets=("chunking", "chunk_tokens", "context_window", "marker_length"),
             applies=lambda state: "text" in run_types(state),
         ),
         Step(

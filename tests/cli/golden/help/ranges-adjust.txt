@@ -25,6 +25,9 @@ schema and context:
 
 chunking:
   --context-window N    lines around each range boundary sent to the model; default: 6
+  --marker-length MIN-MAX
+                        characters the model's boundary marker should have, MIN-MAX; shorter
+                        markers are rejected and asked for again; default: 5-15
 
 model:
   --provider {openai,anthropic,google,openrouter,custom}

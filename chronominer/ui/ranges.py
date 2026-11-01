@@ -323,8 +323,11 @@ def _ask_context(ctx: StepContext, session: Session) -> Nav:
             "context_window", "Context window (lines around each boundary):"
         )
 
+    def marker() -> Nav:
+        return ctx.text_option("marker_length", "Boundary marker length (MIN-MAX):")
+
     context = ResponseQuestions(ctx, session).context_questions()
-    return ctx.sequence([window, *context])
+    return ctx.sequence([window, marker, *context])
 
 
 def _ask_schema(ctx: StepContext, session: Session) -> Nav:
@@ -350,7 +353,7 @@ def _adjust_steps(session: Session) -> list[Step]:
             "context",
             "Context",
             ask=lambda ctx: _ask_context(ctx, session),
-            sets=("context_window", "context", "fallback_context"),
+            sets=("context_window", "marker_length", "context", "fallback_context"),
         ),
         Step(
             "model",

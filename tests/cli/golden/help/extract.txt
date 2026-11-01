@@ -52,6 +52,10 @@ chunking:
                         3500
   --context-window N    lines around each range boundary sent to the model; default: 6; only for
                         chunking adjust
+  --marker-length MIN-MAX
+                        characters the model's boundary marker should have, MIN-MAX; shorter
+                        markers are rejected and asked for again; default: 5-15; only for chunking
+                        adjust
 
 model:
   --provider {openai,anthropic,google,openrouter,custom}

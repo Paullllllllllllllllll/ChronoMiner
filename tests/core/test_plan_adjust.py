@@ -15,6 +15,7 @@ import pytest
 import chronominer.run as core
 from chronominer.common.contract import ExitCode
 from chronominer.common.sqlite import read_rows
+from chronominer.common.store import Store
 from chronominer.output.store import DATABASE_NAME
 from chronominer.spec import (
     RangesAdjustSpec,
@@ -265,3 +266,27 @@ def test_adjust_decides_every_range_through_the_model(
         "(1, 20)",
         "(21, 40)",
     ]
+
+
+@pytest.mark.usefixtures("openai_key")
+def test_adjust_renews_its_leases_while_it_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started: list[Path] = []
+    heartbeat = Store.heartbeat
+
+    def recording(self: Store, **keywords: Any) -> Any:
+        started.append(self.path)
+        return heartbeat(self, **keywords)
+
+    monkeypatch.setattr(Store, "heartbeat", recording)
+    helpers.install(monkeypatch, [ON_TARGET])
+    text = _text(tmp_path / "in" / "a.txt")
+    _ranges(text, (1, 20), (21, 40))
+    ranges_plan = core.plan_ranges(
+        _adjust(text), make_settings(rate_limits=((100_000, 1),))
+    )
+
+    asyncio.run(core.run_ranges(ranges_plan))
+
+    assert started == [text.parent / DATABASE_NAME]

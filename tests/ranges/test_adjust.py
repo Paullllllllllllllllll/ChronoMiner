@@ -27,9 +27,10 @@ from chronominer.ranges.adjust import (
     adjust_ranges,
     boundary_user_text,
 )
-from chronominer.ranges.decision import SEMANTIC_BOUNDARY_SCHEMA
+from chronominer.ranges.decision import SEMANTIC_BOUNDARY_SCHEMA, boundary_schema
 from chronominer.ranges.lines import ranges_path, read_ranges
 from chronominer.settings import PromptCaching
+from chronominer.spec import MarkerLength
 from tests.characterization.fakes import permanent_error, transient_error
 from tests.characterization.inputs import make_text_file, write_ranges
 from tests.ranges.fakes import FakeCaller, boundary, default_answer
@@ -138,11 +139,31 @@ async def test_the_system_prompt_is_cached_as_in_extraction(
     assert all(content == expected for content in caller.systems)
 
 
+async def test_the_marker_length_reaches_the_prompt_schema_and_matcher(
+    store: Store, ledger: Path
+) -> None:
+    assert boundary_schema() == SEMANTIC_BOUNDARY_SCHEMA
+    assert "Return a 5-15 character verbatim substring" in boundary_prompt(
+        "FlatEntries", SEMANTIC_BOUNDARY_SCHEMA, None
+    )
+    long_only = MarkerLength(20, 40)
+    caller = FakeCaller()
+
+    await _adjust(store, ledger, caller, marker_length=long_only)
+
+    system = caller.requests[0][0]
+    assert "Return a 20-40 character verbatim substring" in system
+    assert "A precise 20-40 character verbatim substring" in system
+    assert any("Provide a 20-40 character substring" in user for user in caller.users)
+    assert read_ranges(ranges_path(ledger)) == MID_RECORD
+
+
 def test_the_user_text_marks_the_range_start_and_failed_markers() -> None:
     lines = ["one", "two", "three", "four"]
     text = boundary_user_text(lines, 3, (2, 4), ["  bad marker ", ""])
     assert text.startswith(f"Input text:\n\ntwo\n{BOUNDARY_SENTINEL}\nthree\nfour\n")
-    assert text.endswith("excludes these markers:\n- bad marker\n")
+    assert "a longer substring from the start of the same line is allowed" in text
+    assert text.endswith("Provide a 5-15 character substring:\n- bad marker\n")
     assert BOUNDARY_SENTINEL not in boundary_user_text(lines, 1, (2, 4))
 
 
@@ -334,6 +355,25 @@ async def test_cancellation_propagates(store: Store, ledger: Path) -> None:
 
     with pytest.raises(asyncio.CancelledError):
         await task
+
+
+async def test_adjust_files_renews_its_leases_while_it_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    started: list[Path] = []
+    heartbeat = Store.heartbeat
+
+    def recording(self: Store, **keywords: Any) -> Any:
+        started.append(self.path)
+        return heartbeat(self, **keywords)
+
+    monkeypatch.setattr(Store, "heartbeat", recording)
+    text = make_text_file(tmp_path / "ledger.txt", 12)
+    write_ranges(text, MID_RECORD)
+
+    await adjust_files([text], caller=FakeCaller(), model="gpt-4o", options=OPTIONS)
+
+    assert started == [tmp_path / DATABASE_NAME]
 
 
 async def test_adjust_files_uses_the_store_of_each_folder(tmp_path: Path) -> None:

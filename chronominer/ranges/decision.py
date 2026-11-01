@@ -7,8 +7,7 @@ the answers:
 - an answer below :data:`CERTAINTY_THRESHOLD` moves to the next, wider
   window, at most :data:`MAX_LOW_CERTAINTY_RETRIES` times;
 - ``boundary_already_on_target`` keeps the range;
-- ``needs_more_context`` moves to the next window, at most
-  :data:`MAX_CONTEXT_EXPANSION_ATTEMPTS` times;
+- ``needs_more_context`` moves to the next window;
 - ``contains_no_semantic_boundary`` scans the range interior; the range is
   deleted only when every scan finds no content at or above
   :data:`DELETE_CERTAINTY_THRESHOLD`, and a scan that finds content with a
@@ -19,16 +18,23 @@ the answers:
   times, with the failed markers listed.
 
 Windows grow geometrically from :data:`DEFAULT_CONTEXT_WINDOW` lines on
-each side of the start. When the windows run out, or certainty stays low,
-the interior scan decides between keeping and deleting the range.
+each side of the start, at most :data:`MAX_WINDOWS` of them. When the
+windows run out, or certainty stays low, the interior scan decides between
+keeping and deleting the range. A range whose last window still asked for
+more context, or named a start past the range end, lies inside an entry
+that began before it: when the scan, too, asks for more context with
+certainty in a window that reaches the range end, it is merged into the
+range before it instead of keeping a cut inside the entry.
 
 :func:`final_ranges` turns the decisions of a file into its ranges: deleted
-ranges drop out once every range is decided, overlaps are trimmed or merged
-(:func:`remove_overlaps`) and the first range is anchored to the file start.
+ranges drop out and merged ranges join their predecessor once every range is
+decided, overlaps are trimmed or merged (:func:`remove_overlaps`) and the
+first range is anchored to the file start.
 """
 
 from __future__ import annotations
 
+import copy
 import logging
 from collections.abc import Awaitable, Callable, Iterator, Mapping, Sequence
 from dataclasses import dataclass, field
@@ -36,6 +42,7 @@ from typing import Any
 
 from chronominer.ranges.lines import Range
 from chronominer.ranges.matching import match_marker
+from chronominer.spec import DEFAULT_MARKER_LENGTH
 
 __all__ = [
     "ANCHOR_FIRST_RANGE",
@@ -43,11 +50,12 @@ __all__ = [
     "DEFAULT_CONTEXT_WINDOW",
     "DELETE_CERTAINTY_THRESHOLD",
     "DELETE_RANGES_WITHOUT_CONTENT",
-    "MAX_CONTEXT_EXPANSION_ATTEMPTS",
     "MAX_GAP_BETWEEN_RANGES",
     "MAX_LOW_CERTAINTY_RETRIES",
     "MAX_MARKER_MISMATCH_RETRIES",
+    "MAX_MERGED_RANGES",
     "MAX_VERIFY_WINDOW_LINES",
+    "MAX_WINDOWS",
     "MIN_RANGE_LINES",
     "SEMANTIC_BOUNDARY_SCHEMA",
     "Ask",
@@ -55,6 +63,7 @@ __all__ = [
     "DecidedRange",
     "RangeResult",
     "anchor_first_range",
+    "boundary_schema",
     "context_windows",
     "decide_range",
     "enforce_max_gap",
@@ -71,7 +80,9 @@ DEFAULT_CONTEXT_WINDOW = 6
 """Lines shown on each side of the range start in the first window."""
 CERTAINTY_THRESHOLD = 70
 MAX_LOW_CERTAINTY_RETRIES = 3
-MAX_CONTEXT_EXPANSION_ATTEMPTS = 3
+MAX_WINDOWS = 7
+"""Boundary windows per range; the last reaches 64 times the first radius
+on each side, 384 lines at the default."""
 MAX_MARKER_MISMATCH_RETRIES = 2
 DELETE_RANGES_WITHOUT_CONTENT = True
 DELETE_CERTAINTY_THRESHOLD = 85
@@ -81,6 +92,9 @@ MAX_VERIFY_WINDOW_LINES = 1000
 """Lines per interior scan; longer ranges are scanned in consecutive parts."""
 MIN_RANGE_LINES = 3
 """A range this short after trimming merges into its neighbor; 0 disables."""
+MAX_MERGED_RANGES = 3
+"""Merged ranges one range may absorb; a further one keeps its bounds, so a
+run of unresolved ranges cannot fold a whole text into one chunk."""
 ANCHOR_FIRST_RANGE = True
 MAX_GAP_BETWEEN_RANGES: int | None = 0
 """Unassigned lines allowed between ranges; a wider gap extends the range
@@ -146,6 +160,22 @@ SEMANTIC_BOUNDARY_SCHEMA: Mapping[str, Any] = {
         "additionalProperties": False,
     },
 }
+"""The answer schema at the default marker length; see :func:`boundary_schema`."""
+
+
+def boundary_schema(
+    marker_length: tuple[int, int] = DEFAULT_MARKER_LENGTH,
+) -> dict[str, Any]:
+    """Return the answer schema that asks for markers of *marker_length* characters."""
+    schema = copy.deepcopy(dict(SEMANTIC_BOUNDARY_SCHEMA))
+    low, high = marker_length
+    schema["schema"]["properties"]["semantic_marker"]["description"] = (
+        f"A precise {low}-{high} character verbatim substring that marks the"
+        " semantic boundary. Leave empty if contains_no_semantic_boundary"
+        " or needs_more_context is true."
+    )
+    return schema
+
 
 Ask = Callable[[Range, int, Sequence[str]], Awaitable[Mapping[str, Any]]]
 """``(window, window_index, failed_markers) -> answer`` for one range.
@@ -219,7 +249,8 @@ class RangeResult:
     """The decision on one range and the record of every answer behind it.
 
     *index* is the range's 1-based position in the file; *calls* counts
-    the model answers.
+    the model answers. *merged* marks a range inside an entry that began
+    before it, which joins the range before it; it is stored only when true.
     """
 
     index: int
@@ -229,12 +260,15 @@ class RangeResult:
     decision: BoundaryDecision
     attempts: tuple[Mapping[str, Any], ...] = ()
     calls: int = 0
+    merged: bool = False
 
     @property
     def outcome(self) -> str:
-        """Return ``deleted``, ``moved``, ``on_target`` or ``kept``."""
+        """Return ``deleted``, ``merged``, ``moved``, ``on_target`` or ``kept``."""
         if self.should_delete:
             return "deleted"
+        if self.merged:
+            return "merged"
         if self.adjusted != self.original:
             return "moved"
         if self.decision.boundary_already_on_target:
@@ -243,7 +277,7 @@ class RangeResult:
 
     def to_body(self) -> dict[str, Any]:
         """Return the stored form of the result."""
-        return {
+        body: dict[str, Any] = {
             "original_range": list(self.original),
             "adjusted_range": list(self.adjusted),
             "should_delete": self.should_delete,
@@ -251,6 +285,9 @@ class RangeResult:
             "attempts": [dict(attempt) for attempt in self.attempts],
             "total_llm_calls": self.calls,
         }
+        if self.merged:
+            body["merged"] = True
+        return body
 
     @classmethod
     def from_body(cls, index: int, body: Mapping[str, Any]) -> RangeResult:
@@ -265,18 +302,18 @@ class RangeResult:
             decision=BoundaryDecision.from_payload(body.get("decision") or {}),
             attempts=tuple(body.get("attempts") or ()),
             calls=int(body.get("total_llm_calls") or 0),
+            merged=bool(body.get("merged", False)),
         )
 
 
 def context_windows(start: int, total_lines: int, radius: int) -> Iterator[Range]:
-    """Yield the windows around line *start*, their radius doubling each time.
+    """Yield up to :data:`MAX_WINDOWS` windows around line *start*.
 
-    The count covers both retry limits that move to a new window; growth
-    stops once a window spans the whole text.
+    The radius doubles each time; growth stops once a window spans the
+    whole text.
     """
-    count = 1 + MAX_CONTEXT_EXPANSION_ATTEMPTS + MAX_LOW_CERTAINTY_RETRIES
     previous: Range | None = None
-    for step in range(count):
+    for step in range(MAX_WINDOWS):
         reach = radius * (2**step)
         window = (max(1, start - reach), min(total_lines, start + reach))
         if window[1] < window[0] or window == previous:
@@ -320,13 +357,15 @@ async def verify_no_content(
     *,
     context_window: int = DEFAULT_CONTEXT_WINDOW,
     boundary_type: str = "",
+    min_marker_length: int = DEFAULT_MARKER_LENGTH[0],
 ) -> tuple[bool, Range | None, list[dict[str, Any]]]:
     """Scan the interior of *original* for content of the semantic type.
 
     Returns whether to delete the range, the range moved to a marker the
     scan found inside it (or None), and the scan's attempt records. Any
     content signal keeps the range; so does a no-content answer below
-    :data:`DELETE_CERTAINTY_THRESHOLD`.
+    :data:`DELETE_CERTAINTY_THRESHOLD`. Markers shorter than
+    *min_marker_length* match nothing.
     """
     start, end = original
     attempts: list[dict[str, Any]] = []
@@ -361,6 +400,7 @@ async def verify_no_content(
                     window,
                     nearest_to=start,
                     widen_by=context_window,
+                    min_length=min_marker_length,
                 )
                 if line is not None and start <= line <= end:
                     moved = (line, end)
@@ -396,6 +436,10 @@ async def verify_no_content(
     return True, None, attempts
 
 
+_START_BEFORE_RANGE = frozenset({"needs_more_context", "marker_beyond_end"})
+"""Last-window answers that place the range inside an earlier entry."""
+
+
 @dataclass
 class _Search:
     """The running state of :func:`decide_range`."""
@@ -405,12 +449,16 @@ class _Search:
     attempts: list[dict[str, Any]] = field(default_factory=list)
     calls: int = 0
     low_certainty: int = 0
-    expansions: int = 0
     failed_markers: list[str] = field(default_factory=list)
     decision: BoundaryDecision | None = None
+    scan: BoundaryDecision | None = None
+    """The interior scan's last answer, if a scan ran."""
+    scan_end: int = 0
+    """The last line of the window that answer judged."""
     stop: bool = False
     exhausted_low: bool = False
     delete: bool = False
+    min_marker_length: int = DEFAULT_MARKER_LENGTH[0]
 
 
 async def decide_range(
@@ -421,9 +469,16 @@ async def decide_range(
     *,
     context_window: int = DEFAULT_CONTEXT_WINDOW,
     boundary_type: str = "",
+    min_marker_length: int = DEFAULT_MARKER_LENGTH[0],
 ) -> RangeResult:
-    """Decide where range *index* should start, or whether to delete it."""
-    state = _Search(original=original, adjusted=original)
+    """Decide where range *index* should start, or whether to delete it.
+
+    Markers shorter than *min_marker_length* match nothing and are asked
+    for again.
+    """
+    state = _Search(
+        original=original, adjusted=original, min_marker_length=min_marker_length
+    )
     radius = max(1, context_window)
     for window_index, window in enumerate(
         context_windows(original[0], len(lines), radius)
@@ -435,6 +490,11 @@ async def decide_range(
             break
     if state.delete:
         return _result(state, index, delete=True)
+    inside = (
+        not state.stop
+        and bool(state.attempts)
+        and state.attempts[-1]["decision_type"] in _START_BEFORE_RANGE
+    )
     if (not state.stop or state.exhausted_low) and DELETE_RANGES_WITHOUT_CONTENT:
         logger.info(
             "[Range %d] Boundary windows exhausted; scanning the interior", index
@@ -442,10 +502,26 @@ async def decide_range(
         await _verify(ask, lines, state, index, radius, boundary_type)
         if state.delete:
             return _result(state, index, delete=True)
-    return _result(state, index, delete=False)
+    scan = state.scan
+    agrees = scan is None or (
+        scan.needs_more_context
+        and scan.certainty >= CERTAINTY_THRESHOLD
+        and state.scan_end >= original[1]
+    )
+    merge = inside and agrees and state.adjusted == state.original
+    if merge:
+        logger.warning(
+            "[Range %d] No entry starts in reach of line %d; merging the range "
+            "into the one before it",
+            index,
+            original[0],
+        )
+    return _result(state, index, delete=False, merge=merge)
 
 
-def _result(state: _Search, index: int, *, delete: bool) -> RangeResult:
+def _result(
+    state: _Search, index: int, *, delete: bool, merge: bool = False
+) -> RangeResult:
     decision = state.decision or BoundaryDecision(
         contains_no_semantic_boundary=True, needs_more_context=False, certainty=0
     )
@@ -457,6 +533,7 @@ def _result(state: _Search, index: int, *, delete: bool) -> RangeResult:
         decision=decision,
         attempts=tuple(state.attempts),
         calls=state.calls,
+        merged=merge,
     )
 
 
@@ -468,13 +545,22 @@ async def _verify(
     radius: int,
     boundary_type: str,
 ) -> None:
+    async def scan(
+        window: Range, window_index: int, failed: Sequence[str]
+    ) -> Mapping[str, Any]:
+        payload = await ask(window, window_index, failed)
+        state.scan = BoundaryDecision.from_payload(payload)
+        state.scan_end = window[1]
+        return payload
+
     delete, moved, attempts = await verify_no_content(
-        ask,
+        scan,
         lines,
         state.original,
         index,
         context_window=radius,
         boundary_type=boundary_type,
+        min_marker_length=state.min_marker_length,
     )
     state.calls += len(attempts)
     state.attempts.extend(attempts)
@@ -510,7 +596,9 @@ async def _search_window(
             state.stop = True
             return
         if decision.needs_more_context:
-            _more_context(state, window, window_index, decision, index)
+            state.attempts.append(
+                _attempt(window, window_index, "needs_more_context", decision)
+            )
             return
         if decision.contains_no_semantic_boundary:
             state.attempts.append(
@@ -526,6 +614,7 @@ async def _search_window(
             window,
             nearest_to=state.original[0],
             widen_by=radius,
+            min_length=state.min_marker_length,
         )
         if line is not None and line > state.original[1]:
             state.attempts.append(
@@ -589,26 +678,6 @@ def _low_certainty(
         state.stop = True
 
 
-def _more_context(
-    state: _Search,
-    window: Range,
-    window_index: int,
-    decision: BoundaryDecision,
-    index: int,
-) -> None:
-    state.attempts.append(
-        _attempt(window, window_index, "needs_more_context", decision)
-    )
-    state.expansions += 1
-    if state.expansions > MAX_CONTEXT_EXPANSION_ATTEMPTS:
-        logger.warning(
-            "[Range %d] %d context expansions reached; keeping the range",
-            index,
-            MAX_CONTEXT_EXPANSION_ATTEMPTS,
-        )
-        state.stop = True
-
-
 @dataclass(frozen=True)
 class DecidedRange:
     """One range of a file: its starting bounds and its result, if decided."""
@@ -620,11 +689,14 @@ class DecidedRange:
 def final_layout(entries: Sequence[DecidedRange]) -> list[tuple[int, Range]]:
     """Return the ranges of a file and the entry each one is kept under.
 
-    An undecided range keeps its bounds. Deleted ranges drop out only once
-    every range is decided; until then they keep their bounds, so a later
-    run finds every range at its position. Overlaps are then removed, gaps
-    closed (:data:`MAX_GAP_BETWEEN_RANGES`) and the first range anchored to
-    the start of the first starting range.
+    An undecided range keeps its bounds. Deleted ranges drop out, and a
+    merged range extends the range before it, only once every range is
+    decided; until then they keep their bounds, so a later run finds every
+    range at its position. A merged range first in the file, after a
+    deleted one, or beyond :data:`MAX_MERGED_RANGES` keeps its bounds. A
+    failed range counts as undecided. Overlaps are then removed, gaps closed
+    (:data:`MAX_GAP_BETWEEN_RANGES`) and the first range anchored to the
+    start of the first starting range.
 
     Each range comes with the position of an entry; the positions ascend
     with the ranges, and the entries of deleted or merged ranges get none.
@@ -633,17 +705,37 @@ def final_layout(entries: Sequence[DecidedRange]) -> list[tuple[int, Range]]:
     complete = all(entry.result is not None for entry in entries)
     kept: list[tuple[int, Range]] = []
     deleted: list[int] = []
+    merged: list[int] = []
+    absorbed = 0
     for position, entry in enumerate(entries):
         result = entry.result
-        if result is None:
+        if complete and result is not None and result.should_delete:
+            deleted.append(position)
+            continue
+        if (
+            complete
+            and result is not None
+            and result.merged
+            and kept
+            and position - 1 not in deleted
+        ):
+            if absorbed < MAX_MERGED_RANGES:
+                owner, (start, end) = kept[-1]
+                kept[-1] = (owner, (start, max(end, result.adjusted[1])))
+                merged.append(position)
+                absorbed += 1
+                continue
+            logger.warning(
+                "Range %d stays on its own: the range before it already absorbed "
+                "%d merged ranges",
+                position + 1,
+                MAX_MERGED_RANGES,
+            )
+        if result is None or result.should_delete:
             kept.append((position, entry.original))
-        elif result.should_delete:
-            if complete:
-                deleted.append(position)
-            else:
-                kept.append((position, entry.original))
         else:
             kept.append((position, result.adjusted))
+        absorbed = 0
     owned = _remove_overlaps(kept, MIN_RANGE_LINES)
     owners = sorted(position for position, _ in owned)
     ranges = [bounds for _, bounds in owned]
@@ -657,6 +749,12 @@ def final_layout(entries: Sequence[DecidedRange]) -> list[tuple[int, Range]]:
             "Deleted %d range(s) without semantic content: %s",
             len(deleted),
             [position + 1 for position in deleted],
+        )
+    if merged:
+        logger.info(
+            "Merged %d range(s) into the range before them: %s",
+            len(merged),
+            [position + 1 for position in merged],
         )
     return list(zip(owners, ranges, strict=True))
 

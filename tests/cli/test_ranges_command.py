@@ -250,11 +250,33 @@ def test_adjust_dry_run_reports_the_spec_without_running(
     _write_ranges(text)
     before = _files(tmp_path)
 
-    assert _adjust(text, "--context-window", "9", "--dry-run", "--json") == 0
+    assert (
+        _adjust(
+            text,
+            "--context-window",
+            "9",
+            "--marker-length",
+            "8-20",
+            "--dry-run",
+            "--json",
+        )
+        == 0
+    )
 
     assert timeline.steps == ["startup"]
     payload, _err = _one_line(capsys)
     assert payload["items_total"] == 1
     assert payload["spec"]["schema"] == {"value": SCHEMA, "source": "flag"}
     assert payload["spec"]["context_window"] == {"value": 9, "source": "flag"}
+    assert payload["spec"]["marker_length"] == {"value": [8, 20], "source": "flag"}
     assert _files(tmp_path) == before
+
+
+def test_adjust_refuses_a_marker_length_that_is_not_min_max(
+    make_text: MakeText, capsys: pytest.CaptureFixture[str]
+) -> None:
+    text = make_text()
+    _write_ranges(text)
+
+    assert _adjust(text, "--marker-length", "15-5", "--dry-run") == 2
+    assert "MIN <= MAX" in capsys.readouterr().err

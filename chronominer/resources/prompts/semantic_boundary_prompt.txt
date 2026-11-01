@@ -9,7 +9,7 @@ The input text may contain a sentinel line, <<<CURRENT_CHUNK_START>>>, placed im
 TASK
 1. Look at the line directly below the sentinel. If that line begins a complete unit, set "boundary_already_on_target" to true and leave "semantic_marker" empty.
 2. Otherwise, find the line nearest to the sentinel (before or after it) that begins a complete unit.
-3. Return a 5-15 character verbatim substring taken from the start of that line, distinctive enough to match exactly once in the source text.
+3. Return a {{MARKER_LENGTH}} character verbatim substring taken from the start of that line, distinctive enough to match exactly once in the source text.
 
 RESPONSE REQUIREMENTS
 - At most one of "contains_no_semantic_boundary", "needs_more_context" and "boundary_already_on_target" may be true; when you return a semantic_marker, all three are false.

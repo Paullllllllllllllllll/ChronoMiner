@@ -184,13 +184,15 @@ def test_every_chunking_mode_is_offered_for_text(
 
     state = new_state(session, OPTIONS)
     state.set("input", text_with_ranges)
-    _result, prompter = _ask(session, state, "chunking", ["adjust", "4"])
+    _result, prompter = _ask(session, state, "chunking", ["adjust", "4", "8-20"])
     assert state.value("chunking") == "adjust"
     assert state.value("context_window") == 4
+    assert state.value("marker_length") == (8, 20)
     assert unit_word(state) == "line ranges"
     _ask(session, state, "chunking", ["line-ranges"])
     assert state.answers["chunking"] == "line-ranges"
     assert "context_window" not in state.answers
+    assert "marker_length" not in state.answers
 
     folder = text_with_ranges.parent
     make_text_file(folder / "other.txt")
@@ -206,7 +208,7 @@ def test_a_settings_chunking_is_kept_without_line_ranges(
     session = make_session({"chunking": "adjust"})
     state = new_state(session, OPTIONS)
     state.set("input", text_file)
-    _ask(session, state, "chunking", [KEEP, KEEP, KEEP])
+    _ask(session, state, "chunking", [KEEP, KEEP, KEEP, KEEP])
     assert state.value("chunking") == "adjust"
     assert "chunking" not in state.answers
 

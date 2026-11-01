@@ -40,7 +40,12 @@ from chronominer.llm.prompt_utils import (
     load_prompt_template,
     prepare_prompt_with_context,
 )
-from chronominer.spec import CONTEXT_NONE, ContextChoice, ContextText
+from chronominer.spec import (
+    CONTEXT_NONE,
+    DEFAULT_MARKER_LENGTH,
+    ContextChoice,
+    ContextText,
+)
 
 if TYPE_CHECKING:
     from chronominer.settings import PromptCaching
@@ -57,6 +62,7 @@ __all__ = [
     "IMAGE_CONTEXT_SUFFIX",
     "IMAGE_INSTRUCTION",
     "IMAGE_PROMPT_PATH",
+    "MARKER_LENGTH_TOKEN",
     "PROMPTS_DIR",
     "TEXT_PROMPT_PATH",
     "ChunkKind",
@@ -105,6 +111,8 @@ IMAGE_INSTRUCTION = "Extract structured data from this image according to the sc
 CONTEXT_IMAGE_LABEL = "Context image:"
 """The text block sent before the context image."""
 BOUNDARY_TYPE_TOKEN = "{{BOUNDARY_TYPE}}"
+MARKER_LENGTH_TOKEN = "{{MARKER_LENGTH}}"
+"""Replaced by the marker length range of the run, such as ``5-15``."""
 
 
 def extraction_prompt(
@@ -141,16 +149,20 @@ def boundary_prompt(
     schema: Mapping[str, Any],
     context: str | None,
     template: Path | None = None,
+    marker_length: tuple[int, int] = DEFAULT_MARKER_LENGTH,
 ) -> str:
     """Return the system prompt of a line-range adjustment call.
 
     *boundary_type* names the semantic unit (the extraction schema's name);
-    *schema* is the answer schema, injected as compact JSON.
+    *schema* is the answer schema, injected as compact JSON; *marker_length*
+    is the ``(minimum, maximum)`` the prompt asks markers to have.
 
     Raises:
         FileNotFoundError: The prompt template is missing.
     """
     text = load_prompt_template(template or BOUNDARY_PROMPT_PATH)
+    low, high = marker_length
+    text = text.replace(MARKER_LENGTH_TOKEN, f"{low}-{high}")
     rendered = prepare_prompt_with_context(text, schema_body(schema), context)
     return rendered.replace(BOUNDARY_TYPE_TOKEN, boundary_type)
 

@@ -2,11 +2,16 @@
 
 A marker is a short verbatim substring that starts the line where a unit
 begins. Marker and lines are compared after normalization: whitespace runs
-collapse to one space, diacritics and case are dropped. A marker shorter
-than :data:`MIN_MARKER_LENGTH` is rejected, so the caller asks for a longer
-one. The search stays near the range: the given window first, then the
-window widened once by the context radius on each side; a match farther
-away would move the boundary far from the range it belongs to.
+collapse to one space, diacritics and case are dropped. The prompt asks for
+a marker of :data:`chronominer.spec.DEFAULT_MARKER_LENGTH` characters unless
+the run sets another range; a marker shorter than the range's minimum is
+rejected, so the caller asks for a longer one. The search stays near the
+range: the given window first, then the window widened once by the context
+radius on each side; a match farther away would move the boundary far from
+the range it belongs to. Among
+several matches, a line the marker begins (leading markup, punctuation and
+numbering aside) wins over a line that only contains it, so a heading is
+not lost to a nearer mention of the same words.
 """
 
 from __future__ import annotations
@@ -16,10 +21,11 @@ import re
 import unicodedata
 from collections.abc import Sequence
 
+from chronominer.spec import DEFAULT_MARKER_LENGTH
+
 __all__ = [
     "ALLOW_SUBSTRING_MATCH",
     "CASE_SENSITIVE",
-    "MIN_MARKER_LENGTH",
     "NORMALIZE_DIACRITICS",
     "NORMALIZE_WHITESPACE",
     "STRIP_PUNCTUATION",
@@ -35,11 +41,25 @@ CASE_SENSITIVE = False
 NORMALIZE_DIACRITICS = True
 STRIP_PUNCTUATION = False
 ALLOW_SUBSTRING_MATCH = True
-MIN_MARKER_LENGTH = 8
-"""Markers with fewer characters (after stripping) are rejected."""
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _PUNCTUATION_RE = re.compile(r"[^\w\s]")
+_MARKUP_RE = re.compile(r"^[\W_]+")
+_NUMBERING_RE = re.compile(r"^[\W\d_]+")
+
+
+def _begins(line: str, needle: str) -> bool:
+    """Whether *line* opens with *needle*, leading markup and numbering aside.
+
+    Markup is stripped from both; numbering ("1864.", "12)") only from the
+    line, so a marker that is itself a number or date keeps its digits.
+    """
+    target = _MARKUP_RE.sub("", normalize(needle))
+    text = normalize(line)
+    return bool(target) and (
+        _MARKUP_RE.sub("", text).startswith(target)
+        or _NUMBERING_RE.sub("", text).startswith(target)
+    )
 
 
 def normalize(text: str) -> str:
@@ -86,19 +106,22 @@ def match_marker(
     *,
     nearest_to: int,
     widen_by: int,
+    min_length: int = DEFAULT_MARKER_LENGTH[0],
 ) -> int | None:
     """Return the line where *marker* starts a unit, or None.
 
-    The search covers *window*, then, without a match, the window widened by
-    *widen_by* lines on each side. Several matches resolve to the line
-    nearest *nearest_to*, ties to the earlier line.
+    A marker shorter than *min_length* characters is rejected. The search
+    covers *window*, then, without a match, the window widened by *widen_by*
+    lines on each side. Several matches resolve to the lines the marker
+    begins, if any, and among those to the line nearest *nearest_to*, ties to
+    the earlier line.
     """
     needle = (marker or "").strip()
     if not needle:
         return None
-    if len(needle) < MIN_MARKER_LENGTH:
+    if len(needle) < min_length:
         logger.debug(
-            "Rejecting marker %r: shorter than %d characters", needle, MIN_MARKER_LENGTH
+            "Rejecting marker %r: shorter than %d characters", needle, min_length
         )
         return None
     total = len(lines)
@@ -112,9 +135,13 @@ def match_marker(
         return None
     if len(found) > 1:
         logger.debug(
-            "Marker %r matches lines %s; taking the one nearest line %d",
+            "Marker %r matches lines %s; preferring a line it begins, then the "
+            "one nearest line %d",
             needle,
             found,
             nearest_to,
         )
+        found = [
+            number for number in found if _begins(lines[number - 1], needle)
+        ] or found
     return min(found, key=lambda number: (abs(number - nearest_to), number))

@@ -1,4 +1,4 @@
-# ChronoMiner v1.3.0
+# ChronoMiner v1.4.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -92,6 +92,7 @@ both.
 | `--chunking {auto,line-ranges,adjust}` | text chunking: auto (by --chunk-tokens), line-ranges (the input's {stem}_line_ranges.txt) or adjust (line ranges whose boundaries the model moves first); adjust rewrites that file beside the input, not under --output | auto | yes |
 | `--chunk-tokens N` | target tokens per text chunk, also for line ranges written anew | 3500 | yes |
 | `--context-window N` | lines around each range boundary sent to the model; only for chunking adjust | 6 | yes |
+| `--marker-length MIN-MAX` | characters the model's boundary marker should have, MIN-MAX; shorter markers are rejected and asked for again; only for chunking adjust | 5-15 | yes |
 | `--provider {openai,anthropic,google,openrouter,custom}` | model provider | inferred from the model name | yes |
 | `--model NAME` | model name; a provider: prefix (anthropic:NAME) selects the provider | gpt-6-luna | yes |
 | `--endpoint NAME` | named custom endpoint from the settings (implies provider custom) | none | yes |
@@ -152,6 +153,7 @@ settings defaults.
 | `--recursive`, `--no-recursive` | search the subfolders of the input folder | off | yes |
 | `--schema NAME\|PATH` | schema of the entries whose boundaries the model looks for: a file path, a file name in schemas/ or a schema's name field | required | yes |
 | `--context-window N` | lines around each range boundary sent to the model | 6 | yes |
+| `--marker-length MIN-MAX` | characters the model's boundary marker should have, MIN-MAX; shorter markers are rejected and asked for again | 5-15 | yes |
 | `--context TEXT\|PATH\|auto\|none` | adjust context: topics as text or a path to a text file (overrides sidecars), auto (the input's {stem}_adjust_context.txt, else the folder's context file) or none | auto | no |
 | `--fallback-context TEXT\|PATH\|none` | adjust context for inputs without a sidecar under --context auto: topics as text, a path to a text file, or none | none | no |
 | `--pages RANGE` | line ranges: 5, first:5, last:5, 3-7, 3-, -7 or 1,3,5-8 | all | no |
@@ -732,16 +734,25 @@ holds one range as `(start, end)`, 1-based and inclusive. The file is an input: 
 can edit it by hand, and `--chunking line-ranges` extracts one chunk per
 range. `ranges adjust` asks the model, for each range, where the entries of the schema
 begin in a window of `--context-window` lines around the range start, and moves,
-keeps or deletes the boundary. Each decision is stored at once, and the file is then
-rendered again from the store. A file the store rendered last, or whose ranges equal
-the stored starting ranges, resumes the stored decisions; any other file (written anew
-or edited) is a new starting point, as `--force` and changed adjust settings are. A
-range whose model calls all failed is decided again by the next run. Both commands
-record the ranges in the `chronominer.sqlite` beside the text file; `extract
---chunking adjust` runs the same adjustment in the database of the extraction. The
-adjust context follows the lookup of [Inputs and Chunking](#inputs-and-chunking) with
-the suffix `_adjust_context.txt`; under `extract --chunking adjust` a `--context` text
-or file and the `--fallback-context` serve the boundary decisions too.
+keeps or deletes the boundary. While the model asks for more context, the window
+doubles, up to 64 times its first radius on each side. A range whose entry start lies
+beyond the last window, or whose nearest entry start lies past its end, sits inside an
+earlier entry: when a scan of its interior also finds no start, it is merged into the
+range before it (unit outcome `merged`) instead of keeping a cut inside the entry. One
+range absorbs at most three merged ranges. Merges and deletions wait until every range
+holds a decision; a range whose model calls all failed holds none until a later run
+decides it. A marker that matches several lines resolves to a line it begins before a
+line that only mentions it. Each decision is stored at once, and the file is then
+rendered again from the store. A file the store rendered last,
+or whose ranges equal the stored starting ranges, resumes the stored decisions; any
+other file (written anew or edited) is a new starting point, as `--force` and changed
+adjust settings are. A range whose model calls all failed is decided again by the
+next run. Both commands record the ranges in the `chronominer.sqlite` beside the text
+file; `extract --chunking adjust` runs the same adjustment in the database of the
+extraction. The adjust context follows the lookup of
+[Inputs and Chunking](#inputs-and-chunking) with the suffix `_adjust_context.txt`;
+under `extract --chunking adjust` a `--context` text or file and the
+`--fallback-context` serve the boundary decisions too.
 
 ## Output Contract
 
