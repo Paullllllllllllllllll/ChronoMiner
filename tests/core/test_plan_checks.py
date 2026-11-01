@@ -8,7 +8,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import fitz  # PyMuPDF
+import pymupdf
 import pytest
 
 import chronominer.run as core
@@ -35,7 +35,7 @@ def docs(tmp_path: Path) -> Path:
     """An input folder with one born-digital PDF."""
     folder = tmp_path / "in"
     folder.mkdir()
-    document = fitz.open()
+    document = pymupdf.open()
     document.new_page(width=200, height=300).insert_text((50, 100), "Page 1")
     document.save(folder / "x.pdf")
     document.close()

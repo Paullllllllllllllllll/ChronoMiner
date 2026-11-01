@@ -19,7 +19,7 @@ import re
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
-import fitz  # PyMuPDF
+import pymupdf
 from PIL import Image
 
 PALETTE: tuple[int, ...] = tuple(24 + 18 * step for step in range(12))
@@ -158,7 +158,7 @@ def _page_image(index: int, size: tuple[int, int], mode: str = "RGB") -> Image.I
     return Image.new(mode, size, color=color)
 
 
-def _save_pdf(doc: fitz.Document, path: Path) -> Path:
+def _save_pdf(doc: pymupdf.Document, path: Path) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     doc.set_metadata({})
     doc.save(str(path), garbage=4, deflate=True, no_new_id=True)
@@ -178,7 +178,7 @@ def make_born_digital_pdf(
     page without a scan. Page *i* carries ``texts[i]`` (``page_text(i)`` by
     default) as its text layer.
     """
-    doc = fitz.open()
+    doc = pymupdf.open()
     try:
         width, height = page_size
         for index in range(pages):
@@ -204,7 +204,7 @@ def make_scanned_pdf(
     Each page holds one grayscale marker image of *scan_size* pixels that
     covers the whole page, so native DPI resolution reads the scan density.
     """
-    doc = fitz.open()
+    doc = pymupdf.open()
     try:
         width, height = page_size
         for index in range(pages):

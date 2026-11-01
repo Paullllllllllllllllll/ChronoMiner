@@ -17,7 +17,7 @@ from dataclasses import replace
 from pathlib import Path
 from typing import Any, ClassVar
 
-import fitz
+import pymupdf
 
 from chronominer.common.images import (
     POINTS_PER_INCH,
@@ -130,12 +130,12 @@ class PDFProcessor:
 
     def __init__(self, pdf_path: Path) -> None:
         self.pdf_path = pdf_path
-        self.doc: fitz.Document | None = None
+        self.doc: pymupdf.Document | None = None
 
     def open_pdf(self) -> None:
         """Open the PDF document."""
         try:
-            self.doc = fitz.open(self.pdf_path)
+            self.doc = pymupdf.open(self.pdf_path)
         except Exception as exc:
             logger.error("Failed to open PDF: %s, %s", self.pdf_path, exc)
             raise
@@ -160,5 +160,5 @@ class PDFProcessor:
 
     def page_count(self) -> int:
         """Return the number of pages; the document is closed afterwards."""
-        with fitz.open(self.pdf_path) as doc:
+        with pymupdf.open(self.pdf_path) as doc:
             return int(doc.page_count)

@@ -9,7 +9,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-import fitz  # PyMuPDF
+import pymupdf
 import pytest
 from PIL import Image as PILImage
 
@@ -284,7 +284,7 @@ def test_pdf_pages_go_as_decision_images_named_by_page(
     tmp_path: Path, server: DecisionServer, classify: Classify
 ) -> None:
     pdf = tmp_path / "book.pdf"
-    document = fitz.open()
+    document = pymupdf.open()
     for number in range(3):
         page = document.new_page(width=200, height=300)
         page.insert_text((50, 100), f"Page {number + 1}")
@@ -308,7 +308,7 @@ def test_pdf_pages_go_as_decision_images_named_by_page(
 
 
 def _pdf(path: Path, pages: int) -> Path:
-    document = fitz.open()
+    document = pymupdf.open()
     for number in range(pages):
         document.new_page(width=200, height=300).insert_text((50, 100), str(number))
     document.save(path)

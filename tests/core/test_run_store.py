@@ -19,7 +19,7 @@ from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
-import fitz  # PyMuPDF
+import pymupdf
 import pytest
 
 import chronominer.run as core
@@ -55,7 +55,7 @@ OTHER_MODEL = "gpt-5.6-terra"
 
 def _pdf(path: Path, pages: int) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    document = fitz.open()
+    document = pymupdf.open()
     for index in range(pages):
         page = document.new_page(width=200, height=300)
         page.insert_text((50, 100), f"Page {index + 1}")

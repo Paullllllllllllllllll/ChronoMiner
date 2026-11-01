@@ -6,7 +6,7 @@ import random
 from pathlib import Path
 from typing import Any
 
-import fitz
+import pymupdf
 import pytest
 from PIL import Image, ImageDraw
 
@@ -85,7 +85,7 @@ def test_settings_and_fingerprint_stay_free_of_the_filter(
 
     FolderPages(page_file.parent, img_cfg, model_type, image_paths=[page_file])
     pdf = tmp_path / "doc.pdf"
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         doc.new_page()
         doc.save(str(pdf))
     with PdfPages(pdf, img_cfg, model_type, section=section):
@@ -99,7 +99,7 @@ def test_settings_and_fingerprint_stay_free_of_the_filter(
 def test_pdf_pages_carry_the_lanczos_filter(tmp_path: Path) -> None:
     img_cfg, model_type, section = resolve_image_settings("openai", "gpt-4o")
     pdf = tmp_path / "doc.pdf"
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         doc.new_page()
         doc.save(str(pdf))
     with PdfPages(pdf, img_cfg, model_type, section=section) as pages:

@@ -6,7 +6,7 @@ import io
 import math
 from typing import Any
 
-import fitz
+import pymupdf
 import pytest
 from PIL import Image
 
@@ -41,9 +41,9 @@ def scan_page(doc: Any, dpi: int = 300, width: int = 144, height: int = 216) -> 
 
 
 def test_mrc_high_layer_and_small_stamp() -> None:
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         page = scan_page(doc, 150)
-        page.insert_image(fitz.Rect(1, 1, 11, 11), stream=scan_bytes(600, 600))
+        page.insert_image(pymupdf.Rect(1, 1, 11, 11), stream=scan_bytes(600, 600))
         assert native_page_dpi(page, 300).dpi == pytest.approx(150)
         layer = Image.new("RGBA", (720, 1080), (0, 0, 0, 128))
         data = io.BytesIO()
@@ -55,9 +55,9 @@ def test_mrc_high_layer_and_small_stamp() -> None:
 
 @pytest.mark.parametrize("geometry", ["rotate", "crop", "anisotropic", "diagonal"])
 def test_native_geometry(geometry: str) -> None:
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         if geometry == "diagonal":
-            with fitz.open() as original:
+            with pymupdf.open() as original:
                 scan_page(original, 300, 144, 144)
                 page = doc.new_page(width=144, height=144)
                 page.show_pdf_page(page.rect, original, 0, rotate=45)
@@ -69,7 +69,7 @@ def test_native_geometry(geometry: str) -> None:
             if geometry == "rotate":
                 page.set_rotation(90)
             elif geometry == "crop":
-                page.set_cropbox(fitz.Rect(72, 0, 144, 216))
+                page.set_cropbox(pymupdf.Rect(72, 0, 144, 216))
             else:
                 page = doc.new_page(width=144, height=216)
                 page.insert_image(
@@ -85,26 +85,26 @@ def test_native_geometry(geometry: str) -> None:
 
 @pytest.mark.parametrize("kind", ["text", "pixel", "figure"])
 def test_native_fallback(kind: str) -> None:
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         page = doc.new_page(width=144, height=216)
         if kind == "text":
             page.insert_text((10, 20), "Born digital")
         elif kind == "pixel":
             page.insert_image(page.rect, stream=scan_bytes(1, 1))
         else:
-            page.insert_image(fitz.Rect(0, 0, 60, 60), stream=scan_bytes(600, 600))
+            page.insert_image(pymupdf.Rect(0, 0, 60, 60), stream=scan_bytes(600, 600))
         result = native_page_dpi(page, 240)
         assert result.source == "fallback"
         assert result.dpi == 240
 
 
 def test_undecodable_image_fails_the_page() -> None:
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         page = scan_page(doc)
         xref = page.get_images()[0][0]
         doc.xref_set_key(xref, "Filter", "/JPXDecode")
         page = doc.reload_page(page)
-        with pytest.raises(fitz.mupdf.FzErrorBase, match="JPX"):
+        with pytest.raises(pymupdf.mupdf.FzErrorBase, match="JPX"):
             native_page_dpi(page, 300)
 
 

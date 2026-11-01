@@ -23,8 +23,8 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import Any
 
-import fitz
 import PIL
+import pymupdf
 
 from chronominer.common import image_presets
 from chronominer.common.images import (
@@ -346,8 +346,8 @@ def file_provenance(
     return {
         "source_file": path.name,
         "source_sha256": sha256_of_file(path),
-        "pymupdf_version": getattr(fitz, "__version__", None)
-        or getattr(fitz, "version", ("unknown",))[0],
+        "pymupdf_version": getattr(pymupdf, "__version__", None)
+        or getattr(pymupdf, "version", ("unknown",))[0],
         "pillow_version": PIL.__version__,
         "image_config": settings,
         "model_type": model_type,

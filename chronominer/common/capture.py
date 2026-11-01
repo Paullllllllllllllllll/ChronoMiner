@@ -32,6 +32,11 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 import httpx
+from langchain_core.exceptions import (
+    ContextOverflowError,
+    LangChainException,
+    ModelError,
+)
 
 from .responses import inspect_response, stop_of, unwrap_raw_response
 
@@ -380,6 +385,31 @@ def carry_prompt_feedback(response: Any, body: bytes | str | None) -> None:
         metadata["prompt_feedback"] = dict(feedback)
 
 
+def error_type_of(error: BaseException) -> str:
+    """Return the error type stored for *error*, its class name.
+
+    LangChain integrations re-raise a provider error as a class that inherits
+    both the provider's own class and a LangChain ``ModelError``
+    (``OpenAIAPIError`` over the OpenAI SDK's ``InternalServerError``,
+    ``GoogleRateLimitError`` over ``ChatGoogleGenerativeAIError``). For such
+    an error the name is that of the provider class, or of the chained cause
+    when the cause is an instance of it, so a stored type keeps the name it
+    had before the wrapping. Context-overflow errors keep their LangChain
+    names, which they had before.
+    """
+    if not isinstance(error, ModelError) or isinstance(error, ContextOverflowError):
+        return type(error).__name__
+    provider_class = next(
+        cls for cls in type(error).__mro__ if not issubclass(cls, LangChainException)
+    )
+    if provider_class in (Exception, BaseException, object):
+        return type(error).__name__
+    cause = error.__cause__
+    if isinstance(cause, provider_class):
+        return type(cause).__name__
+    return provider_class.__name__
+
+
 class HttpAttempt:
     """The capture scope and the stored record of one HTTP attempt.
 
@@ -443,7 +473,7 @@ class HttpAttempt:
         elif response is not None:
             raw, raw_kind = sdk_dump(unwrap_raw_response(response)), "sdk"
         message = None if error is None else str(error)
-        kind = None if error is None else type(error).__name__
+        kind = None if error is None else error_type_of(error)
         stopped = None if error is None else stop_of(error)
         if stopped is not None:
             kind = stopped.kind

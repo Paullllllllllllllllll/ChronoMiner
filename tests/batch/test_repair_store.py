@@ -21,7 +21,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
-import fitz
+import pymupdf
 import pytest
 
 from chronominer.batch import repair as repair_module
@@ -75,7 +75,7 @@ def chunk_label(idx: int) -> str:
 
 def make_pdf(path: Path, pages: int) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         for number in range(pages):
             doc.new_page(width=200, height=100).insert_text((20, 50), f"P{number}")
         doc.save(path)

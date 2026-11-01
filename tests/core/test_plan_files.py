@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import fitz  # PyMuPDF
+import pymupdf
 import pytest
 
 import chronominer.run as core
@@ -16,7 +16,7 @@ from tests.conftest import make_settings, make_spec
 
 def _pdf(path: Path) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    document = fitz.open()
+    document = pymupdf.open()
     document.new_page(width=200, height=300).insert_text((50, 100), "Page 1")
     document.save(path)
     document.close()

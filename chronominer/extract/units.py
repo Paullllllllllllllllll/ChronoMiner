@@ -51,7 +51,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping, Sequenc
 from dataclasses import dataclass
 from typing import Any
 
-from chronominer.common.capture import use_recorder
+from chronominer.common.capture import error_type_of, use_recorder
 from chronominer.common.store import (
     Lease,
     LeaseLostError,
@@ -392,7 +392,7 @@ class _Units:
         error_type: str | None = None
         if raised is not None:
             error = str(raised) or type(raised).__name__
-            error_type = type(raised).__name__
+            error_type = error_type_of(raised)
         elif failed:
             last = recorder.stored[-1].record if recorder.stored else None
             error = (

@@ -217,6 +217,13 @@ STRUCTURE: tuple[AddRule | DropRule | Rematch, ...] = (
         like="gemini-3.7-flash",
         prefixes=("gemini-3.8-flash", "gemini-3-8-flash"),
     ),
+    AddRule(
+        "gemini-4-argon",
+        "gemini-3.8-flash",
+        _GG + "models/gemini-4-argon: Thinking, Structured outputs, Image input",
+        like="gemini-3.8-flash",
+        prefixes=("gemini-4-argon",),
+    ),
     Rematch(
         "gemini-3.1-pro-preview",
         _GG + "models/gemini-3.1-pro-preview: Input token limit 1,048,576",
@@ -564,6 +571,18 @@ FACTS: tuple[Fact, ...] = (
         "reasoning_efforts",
         _LOW_TO_HIGH,
         _GG + "gemini-3: minimal not supported on 3.1 Pro; 3.8 Flash: low-high",
+    ),
+    Fact(
+        ("gemini-4-argon",),
+        "reasoning_efforts",
+        _LOW_TO_HIGH,
+        _GG + "models/gemini-4-argon: Thinking / Supported (low, medium, high)",
+    ),
+    Fact(
+        ("gemini-3.8-flash", "gemini-3.7-flash", "gemini-4-argon"),
+        "max_context_tokens",
+        1048576,
+        _GG + "models/gemini-3.8-flash: Input token limit 1,048,576",
     ),
     Fact(
         ("gemini-3.1-flash-lite",),

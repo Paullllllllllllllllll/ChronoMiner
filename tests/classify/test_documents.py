@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-import fitz  # PyMuPDF
+import pymupdf
 import pytest
 
 from chronominer.classify import units
@@ -68,7 +68,7 @@ def test_a_pdf_sends_its_first_pages_in_one_request(
     tmp_path: Path, server: DecisionServer, classify: Classify
 ) -> None:
     pdf = tmp_path / "book.pdf"
-    document = fitz.open()
+    document = pymupdf.open()
     for number in range(3):
         document.new_page(width=200, height=300).insert_text((50, 100), str(number))
     document.save(pdf)
@@ -124,7 +124,7 @@ def test_a_page_that_cannot_be_prepared_fails_the_document_unasked(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pdf = tmp_path / "book.pdf"
-    document = fitz.open()
+    document = pymupdf.open()
     for number in range(3):
         document.new_page(width=200, height=300).insert_text((50, 100), str(number))
     document.save(pdf)

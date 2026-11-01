@@ -11,7 +11,7 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import AsyncMock, MagicMock
 
-import fitz
+import pymupdf
 import pytest
 from PIL import Image
 
@@ -37,7 +37,7 @@ IMG_CFG: dict[str, Any] = {
 
 
 def make_pdf(path: Path, pages: int = 3) -> Path:
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         for i in range(pages):
             page = doc.new_page(width=200, height=100)
             page.insert_text((20, 50), f"Page {i + 1}")

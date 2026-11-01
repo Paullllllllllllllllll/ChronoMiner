@@ -10,8 +10,8 @@ from pathlib import Path
 from typing import Any
 from unittest.mock import patch
 
-import fitz
 import numpy as np
+import pymupdf
 import pytest
 from PIL import Image
 
@@ -67,7 +67,7 @@ def scan_page(doc: Any, dpi: int = 300, width: int = 144, height: int = 216) -> 
 
 
 def scan_pdf(path: Path, dpi: int, width: int = 144, height: int = 216) -> Path:
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         scan_page(doc, dpi, width, height)
         doc.save(path)
     return path
@@ -229,7 +229,7 @@ def recorded(cfg: Mapping[str, Any], model_type: str = "openai") -> dict[str, An
 
 def test_repair_rerenders_a_pdf_page_from_its_source(tmp_path: Path) -> None:
     pdf = tmp_path / "doc.pdf"
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         for i in range(3):
             doc.new_page(width=200, height=100).insert_text((20, 50), f"P{i}")
         doc.save(pdf)

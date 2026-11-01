@@ -8,7 +8,7 @@ import hashlib
 from pathlib import Path
 from typing import Any
 
-import fitz
+import pymupdf
 import pytest
 from PIL import Image
 
@@ -386,7 +386,7 @@ def _settings(**overrides: Any) -> dict[str, Any]:
 
 
 def _make_pdf(path: Path, pages: int) -> Path:
-    doc = fitz.open()
+    doc = pymupdf.open()
     for _ in range(pages):
         doc.new_page(width=144, height=216)
     doc.save(path)

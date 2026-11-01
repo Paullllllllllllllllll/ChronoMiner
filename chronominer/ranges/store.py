@@ -33,7 +33,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
 
-from chronominer.common.capture import AttemptRecord
+from chronominer.common.capture import AttemptRecord, error_type_of
 from chronominer.common.sqlite import read
 from chronominer.common.store import (
     Lease,
@@ -450,7 +450,7 @@ async def write_failure(
             outcome="failed",
             source_index=_source_index(original),
             error=str(error) or type(error).__name__,
-            error_type=type(error).__name__,
+            error_type=error_type_of(error),
             **_stamp(collector, model, provider),
         ),
     )

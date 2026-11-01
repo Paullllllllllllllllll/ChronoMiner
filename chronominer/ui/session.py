@@ -17,7 +17,7 @@ from pathlib import Path
 from types import MappingProxyType
 from typing import TYPE_CHECKING, Any, Final
 
-import fitz
+import pymupdf
 
 from chronominer import ext
 from chronominer.common.options import OptionTable
@@ -315,7 +315,7 @@ _LABELS: Final = {"text": "text file", "pdf": "PDF", "image": "image"}
 
 def _page_count(path: Path) -> int | None:
     try:
-        with fitz.open(path) as document:
+        with pymupdf.open(path) as document:
             return int(document.page_count)
     except Exception as exc:  # noqa: BLE001 - an unreadable PDF has no count
         logger.debug("Could not count the pages of %s: %s", path, exc)

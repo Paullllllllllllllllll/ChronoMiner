@@ -13,7 +13,7 @@ import io
 from pathlib import Path
 from typing import Any
 
-import fitz
+import pymupdf
 import pytest
 from PIL import Image
 
@@ -100,13 +100,13 @@ def inputs(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Path]:
     scan = io.BytesIO()
     Image.new("L", (1654, 2339), 200).save(scan, format="PNG")
     pdf = root / "book.pdf"
-    with fitz.open() as doc:
+    with pymupdf.open() as doc:
         first = doc.new_page(width=595, height=842)
         first.insert_text((72, 100), "Price list of the town granary, 1701")
         second = doc.new_page(width=595, height=842)
         second.insert_image(second.rect, stream=scan.getvalue())
         third = doc.new_page(width=842, height=595)
-        third.insert_image(fitz.Rect(40, 40, 400, 555), stream=scan.getvalue())
+        third.insert_image(pymupdf.Rect(40, 40, 400, 555), stream=scan.getvalue())
         doc.save(str(pdf))
     return {"page": page, "large": large, "pdf": pdf}
 

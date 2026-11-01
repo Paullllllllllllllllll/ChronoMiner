@@ -18,7 +18,7 @@ import sqlite3
 from pathlib import Path
 from typing import Any
 
-import fitz
+import pymupdf
 import pytest
 from PIL import Image
 
@@ -84,7 +84,7 @@ def _ledger(path: Path, records: int = 12) -> Path:
 
 def _pdf(path: Path, pages: int = 3) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    with fitz.open() as document:
+    with pymupdf.open() as document:
         for index in range(pages):
             page = document.new_page(width=200, height=300)
             page.insert_text((50, 100), f"Page {index + 1}")

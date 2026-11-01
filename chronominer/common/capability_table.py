@@ -4,7 +4,7 @@
 with the records of :mod:`.capability_facts` applied: structural records
 add, drop or re-match rules, and each fact sets one field of the rule that
 resolves a named id to the value the lab's documentation states (read on
-13.10.2026). Ids no rule matches, and ids no lab documents (``gpt-5.3``,
+01.11.2026). Ids no rule matches, and ids no lab documents (``gpt-5.3``,
 ``gpt-5.3-chat``, ``glm-flash-latest``), get the conservative profile of the
 engine.
 
@@ -597,6 +597,7 @@ OUTPUT_LIMIT_FAMILIES: frozenset[str] = _documented_limits(FAMILIES)
 AUDIO_FAMILIES: frozenset[str] = frozenset(
     {
         "openai-audio",
+        "gemini-4-argon",
         "gemini-3.8-flash",
         "gemini-3.7-flash",
         "gemini-3.6-flash",

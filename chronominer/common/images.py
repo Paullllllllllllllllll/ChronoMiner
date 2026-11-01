@@ -32,8 +32,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, ClassVar, Self
 
-import fitz
 import PIL
+import pymupdf
 from PIL import Image, ImageOps
 
 from .native import (
@@ -412,8 +412,8 @@ class PageSource:
         """Source, library versions, settings and their fingerprint."""
         return {
             "source_file": str(self.source_path),
-            "pymupdf_version": getattr(fitz, "pymupdf_version", None)
-            or getattr(fitz, "VersionBind", "unknown"),
+            "pymupdf_version": getattr(pymupdf, "pymupdf_version", None)
+            or getattr(pymupdf, "VersionBind", "unknown"),
             "pillow_version": PIL.__version__,
             "image_config_section": self.section,
             "image_config": dict(self.img_cfg),
@@ -526,7 +526,7 @@ class PdfPageSource(PageSource):
             payload_sha256_key=payload_sha256_key,
         )
         self._render_lock = threading.Lock()
-        self._doc: fitz.Document | None = fitz.open(pdf_path)
+        self._doc: pymupdf.Document | None = pymupdf.open(pdf_path)
         # An encrypted PDF reports a page count but fails every render.
         if self._doc.needs_pass:
             self._doc.close()
@@ -567,7 +567,7 @@ class PdfPageSource(PageSource):
         if self.max_pixels > 0 and pixels > self.max_pixels:
             zoom *= math.sqrt(self.max_pixels / pixels)
             while True:
-                box = (rect * fitz.Matrix(zoom, zoom)).irect
+                box = (rect * pymupdf.Matrix(zoom, zoom)).irect
                 area = box.width * box.height
                 if area <= self.max_pixels:
                     break
@@ -620,10 +620,10 @@ class PdfPageSource(PageSource):
                 "render_dpi": zoom * 72,
                 "downscale_reason": reason,
             }
-            matrix = fitz.Matrix(zoom, zoom)
+            matrix = pymupdf.Matrix(zoom, zoom)
             if grayscale:
                 pix = page.get_pixmap(
-                    matrix=matrix, alpha=False, colorspace=fitz.csGRAY
+                    matrix=matrix, alpha=False, colorspace=pymupdf.csGRAY
                 )
                 image = Image.frombytes("L", (pix.width, pix.height), pix.samples_mv)
             else:
