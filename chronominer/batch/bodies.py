@@ -22,8 +22,8 @@ for a Gemini page image, the media resolution its detail maps to.
 synchronous request sends, Google ``response_json_schema``), ``json`` sends
 it only in the prompt. A text chunk is sent as the user message; an image
 chunk follows :data:`~chronominer.llm.prompts.IMAGE_INSTRUCTION`. The
-context image is sent to OpenAI only, as the synchronous path sends it:
-preprocessed like a page, as JPEG with the model's detail, first under
+context image goes to every model with image input, as the synchronous path
+sends it: preprocessed like a page, as JPEG with the model's detail, first under
 :data:`~chronominer.llm.prompts.CONTEXT_IMAGE_LABEL`. The format follows the
 synchronous rules: without ``--response-format`` a model with structured
 output enforces the schema and any other model gets prompted JSON, as does an
@@ -60,7 +60,6 @@ from chronominer.spec import ImageSpec, ModelSpec
 
 __all__ = [
     "CONTEXT_IMAGE_INSTRUCTION",
-    "CONTEXT_IMAGE_PROVIDERS",
     "USER_INSTRUCTION",
     "BodyPlan",
     "build_plan",
@@ -71,8 +70,6 @@ logger = logging.getLogger(__name__)
 
 USER_INSTRUCTION = IMAGE_INSTRUCTION
 CONTEXT_IMAGE_INSTRUCTION = CONTEXT_IMAGE_LABEL
-CONTEXT_IMAGE_PROVIDERS = frozenset({"openai"})
-"""Batch providers that receive the context image, as in synchronous calls."""
 
 _CHUNK_KINDS: tuple[ChunkKind, ...] = ("text", "image")
 
@@ -125,7 +122,7 @@ class BodyPlan:
         if not request.is_visual and not request.text:
             raise ValueError(f"Request {request.custom_id} has no text or image")
         parts: list[Part] = []
-        if self.context_image is not None and self.plan.provider == "openai":
+        if self.context_image is not None:
             data, mime, context_detail = self.context_image
             parts.append(Part(text=CONTEXT_IMAGE_INSTRUCTION))
             parts.append(Part(data=data, mime=mime, detail=context_detail))
@@ -150,23 +147,26 @@ def context_image_payload(
     path: Path | None,
     images: ImageSpec | None = None,
     original_max_side_px: int | None = None,
+    *,
+    vision: bool = True,
 ) -> tuple[str, str, str | None] | None:
     """Return the base64 data, MIME type and detail of a context image.
 
     The image is preprocessed like a page and encoded as JPEG with the
-    model's detail, for the providers of :data:`CONTEXT_IMAGE_PROVIDERS`;
-    the others get none, with a warning. *original_max_side_px* is the
-    ``images`` setting of that name.
+    model's detail; a model without image input (*vision* false) gets none,
+    with a warning. *original_max_side_px* is the ``images`` setting of that
+    name.
 
     Raises:
         ValueError: The image cannot be loaded, or an image setting is invalid.
     """
     if path is None or not path.exists():
         return None
-    if model.provider not in CONTEXT_IMAGE_PROVIDERS:
+    if not vision:
         logger.warning(
-            "Context images are not sent to provider '%s'; skipping %s.",
-            model.provider,
+            "Context images are not sent to model '%s', which takes no "
+            "images; skipping %s.",
+            model.model,
             path.name,
         )
         return None
@@ -217,6 +217,10 @@ def build_plan(
         schema=enforced if response_format == "schema" else None,
         detail=detail,
         context_image=context_image_payload(
-            model, context_image, images, settings.images.original_max_side_px
+            model,
+            context_image,
+            images,
+            settings.images.original_max_side_px,
+            vision=caps.supports_vision,
         ),
     )

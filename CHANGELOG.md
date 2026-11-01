@@ -1,5 +1,10 @@
 # Changelog
 
+- **v1.10.0** (12 November 2026) -- The context image is sent before every
+  chunk to every model that takes images, whatever the provider, in synchronous
+  runs and in batches; it was limited to OpenAI and OpenRouter in synchronous
+  runs and to OpenAI in batches. A model without image input skips it with a
+  warning in the log.
 - **v1.9.1** (8 November 2026) -- pyasn1 moves from 0.6.4 to 0.6.5 in
   `uv.lock` for GHSA-2qm8-x737-gmw5, GHSA-9m75-vc3g-4x39, GHSA-fm9c-5rcf-2q5p
   and GHSA-mm57-4v3p-rchx. No source change.

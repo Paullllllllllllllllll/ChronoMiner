@@ -226,14 +226,23 @@ def test_a_gemini_detail_without_a_resolution_sends_no_resolution(
     }
 
 
-@pytest.mark.parametrize("provider", ["openai", "openrouter"])
+@pytest.mark.parametrize(
+    ("provider", "image_type"),
+    [
+        ("openai", "image_url"),
+        ("openrouter", "image_url"),
+        ("custom", "image_url"),
+        ("anthropic", "image"),
+        ("google", "image"),
+    ],
+)
 def test_the_context_image_precedes_the_page(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, provider: str
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, provider: str, image_type: str
 ) -> None:
     spec = (
-        SPECS["openai"]
-        if provider == "openai"
-        else model_spec("openai/gpt-5.4", "openrouter")
+        model_spec("openai/gpt-5.4", "openrouter")
+        if provider == "openrouter"
+        else SPECS[provider]
     )
     extractor, script = _extractor(monkeypatch, [ANSWER], spec)
     extractor.update_context_image(_context_image(tmp_path))
@@ -243,13 +252,19 @@ def test_the_context_image_precedes_the_page(
     blocks = _human(script.requests[0])
     assert [block["type"] for block in blocks] == [
         "text",
-        "image_url",
+        image_type,
         "text",
-        "image_url",
+        image_type,
     ]
     assert blocks[0]["text"] == "Context image:"
     assert blocks[2]["text"] == IMAGE_INSTRUCTION
-    assert blocks[1]["image_url"]["url"].startswith("data:image/jpeg;base64,")
+    context = blocks[1]
+    if image_type == "image_url":
+        assert context["image_url"]["url"].startswith("data:image/jpeg;base64,")
+    elif provider == "anthropic":
+        assert context["source"]["media_type"] == "image/jpeg"
+    else:
+        assert context["mime_type"] == "image/jpeg"
 
 
 def test_the_context_image_comes_before_a_text_chunk(
@@ -265,20 +280,18 @@ def test_the_context_image_comes_before_a_text_chunk(
     assert blocks[2] == {"type": "text", "text": "Record 002."}
 
 
-@pytest.mark.parametrize("provider", ["anthropic", "google", "custom"])
-def test_other_providers_skip_the_context_image(
+def test_a_model_without_image_input_skips_the_context_image(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
-    provider: str,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
-    extractor, script = _extractor(monkeypatch, [ANSWER], SPECS[provider])
+    extractor, script = _extractor(monkeypatch, [ANSWER], model_spec("o3-mini"))
 
     with caplog.at_level(logging.WARNING):
         extractor.update_context_image(_context_image(tmp_path))
-    _page(extractor)
+    _text(extractor, "Record 002.")
 
-    assert len(_human(script.requests[0])) == 2
+    assert _human(script.requests[0]) == "Record 002."
     assert "Context images are not sent" in caplog.text
 
 

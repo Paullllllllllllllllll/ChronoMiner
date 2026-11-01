@@ -11,8 +11,8 @@ serves context images only. ``--context none`` sends no context.
 
 ``--context-image`` is a switch: it resolves an image with
 the same hierarchy (``{stem}_extract_context.png`` and so on) and sends it as
-a ``Context image:`` text block and an image block before the input, for
-OpenAI and OpenRouter only. Context-image cases use an image input, so the
+a ``Context image:`` text block and an image block before the input, to
+every model with image input. Context-image cases use an image input, so the
 page image stays the last image of each request.
 """
 
@@ -160,17 +160,23 @@ def _check_no_context(result: RunResult) -> None:
         assert DEFAULT_CONTEXT.splitlines()[0] not in system
 
 
-def _with_context_image(result: RunResult) -> None:
-    for call in result.calls:
-        blocks = _human_blocks(call)
-        assert [block["type"] for block in blocks] == [
-            "text",
-            "image_url",
-            "text",
-            "image_url",
-        ]
-        assert blocks[0]["text"] == CONTEXT_LABEL
-        assert call["unit"] == page_unit(0)
+def _context_image_check(image_type: str) -> Check:
+    def check(result: RunResult) -> None:
+        for call in result.calls:
+            blocks = _human_blocks(call)
+            assert [block["type"] for block in blocks] == [
+                "text",
+                image_type,
+                "text",
+                image_type,
+            ]
+            assert blocks[0]["text"] == CONTEXT_LABEL
+            assert call["unit"] == page_unit(0)
+
+    return check
+
+
+_with_context_image = _context_image_check("image_url")
 
 
 def _without_context_image(result: RunResult) -> None:
@@ -275,7 +281,7 @@ CASES: tuple[ContextCase, ...] = (
         "image_context_image_anthropic",
         "image",
         setup=_image_sidecar_anthropic,
-        check=_without_context_image,
+        check=_context_image_check("image"),
     ),
 )
 

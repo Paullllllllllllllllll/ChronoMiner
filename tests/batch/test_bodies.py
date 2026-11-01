@@ -538,18 +538,50 @@ def test_the_context_image_precedes_the_chunk_on_openai(
     assert context["image_url"].startswith("data:image/jpeg;base64,")
 
 
-@pytest.mark.parametrize("provider", ["anthropic", "google"])
-def test_other_providers_get_no_context_image_as_in_sync_calls(
-    provider: str, tmp_path: Path, caplog: pytest.LogCaptureFixture
+@pytest.mark.parametrize("request_", [REQUEST, TEXT_REQUEST], ids=["image", "text"])
+def test_the_context_image_precedes_the_chunk_on_anthropic(
+    request_: BatchRequest, tmp_path: Path
 ) -> None:
     image = tmp_path / "context.png"
     Image.new("L", (40, 40), "white").save(image)
-    built = plan(provider, context_image=image, context="Register of 1791.")
-    text = json.dumps(built.body(REQUEST))
+    body = plan("anthropic", context_image=image).body(request_)
+    content = body["messages"][0]["content"]
+    label, context = content[:2]
+    assert label == {"type": "text", "text": CONTEXT_IMAGE_LABEL}
+    assert context["type"] == "image"
+    assert context["source"]["type"] == "base64"
+    assert context["source"]["media_type"] == "image/jpeg"
+    assert len(content) == (4 if request_.is_visual else 3)
+
+
+@pytest.mark.parametrize("request_", [REQUEST, TEXT_REQUEST], ids=["image", "text"])
+def test_the_context_image_precedes_the_chunk_on_google(
+    request_: BatchRequest, tmp_path: Path
+) -> None:
+    image = tmp_path / "context.png"
+    Image.new("L", (40, 40), "white").save(image)
+    body = plan("google", context_image=image).body(request_)
+    parts = body["contents"][0]["parts"]
+    label, context = parts[:2]
+    assert label == {"text": CONTEXT_IMAGE_LABEL}
+    assert context["inline_data"]["mime_type"] == "image/jpeg"
+    assert len(parts) == (4 if request_.is_visual else 3)
+    assert file_request(body)["contents"][0]["parts"] == parts
+
+
+def test_a_model_without_image_input_gets_no_context_image(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    image = tmp_path / "context.png"
+    Image.new("L", (40, 40), "white").save(image)
+    built = plan(
+        "openai", model="o3-mini", context_image=image, context="Register of 1791."
+    )
+    text = json.dumps(built.body(TEXT_REQUEST))
     assert built.context_image is None
     assert CONTEXT_IMAGE_LABEL not in text
     assert "Register of 1791." in text
-    assert "not sent to provider" in caplog.text
+    assert "which takes no images" in caplog.text
 
 
 def test_original_detail_becomes_high_where_the_model_lacks_it() -> None:

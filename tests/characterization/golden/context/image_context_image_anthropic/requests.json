@@ -18,6 +18,17 @@
         {
           "blocks": [
             {
+              "text": "Context image:",
+              "type": "text"
+            },
+            {
+              "height": 200,
+              "mime": "image/jpeg",
+              "source_type": "base64",
+              "type": "image",
+              "width": 300
+            },
+            {
               "text": "Extract structured data from this image according to the schema.",
               "type": "text"
             },

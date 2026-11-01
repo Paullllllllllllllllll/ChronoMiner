@@ -1,4 +1,4 @@
-# ChronoMiner v1.9.1
+# ChronoMiner v1.10.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -745,8 +745,9 @@ item's context is `{stem}_extract_context.txt` beside the file, else
 `fallback_context` in `defaults:`); without one the item has no context.
 `--context-image auto` looks for `{stem}_extract_context.{png,jpg,...}` the same way,
 else for `context/extract_context.{png,jpg,...}` in the repository. The context image
-is sent before every chunk to OpenAI and OpenRouter models; for other providers it is
-skipped with a warning in the log. A chunk fails without a request when an image of
+is sent before every chunk, synchronously and in batches, to every model that takes
+images (`supports_vision`), whatever the provider; for a model without image input it
+is skipped with a warning in the log. A chunk fails without a request when an image of
 the request, the context image included, exceeds the payload limit of the model's
 family (OpenAI 50 MB, Anthropic 10 MB, Gemini 20 MB) or when a Gemini request's
 images and prompt text together exceed 20 MB.

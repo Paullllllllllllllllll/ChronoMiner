@@ -67,7 +67,6 @@ from chronominer.llm.prompts import (
 from chronominer.spec import ImageSpec, ModelSpec
 
 __all__ = [
-    "CONTEXT_IMAGE_PROVIDERS",
     "ROLE",
     "ChunkExtractor",
     "anthropic_schema",
@@ -79,9 +78,6 @@ logger = logging.getLogger(__name__)
 
 ROLE = "extract"
 """The usage role of extraction calls."""
-
-CONTEXT_IMAGE_PROVIDERS = frozenset({"openai", "openrouter"})
-"""Providers that receive the context image; the others skip it."""
 
 ANTHROPIC_SCHEMA_DESCRIPTION = "Return a JSON object that conforms to this schema."
 
@@ -244,17 +240,18 @@ class ChunkExtractor:
     def update_context_image(self, path: Path | None) -> None:
         """Send *path* as the context image of later chunks; None sends none.
 
-        The image is preprocessed like a page and sent as JPEG, to OpenAI and
-        OpenRouter only.
+        The image is preprocessed like a page and sent as JPEG in the
+        provider's image block; a model without image input gets none.
         """
         self._context_image = None
         if path is None or not path.exists():
             return
-        if self.provider not in CONTEXT_IMAGE_PROVIDERS:
+        if not self.capabilities.supports_vision:
             if not self._skipped_context_image:
                 logger.warning(
-                    "Context images are not sent to provider '%s'; skipping %s.",
-                    self.provider,
+                    "Context images are not sent to model '%s', which takes no "
+                    "images; skipping %s.",
+                    self.model_name,
                     path.name,
                 )
                 self._skipped_context_image = True
