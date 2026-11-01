@@ -64,3 +64,7 @@ logs/
 # Local scratch area (ad-hoc tests, backups)
 scratch/
 backup/
+
+# Agent and T3 Code files (local only)
+t3.json
+.t3-icon.svg
