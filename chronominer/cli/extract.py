@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import sys
+from collections.abc import Callable
 
 from chronominer import ext
 from chronominer.cli.command import (
@@ -20,6 +21,7 @@ from chronominer.cli.console import print_error
 from chronominer.cli.heartbeat import with_heartbeat
 from chronominer.cli.reporter import StderrReporter
 from chronominer.common.contract import ExitCode
+from chronominer.common.stale_leases import HeldLease, wait_for_stale_leases
 from chronominer.run import PlanError, RunPlan, plan, run
 from chronominer.settings import Settings, SettingsError, SpecError, resolve
 from chronominer.spec import OPTIONS
@@ -93,6 +95,27 @@ def _run(
     return _process(run_plan, reporter, summary)
 
 
+def _held(run_plan: RunPlan) -> list[HeldLease]:
+    return [
+        HeldLease(str(item.path), item.resume.leased_by, item.resume.lease_until)
+        for item in run_plan.leased
+        if item.resume.lease_until is not None
+    ]
+
+
+def _after_stale_leases(run_plan: RunPlan, replan: Callable[[], RunPlan]) -> RunPlan:
+    """Wait out the leases a killed run left on the plan's items; plan again."""
+    latest = run_plan
+
+    def read() -> list[HeldLease]:
+        nonlocal latest
+        latest = replan()
+        return _held(latest)
+
+    wait_for_stale_leases(_held(run_plan), read)
+    return latest
+
+
 def _execute(args: argparse.Namespace, summary: Summary) -> int:
     flags = OPTIONS.values(args)
     setup_logging()
@@ -108,6 +131,11 @@ def _execute(args: argparse.Namespace, summary: Summary) -> int:
     warn_conditions(OPTIONS, flags, settings, spec)
     try:
         run_plan = plan(spec, settings, sources=resolution.sources, args=args)
+        if not spec.run.dry_run:
+            run_plan = _after_stale_leases(
+                run_plan,
+                lambda: plan(spec, settings, sources=resolution.sources, args=args),
+            )
     except PlanError as exc:
         print_error(f"Invalid arguments: {exc}")
         return summary.emit(exc.exit_code, **summary_fields(total=exc.items_total))

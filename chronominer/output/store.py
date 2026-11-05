@@ -714,8 +714,9 @@ class Classification:
     complete item to re-render its files without model calls; *missing*
     lists those files absent on disk. *note* records a model change, which
     resumes. *total* counts the stored units of a complete or partial item.
-    *leased_by* names the run whose lease blocks the item; it is None for an
-    item blocked by a batch submission.
+    *leased_by* names the run whose lease blocks the item and *lease_until*
+    its expiry in seconds since the epoch; both are None for an item blocked
+    by a batch submission.
     """
 
     state: ItemState
@@ -728,6 +729,7 @@ class Classification:
     note: str | None = None
     total: int = 0
     leased_by: str | None = None
+    lease_until: float | None = None
 
     @property
     def indices(self) -> tuple[int, ...]:
@@ -866,6 +868,7 @@ def _blocked(
             resume.doc_id,
             reason=lease_reason(resume.lease_run_id, resume.lease_until),
             leased_by=resume.lease_run_id,
+            lease_until=resume.lease_until,
         )
     blocked = _of_kind(resume.blocked, kind)
     if blocked:
@@ -995,6 +998,9 @@ def classify(  # noqa: PLR0913 - keyword-only options of run.py and tests
         known = resume.doc_id
         details = read(path, lambda connection: _details(connection, known, kind))
     if resume is None or details is None or not details.counts:
+        leased = None if resume is None else _blocked(resume, name, kind, holder, now)
+        if leased is not None:
+            return leased
         if present:
             return Classification(
                 ItemState.UNSTORED,

@@ -948,8 +948,10 @@ Resume is the default and reads only the store; a dry run shows each item's stat
 A run leases the items it plans or processes, a complete item whose files would be
 rendered again included. An interrupted `extract` run releases its leases, so a rerun
 right away resumes with the chunks still to do. A run that is killed instead keeps
-its leases until they expire (10 minutes); until then a rerun reports its items as
-blocked and exits 1.
+its leases until they expire, at most 10 minutes later. A live run renews its leases
+every minute, so a rerun reads the leases on its items again every 90 seconds: it
+waits until an unrenewed lease expires and then extracts the item, and it reports an
+item whose lease was renewed as blocked and exits 1.
 
 `--force` resets every stored unit of the selected items, also outside `--pages`, and
 keeps the stored responses. A resume with another model proceeds with a warning, and

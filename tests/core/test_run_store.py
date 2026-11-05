@@ -22,6 +22,7 @@ from typing import Any
 import pymupdf
 import pytest
 
+import chronominer.cli.extract as extract_cli
 import chronominer.run as core
 from chronominer import __main__ as entry
 from chronominer.common.contract import ExitCode
@@ -552,13 +553,13 @@ def test_an_edited_input_is_refused_unless_forced(scenario: Scenario) -> None:
     assert scenario.run(force=True).complete == 1
 
 
-def _lease_elsewhere(db: Path) -> None:
+def _lease_elsewhere(db: Path, seconds: float = 600) -> None:
     connection = sqlite3.connect(db)
     try:
         connection.execute(
             "UPDATE documents SET lease_run_id = 'other-run', lease_until = ?, "
             "lease_generation = lease_generation + 1",
-            (time.time() + 600,),
+            (time.time() + seconds,),
         )
         connection.commit()
     finally:
@@ -582,6 +583,37 @@ def test_a_document_leased_by_a_live_holder_is_skipped_with_a_note(
     assert result.leased == ("doc.pdf",) and result.exit_code == 1
     assert six.calls == 2
     assert any("Skipping 'doc.pdf'" in note for note in six.notes())
+
+
+def test_a_rerun_takes_over_a_lease_its_run_stopped_renewing(six: Scenario) -> None:
+    six.run(pages="1-2")
+    _lease_elsewhere(six.db, seconds=0.5)
+    stale = six.plan()
+
+    run_plan = extract_cli._after_stale_leases(stale, six.plan)
+
+    assert [item.name for item in stale.leased] == ["doc.pdf"]
+    assert stale.leased[0].resume.lease_until is not None
+    assert [item.name for item in run_plan.to_process] == ["doc.pdf"]
+    assert run_plan.blocked == ()
+
+
+def test_a_leased_document_without_chunks_is_blocked_at_planning(
+    six: Scenario,
+) -> None:
+    six.run(pages="1-2")
+    connection = sqlite3.connect(six.db)
+    try:
+        with connection:
+            connection.execute("DELETE FROM units")
+    finally:
+        connection.close()
+    _lease_elsewhere(six.db)
+
+    run_plan = six.plan()
+
+    assert [item.name for item in run_plan.leased] == ["doc.pdf"]
+    assert run_plan.to_process == ()
 
 
 def test_a_lease_taken_after_planning_skips_the_item_at_run_time(
