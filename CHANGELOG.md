@@ -1,5 +1,12 @@
 # Changelog
 
+- **v1.4.1** (5 November 2026) -- A rerun of `extract` after a killed run no longer
+  skips the killed run's items for the 10 minutes its leases stay valid. Before the
+  run it reads the leases on its items again every 90 seconds; a lease whose expiry
+  does not move belongs to a run that has stopped, and the rerun waits until it
+  expires and then extracts the item, while an item whose lease is renewed stays
+  blocked and exits 1. A leased document without stored chunks is now blocked at
+  planning.
 - **v1.4.0** (1 November 2026) -- Line-range adjustment keeps boundaries on entry
   starts. While the model asks for more context, the window doubles, up to 64 times its
   first radius on each side. A range whose entry start lies beyond the last window or

@@ -1,4 +1,4 @@
-# ChronoMiner v1.4.0
+# ChronoMiner v1.4.1
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
