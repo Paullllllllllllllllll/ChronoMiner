@@ -1,4 +1,4 @@
-# ChronoMiner v1.4.1
+# ChronoMiner v1.4.2
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -701,7 +701,7 @@ older ChronoMiner refuses a database with these triggers.
 
 With `--type auto`, a folder yields its text, image and PDF files in natural order
 (with `--recursive` those of its subfolders too, except top-level `output` and
-`*_outputs` folders), and a file's type comes from its extension; a file of no known
+`*_outputs` folders and Mabillon's `.mabillon` working folders), and a file's type comes from its extension; a file of no known
 type is text. `--type text`, `images` or `pdf` keeps the files of that type. Files the
 tool reads or writes beside an input (context files, line ranges, outputs and the
 database) are never items. An image is one chunk and a PDF has one chunk per page. A

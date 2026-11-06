@@ -67,6 +67,8 @@ _SIDECAR_ENDINGS = (
 )
 _OUTPUT_FOLDER = "output"
 _OUTPUTS_FOLDER_SUFFIX = "_outputs"
+_SKIPPED_FOLDERS = frozenset({".mabillon"})
+"""Folders discovery never enters: Mabillon's working folders below an output root."""
 
 
 class DiscoveryError(ValueError):
@@ -122,6 +124,11 @@ def _in_output_folder(path: Path, root: Path) -> bool:
     return top == _OUTPUT_FOLDER or top.endswith(_OUTPUTS_FOLDER_SUFFIX)
 
 
+def _in_skipped_folder(path: Path, root: Path) -> bool:
+    """Whether *path* lies below a ``.mabillon`` working folder inside *root*."""
+    return any(part in _SKIPPED_FOLDERS for part in path.relative_to(root).parts[:-1])
+
+
 def _walk(folder: Path, recursive: bool) -> Iterator[Path]:
     """Yield the input files in *folder*, its subfolders with *recursive*."""
     entries = folder.rglob("*") if recursive else folder.iterdir()
@@ -130,6 +137,7 @@ def _walk(folder: Path, recursive: bool) -> Iterator[Path]:
             path.is_file()
             and not is_sidecar(path)
             and not _in_output_folder(path, folder)
+            and not _in_skipped_folder(path, folder)
         ):
             yield path
 
@@ -160,8 +168,9 @@ def discover_items(
     A file input is the one item; its type comes from its suffix, and a file
     of no known type is text. A folder yields the named *files* inside it,
     else its input files (all subfolders with *recursive*, except top-level
-    ``output`` and ``*_outputs`` folders), in natural order of their
-    relative paths. Sidecars are never items.
+    ``output`` and ``*_outputs`` folders and Mabillon's ``.mabillon``
+    working folders), in natural order of their relative paths. Sidecars are
+    never items.
 
     Raises:
         DiscoveryError: A file input or a named file whose type is not

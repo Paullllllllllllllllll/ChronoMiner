@@ -130,6 +130,18 @@ class TestRecursion:
         found = discover_items(temp_dir, recursive=True)
         assert _names(found) == ["a.txt", "d.txt"]
 
+    def test_mabillon_working_folders_are_skipped(self, temp_dir: Path) -> None:
+        _touch(
+            temp_dir,
+            "a.txt",
+            ".mabillon/doc/run/text/document.txt",
+            ".mabillon/doc/work/source/c0001.txt",
+            "vol/.mabillon/scan/work/source/p0001.png",
+            "vol/b.md",
+        )
+        found = discover_items(temp_dir, recursive=True)
+        assert _names(found) == ["a.txt", "b.md"]
+
 
 SIDECARS = [
     "doc_extract_context.txt",

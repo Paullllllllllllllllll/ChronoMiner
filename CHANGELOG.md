@@ -1,5 +1,9 @@
 # Changelog
 
+- **v1.4.2** (6 November 2026) -- Discovery no longer enters `.mabillon` folders,
+  in which Mabillon v0.10.0 keeps its working state below an output root it shares
+  with ChronoMiner. A recursive extraction over such a root used to take the
+  agent's unit files, notes and converted text as inputs.
 - **v1.4.1** (5 November 2026) -- A rerun of `extract` after a killed run no longer
   skips the killed run's items for the 10 minutes its leases stay valid. Before the
   run it reads the leases on its items again every 90 seconds; a lease whose expiry
