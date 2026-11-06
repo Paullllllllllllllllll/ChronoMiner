@@ -265,6 +265,10 @@
       "source": "settings",
       "value": "gpt-4o"
     },
+    "model.openrouter_provider": {
+      "source": "default",
+      "value": null
+    },
     "model.provider": {
       "source": "settings",
       "value": "openai"

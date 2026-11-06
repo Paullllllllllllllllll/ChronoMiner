@@ -444,6 +444,12 @@ ROWS = [
         sets=_model(service_tier="priority"),
     ),
     _row(
+        "openrouter_provider",
+        "--openrouter-provider",
+        "deepinfra",
+        sets=_model(openrouter_provider="deepinfra"),
+    ),
+    _row(
         "response_format",
         "--response-format",
         "json",

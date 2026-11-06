@@ -119,7 +119,12 @@ def test_the_steps_set_every_repair_option_but_json_and_settings(
     session: Session,
 ) -> None:
     sets = {name for step in repair_ui.flow().steps(session) for name in step.sets}
-    assert sets == set(REPAIR_OPTIONS.names) - {"json", "settings", "skipped"}
+    assert sets == set(REPAIR_OPTIONS.names) - {
+        "json",
+        "settings",
+        "skipped",
+        "openrouter_provider",
+    }
 
 
 def test_a_scripted_session_repairs_the_failed_pages(

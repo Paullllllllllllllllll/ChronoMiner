@@ -333,6 +333,10 @@
       "source": "flag",
       "value": "org/fake-model"
     },
+    "model.openrouter_provider": {
+      "source": "default",
+      "value": null
+    },
     "model.provider": {
       "source": "flag",
       "value": "custom"

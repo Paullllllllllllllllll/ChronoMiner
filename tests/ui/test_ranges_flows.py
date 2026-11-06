@@ -139,7 +139,7 @@ def test_the_steps_set_every_option_but_json_and_settings(
     flow = FLOWS[name]()
     sets = {option for step in flow.steps(session) for option in step.sets}
     assert flow.table is table
-    assert sets == set(table.names) - {"json", "settings"}
+    assert sets == set(table.names) - {"json", "settings", "openrouter_provider"}
 
 
 def test_a_scripted_generate_session_writes_the_ranges(

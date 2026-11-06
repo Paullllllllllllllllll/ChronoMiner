@@ -305,6 +305,14 @@ def test_routed_models_without_reasoning_get_no_extra_body() -> None:
     assert "extra_body" not in kwargs
 
 
+def test_a_pinned_openrouter_provider_reaches_the_chat_model() -> None:
+    spec = model_spec(
+        "mistralai/mistral-large", "openrouter", openrouter_provider="deepinfra"
+    )
+
+    assert _kwargs(spec)["extra_body"]["provider"]["order"] == ["deepinfra"]
+
+
 def test_custom_capabilities_come_from_the_endpoint() -> None:
     caps = model_capabilities(custom_spec(), settings())
 

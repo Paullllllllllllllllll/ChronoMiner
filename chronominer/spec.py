@@ -72,6 +72,7 @@ from chronominer.common.standard_options import (
     json_option,
     model_options,
     nonempty_text,
+    openrouter_provider_options,
     output_options,
     positive_int,
     render_options,
@@ -359,7 +360,8 @@ class ModelSpec:
     ``provider:`` prefix. ``endpoint`` names a custom endpoint from the
     settings. ``max_output_tokens`` None takes the model's output limit.
     ``response_format`` None means schema when the model supports it, else
-    json.
+    json. ``openrouter_provider`` names the one provider that serves the
+    OpenRouter requests (None: OpenRouter's routing).
     """
 
     provider: str
@@ -372,6 +374,7 @@ class ModelSpec:
     top_p: float
     service_tier: str
     response_format: str | None
+    openrouter_provider: str | None = None
 
 
 @dataclass(frozen=True)
@@ -996,19 +999,22 @@ def _chunking_options() -> list[Option]:
 
 
 def _model_options() -> list[Option]:
-    return model_options(
-        providers=PROVIDERS,
-        suggestions=model_suggestions,
-        defaults={
-            "model": DEFAULT_MODEL,
-            "reasoning_effort": DEFAULT_REASONING_EFFORT,
-            "verbosity": DEFAULT_VERBOSITY,
-            "temperature": DEFAULT_TEMPERATURE,
-            "top_p": DEFAULT_TOP_P,
-            "service_tier": DEFAULT_SERVICE_TIER,
-        },
-        response_formats=RESPONSE_FORMATS,
-    )
+    return [
+        *model_options(
+            providers=PROVIDERS,
+            suggestions=model_suggestions,
+            defaults={
+                "model": DEFAULT_MODEL,
+                "reasoning_effort": DEFAULT_REASONING_EFFORT,
+                "verbosity": DEFAULT_VERBOSITY,
+                "temperature": DEFAULT_TEMPERATURE,
+                "top_p": DEFAULT_TOP_P,
+                "service_tier": DEFAULT_SERVICE_TIER,
+            },
+            response_formats=RESPONSE_FORMATS,
+        ),
+        *openrouter_provider_options(),
+    ]
 
 
 def _decision_options() -> list[Option]:

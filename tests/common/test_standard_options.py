@@ -19,6 +19,7 @@ from chronominer.common.standard_options import (
     jpeg_quality,
     model_options,
     nonempty_text,
+    openrouter_provider_options,
     positive_int,
     render_options,
 )
@@ -70,6 +71,26 @@ def test_phased_rows_fall_back_to_the_unprefixed_row() -> None:
     assert table["b_service_tier"].condition.option == "b_provider"
     assert table["top_p"].default_help == "not sent"
     assert table["a_top_p"].help.endswith("sent only when given and supported")
+
+
+def test_the_openrouter_provider_row_applies_to_openrouter_only() -> None:
+    (single,) = openrouter_provider_options()
+    assert (single.flag, single.target) == (
+        "--openrouter-provider",
+        "model.openrouter_provider",
+    )
+    assert single.condition is not None
+    assert single.condition.holds({"provider": "openrouter"})
+    assert not single.condition.holds({"provider": "openai"})
+    assert not single.settable
+
+    phased = {row.name: row for row in openrouter_provider_options(phases=("a", "b"))}
+    assert phased["openrouter_provider"].target is None
+    assert phased["b_openrouter_provider"].flag == "--b-openrouter-provider"
+    assert phased["b_openrouter_provider"].fallback == "openrouter_provider"
+    assert phased["b_openrouter_provider"].target == "b_model.openrouter_provider"
+    condition = phased["b_openrouter_provider"].condition
+    assert condition is not None and condition.option == "b_provider"
 
 
 def test_response_format_help_follows_the_choices() -> None:

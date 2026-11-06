@@ -115,6 +115,26 @@ def test_an_openrouter_model_with_a_documented_limit_is_clamped_to_it() -> None:
     assert raised["max_tokens"] == 65536
 
 
+def test_a_pinned_openrouter_provider_joins_the_reasoning_without_fallback() -> None:
+    model = "qwen/qwen3.5-flash-02-23"
+    routed = request_params(_plan("openrouter", model, "high"))
+    pinned = request_params(
+        _plan("openrouter", model, "high", openrouter_provider="deepinfra")
+    )
+
+    assert "provider" not in routed["extra_body"]
+    assert pinned["extra_body"] == {
+        "reasoning": routed["extra_body"]["reasoning"],
+        "provider": {
+            "order": ["deepinfra"],
+            "allow_fallbacks": False,
+            "require_parameters": True,
+        },
+    }
+    other = request_params(_plan("openai", "gpt-5.6-luna", openrouter_provider="x"))
+    assert "extra_body" not in other and "provider" not in other
+
+
 def test_an_openai_batch_body_carries_the_sync_parameters() -> None:
     plan = _plan(
         "openai",

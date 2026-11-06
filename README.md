@@ -1,4 +1,4 @@
-# ChronoMiner v1.4.2
+# ChronoMiner v1.5.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -103,6 +103,7 @@ both.
 | `--top-p P` | nucleus sampling, 0.0 to 1.0; sent only when supported | 1.0 | yes |
 | `--service-tier {auto,default,flex,priority}` | OpenAI service tier; only for provider openai | default | yes |
 | `--response-format {schema,json}` | schema (API-enforced) or json (prompted, validated) | schema when the model supports it, else json | yes |
+| `--openrouter-provider NAME` | provider slug that serves every OpenRouter model request, with no fallback to another provider; decision-model requests keep OpenRouter's routing; only for provider openrouter | OpenRouter's routing | no |
 | `--decisions {off,shadow,apply}` | decision-model pre-pass: shadow records each chunk's relevance to the schema; apply also skips the chunks below the validated threshold | off | yes |
 | `--decision-model ID` | decision model id; only for decisions apply, shadow | typesafe/jev-1.14 | yes |
 | `--decision-provider {openai,openrouter}` | decision API dialect; only for decisions apply, shadow | from the model id | yes |
@@ -558,7 +559,12 @@ OpenAI receives the schema as a strict `text.format`, custom endpoints as a stri
 `response_format`, Anthropic as a `json_schema` structured output with union types
 reduced to one type, and Google as `response_schema`. OpenRouter receives a
 `response_format` without `strict`, so enforcement depends on OpenRouter and the
-routed model.
+routed model. `--openrouter-provider NAME` adds OpenRouter's routing object
+`{"order": [NAME], "allow_fallbacks": false, "require_parameters": true}` as
+`provider` to every model request, so one provider serves the run and a request
+it cannot serve fails instead of going to another provider. Decision-model
+requests (`--decisions`) go to OpenRouter's decision API, which the pin does not
+reach.
 
 The model capability table in `chronominer/common/capability_table.py`, shared with
 AutoExcerpter and ChronoTranscriber, feeds the resolver in

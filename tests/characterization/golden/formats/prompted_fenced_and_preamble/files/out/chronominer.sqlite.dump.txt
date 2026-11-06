@@ -506,6 +506,10 @@
       "source": "flag",
       "value": "o3-deep-research"
     },
+    "model.openrouter_provider": {
+      "source": "default",
+      "value": null
+    },
     "model.provider": {
       "source": "flag",
       "value": "openai"

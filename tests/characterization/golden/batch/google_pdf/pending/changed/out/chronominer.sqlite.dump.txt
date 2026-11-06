@@ -229,6 +229,10 @@
       "source": "flag",
       "value": "gemini-2.5-flash"
     },
+    "model.openrouter_provider": {
+      "source": "default",
+      "value": null
+    },
     "model.provider": {
       "source": "flag",
       "value": "google"

@@ -333,6 +333,10 @@
       "source": "flag",
       "value": "gpt-5-mini"
     },
+    "model.openrouter_provider": {
+      "source": "default",
+      "value": null
+    },
     "model.provider": {
       "source": "flag",
       "value": "openai"

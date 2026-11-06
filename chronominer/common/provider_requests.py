@@ -22,7 +22,8 @@ kwargs or, renamed to the LangChain class's fields by
   later) or a ``thinking_budget`` (Gemini 2).
 - OpenRouter (Chat Completions): ``max_tokens``, samplers and the unified
   ``reasoning`` object in ``extra_body``, its effort clamped to a level the
-  model and OpenRouter take.
+  model and OpenRouter take; with a pinned provider ``extra_body`` also
+  carries the ``provider`` routing object, which allows that provider only.
 - Custom endpoints: ``max_tokens`` and the temperature and top_p where set.
 
 :func:`message_content` and :func:`system_content` build the user and system
@@ -96,6 +97,8 @@ class RequestPlan:
     an Anthropic request sends when none is known. *caching* None sends no
     prompt-cache parameter or breakpoint. With *reasoning_only_service_tier*
     only OpenAI reasoning models take the service tier.
+    *openrouter_provider* names the one provider that serves an OpenRouter
+    request (None: OpenRouter's own routing).
     """
 
     provider: str
@@ -110,6 +113,7 @@ class RequestPlan:
     caching: PromptCaching | None = None
     conservative: int = 4096
     reasoning_only_service_tier: bool = False
+    openrouter_provider: str | None = None
 
     @classmethod
     def resolve(
@@ -234,11 +238,20 @@ def _openrouter(plan: RequestPlan) -> dict[str, Any]:
     if plan.limit is not None:
         params["max_tokens"] = plan.limit
     params.update(_samplers(plan))
+    extra: dict[str, Any] = {}
     reasoning = openrouter_reasoning(
         plan.model, plan.effort or "", plan.caps, plan.limit
     )
     if reasoning is not None:
-        params["extra_body"] = {"reasoning": reasoning}
+        extra["reasoning"] = reasoning
+    if plan.openrouter_provider:
+        extra["provider"] = {
+            "order": [plan.openrouter_provider],
+            "allow_fallbacks": False,
+            "require_parameters": True,
+        }
+    if extra:
+        params["extra_body"] = extra
     return params
 
 

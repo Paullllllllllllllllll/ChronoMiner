@@ -90,6 +90,7 @@ def _model(rng: random.Random) -> ModelSpec:
         top_p=rng.choice([0.0, 1.0]),
         service_tier=rng.choice(SERVICE_TIERS),
         response_format=rng.choice([None, *RESPONSE_FORMATS]),
+        openrouter_provider=rng.choice([None, "deepinfra", "-p"]),
     )
 
 

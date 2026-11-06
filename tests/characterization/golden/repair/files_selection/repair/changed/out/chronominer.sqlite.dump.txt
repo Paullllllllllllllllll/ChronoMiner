@@ -555,6 +555,10 @@
       "source": "flag",
       "value": "gpt-4o"
     },
+    "model.openrouter_provider": {
+      "source": "default",
+      "value": null
+    },
     "model.provider": {
       "source": "flag",
       "value": "openai"
@@ -684,6 +688,10 @@
     "model.model": {
       "source": "flag",
       "value": "gpt-4o"
+    },
+    "model.openrouter_provider": {
+      "source": "flag",
+      "value": null
     },
     "model.provider": {
       "source": "flag",

@@ -83,6 +83,10 @@ EXEMPT: Final[Mapping[str, str]] = MappingProxyType(
         "wait": "batch check in the ui makes one pass",
         "poll_minutes": "only with --wait, which the ui does not offer",
         "wait_hours": "only with --wait, which the ui does not offer",
+        "openrouter_provider": (
+            "pins one OpenRouter provider for scripted runs; the ui leaves the "
+            "routing to OpenRouter"
+        ),
     }
 )
 _CLASSIFY_REASON: Final = (

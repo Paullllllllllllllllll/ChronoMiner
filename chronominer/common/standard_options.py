@@ -1,8 +1,9 @@
 """Standard option rows: the run options every tool declares alike.
 
 The builders return :class:`~.options.Option` rows for the model block, the
-page-image block, the output location, run control (``--force``,
-``--concurrency``, ``--batch``, ``--dry-run``, ``--json``, ``--settings``),
+OpenRouter provider pin, the page-image block, the output location, run
+control (``--force``, ``--concurrency``, ``--batch``, ``--dry-run``,
+``--json``, ``--settings``),
 batch check and cancel, ``render``, the decision-model block and a classify
 command (``--classifier`` with the decision-model rows). Each tool passes
 its own defaults, help texts and conditions, and arranges the rows into its
@@ -54,6 +55,7 @@ __all__ = [
     "json_option",
     "model_options",
     "nonempty_text",
+    "openrouter_provider_options",
     "output_options",
     "positive_int",
     "render_options",
@@ -281,6 +283,55 @@ def _tier_condition(name: str, provider: str) -> Condition | None:
     if name != "service_tier":
         return None
     return Condition(provider, frozenset({"openai"}))
+
+
+_OPENROUTER_PROVIDER_HELP = (
+    "provider slug that serves every OpenRouter model request, with no "
+    "fallback to another provider; decision-model requests keep OpenRouter's "
+    "routing"
+)
+
+
+def openrouter_provider_options(*, phases: Sequence[str] = ()) -> list[Option]:
+    """Return ``--openrouter-provider NAME``, which pins OpenRouter's provider.
+
+    The row applies to the provider openrouter only and takes no settings
+    default. Without *phases* it fills ``model.openrouter_provider`` in the
+    group ``model``. With *phases* the unprefixed row fills no field; each
+    phase gets ``--<phase>-openrouter-provider`` in the group ``<phase>
+    model``, which falls back to the unprefixed row and fills
+    ``<phase>_model.openrouter_provider``.
+    """
+
+    def row(prefix: str, *, group: str, target: str | None, **extra: Any) -> Option:
+        return Option(
+            f"{prefix}openrouter_provider",
+            f"--{prefix.replace('_', '-')}openrouter-provider",
+            _OPENROUTER_PROVIDER_HELP,
+            group=group,
+            type=nonempty_text,
+            metavar="NAME",
+            default_help="OpenRouter's routing",
+            condition=Condition(f"{prefix}provider", frozenset({"openrouter"})),
+            target=target,
+            settable=False,
+            **extra,
+        )
+
+    if not phases:
+        return [row("", group="model", target="model.openrouter_provider")]
+    return [
+        row("", group="model", target=None),
+        *(
+            row(
+                f"{phase}_",
+                group=f"{phase} model",
+                target=f"{phase}_model.openrouter_provider",
+                fallback="openrouter_provider",
+            )
+            for phase in phases
+        ),
+    ]
 
 
 def image_options(

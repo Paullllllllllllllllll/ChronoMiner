@@ -1,5 +1,15 @@
 # Changelog
 
+- **v1.5.0** (6 November 2026) -- `extract`, `repair` and `ranges adjust` take
+  `--openrouter-provider NAME`, which pins the provider that serves OpenRouter model
+  requests: each request then carries OpenRouter's routing object `{"order":
+  [NAME], "allow_fallbacks": false, "require_parameters": true}` as `provider`, so
+  one provider serves the run and a request it cannot serve fails instead of going
+  to another provider. The flag is set on the command line only; for other providers
+  it has no effect and says so, and the dry-run spec shows it for OpenRouter models.
+  Decision-model requests keep OpenRouter's routing. The shared `common/` modules
+  `provider_requests.py`, `spec_view.py` and `standard_options.py` are synced
+  with AutoExcerpter and ChronoTranscriber.
 - **v1.4.2** (6 November 2026) -- Discovery no longer enters `.mabillon` folders,
   in which Mabillon v0.10.0 keeps its working state below an output root it shares
   with ChronoMiner. A recursive extraction over such a root used to take the

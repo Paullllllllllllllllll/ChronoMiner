@@ -175,6 +175,7 @@ def request_plan(
         verbosity=model.verbosity,
         service_tier=model.service_tier,
         caching=settings.prompt_caching,
+        openrouter_provider=model.openrouter_provider,
     )
 
 

@@ -433,6 +433,10 @@
       "source": "flag",
       "value": "anthropic/claude-sonnet-4.5"
     },
+    "model.openrouter_provider": {
+      "source": "default",
+      "value": null
+    },
     "model.provider": {
       "source": "flag",
       "value": "openrouter"

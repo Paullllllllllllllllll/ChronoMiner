@@ -4,7 +4,8 @@ A run's effective spec lists every field with its value and source. A field
 left unset (the output limit, the response format, the image options) is
 resolved when the run builds its requests; :func:`resolved_view` writes the
 resolved value into such a field with the source ``resolved``, and removes
-the service tier for providers other than OpenAI, which never receive one.
+the service tier for providers other than OpenAI and the OpenRouter provider
+pin for providers other than OpenRouter, which never receive them.
 The dry run prints this view; the store keeps the unresolved spec, from
 which a later command may rebuild the run.
 """
@@ -56,6 +57,8 @@ def resolved_view(
     out = {path: dict(entry) for path, entry in view.items()}
     if provider != "openai":
         out.pop(f"{model}.service_tier", None)
+    if provider != "openrouter":
+        out.pop(f"{model}.openrouter_provider", None)
     resolved: dict[str, Any] = {
         f"{model}.max_output_tokens": limit,
         f"{model}.response_format": response_format,

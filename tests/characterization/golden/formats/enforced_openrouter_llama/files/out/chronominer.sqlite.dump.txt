@@ -560,6 +560,10 @@
       "source": "flag",
       "value": "meta-llama/llama-3.3-70b-instruct"
     },
+    "model.openrouter_provider": {
+      "source": "default",
+      "value": null
+    },
     "model.provider": {
       "source": "flag",
       "value": "openrouter"
