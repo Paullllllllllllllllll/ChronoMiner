@@ -16,6 +16,7 @@ from __future__ import annotations
 import math
 from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path
+from types import MappingProxyType
 from typing import Any, Literal
 
 from .options import Condition, Kind, Option
@@ -32,8 +33,11 @@ __all__ = [
     "REASONING_EFFORTS",
     "RECOMMENDED",
     "RESPONSE_FORMATS",
+    "SAMPLER_PROVIDERS",
     "SERVICE_TIERS",
     "SETTINGS_HELP",
+    "UNSET_PENALTY_HELP",
+    "UNSET_SAMPLERS",
     "VERBOSITIES",
     "Dpi",
     "abandon_option",
@@ -59,6 +63,7 @@ __all__ = [
     "output_options",
     "positive_int",
     "render_options",
+    "repetition_penalty",
     "settings_option",
 ]
 
@@ -81,10 +86,43 @@ MODEL_FIELDS = (
     "max_output_tokens",
     "temperature",
     "top_p",
+    "presence_penalty",
+    "frequency_penalty",
+    "top_k",
+    "min_p",
+    "repetition_penalty",
     "service_tier",
     "response_format",
 )
 """The fields of the model block, in table order."""
+
+UNSET_SAMPLERS = (
+    "presence_penalty",
+    "frequency_penalty",
+    "top_k",
+    "min_p",
+    "repetition_penalty",
+)
+"""The samplers of the model block without a code default.
+
+Unset, none is sent, except the 0 penalties of the models that take
+penalties, which every request of such a model carries."""
+
+UNSET_PENALTY_HELP = "0 for the models that take penalties, else not sent"
+"""The shown default of an unset presence or frequency penalty."""
+
+SAMPLER_PROVIDERS: Mapping[str, frozenset[str]] = MappingProxyType(
+    {
+        "presence_penalty": frozenset({"google", "openrouter", "custom"}),
+        "frequency_penalty": frozenset({"google", "openrouter", "custom"}),
+        "top_k": frozenset({"anthropic", "google", "openrouter", "custom"}),
+        "min_p": frozenset({"openrouter", "custom"}),
+        "repetition_penalty": frozenset({"openrouter", "custom"}),
+    }
+)
+"""The providers whose requests carry each of :data:`UNSET_SAMPLERS`."""
+
+_PENALTIES = ("presence_penalty", "frequency_penalty")
 
 RECOMMENDED = "the provider's recommended value"
 """The shown default of an image option left unset."""
@@ -114,6 +152,14 @@ def bounded_float(low: float, high: float) -> Callable[[str], float]:
         return parsed
 
     return convert
+
+
+def repetition_penalty(value: str) -> float:
+    """Convert a repetition penalty: above 0.0, at most 2.0."""
+    parsed = float(value)
+    if not math.isfinite(parsed) or not 0.0 < parsed <= 2.0:
+        raise ValueError("must be above 0.0 and at most 2.0")
+    return parsed
 
 
 def dpi_value(value: str) -> Dpi:
@@ -195,6 +241,27 @@ def _model_rows(
             f"nucleus sampling, 0.0 to 1.0; sent only when {top_p_when}",
             {"type": bounded_float(0.0, 1.0), "metavar": "P"},
         ),
+        "presence_penalty": (
+            "presence penalty, -2.0 to 2.0; a given value replaces the default",
+            {"type": bounded_float(-2.0, 2.0), "metavar": "X"},
+        ),
+        "frequency_penalty": (
+            "frequency penalty, -2.0 to 2.0; a given value replaces the default",
+            {"type": bounded_float(-2.0, 2.0), "metavar": "X"},
+        ),
+        "top_k": (
+            "top-k sampling, a positive integer; sent only when given, to "
+            "Anthropic only without thinking",
+            {"type": positive_int, "metavar": "N"},
+        ),
+        "min_p": (
+            "min-p sampling, 0.0 to 1.0; sent only when given",
+            {"type": bounded_float(0.0, 1.0), "metavar": "X"},
+        ),
+        "repetition_penalty": (
+            "repetition penalty, above 0.0 to 2.0; sent only when given",
+            {"type": repetition_penalty, "metavar": "X"},
+        ),
         "service_tier": ("OpenAI service tier", {"choices": SERVICE_TIERS}),
         "response_format": (
             _response_format_help(response_formats),
@@ -217,8 +284,10 @@ def model_options(
 
     *defaults* holds the code default of each field (a missing field has
     none); *default_help* replaces the shown default of a field. ``--top-p``
-    without a default is sent only when given. ``--service-tier`` applies to
-    the provider openai only.
+    without a default is sent only when given, and so are the samplers of
+    :data:`UNSET_SAMPLERS` but for the 0 penalties of the models that take
+    penalties; they apply to the providers of :data:`SAMPLER_PROVIDERS` only.
+    ``--service-tier`` applies to the provider openai only.
 
     Without *phases* the rows fill ``model.<field>`` in the group ``model``.
     With *phases* the unprefixed rows carry no default and fill no field;
@@ -229,6 +298,8 @@ def model_options(
     top_p_unset = defaults.get("top_p") is None
     rows = _model_rows(providers, suggestions, response_formats, not top_p_unset)
     shown = dict(_MODEL_DEFAULT_HELP)
+    shown.update(dict.fromkeys(UNSET_SAMPLERS, "not sent"))
+    shown.update(dict.fromkeys(_PENALTIES, UNSET_PENALTY_HELP))
     if top_p_unset:
         shown["top_p"] = "not sent"
     shown.update(default_help or {})
@@ -241,7 +312,7 @@ def model_options(
                 group="model",
                 default=defaults.get(name),
                 default_help=shown.get(name),
-                condition=_tier_condition(name, "provider"),
+                condition=_provider_condition(name, "provider"),
                 target=f"model.{name}",
                 **extra,
             )
@@ -254,7 +325,7 @@ def model_options(
             help,
             group="model",
             default_help=shown.get(name, "per phase"),
-            condition=_tier_condition(name, "provider"),
+            condition=_provider_condition(name, "provider"),
             **extra,
         )
         for name, (help, extra) in rows.items()
@@ -269,7 +340,7 @@ def model_options(
                 group=f"{phase} model",
                 default=own.get(name, defaults.get(name)),
                 default_help=shown.get(name),
-                condition=_tier_condition(name, f"{phase}_provider"),
+                condition=_provider_condition(name, f"{phase}_provider"),
                 fallback=name,
                 target=f"{phase}_model.{name}",
                 **extra,
@@ -279,10 +350,12 @@ def model_options(
     return options
 
 
-def _tier_condition(name: str, provider: str) -> Condition | None:
-    if name != "service_tier":
-        return None
-    return Condition(provider, frozenset({"openai"}))
+def _provider_condition(name: str, provider: str) -> Condition | None:
+    if name == "service_tier":
+        return Condition(provider, frozenset({"openai"}))
+    if name in SAMPLER_PROVIDERS:
+        return Condition(provider, SAMPLER_PROVIDERS[name])
+    return None
 
 
 _OPENROUTER_PROVIDER_HELP = (

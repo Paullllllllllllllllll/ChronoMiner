@@ -16,15 +16,24 @@ kwargs or, renamed to the LangChain class's fields by
   ``thinking: {type: adaptive}`` and the other reasoning models a thinking
   budget below the limit; ``output_config.effort`` for the families that take
   it; effort ``none`` sends neither thinking nor effort; samplers only
-  without thinking.
+  without thinking, a set ``top_k`` among them where the model takes a
+  temperature.
 - Google (generation config): ``max_output_tokens``, the samplers the model
-  accepts and ``thinking_config`` with a ``thinking_level`` (Gemini 3 and
-  later) or a ``thinking_budget`` (Gemini 2).
-- OpenRouter (Chat Completions): ``max_tokens``, samplers and the unified
+  accepts, a set ``presence_penalty``, ``frequency_penalty`` and ``top_k``
+  where the model takes a temperature, and ``thinking_config`` with a
+  ``thinking_level`` (Gemini 3 and later) or a ``thinking_budget`` (Gemini 2).
+- OpenRouter (Chat Completions): ``max_tokens``, samplers (a set penalty
+  replaces the 0 sent for the models that take penalties) and the unified
   ``reasoning`` object in ``extra_body``, its effort clamped to a level the
-  model and OpenRouter take; with a pinned provider ``extra_body`` also
-  carries the ``provider`` routing object, which allows that provider only.
-- Custom endpoints: ``max_tokens`` and the temperature and top_p where set.
+  model and OpenRouter take; ``extra_body`` also carries a set ``top_k``,
+  ``min_p`` and ``repetition_penalty`` and, with a pinned provider, the
+  ``provider`` routing object, which allows that provider only.
+- Custom endpoints: ``max_tokens``, the temperature, top_p and penalties
+  where set, and a set ``top_k``, ``min_p`` and ``repetition_penalty`` in
+  ``extra_body``.
+
+The OpenAI Responses API takes none of the penalties, ``top_k``, ``min_p``
+or ``repetition_penalty``, so OpenAI requests never carry them.
 
 :func:`message_content` and :func:`system_content` build the user and system
 content of a synchronous call; :func:`batch_body` builds the provider-native
@@ -98,7 +107,9 @@ class RequestPlan:
     prompt-cache parameter or breakpoint. With *reasoning_only_service_tier*
     only OpenAI reasoning models take the service tier.
     *openrouter_provider* names the one provider that serves an OpenRouter
-    request (None: OpenRouter's own routing).
+    request (None: OpenRouter's own routing). *presence_penalty*,
+    *frequency_penalty*, *top_k*, *min_p* and *repetition_penalty* None send
+    nothing beyond the 0 penalties of the models that take penalties.
     """
 
     provider: str
@@ -114,6 +125,11 @@ class RequestPlan:
     conservative: int = 4096
     reasoning_only_service_tier: bool = False
     openrouter_provider: str | None = None
+    presence_penalty: float | None = None
+    frequency_penalty: float | None = None
+    top_k: int | None = None
+    min_p: float | None = None
+    repetition_penalty: float | None = None
 
     @classmethod
     def resolve(
@@ -181,6 +197,32 @@ def _samplers(plan: RequestPlan) -> dict[str, Any]:
     return values
 
 
+def _penalties(plan: RequestPlan) -> dict[str, float]:
+    """Return the presence and frequency penalties set on *plan*."""
+    values: dict[str, float] = {}
+    if plan.presence_penalty is not None:
+        values["presence_penalty"] = float(plan.presence_penalty)
+    if plan.frequency_penalty is not None:
+        values["frequency_penalty"] = float(plan.frequency_penalty)
+    return values
+
+
+def _body_samplers(plan: RequestPlan) -> dict[str, Any]:
+    """Return the set samplers a Chat Completions request puts in ``extra_body``.
+
+    These are ``top_k``, ``min_p`` and ``repetition_penalty``, which the
+    OpenAI client takes as body fields only.
+    """
+    values: dict[str, Any] = {}
+    if plan.top_k is not None:
+        values["top_k"] = int(plan.top_k)
+    if plan.min_p is not None:
+        values["min_p"] = float(plan.min_p)
+    if plan.repetition_penalty is not None:
+        values["repetition_penalty"] = float(plan.repetition_penalty)
+    return values
+
+
 def _openai(plan: RequestPlan) -> dict[str, Any]:
     caps = plan.caps
     params: dict[str, Any] = {}
@@ -210,6 +252,8 @@ def _anthropic(plan: RequestPlan) -> dict[str, Any]:
         params["thinking"] = thinking
     else:
         params.update(_samplers(plan))
+        if plan.top_k is not None and caps.supports_temperature:
+            params["top_k"] = int(plan.top_k)
     effort = anthropic_effort(caps.family, plan.effort)
     if effort is not None and caps.supports_reasoning_effort:
         params["output_config"] = {"effort": effort}
@@ -222,6 +266,10 @@ def _google(plan: RequestPlan) -> dict[str, Any]:
     if plan.limit is not None:
         params["max_output_tokens"] = plan.limit
     params.update(_samplers(plan))
+    if caps.supports_temperature:
+        params.update(_penalties(plan))
+        if plan.top_k is not None:
+            params["top_k"] = int(plan.top_k)
     if plan.effort:
         level = google_thinking_level(plan.effort, caps)
         if level is not None:
@@ -238,12 +286,14 @@ def _openrouter(plan: RequestPlan) -> dict[str, Any]:
     if plan.limit is not None:
         params["max_tokens"] = plan.limit
     params.update(_samplers(plan))
+    params.update(_penalties(plan))
     extra: dict[str, Any] = {}
     reasoning = openrouter_reasoning(
         plan.model, plan.effort or "", plan.caps, plan.limit
     )
     if reasoning is not None:
         extra["reasoning"] = reasoning
+    extra.update(_body_samplers(plan))
     if plan.openrouter_provider:
         extra["provider"] = {
             "order": [plan.openrouter_provider],
@@ -263,6 +313,10 @@ def _custom(plan: RequestPlan) -> dict[str, Any]:
         params["temperature"] = float(plan.temperature)
     if plan.top_p is not None:
         params["top_p"] = float(plan.top_p)
+    params.update(_penalties(plan))
+    extra = _body_samplers(plan)
+    if extra:
+        params["extra_body"] = extra
     return params
 
 

@@ -91,6 +91,11 @@ def _model(rng: random.Random) -> ModelSpec:
         service_tier=rng.choice(SERVICE_TIERS),
         response_format=rng.choice([None, *RESPONSE_FORMATS]),
         openrouter_provider=rng.choice([None, "deepinfra", "-p"]),
+        presence_penalty=rng.choice([None, -1.5, 0.0, 2.0]),
+        frequency_penalty=rng.choice([None, 0.5]),
+        top_k=rng.choice([None, 1, 40]),
+        min_p=rng.choice([None, 0.0, 0.05]),
+        repetition_penalty=rng.choice([None, 1.1]),
     )
 
 

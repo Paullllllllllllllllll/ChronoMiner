@@ -1,4 +1,4 @@
-# ChronoMiner v1.5.0
+# ChronoMiner v1.6.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -101,6 +101,11 @@ both.
 | `--max-output-tokens N` | maximum output tokens | the model's output limit | yes |
 | `--temperature T` | sampling temperature, 0.0 to 2.0 | 1.0 | yes |
 | `--top-p P` | nucleus sampling, 0.0 to 1.0; sent only when supported | 1.0 | yes |
+| `--presence-penalty X` | presence penalty, -2.0 to 2.0; a given value replaces the default; only for provider custom, google, openrouter | 0 for the models that take penalties, else not sent | yes |
+| `--frequency-penalty X` | frequency penalty, -2.0 to 2.0; a given value replaces the default; only for provider custom, google, openrouter | 0 for the models that take penalties, else not sent | yes |
+| `--top-k N` | top-k sampling, a positive integer; sent only when given, to Anthropic only without thinking; only for provider anthropic, custom, google, openrouter | not sent | yes |
+| `--min-p X` | min-p sampling, 0.0 to 1.0; sent only when given; only for provider custom, openrouter | not sent | yes |
+| `--repetition-penalty X` | repetition penalty, above 0.0 to 2.0; sent only when given; only for provider custom, openrouter | not sent | yes |
 | `--service-tier {auto,default,flex,priority}` | OpenAI service tier; only for provider openai | default | yes |
 | `--response-format {schema,json}` | schema (API-enforced) or json (prompted, validated) | schema when the model supports it, else json | yes |
 | `--openrouter-provider NAME` | provider slug that serves every OpenRouter model request, with no fallback to another provider; decision-model requests keep OpenRouter's routing; only for provider openrouter | OpenRouter's routing | no |
@@ -564,7 +569,13 @@ routed model. `--openrouter-provider NAME` adds OpenRouter's routing object
 `provider` to every model request, so one provider serves the run and a request
 it cannot serve fails instead of going to another provider. Decision-model
 requests (`--decisions`) go to OpenRouter's decision API, which the pin does not
-reach.
+reach. A given `--presence-penalty`, `--frequency-penalty`, `--top-k`, `--min-p`
+or `--repetition-penalty` goes only where the model takes it: all five to
+OpenRouter and custom endpoints, the two penalties and `top_k` to Google models
+that take a temperature, `top_k` to Anthropic requests without thinking for such
+models, and none to OpenAI, whose Responses API has no such parameters. Left
+unset, none of them is sent, apart from the 0 penalties that the models with
+penalty support (some OpenRouter models) receive already.
 
 The model capability table in `chronominer/common/capability_table.py`, shared with
 AutoExcerpter and ChronoTranscriber, feeds the resolver in

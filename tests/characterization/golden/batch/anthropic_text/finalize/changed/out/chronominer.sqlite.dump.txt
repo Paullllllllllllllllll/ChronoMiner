@@ -642,15 +642,27 @@
       "source": "default",
       "value": null
     },
+    "model.frequency_penalty": {
+      "source": "default",
+      "value": null
+    },
     "model.max_output_tokens": {
       "source": "settings",
       "value": 4096
+    },
+    "model.min_p": {
+      "source": "default",
+      "value": null
     },
     "model.model": {
       "source": "flag",
       "value": "claude-sonnet-4-5"
     },
     "model.openrouter_provider": {
+      "source": "default",
+      "value": null
+    },
+    "model.presence_penalty": {
       "source": "default",
       "value": null
     },
@@ -661,6 +673,10 @@
     "model.reasoning_effort": {
       "source": "default",
       "value": "xhigh"
+    },
+    "model.repetition_penalty": {
+      "source": "default",
+      "value": null
     },
     "model.response_format": {
       "source": "default",
@@ -673,6 +689,10 @@
     "model.temperature": {
       "source": "settings",
       "value": 0.0
+    },
+    "model.top_k": {
+      "source": "default",
+      "value": null
     },
     "model.top_p": {
       "source": "settings",

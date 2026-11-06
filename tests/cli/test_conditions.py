@@ -96,6 +96,55 @@ def test_openrouter_provider_reaches_the_dry_run_spec(
     assert spec["model.openrouter_provider"] == {"value": "deepinfra", "source": "flag"}
 
 
+def test_a_sampler_the_provider_does_not_take_warns_and_is_not_shown(
+    make_text: MakeText, capsys: pytest.CaptureFixture[str]
+) -> None:
+    argv = _dry_run(
+        make_text(), "--model", MODEL, "--top-k", "20", "--presence-penalty", "1.5"
+    )
+
+    assert entry.main(argv) == 0
+
+    captured = capsys.readouterr()
+    (warning,) = _warnings(captured.err)
+    assert "--presence-penalty applies only for provider custom, google" in warning
+    assert "the provider is anthropic" in warning
+    spec = json.loads(captured.out)["spec"]
+    assert "model.presence_penalty" not in spec
+    assert "model.min_p" not in spec
+    assert spec["model.top_k"] == {"value": 20, "source": "flag"}
+
+
+def test_the_samplers_reach_the_openrouter_dry_run_spec(
+    make_text: MakeText,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("OPENROUTER_API_KEY", "test-key")
+    values = {
+        "presence_penalty": 1.5,
+        "frequency_penalty": -0.5,
+        "top_k": 20,
+        "min_p": 0.05,
+        "repetition_penalty": 1.1,
+    }
+    flags = [
+        word
+        for name, value in values.items()
+        for word in ("--" + name.replace("_", "-"), str(value))
+    ]
+    argv = _dry_run(make_text(), "--model", "qwen/qwen3.5-27b", *flags)
+
+    assert entry.main(argv) == 0
+
+    captured = capsys.readouterr()
+    assert _warnings(captured.err) == []
+    spec = json.loads(captured.out)["spec"]
+    assert {name: spec[f"model.{name}"] for name in values} == {
+        name: {"value": value, "source": "flag"} for name, value in values.items()
+    }
+
+
 def test_without_the_conditional_flag_nothing_warns(
     make_text: MakeText, capsys: pytest.CaptureFixture[str]
 ) -> None:

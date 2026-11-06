@@ -1,5 +1,15 @@
 # Changelog
 
+- **v1.6.0** (6 November 2026) -- `extract`, `repair` and `ranges adjust` take
+  `--presence-penalty`, `--frequency-penalty`, `--top-k`, `--min-p` and
+  `--repetition-penalty`, settable from `defaults:` like `--temperature`. Unset, a
+  request is unchanged. A set value goes to the providers that take it: OpenRouter
+  and custom endpoints get all five, Google models that take samplers the penalties
+  and `top_k`, Anthropic `top_k` when no thinking is sent; the OpenAI Responses API
+  takes none of them. Elsewhere the run warns that the value has no effect, and the
+  dry-run view drops it. The shared `common/` modules `provider_requests.py`,
+  `spec_view.py` and `standard_options.py` are synced with AutoExcerpter and
+  ChronoTranscriber.
 - **v1.5.0** (6 November 2026) -- `extract`, `repair` and `ranges adjust` take
   `--openrouter-provider NAME`, which pins the provider that serves OpenRouter model
   requests: each request then carries OpenRouter's routing object `{"order":

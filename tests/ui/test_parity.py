@@ -445,6 +445,41 @@ def images_at_named_endpoint(ws: Workspace) -> Script:
     return Script("extract", ws.session(), answers)
 
 
+SAMPLER_ANSWERS: Final = ["1.5", "-0.5", "20", "0.05", "1.1"]
+"""Presence and frequency penalty, top k, min p and repetition penalty."""
+
+
+def images_endpoint_samplers(ws: Workspace) -> Script:
+    """The named endpoint with every sampler without a code default."""
+    answers = [
+        str(ws.archive),
+        True,
+        "images",
+        "list",
+        ws.images(ws.archive)[-1:],
+        "folder",
+        str(ws.out),
+        "mirror",
+        KEEP,
+        "endpoint:local",
+        "qwen-vl",
+        "customize",
+        KEEP,
+        KEEP,
+        KEEP,
+        *SAMPLER_ANSWERS,
+        KEEP,
+        SCHEMA,
+        *CONTEXT_KEEPS,
+        "recommended",
+        KEEP,  # decision pre-pass
+        [],
+        KEEP,
+        "copy",
+    ]
+    return Script("extract", ws.session(), answers)
+
+
 def mixed_folder_auto(ws: Workspace) -> Script:
     """Every type of a mixed folder in auto mode."""
     answers = [
@@ -699,6 +734,31 @@ def adjust_endpoint(ws: Workspace) -> Script:
     return Script("ranges-adjust", ws.session(defaults), answers)
 
 
+def adjust_endpoint_samplers(ws: Workspace) -> Script:
+    """The named endpoint with every sampler without a code default."""
+    answers = [
+        str(ws.ranged),
+        KEEP,
+        SCHEMA,
+        KEEP,
+        KEEP,  # marker length
+        KEEP,
+        KEEP,  # fallback context
+        "endpoint:local",
+        "llava",
+        "customize",
+        KEEP,
+        KEEP,
+        KEEP,
+        *SAMPLER_ANSWERS,
+        KEEP,
+        KEEP,
+        KEEP,
+        "copy",
+    ]
+    return Script("ranges-adjust", ws.session(), answers)
+
+
 def repair_customized(ws: Workspace) -> Script:
     """A schema, indices, every model and image value, a batch."""
     answers = [
@@ -739,6 +799,27 @@ def repair_endpoint_with_back(ws: Workspace) -> Script:
         "endpoint:local",
         "qwen-vl",
         KEEP,
+        KEEP,
+        "recommended",
+        KEEP,
+        "copy",
+    ]
+    return Script("repair", ws.session(), answers)
+
+
+def repair_endpoint_samplers(ws: Workspace) -> Script:
+    """The named endpoint with every sampler without a code default."""
+    answers = [
+        str(ws.text),
+        SCHEMA,
+        "",
+        "endpoint:local",
+        "qwen-vl",
+        "customize",
+        KEEP,
+        KEEP,
+        KEEP,
+        *SAMPLER_ANSWERS,
         KEEP,
         "recommended",
         KEEP,
@@ -893,6 +974,7 @@ SESSIONS: Final[Mapping[str, Callable[[Workspace], Script]]] = MappingProxyType(
             text_line_ranges,
             text_adjusted_ranges_with_back,
             images_at_named_endpoint,
+            images_endpoint_samplers,
             mixed_folder_auto,
             provider_without_implied_model,
             extract_settings_defaults,
@@ -903,8 +985,10 @@ SESSIONS: Final[Mapping[str, Callable[[Workspace], Script]]] = MappingProxyType(
             adjust_customized,
             adjust_reasoning_with_back,
             adjust_endpoint,
+            adjust_endpoint_samplers,
             repair_customized,
             repair_endpoint_with_back,
+            repair_endpoint_samplers,
             repair_reasoning_defaults,
             repair_provider,
             check_adopt,
@@ -1187,6 +1271,11 @@ def _texts(ws: Workspace) -> list[tuple[str, list[str]]]:
         ("Max output tokens", ["", "4000"]),
         ("Temperature", ["0.3", "1.5"]),
         ("Top p", ["0.5", "1"]),
+        ("Presence penalty", ["1.5", "-0.5"]),
+        ("Frequency penalty", ["0.5"]),
+        ("Top k", ["20"]),
+        ("Min p", ["0.05"]),
+        ("Repetition penalty", ["1.1"]),
         ("Schema file:", [str(ws.schema)]),
         ("Context file:", [str(ws.context)]),
         ("Context image file:", [str(ws.context_image)]),
@@ -1345,6 +1434,8 @@ _DEFAULT_POOL: Final[Mapping[str, Sequence[Any]]] = MappingProxyType(
         "max_output_tokens": [3000],
         "temperature": [0.4],
         "top_p": [0.7],
+        "presence_penalty": [1.5],
+        "top_k": [20],
         "service_tier": ["priority", "auto"],
         "response_format": ["json", "schema"],
         "dpi": [200, "native"],

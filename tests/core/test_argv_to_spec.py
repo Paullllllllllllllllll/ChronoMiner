@@ -438,6 +438,26 @@ ROWS = [
     _row("temperature", "--temperature", "0.4", sets=_model(temperature=0.4)),
     _row("top_p", "--top-p", "0.9", sets=_model(top_p=0.9)),
     _row(
+        "presence_penalty",
+        "--presence-penalty",
+        "1.5",
+        sets=_model(presence_penalty=1.5),
+    ),
+    _row(
+        "frequency_penalty",
+        "--frequency-penalty",
+        "-0.5",
+        sets=_model(frequency_penalty=-0.5),
+    ),
+    _row("top_k", "--top-k", "20", sets=_model(top_k=20)),
+    _row("min_p", "--min-p", "0.05", sets=_model(min_p=0.05)),
+    _row(
+        "repetition_penalty",
+        "--repetition-penalty",
+        "1.1",
+        sets=_model(repetition_penalty=1.1),
+    ),
+    _row(
         "service_tier",
         "--service-tier",
         "priority",

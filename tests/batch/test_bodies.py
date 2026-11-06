@@ -461,14 +461,38 @@ def test_openai_samplers_match_the_sync_client() -> None:
     "model", ["gemini-3-flash-preview", "gemini-3.1-pro", "gemini-2.5-flash"]
 )
 def test_google_samplers_match_the_sync_client(model: str) -> None:
-    spec = model_spec("google", model, temperature=0.2, top_p=0.9)
+    spec = model_spec(
+        "google",
+        model,
+        temperature=0.2,
+        top_p=0.9,
+        presence_penalty=1.5,
+        frequency_penalty=-0.5,
+        top_k=20,
+    )
     kwargs = constructor_kwargs(spec, Settings())
 
     body = build_plan(spec, Settings(), schema=SCHEMA.schema).body(REQUEST)
 
-    assert {name: body["config"].get(name) for name in _SAMPLERS} == {
-        name: kwargs.get(name) for name in _SAMPLERS
+    names = (*_SAMPLERS, "presence_penalty", "frequency_penalty", "top_k")
+    assert {name: body["config"].get(name) for name in names} == {
+        name: kwargs.get(name) for name in names
     }
+    assert body["config"]["top_k"] == 20
+
+
+@pytest.mark.parametrize(("effort", "sent"), [("none", 20), ("low", None)])
+def test_anthropic_batch_top_k_matches_the_sync_client(
+    effort: str, sent: int | None
+) -> None:
+    spec = model_spec(
+        "anthropic", "claude-sonnet-4-5", reasoning_effort=effort, top_k=20
+    )
+    kwargs = constructor_kwargs(spec, Settings())
+
+    body = build_plan(spec, Settings(), schema=SCHEMA.schema).body(REQUEST)
+
+    assert body.get("top_k") == kwargs.get("top_k") == sent
 
 
 @pytest.mark.parametrize(

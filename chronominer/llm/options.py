@@ -176,6 +176,11 @@ def request_plan(
         service_tier=model.service_tier,
         caching=settings.prompt_caching,
         openrouter_provider=model.openrouter_provider,
+        presence_penalty=model.presence_penalty,
+        frequency_penalty=model.frequency_penalty,
+        top_k=model.top_k,
+        min_p=model.min_p,
+        repetition_penalty=model.repetition_penalty,
     )
 
 

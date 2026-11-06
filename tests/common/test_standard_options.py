@@ -6,9 +6,12 @@ from pathlib import Path
 
 import pytest
 
-from chronominer.common.options import Kind, OptionTable
+from chronominer.common.options import Kind, OptionError, OptionTable
 from chronominer.common.standard_options import (
     MODEL_FIELDS,
+    SAMPLER_PROVIDERS,
+    UNSET_PENALTY_HELP,
+    UNSET_SAMPLERS,
     batch_cancel_options,
     batch_option,
     bounded_float,
@@ -71,6 +74,57 @@ def test_phased_rows_fall_back_to_the_unprefixed_row() -> None:
     assert table["b_service_tier"].condition.option == "b_provider"
     assert table["top_p"].default_help == "not sent"
     assert table["a_top_p"].help.endswith("sent only when given and supported")
+
+
+def test_the_unset_samplers_apply_to_the_providers_that_take_them() -> None:
+    table = _model()
+    for name in UNSET_SAMPLERS:
+        row = table[name]
+        penalty = name in ("presence_penalty", "frequency_penalty")
+        shown = UNSET_PENALTY_HELP if penalty else "not sent"
+        assert (row.default, row.default_help, row.settable) == (None, shown, True)
+        assert row.condition is not None
+        assert row.condition.values == SAMPLER_PROVIDERS[name]
+        assert not row.condition.holds({"provider": "openai"})
+        assert row.condition.holds({"provider": "openrouter"})
+    assert table["top_k"].condition is not None
+    assert table["top_k"].condition.holds({"provider": "anthropic"})
+    assert table["min_p"].condition is not None
+    assert not table["min_p"].condition.holds({"provider": "google"})
+
+    phased = OptionTable(
+        model_options(
+            providers=("openai",),
+            suggestions=_suggestions,
+            defaults={},
+            phases=("a", "b"),
+        )
+    )
+    assert phased["b_top_k"].fallback == "top_k"
+    assert phased["b_top_k"].target == "b_model.top_k"
+    assert phased["top_k"].default_help == "not sent"
+    assert phased["presence_penalty"].default_help == UNSET_PENALTY_HELP
+    condition = phased["b_presence_penalty"].condition
+    assert condition is not None and condition.option == "b_provider"
+
+
+@pytest.mark.parametrize(
+    ("name", "good", "bad"),
+    [
+        ("presence_penalty", "-2.0", "2.5"),
+        ("frequency_penalty", "2", "-2.1"),
+        ("top_k", "1", "0"),
+        ("min_p", "0", "1.5"),
+        ("repetition_penalty", "2.0", "0"),
+    ],
+)
+def test_the_unset_samplers_take_their_documented_ranges(
+    name: str, good: str, bad: str
+) -> None:
+    row = _model()[name]
+    assert row.convert(good) == float(good)
+    with pytest.raises(OptionError):
+        row.convert(bad)
 
 
 def test_the_openrouter_provider_row_applies_to_openrouter_only() -> None:

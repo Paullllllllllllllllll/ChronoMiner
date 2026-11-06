@@ -39,6 +39,14 @@ SCHEMA: dict[str, Any] = {
     },
 }
 IMAGE = Part(data="aGVsbG8=", mime="image/jpeg", detail="high")
+SAMPLERS: dict[str, Any] = {
+    "presence_penalty": 1.5,
+    "frequency_penalty": -0.5,
+    "top_k": 20,
+    "min_p": 0.05,
+    "repetition_penalty": 1.1,
+}
+"""A value for every sampler without a code default."""
 
 
 def _plan(
@@ -133,6 +141,91 @@ def test_a_pinned_openrouter_provider_joins_the_reasoning_without_fallback() -> 
     }
     other = request_params(_plan("openai", "gpt-5.6-luna", openrouter_provider="x"))
     assert "extra_body" not in other and "provider" not in other
+
+
+def _sent_samplers(params: dict[str, Any]) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Return the samplers of *params* at the top level and in ``extra_body``."""
+    extra = params.get("extra_body", {})
+    return (
+        {name: params[name] for name in SAMPLERS if name in params},
+        {name: extra[name] for name in SAMPLERS if name in extra},
+    )
+
+
+_ROUTED = {"top_k": 20, "min_p": 0.05, "repetition_penalty": 1.1}
+_PENALTIES = {"presence_penalty": 1.5, "frequency_penalty": -0.5}
+
+
+@pytest.mark.parametrize(
+    ("provider", "model", "effort", "top", "body"),
+    [
+        ("openrouter", "qwen/qwen3.5-flash-02-23", "high", _PENALTIES, _ROUTED),
+        ("custom", "qwen-vl", None, _PENALTIES, _ROUTED),
+        ("google", "gemini-3.1-flash-lite", "low", {**_PENALTIES, "top_k": 20}, {}),
+        ("anthropic", "claude-sonnet-4-5", "none", {"top_k": 20}, {}),
+        ("openai", "gpt-4o", None, {}, {}),
+    ],
+)
+def test_set_samplers_reach_the_providers_that_take_them(
+    provider: str,
+    model: str,
+    effort: str | None,
+    top: dict[str, Any],
+    body: dict[str, Any],
+) -> None:
+    unset = request_params(_plan(provider, model, effort))
+    params = request_params(_plan(provider, model, effort, **SAMPLERS))
+
+    assert _sent_samplers(unset) == ({}, {})
+    assert _sent_samplers(params) == (top, body)
+    trimmed = {key: value for key, value in params.items() if key not in SAMPLERS}
+    extra = {k: v for k, v in trimmed.pop("extra_body", {}).items() if k not in body}
+    if extra:
+        trimmed["extra_body"] = extra
+    assert trimmed == unset
+
+
+def test_a_set_penalty_replaces_the_zero_of_a_penalty_model() -> None:
+    model = "openai/gpt-4o"
+    unset = request_params(_plan("openrouter", model, None))
+    params = request_params(_plan("openrouter", model, None, presence_penalty=1.5))
+
+    assert (unset["presence_penalty"], unset["frequency_penalty"]) == (0.0, 0.0)
+    assert (params["presence_penalty"], params["frequency_penalty"]) == (1.5, 0.0)
+
+
+@pytest.mark.parametrize(
+    ("model", "effort"), [("claude-sonnet-4-5", "low"), ("claude-haiku-5-5", "none")]
+)
+def test_anthropic_drops_top_k_with_thinking_or_without_a_temperature(
+    model: str, effort: str
+) -> None:
+    params = request_params(_plan("anthropic", model, effort, **SAMPLERS))
+
+    assert _sent_samplers(params) == ({}, {})
+
+
+def test_a_fixed_sampling_gemini_model_gets_no_set_samplers() -> None:
+    plan = _plan("google", "gemini-3.6-flash", "low", **SAMPLERS)
+
+    assert not plan.caps.supports_temperature
+    assert _sent_samplers(request_params(plan)) == ({}, {})
+    config = batch_body(plan, "Answer.", [IMAGE], SCHEMA)["config"]
+    assert _sent_samplers(config) == ({}, {})
+
+
+def test_batch_bodies_carry_the_set_samplers_their_provider_takes() -> None:
+    def body(provider: str, model: str, effort: str | None) -> dict[str, Any]:
+        plan = _plan(provider, model, effort, **SAMPLERS)
+        return batch_body(plan, "Answer.", [IMAGE], SCHEMA)
+
+    config = body("google", "gemini-3.1-flash-lite", "low")["config"]
+    assert _sent_samplers(config) == ({**_PENALTIES, "top_k": 20}, {})
+    assert _sent_samplers(body("anthropic", "claude-sonnet-4-5", "none")) == (
+        {"top_k": 20},
+        {},
+    )
+    assert _sent_samplers(body("openai", "gpt-4o", None)) == ({}, {})
 
 
 def test_an_openai_batch_body_carries_the_sync_parameters() -> None:

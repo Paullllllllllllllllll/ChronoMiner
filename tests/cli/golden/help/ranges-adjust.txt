@@ -44,6 +44,21 @@ model:
                         maximum output tokens; default: the model's output limit
   --temperature T       sampling temperature, 0.0 to 2.0; default: 1.0
   --top-p P             nucleus sampling, 0.0 to 1.0; sent only when supported; default: 1.0
+  --presence-penalty X  presence penalty, -2.0 to 2.0; a given value replaces the default;
+                        default: 0 for the models that take penalties, else not sent; only for
+                        provider custom, google, openrouter
+  --frequency-penalty X
+                        frequency penalty, -2.0 to 2.0; a given value replaces the default;
+                        default: 0 for the models that take penalties, else not sent; only for
+                        provider custom, google, openrouter
+  --top-k N             top-k sampling, a positive integer; sent only when given, to Anthropic
+                        only without thinking; default: not sent; only for provider anthropic,
+                        custom, google, openrouter
+  --min-p X             min-p sampling, 0.0 to 1.0; sent only when given; default: not sent; only
+                        for provider custom, openrouter
+  --repetition-penalty X
+                        repetition penalty, above 0.0 to 2.0; sent only when given; default: not
+                        sent; only for provider custom, openrouter
   --service-tier {auto,default,flex,priority}
                         OpenAI service tier; default: default; only for provider openai
   --response-format {schema,json}

@@ -313,6 +313,21 @@ def test_a_pinned_openrouter_provider_reaches_the_chat_model() -> None:
     assert _kwargs(spec)["extra_body"]["provider"]["order"] == ["deepinfra"]
 
 
+def test_set_samplers_reach_the_openrouter_chat_model() -> None:
+    spec = model_spec(
+        "qwen/qwen3.5-27b", "openrouter", presence_penalty=1.5, top_k=20, min_p=0.05
+    )
+
+    kwargs = _kwargs(spec)
+
+    assert kwargs["presence_penalty"] == 1.5
+    assert "frequency_penalty" not in kwargs
+    assert {key: kwargs["extra_body"].get(key) for key in ("top_k", "min_p")} == {
+        "top_k": 20,
+        "min_p": 0.05,
+    }
+
+
 def test_custom_capabilities_come_from_the_endpoint() -> None:
     caps = model_capabilities(custom_spec(), settings())
 

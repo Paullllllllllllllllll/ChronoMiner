@@ -15,10 +15,15 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, fields, replace
+from functools import partial
 from pathlib import Path
 from typing import Any, Final
 
 from chronominer.common.options import Source
+from chronominer.common.standard_options import (
+    UNSET_PENALTY_HELP,
+    UNSET_SAMPLERS,
+)
 from chronominer.common.wizard import (
     BACK,
     DONE,
@@ -102,6 +107,7 @@ MODEL_OPTIONS: Final = (
     "max_output_tokens",
     "temperature",
     "top_p",
+    *UNSET_SAMPLERS,
     "service_tier",
 )
 TUNING_OPTIONS: Final = (
@@ -109,8 +115,31 @@ TUNING_OPTIONS: Final = (
     "max_output_tokens",
     "temperature",
     "top_p",
+    *UNSET_SAMPLERS,
     "service_tier",
 )
+_SAMPLER_LABELS: Final = {
+    "presence_penalty": ("presence penalty", "Presence penalty (-2.0 to 2.0"),
+    "frequency_penalty": ("frequency penalty", "Frequency penalty (-2.0 to 2.0"),
+    "top_k": ("top k", "Top k (a positive integer"),
+    "min_p": ("min p", "Min p (0.0 to 1.0"),
+    "repetition_penalty": (
+        "repetition penalty",
+        "Repetition penalty (above 0.0 to 2.0",
+    ),
+}
+"""Each sampler without a code default: its review label and question start."""
+_UNSET_TEXT: Final = dict.fromkeys(
+    ("presence_penalty", "frequency_penalty"), UNSET_PENALTY_HELP
+)
+"""What an unset sampler sends, where that is more than nothing."""
+_SAMPLER_PROBE: Final[Mapping[str, Any]] = {
+    "presence_penalty": 0.5,
+    "frequency_penalty": 0.5,
+    "top_k": 40,
+    "min_p": 0.05,
+    "repetition_penalty": 1.1,
+}
 RESPONSE_OPTIONS: Final = (
     "response_format",
     "schema",
@@ -201,6 +230,8 @@ class Support:
 
     ``schema`` is whether API-enforced schemas are available: the
     endpoint's declaration for a custom endpoint, else the capability table.
+    ``samplers`` holds the samplers without a code default whose set value
+    the core sends for the model.
     """
 
     reasoning: bool
@@ -209,6 +240,7 @@ class Support:
     top_p: bool
     service_tier: bool
     schema: bool
+    samplers: frozenset[str] = frozenset()
 
     @property
     def automatic_format(self) -> str:
@@ -238,6 +270,9 @@ def support_of(model: ModelSpec, settings: Settings) -> Support:
     sent = _sent(model, settings, caps)
     low = _sent(replace(model, reasoning_effort="low"), settings, caps)
     high = _sent(replace(model, reasoning_effort="high"), settings, caps)
+    probe = _sent(replace(model, **_SAMPLER_PROBE), settings, caps)
+    body = probe.get("extra_body")
+    in_body = body if isinstance(body, Mapping) else {}
     return Support(
         reasoning=any(low.get(key) != high.get(key) for key in _REASONING_KEYS),
         verbosity=sent.get("verbosity") is not None,
@@ -245,6 +280,11 @@ def support_of(model: ModelSpec, settings: Settings) -> Support:
         top_p=sent.get("top_p") is not None,
         service_tier=model.provider == "openai",
         schema=caps.supports_structured_output,
+        samplers=frozenset(
+            name
+            for name, value in _SAMPLER_PROBE.items()
+            if probe.get(name, in_body.get(name)) == value
+        ),
     )
 
 
@@ -317,6 +357,10 @@ def _tuning_note(state: State, session: Session) -> str:
         parts.append(shown("temperature", f"temperature {model.temperature}"))
     if support.top_p:
         parts.append(shown("top_p", f"top p {model.top_p}"))
+    for name, (label, _question) in _SAMPLER_LABELS.items():
+        value = getattr(model, name)
+        if name in support.samplers and value is not None:
+            parts.append(shown(name, f"{label} {value}"))
     if support.service_tier:
         parts.append(shown("service_tier", f"tier {model.service_tier}"))
     return ", ".join(parts)
@@ -356,6 +400,7 @@ class ModelQuestions:
             self.max_tokens,
             self.temperature,
             self.top_p,
+            *(partial(self.sampler, name) for name in UNSET_SAMPLERS),
             self.service_tier,
         ]
 
@@ -541,6 +586,22 @@ class ModelQuestions:
         if support is None or not support.top_p:
             return None
         return self.ctx.text_option("top_p", "Top p (0.0 to 1.0):")
+
+    def sampler(self, name: str) -> Nav | None:
+        """Ask a sampler without a code default, where the core sends it.
+
+        Empty leaves it unset where no settings default applies.
+        """
+        support = self._customizing()
+        if support is None or name not in support.samplers:
+            return None
+        question = _SAMPLER_LABELS[name][1]
+        if can_reset(self.state, name):
+            unset = _UNSET_TEXT.get(name, "not sent")
+            return self.ctx.text_option(
+                name, f"{question}, empty = {unset}):", empty=None
+            )
+        return self.ctx.text_option(name, f"{question}):")
 
     def service_tier(self) -> Nav | None:
         """Ask the OpenAI service tier."""
@@ -1051,6 +1112,10 @@ def model_line(
         parts.append(mark("temperature", f"temperature {model.temperature}"))
     if support.top_p and given("top_p"):
         parts.append(mark("top_p", f"top p {model.top_p}"))
+    for name, (label, _question) in _SAMPLER_LABELS.items():
+        value = getattr(model, name)
+        if name in support.samplers and value is not None:
+            parts.append(mark(name, f"{label} {value}"))
     return Line("model", parts)
 
 

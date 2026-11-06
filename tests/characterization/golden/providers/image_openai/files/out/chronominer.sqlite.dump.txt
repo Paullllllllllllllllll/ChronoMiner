@@ -325,15 +325,27 @@
       "source": "default",
       "value": null
     },
+    "model.frequency_penalty": {
+      "source": "default",
+      "value": null
+    },
     "model.max_output_tokens": {
       "source": "flag",
       "value": 8192
+    },
+    "model.min_p": {
+      "source": "default",
+      "value": null
     },
     "model.model": {
       "source": "flag",
       "value": "gpt-5-mini"
     },
     "model.openrouter_provider": {
+      "source": "default",
+      "value": null
+    },
+    "model.presence_penalty": {
       "source": "default",
       "value": null
     },
@@ -344,6 +356,10 @@
     "model.reasoning_effort": {
       "source": "flag",
       "value": "low"
+    },
+    "model.repetition_penalty": {
+      "source": "default",
+      "value": null
     },
     "model.response_format": {
       "source": "default",
@@ -356,6 +372,10 @@
     "model.temperature": {
       "source": "settings",
       "value": 0.0
+    },
+    "model.top_k": {
+      "source": "default",
+      "value": null
     },
     "model.top_p": {
       "source": "settings",
