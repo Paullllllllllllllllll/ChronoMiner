@@ -1,6 +1,6 @@
 [project]
 name = "chronominer"
-version = "1.6.0"
+version = "1.7.0"
 description = "Structured data extraction from text, images, and PDFs using schema-based LLM processing"
 requires-python = ">=3.13"
 license = "MIT"
@@ -13,14 +13,14 @@ dependencies = [
     "google-genai>=2.34",
     # HTTP (direct use in retry/timeout classification)
     "httpx>=0.28",
-    "langchain-anthropic>=1.7.7",
-    "langchain-core>=1.7.3",
-    "langchain-google-genai>=4.4.2",
-    "langchain-openai>=1.7.3",
+    "langchain-anthropic>=1.7.10",
+    "langchain-core>=1.7.6",
+    "langchain-google-genai>=4.4.3",
+    "langchain-openai>=1.7.4",
     "openai>=2.54,<3",
     "Pillow>=13.0",
     "prompt-toolkit>=3.0",
-    "pydantic>=2.14",
+    "pydantic>=2.14.3",
     "PyMuPDF>=1.28.2,<2",
     "PyYAML>=6.0",
     "questionary>=2.1",
@@ -35,12 +35,12 @@ chronominer = "chronominer.__main__:main"
 dev = [
     "numpy>=2.5",
     "pytest>=9.2",
-    "pytest-asyncio>=1.4.1",
+    "pytest-asyncio>=1.4.1.post1",
     "pytest-cov>=7.1",
-    "coverage>=7.17",
+    "coverage>=7.17.2",
     "mypy>=2.4",
-    "ruff>=0.17.3",
-    "types-PyYAML>=6.0",
+    "ruff>=0.17.4",
+    "types-PyYAML>=6.0.12.20261103",
 ]
 
 [tool.hatch.build.targets.wheel]

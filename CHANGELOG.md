@@ -1,5 +1,13 @@
 # Changelog
 
+- **v1.7.0** (7 November 2026) -- Refreshed dependencies within their current majors:
+  `langchain-anthropic` 1.7.10, `langchain-core` 1.7.6, `langchain-google-genai` 4.4.3,
+  `langchain-openai` 1.7.4 and `pydantic` 2.14.3 at runtime, and `coverage` 7.17.2,
+  `pytest-asyncio` 1.4.1.post1, `ruff` 0.17.4 and `types-PyYAML` 6.0.12.20261103 in the
+  dev extra, with each `>=` floor raised to match. No dependency was removed. Major
+  upgrades of `anthropic` (2.x), `google-genai` (3.x), `openai` (3.x) and `PyMuPDF`
+  (2.x) are held on the current majors.
+
 - **v1.6.0** (6 November 2026) -- `extract`, `repair` and `ranges adjust` take
   `--presence-penalty`, `--frequency-penalty`, `--top-k`, `--min-p` and
   `--repetition-penalty`, settable from `defaults:` like `--temperature`. Unset, a
