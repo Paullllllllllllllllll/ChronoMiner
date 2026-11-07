@@ -1038,6 +1038,19 @@ benchmark runs) is available from the author upon request.
 
 [CHANGELOG.md](CHANGELOG.md) describes each release.
 
+## Contact
+
+ChronoMiner is written and maintained by Paul Götz, Sociological Institute,
+University of Zurich. Write to
+[goetz@soziologie.uzh.ch](mailto:goetz@soziologie.uzh.ch) with questions, bug
+reports or collaboration requests.
+
+- Website: [paulgoetz.org](https://paulgoetz.org)
+- Google Scholar: [Paul Götz](https://scholar.google.com/citations?user=V9WRFP4AAAAJ)
+- ORCID: [0009-0005-9431-0900](https://orcid.org/0009-0005-9431-0900)
+- LinkedIn: [paulg3737](https://www.linkedin.com/in/paulg3737)
+- UZH: [institute profile](https://www.suz.uzh.ch/en/institute/aboutus/mid_level/goetz.html)
+
 ## License
 
 MIT License. Copyright (c) 2025 Paul Goetz. See [LICENSE](LICENSE) for details.
