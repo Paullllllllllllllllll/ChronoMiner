@@ -100,8 +100,14 @@ def test_run_values_override_the_recommendation() -> None:
 
 def test_a_detail_applies_only_where_the_section_takes_it() -> None:
     assert settings("gpt-5.6-luna", detail="low")["resolved_detail"] == "low"
-    google = settings("gemini-3-flash-preview", "google", detail="original")
-    assert google["media_resolution"] == "high"
+    google = settings("gemini-3-flash-preview", "google", detail="low")
+    assert google["media_resolution"] == "low"
+    original = settings("gemini-3-flash-preview", "google", detail="original")
+    assert (original["media_resolution"], original["resize_profile"]) == (
+        "ultra_high",
+        "none",
+    )
+    assert original["resolved_detail"] == "ultra_high"
     anthropic = settings("claude-opus-5", "anthropic", detail="low")
     assert anthropic["resize_profile"] == "low"
 

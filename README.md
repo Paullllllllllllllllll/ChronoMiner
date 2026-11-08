@@ -1,4 +1,4 @@
-# ChronoMiner v1.7.0
+# ChronoMiner v1.8.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -617,7 +617,10 @@ grayscale for every image option the run leaves unset, so it resumes under the
 values it was started with. `native` renders each PDF page at the density of its
 scan. At `original` detail, gpt-6-luna pages are limited to 3,000 px on the long
 side; `images.original_max_side_px` in the settings sets this limit for every OpenAI
-model.
+model. Gemini pages at `high` detail are fitted into 768x1536 px with white
+padding; at `original` detail they keep their rendered size and go out at media
+resolution `ultra_high` (2,240 image tokens from Gemini 3 on; Gemini 2 takes no
+media resolution), and a page over Google's 20 MB limit fails.
 
 ## Schemas
 

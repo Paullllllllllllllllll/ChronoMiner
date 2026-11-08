@@ -389,6 +389,7 @@ class PageSource:
         if (
             self.target_dpi == "native"
             and img_cfg.get("cap_policy", "profile-v1") == "profile-v1"
+            and img_cfg.get("resize_profile") != "none"
             and not PageSource._native_profile_warned
         ):
             logger.warning(

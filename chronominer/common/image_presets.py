@@ -11,7 +11,10 @@ passes its own where it differs. :class:`ImagePresets` adds the tool's
 
 :func:`section_settings` applies a run's image options to a section, and
 :func:`page_detail` resolves the detail a model's pages are sized and sent
-with, as the tool's :class:`DetailRules` say.
+with, as the tool's :class:`DetailRules` say. A Gemini run at detail
+``original`` sends its pages at their rendered size with media resolution
+``ultra_high``; :func:`native_render_unbounded` tells a native render without
+any size bound.
 """
 
 from __future__ import annotations
@@ -40,6 +43,7 @@ __all__ = [
     "custom_preset",
     "detect_model_type",
     "google_preset",
+    "native_render_unbounded",
     "openai_preset",
     "page_detail",
     "section_name",
@@ -85,6 +89,8 @@ _OPENAI_NAMES = ("gpt-", "o1", "o3", "o4", "chatgpt")
 
 _NATIVE_FALLBACK_DPI = 300
 _HIGH_TARGET_BOX = (768, 1536)
+_GEMINI_ORIGINAL_RESOLUTION = "ultra_high"
+"""The media resolution of Gemini pages sent at their rendered size."""
 
 
 class ImageValues(Protocol):
@@ -388,16 +394,41 @@ def section_settings(
     section it lacks starts empty. An OpenRouter model takes the OpenAI
     section's detail where *rules* say so, unless the detail key of its own
     section is ``llm_detail`` (the custom section of Qwen, Llama or Mistral
-    models).
+    models). A Gemini model of provider google at detail ``original`` gets
+    media resolution ``ultra_high`` and resize profile ``none``.
     """
     filtered = rules.filter_overrides
     cfg = _with_overrides(table.get(section, {}), section, images, filtered)
+    if (
+        provider == "google"
+        and section == SECTIONS["google"]
+        and images is not None
+        and str(images.detail or "").strip().lower() == "original"
+    ):
+        # Gemini takes no detail "original": its pages keep their rendered
+        # size, bounded by the payload limit, at the largest image budget.
+        cfg["media_resolution"] = _GEMINI_ORIGINAL_RESOLUTION
+        cfg["resize_profile"] = "none"
     own_detail = DETAIL_KEYS.get(section, ("", ()))[0] == "llm_detail"
     if rules.openrouter_openai_detail and provider == "openrouter" and not own_detail:
         openai = SECTIONS["openai"]
         api = _with_overrides(table.get(openai, {}), openai, images, filtered)
         cfg["llm_detail"] = api["llm_detail"]
     return cfg
+
+
+def native_render_unbounded(settings: Mapping[str, Any]) -> bool:
+    """Whether a native render of *settings* is bounded only by a model cap.
+
+    A native render without resize profile needs a model cap, which the
+    caller checks; Gemini pages at ``original`` detail (media resolution
+    ``ultra_high``) are bounded by the payload limit instead.
+    """
+    return (
+        settings.get("target_dpi") == "native"
+        and settings.get("resize_profile") == "none"
+        and settings.get("media_resolution") != _GEMINI_ORIGINAL_RESOLUTION
+    )
 
 
 def _section_detail(settings: Mapping[str, Any], model_type: str) -> str:

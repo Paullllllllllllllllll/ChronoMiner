@@ -199,11 +199,7 @@ def resolve_image_settings(
             result["original_max_side_px"] = int(side)
     cap = model_image_cap(model_type, model, detail, result)
     result["cap_policy"] = cap.policy if cap else "profile-v1"
-    if (
-        result["target_dpi"] == "native"
-        and not cap
-        and result["resize_profile"] == "none"
-    ):
+    if not cap and image_presets.native_render_unbounded(result):
         raise ValueError(f"Invalid resize_profile in {section}: native needs a bound")
     return result, model_type, section
 
