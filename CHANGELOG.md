@@ -1,5 +1,8 @@
 # Changelog
 
+- **v1.9.1** (8 November 2026) -- pyasn1 moves from 0.6.4 to 0.6.5 in
+  `uv.lock` for GHSA-2qm8-x737-gmw5, GHSA-9m75-vc3g-4x39, GHSA-fm9c-5rcf-2q5p
+  and GHSA-mm57-4v3p-rchx. No source change.
 - **v1.9.0** (8 November 2026) -- Native PDF renders now stay within the
   `max_pixels_per_page` memory guard (24 MP) like numeric renders and record
   `memory_guard` when it lowers the zoom. A shared `check_request_size` in
