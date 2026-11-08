@@ -7,16 +7,22 @@ effort, output limit, schema and media resolution.
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import pytest
 
+from chronominer.common import provider_requests
 from chronominer.common.capabilities import resolve_capabilities
 from chronominer.common.capability_table import TABLE
+from chronominer.common.image_presets import MAX_IMAGE_BYTES
 from chronominer.common.provider_requests import (
+    GOOGLE_REQUEST_BYTES,
     Part,
     RequestPlan,
+    RequestTooLargeError,
     batch_body,
+    check_request_size,
     message_content,
     request_params,
 )
@@ -259,3 +265,58 @@ def test_an_anthropic_batch_body_carries_thinking_effort_and_the_schema() -> Non
     assert body["output_config"]["effort"] == "high"
     assert body["output_config"]["format"]["type"] == "json_schema"
     assert body["system"][0]["cache_control"] == {"type": "ephemeral"}
+
+
+def _with_context_image(context: str, page: str) -> list[Part]:
+    """The user parts of a page request that sends a context image first."""
+    return [
+        Part(text="Context image:"),
+        Part(data=context, mime="image/png", detail="high"),
+        Part(text="The image:"),
+        Part(data=page, mime="image/jpeg", detail="high"),
+    ]
+
+
+def test_a_gemini_request_over_its_limit_with_a_context_image_is_not_sent() -> None:
+    plan = _plan("google", "gemini-3.1-flash-lite")
+    # Each image fits the 20 MB image limit; together they exceed the request's.
+    parts = _with_context_image("A" * 4_000_000, "B" * 16_000_000)
+
+    with pytest.raises(RequestTooLargeError, match="Gemini API limit"):
+        check_request_size(plan, "Answer.", parts)
+    with pytest.raises(RequestTooLargeError):
+        batch_body(plan, "Answer.", parts, SCHEMA)
+    check_request_size(plan, "Answer.", parts[2:])
+
+
+def test_a_context_image_over_the_anthropic_image_limit_is_not_sent() -> None:
+    plan = _plan("anthropic", "claude-haiku-5-5")
+    parts = _with_context_image("A" * (MAX_IMAGE_BYTES["anthropic"] + 1), "aGVsbG8=")
+
+    with pytest.raises(RequestTooLargeError, match="image 1 of 2"):
+        check_request_size(plan, "Answer.", parts)
+    with pytest.raises(RequestTooLargeError):
+        batch_body(plan, "Answer.", parts, SCHEMA)
+
+
+@pytest.mark.parametrize(
+    "provider,model",
+    [
+        ("openai", "gpt-5.6-luna"),
+        ("anthropic", "claude-haiku-5-5"),
+        ("google", "gemini-3.1-flash-lite"),
+    ],
+)
+def test_a_request_within_the_limits_is_built_unchanged(
+    provider: str, model: str
+) -> None:
+    plan = _plan(provider, model)
+    # Near the per-image limit, within the Gemini request limit.
+    near = "A" * (min(MAX_IMAGE_BYTES[provider], GOOGLE_REQUEST_BYTES) - 4_000)
+    parts = _with_context_image("Y29udGV4dA==", near)
+
+    check_request_size(plan, "Answer.", parts)
+    body = batch_body(plan, "Answer.", parts, SCHEMA)
+
+    unchecked = provider_requests._BODIES[provider](plan, "Answer.", parts, SCHEMA)
+    assert json.dumps(body) == json.dumps(unchecked)

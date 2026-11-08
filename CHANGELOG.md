@@ -1,5 +1,13 @@
 # Changelog
 
+- **v1.9.0** (8 November 2026) -- Native PDF renders now stay within the
+  `max_pixels_per_page` memory guard (24 MP) like numeric renders and record
+  `memory_guard` when it lowers the zoom. A shared `check_request_size` in
+  `common/provider_requests.py` holds every request to its provider's limits: each
+  image, the context image included, within the family's per-image payload limit, and a
+  Google request's images and prompt text together within 20 MB; a request over a limit
+  is not sent and fails its page or chunk with the reason, while the rest of a batch is
+  submitted and requests within the limits are unchanged.
 - **v1.8.0** (8 November 2026) -- Gemini models at `--image-detail original` now get
   their pages at the rendered size, without the 768x1536 box and its padding, and every
   image part of synchronous and batch requests carries media resolution `ultra_high`;

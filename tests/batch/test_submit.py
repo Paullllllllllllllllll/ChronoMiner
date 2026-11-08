@@ -9,11 +9,13 @@ import pytest
 
 from chronominer import ext
 from chronominer.batch.submit import (
+    REQUEST_TOO_LARGE,
     BatchSubmissionError,
     SubmitOutcome,
     chunk_request,
     submit_batch,
 )
+from chronominer.common.image_presets import MAX_IMAGE_BYTES
 from chronominer.extract.images import PageImage
 from chronominer.llm.prompts import EXTRACTION_SCHEMA_NAME
 from chronominer.output.store import DATABASE_NAME, open_store
@@ -90,6 +92,40 @@ async def test_submit_batch_reads_the_run_and_writes_no_working_file(
     (body,) = world.bodies()
     assert body["model"] == "claude-sonnet-4-6"
     assert sorted(path.name for path in root.iterdir()) == [DATABASE_NAME]
+
+
+async def test_an_oversized_page_fails_with_its_error_and_the_others_are_sent(
+    world: World, tmp_path: Path
+) -> None:
+    spec = resolve_spec(
+        {
+            "input": tmp_path,
+            "schema": DEFAULT_TEST_SCHEMA,
+            "provider": "anthropic",
+            "model": "claude-sonnet-4-6",
+        }
+    ).spec
+    oversized = "A" * (MAX_IMAGE_BYTES["anthropic"] + 4)
+    payloads = [
+        PageImage(index=index, image_name=f"page_{index + 1:04d}", base64=data)
+        for index, data in enumerate(["UEFHRQ==", oversized, "UEFHRQ=="])
+    ]
+    async with open_store(tmp_path) as store:
+        await store.begin_run("extract")
+        document = await leased_document(store, provider="anthropic")
+        outcome = await submit_batch(
+            payloads, document=document, spec=spec, settings=Settings()
+        )
+        (submission_id,) = outcome.submission_ids
+        members = store.submission_requests(submission_id)
+        units = {row.idx: row for row in store.units(document.doc_id)}
+    assert outcome.status == "submitted"
+    assert sorted(key.idx for key in members.values()) == [0, 2]
+    assert len(world.bodies()) == 2
+    assert [units[idx].status for idx in range(3)] == ["pending", "failed", "pending"]
+    failed = units[1]
+    assert failed.error_type == REQUEST_TOO_LARGE
+    assert failed.error is not None and "over the anthropic limit" in failed.error
 
 
 async def test_text_chunks_are_sent_as_text_with_the_schema(

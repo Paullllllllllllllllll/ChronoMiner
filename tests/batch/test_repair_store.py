@@ -25,8 +25,10 @@ import pymupdf
 import pytest
 
 from chronominer.batch import repair as repair_module
+from chronominer.batch.submit import REQUEST_TOO_LARGE
 from chronominer.common.batch import BatchHandle, BatchResultItem
 from chronominer.common.capture import AttemptRecord, record_attempt
+from chronominer.common.image_presets import MAX_IMAGE_BYTES
 from chronominer.common.sqlite import read
 from chronominer.common.store import PlannedUnit, ResponseRow, UnitKey, UnitResult
 from chronominer.extract.images import resolve_image_settings
@@ -498,6 +500,37 @@ async def test_a_batch_repair_submits_finalizes_and_renders_the_units(
     ]
     assert world.cleaned == [batch_id]
     assert_no_side_files(tmp_path)
+
+
+async def test_a_batch_repair_stores_the_error_of_an_oversized_page(
+    world: World, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key")
+    stored = await store_document(
+        tmp_path, ["ok", "failed", "failed"], provider="anthropic"
+    )
+    render = repair_module.page_image
+
+    def oversized(*args: Any) -> Any:
+        page = render(*args)
+        if page.index != 1:
+            return page
+        return replace(page, base64="A" * (MAX_IMAGE_BYTES["anthropic"] + 4))
+
+    monkeypatch.setattr(repair_module, "page_image", oversized)
+
+    result = await repair_module.repair_extraction(
+        spec_for(stored.output, "batch", provider="anthropic"), Settings()
+    )
+
+    assert (result.repaired, result.failed, result.selected) == (1, 1, 2)
+    (requested,) = rows(stored.db, "SELECT idx FROM submission_requests")
+    assert requested == (2,)
+    ((status, error, error_type),) = rows(
+        stored.db, "SELECT status, error, error_type FROM units WHERE idx = 1"
+    )
+    assert (status, error_type) == ("failed", REQUEST_TOO_LARGE)
+    assert "over the anthropic limit" in error
 
 
 class ApiError(Exception):

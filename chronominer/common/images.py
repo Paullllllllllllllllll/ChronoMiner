@@ -564,7 +564,12 @@ class PdfPageSource(PageSource):
                 (pt_width * base_zoom, pt_height * base_zoom), img_cfg, self.model_type
             )
             zoom *= min(scale, 1.0)
-        pixels = (pt_width * zoom) * (pt_height * zoom)
+        return self._guarded_zoom(page, zoom)
+
+    def _guarded_zoom(self, page: Any, zoom: float) -> float:
+        """Lower *zoom* until the integer pixmap holds ``max_pixels`` at most."""
+        rect = page.rect
+        pixels = (float(rect.width) * zoom) * (float(rect.height) * zoom)
         if self.max_pixels > 0 and pixels > self.max_pixels:
             zoom *= math.sqrt(self.max_pixels / pixels)
             while True:
@@ -603,11 +608,16 @@ class PdfPageSource(PageSource):
             )
             img_cfg = {**cfg, "_target_size": size}
             if density:
-                zoom = (
+                wanted = (
                     source_dpi
                     / 72
                     * min(size[0] / source_width, size[1] / source_height)
                 )
+                zoom = self._guarded_zoom(page, wanted)
+                if zoom < wanted:
+                    # The capped resize takes min(pixmap, target), so the
+                    # smaller pixmap stands.
+                    reason = "memory_guard"
             else:
                 zoom = self._render_zoom(page, img_cfg)
                 if self.max_pixels > 0 and self.max_pixels < size[0] * size[1]:

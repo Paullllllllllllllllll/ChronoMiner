@@ -81,7 +81,7 @@ RENDER_STRATEGY = IMAGE_PRESETS.render_strategy
 """Numeric PDF renders go straight to the profile size, never above the DPI."""
 
 MAX_PIXELS_PER_PAGE = IMAGE_PRESETS.max_pixels_per_page
-"""The memory guard of a numeric PDF render, in pixels."""
+"""The memory guard of a numeric or native PDF render, in pixels."""
 
 _DEFAULTS: Mapping[str, Any] = MappingProxyType(
     {

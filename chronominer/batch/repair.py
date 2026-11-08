@@ -57,6 +57,8 @@ from chronominer.batch.submit import (
     BatchSubmissionError,
     UnitRequest,
     chunk_request,
+    fail_oversized,
+    split_oversized,
     submit_units,
 )
 from chronominer.batch.wait import wait_for_submissions
@@ -68,6 +70,7 @@ from chronominer.common.store import (
     Store,
     StoreError,
     Submission,
+    UnitKey,
     UnitResult,
     UnitRow,
     WriterOptions,
@@ -1073,7 +1076,9 @@ class _Session:
 
         Returns the finalized submissions, or None when no unit was written:
         a refused submission leaves the units as they were, an unresolved or
-        unfinished one leaves them to ``batch check``.
+        unfinished one leaves them to ``batch check``. A chunk whose request
+        exceeds a size limit of the provider is stored as failed with that
+        error once the batch is accepted, or at once when no chunk is sent.
         """
         plan, handle, document = self.plan, self.handle, self.document
         clients = self.clients = BatchClients(plan.settings, ROLE, args=plan.args)
@@ -1098,6 +1103,11 @@ class _Session:
             )
             for payload in payloads
         ]
+        units, oversized = split_oversized(units, body)
+        if oversized and not any(unit.request is not None for unit in units):
+            await self._record_chunks(payloads)
+            await self._fail_oversized(oversized)
+            return []
         try:
             outcome = await submit_units(
                 self.store, units, plan=body, clients=clients, label=LABEL
@@ -1119,6 +1129,7 @@ class _Session:
             )
             return None
         await self._record_chunks(payloads)
+        await self._fail_oversized(oversized)
         waited = await wait_for_submissions(
             self.store, outcome.submission_ids, clients, self.events
         )
@@ -1148,7 +1159,14 @@ class _Session:
                     f"Repair submission {submission_id} not finalized "
                     f"({result.outcome}): {result.detail}"
                 )
-        return finalized or None
+        return finalized or ([] if oversized else None)
+
+    async def _fail_oversized(self, errors: Mapping[UnitKey, str]) -> None:
+        """Store the chunks whose request is too large as failed with the error."""
+        handle = self.handle
+        await fail_oversized(
+            self.store, errors, model=handle.model, provider=handle.provider
+        )
 
     async def render(self) -> tuple[Path, ...]:
         outputs, warnings = await render_documents(

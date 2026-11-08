@@ -308,6 +308,22 @@ def test_a_missing_or_cleared_context_image_sends_two_blocks(
     assert len(_human(script.requests[0])) == 2
 
 
+def test_a_gemini_page_over_the_request_limit_fails_without_a_call(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    extractor, script = _extractor(monkeypatch, [ANSWER], SPECS["google"])
+    # The page fits the 20 MB image limit; with the prompts it exceeds the
+    # request's.
+    page = "A" * (20_000_000 - 100)
+
+    result = asyncio.run(
+        extractor.extract_image_from_base64(page, "image/jpeg", label="page_0001")
+    )
+
+    assert script.requests == []
+    assert "Gemini API limit" in result["error"]
+
+
 def test_openrouter_sends_only_the_tiers_it_takes(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

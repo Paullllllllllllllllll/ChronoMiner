@@ -41,6 +41,14 @@ batch body from the same parameters, the same content and the schema the
 provider enforces (OpenAI ``text.format``, Anthropic
 ``output_config.format``, Google ``response_json_schema``). A Gemini image
 carries the media resolution its detail maps to, per part, in both paths.
+
+:func:`check_request_size` holds a request to its provider's size limits:
+each image, the context image included, within the per-image payload limit
+of the model's family (:data:`~.image_presets.MAX_IMAGE_BYTES`), and a
+Google request's images and prompt text together within
+:data:`GOOGLE_REQUEST_BYTES`. :func:`batch_body` runs it on every body; a
+synchronous caller runs it before it sends. A request over a limit raises
+:class:`RequestTooLargeError` and is not sent.
 """
 
 from __future__ import annotations
@@ -51,6 +59,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from .capabilities import Capabilities
+from .image_presets import MAX_IMAGE_BYTES, detect_model_type
 from .images import google_media_resolution
 from .request_options import (
     SAMPLERS,
@@ -70,12 +79,15 @@ from .structured import anthropic_output_schema, build_text_format, schema_body
 
 __all__ = [
     "BATCH_PROVIDERS",
+    "GOOGLE_REQUEST_BYTES",
     "Content",
     "Part",
     "RequestPlan",
+    "RequestTooLargeError",
     "batch_body",
     "cache_control",
     "chat_model_fields",
+    "check_request_size",
     "image_detail",
     "media_resolution",
     "message_content",
@@ -91,6 +103,9 @@ Content = list[str | dict[Any, Any]]
 
 BATCH_PROVIDERS = frozenset({"openai", "anthropic", "google"})
 """The providers :func:`batch_body` builds bodies for."""
+
+GOOGLE_REQUEST_BYTES = 20_000_000
+"""The Gemini API's limit on a request's inline images and text together."""
 
 _DETAILS: Mapping[str, frozenset[str]] = {
     "openai": frozenset({"low", "high", "auto", "original"}),
@@ -176,6 +191,47 @@ class Part:
     def is_image(self) -> bool:
         """Whether the part is an image."""
         return self.data is not None
+
+
+class RequestTooLargeError(ValueError):
+    """A request exceeds a size limit of its provider and is not sent."""
+
+
+def check_request_size(plan: RequestPlan, system: str, parts: Sequence[Part]) -> None:
+    """Check a request of *system* prompt and user *parts* against its limits.
+
+    An image's base64 text must fit the per-image limit of the model's
+    family; the custom family sets none. A request of provider google must
+    also hold the base64 text of its images and the UTF-8 bytes of its
+    prompt texts, the system prompt included, within
+    :data:`GOOGLE_REQUEST_BYTES`.
+
+    Raises:
+        RequestTooLargeError: The request exceeds a limit.
+    """
+    family = detect_model_type(plan.provider, plan.model)
+    cap = MAX_IMAGE_BYTES.get(family, 0)
+    images = [part for part in parts if part.is_image]
+    for number, part in enumerate(images, start=1):
+        size = len(part.data or "")
+        if cap and size > cap:
+            raise RequestTooLargeError(
+                f"Request not sent: image {number} of {len(images)} holds "
+                f"{size:,} base64 bytes, over the {family} limit of {cap:,} "
+                "bytes per image"
+            )
+    if plan.provider != "google":
+        return
+    total = len(system.encode("utf-8")) + sum(
+        len(part.data or "") if part.is_image else len((part.text or "").encode())
+        for part in parts
+    )
+    if total > GOOGLE_REQUEST_BYTES:
+        raise RequestTooLargeError(
+            f"Request not sent: its {len(images)} image(s) and prompt text hold "
+            f"{total:,} bytes, over the Gemini API limit of "
+            f"{GOOGLE_REQUEST_BYTES:,} bytes per request"
+        )
 
 
 def _samplers(plan: RequestPlan) -> dict[str, Any]:
@@ -598,9 +654,12 @@ def batch_body(
 
     Raises:
         ValueError: The provider has no batch API.
+        RequestTooLargeError: The request exceeds a size limit
+            (:func:`check_request_size`).
     """
     try:
         build = _BODIES[plan.provider]
     except KeyError:
         raise ValueError(f"Provider '{plan.provider}' has no batch API") from None
+    check_request_size(plan, system, parts)
     return build(plan, system, parts, schema)

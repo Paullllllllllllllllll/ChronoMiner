@@ -1,4 +1,4 @@
-# ChronoMiner v1.8.0
+# ChronoMiner v1.9.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -620,7 +620,9 @@ side; `images.original_max_side_px` in the settings sets this limit for every Op
 model. Gemini pages at `high` detail are fitted into 768x1536 px with white
 padding; at `original` detail they keep their rendered size and go out at media
 resolution `ultra_high` (2,240 image tokens from Gemini 3 on; Gemini 2 takes no
-media resolution), and a page over Google's 20 MB limit fails.
+media resolution), and a page over Google's 20 MB limit fails. A `native` render,
+like a numeric one, holds at most 24 megapixels, and a page rendered smaller for
+that reason records the downscale reason `memory_guard`.
 
 ## Schemas
 
@@ -744,7 +746,10 @@ item's context is `{stem}_extract_context.txt` beside the file, else
 `--context-image auto` looks for `{stem}_extract_context.{png,jpg,...}` the same way,
 else for `context/extract_context.{png,jpg,...}` in the repository. The context image
 is sent before every chunk to OpenAI and OpenRouter models; for other providers it is
-skipped with a warning in the log.
+skipped with a warning in the log. A chunk fails without a request when an image of
+the request, the context image included, exceeds the payload limit of the model's
+family (OpenAI 50 MB, Anthropic 10 MB, Gemini 20 MB) or when a Gemini request's
+images and prompt text together exceed 20 MB.
 
 ## Line Ranges
 

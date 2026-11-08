@@ -306,8 +306,8 @@ class ImagePresets:
 
     *families* must hold every family of :data:`FAMILIES`; unknown families
     take the custom preset. *resampling* is the downscaling filter of page
-    images, *render_strategy* and *max_pixels_per_page* the rendering
-    options of a numeric PDF render.
+    images, *render_strategy* the rendering option of a numeric PDF render
+    and *max_pixels_per_page* the memory guard of every PDF render.
     """
 
     families: Mapping[str, FamilyPreset]

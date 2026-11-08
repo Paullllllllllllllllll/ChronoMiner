@@ -36,6 +36,8 @@ from langchain_core.messages import HumanMessage, SystemMessage
 
 from chronominer.common.provider_requests import (
     Part,
+    RequestTooLargeError,
+    check_request_size,
     message_content,
     system_content,
 )
@@ -299,12 +301,30 @@ class ChunkExtractor:
             self.image_block(data, mime, detail),
         ]
 
+    def _check_size(self, kind: ChunkKind, parts: list[Part]) -> None:
+        """Check the request of *parts* after the context image, if any.
+
+        Raises:
+            RequestTooLargeError: The request exceeds a size limit of the
+                provider.
+        """
+        if self._context_image is not None:
+            data, mime, detail = self._context_image
+            context = Part(data=data, mime=mime, detail=detail)
+            parts = [Part(text=CONTEXT_IMAGE_LABEL), context, *parts]
+        check_request_size(self.plan, self.system_prompt(kind), parts)
+
     def text_messages(self, text: str) -> list[Any]:
         """Return the system and user messages of one text chunk.
 
         The chunk is the user message; a context image and its label come
         before it.
+
+        Raises:
+            RequestTooLargeError: The request exceeds a size limit of the
+                provider.
         """
+        self._check_size("text", [Part(text=text)])
         context = self._context_blocks()
         if not context:
             return [self._system_message("text"), HumanMessage(content=text)]
@@ -318,10 +338,16 @@ class ChunkExtractor:
 
         The context image and its label come first, then the page instruction
         and the page image.
+
+        Raises:
+            RequestTooLargeError: The request exceeds a size limit of the
+                provider.
         """
+        detail = image_detail or self.page_detail
+        page = Part(data=image_base64, mime=mime_type, detail=detail)
+        self._check_size("image", [Part(text=IMAGE_INSTRUCTION), page])
         content: list[str | dict[str, Any]] = self._context_blocks()
         content.append({"type": "text", "text": IMAGE_INSTRUCTION})
-        detail = image_detail or self.page_detail
         content.append(self.image_block(image_base64, mime_type, detail))
         return [self._system_message("image"), HumanMessage(content=content)]
 
@@ -366,7 +392,12 @@ class ChunkExtractor:
         self, text: str, *, label: str | None = None
     ) -> dict[str, Any]:
         """Extract one text chunk; a failure returns the dict with ``error``."""
-        return await self._call(self.text_messages(text), label or "chunk")
+        try:
+            messages = self.text_messages(text)
+        except RequestTooLargeError as exc:
+            logger.error("Extraction failed for %s: %s", label or "chunk", exc)
+            return error_response(str(exc))
+        return await self._call(messages, label or "chunk")
 
     async def extract_image_from_base64(
         self,
@@ -385,9 +416,13 @@ class ChunkExtractor:
             return error_response(
                 f"Model {self.model_name} does not support vision/image inputs."
             )
-        messages = self.image_messages(
-            image_base64, mime_type, image_detail=image_detail
-        )
+        try:
+            messages = self.image_messages(
+                image_base64, mime_type, image_detail=image_detail
+            )
+        except RequestTooLargeError as exc:
+            logger.error("Extraction failed for %s: %s", label or "page", exc)
+            return error_response(str(exc))
         return await self._call(
             messages,
             label or "page",
