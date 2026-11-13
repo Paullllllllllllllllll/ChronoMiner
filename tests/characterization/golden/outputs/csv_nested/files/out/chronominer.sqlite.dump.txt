@@ -120,7 +120,7 @@
 ## meta
 {
   "component": "chronominer",
-  "version": 3
+  "version": 4
 }
 {
   "component": "classifications",

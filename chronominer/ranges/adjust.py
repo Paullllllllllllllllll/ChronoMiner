@@ -5,8 +5,8 @@ adjust``. For each range of a text file's ``_line_ranges.txt`` the model
 (role ``adjust``) judges a window of lines around the range start, marked
 by :data:`BOUNDARY_SENTINEL`; :mod:`~chronominer.ranges.decision` turns the
 answers into a decision, which is committed to the store as the range's
-unit before the next range starts. The file is then rendered again from
-the store.
+unit as soon as it is made. Up to ``concurrency`` ranges of a file are
+decided at once. The file is then rendered again from the store.
 
 Starting ranges and resume: a file that is the store's own last rendering,
 or whose ranges equal the stored starting ranges, resumes the stored
@@ -20,12 +20,17 @@ Errors: a transient model failure that outlasts the caller's retries
 answers as unsure for that window; a range whose every call failed is
 stored as failed and decided again by the next run; when every call of a
 file failed, :class:`AdjustDegradedError` is raised after the file is
-rendered. Any other model error is stored with the range and propagates;
-the file is not rendered then.
+rendered. Any other model error is stored with the range and propagates
+once the ranges already in flight are decided; the file is not rendered
+then. A stopped run (:class:`~chronominer.common.retry.RunStopped`) is
+neither an unsure answer nor a failed range: the range it stopped stays
+undecided, no further range starts, the ranges in flight are decided, the
+file is rendered and :class:`RangesStopped` propagates.
 """
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import logging
 from collections.abc import Mapping, Sequence
@@ -36,7 +41,7 @@ from typing import Any, Final, Protocol
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from chronominer.common.capture import use_recorder
-from chronominer.common.retry import ErrorKind, classify_error
+from chronominer.common.retry import ErrorKind, RunStopped, classify_error
 from chronominer.common.selection import PageRange
 from chronominer.common.store import Lease, Store, UnitKey, file_sha256, unit_context
 from chronominer.common.structured import (
@@ -53,6 +58,7 @@ from chronominer.events import (
 )
 from chronominer.llm.prompts import boundary_prompt, system_content
 from chronominer.output.store import KIND_RANGE
+from chronominer.pool import run_concurrent_transcription_tasks
 from chronominer.ranges.decision import (
     DEFAULT_CONTEXT_WINDOW,
     DecidedRange,
@@ -95,6 +101,7 @@ __all__ = [
     "AdjustOptions",
     "AdjustReport",
     "BoundaryCaller",
+    "RangesStopped",
     "adjust_files",
     "adjust_ranges",
     "boundary_user_text",
@@ -134,6 +141,17 @@ class BoundaryCaller(Protocol):
         ...
 
 
+class RangesStopped(RunStopped):
+    """The run stopped while a file's ranges were decided.
+
+    *left* counts the selected ranges of the file that stay undecided.
+    """
+
+    def __init__(self, reason: str, left: int) -> None:
+        super().__init__(reason)
+        self.left = left
+
+
 class AdjustDegradedError(RuntimeError):
     """Every model call for a file failed; its ranges stayed as they were."""
 
@@ -157,7 +175,8 @@ class AdjustOptions:
     missing ``_line_ranges.txt``; without it a missing file is an error.
     *prompt_caching* marks the system prompt for caching as extraction does.
     *marker_length* is the ``(minimum, maximum)`` characters the prompt asks
-    markers to have; shorter markers are rejected.
+    markers to have; shorter markers are rejected. *concurrency* is the
+    number of ranges decided at once.
     """
 
     boundary_type: str
@@ -169,6 +188,7 @@ class AdjustOptions:
     force: bool = False
     chunk_tokens: int | None = None
     prompt_caching: PromptCaching = PromptCaching()
+    concurrency: int = 1
 
 
 @dataclass
@@ -241,7 +261,12 @@ def _degrades(exc: BaseException) -> bool:
 
 @dataclass(frozen=True)
 class _Context:
-    """What every range of one file shares."""
+    """What every range of one file shares.
+
+    *writes* serializes the commits of the file's decisions: each lays out
+    all ranges from the stored ones, so two that read the same state would
+    each write a layout without the other's decision.
+    """
 
     store: Store
     lease: Lease
@@ -252,6 +277,7 @@ class _Context:
     lines: Sequence[str]
     system: str
     settings: Mapping[str, Any]
+    writes: asyncio.Lock = field(default_factory=asyncio.Lock)
 
 
 def _settings(options: AdjustOptions, system: str) -> dict[str, Any]:
@@ -284,6 +310,8 @@ async def adjust_ranges(
             ``options.chunk_tokens`` is None.
         AdjustDegradedError: Every model call failed.
         DocumentBusyError: Another live run holds the document.
+        RangesStopped: The run stopped; the file is rendered with the
+            ranges decided so far.
     """
     sink = events or NullEvents()
     text_file = text_file.resolve()
@@ -315,17 +343,31 @@ async def adjust_ranges(
         if not units:
             report.status = "empty"
             return report
-        await _decide_pending(context, units, report, tally, sink)
-        rendered = await render_ranges(store, lease, ranges_file)
-        report.warnings.extend(rendered.warnings)
-        for warning in rendered.warnings:
-            sink.warning(warning)
+        try:
+            await _decide_pending(context, units, report, tally, sink)
+        except RangesStopped:
+            await _render(store, lease, ranges_file, report, sink)
+            raise
+        await _render(store, lease, ranges_file, report, sink)
         report.ranges = tuple(_current_ranges(store, lease.doc_id))
     finally:
         await store.release(lease)
     if tally.total and tally.degraded >= tally.total:
         raise AdjustDegradedError(name, tally.degraded, tally.total)
     return report
+
+
+async def _render(
+    store: Store,
+    lease: Lease,
+    ranges_file: Path,
+    report: AdjustReport,
+    events: RunEvents,
+) -> None:
+    rendered = await render_ranges(store, lease, ranges_file)
+    report.warnings.extend(rendered.warnings)
+    for warning in rendered.warnings:
+        events.warning(warning)
 
 
 def _current_ranges(store: Store, doc_id: int) -> list[Range]:
@@ -406,16 +448,33 @@ async def _decide_pending(
     tally: _Tally,
     events: RunEvents,
 ) -> None:
-    """Decide the selected ranges that have no decision yet."""
+    """Decide the selected ranges that have no decision yet.
+
+    Raises:
+        RangesStopped: The run stopped; the ranges in flight were decided,
+            the others stay undecided.
+    """
     selected = _selected(units, context.options.pages)
     todo = [unit for unit in units if unit.idx in selected and not unit.decided]
     if not todo:
         report.status = "complete"
         return
     done = sum(unit.decided for unit in units)
-    for position, unit in enumerate(todo, 1):
+    errors: list[Exception] = []
+
+    async def decide(unit: RangeUnit) -> None:
+        if errors:
+            return
         await context.store.wait_capacity()
-        result, degraded = await _decide_one(context, unit, tally)
+        if errors:
+            return
+        try:
+            result, degraded = await _decide_one(context, unit, tally)
+        except RunStopped:
+            raise
+        except Exception as exc:  # noqa: BLE001 - re-raised once the pool drains
+            errors.append(exc)
+            return
         report.decided += 1
         report.calls += result.calls
         report.degraded += int(degraded)
@@ -424,11 +483,20 @@ async def _decide_pending(
                 item=context.name,
                 chunk=unit.idx,
                 status="failed" if degraded else "ok",
-                done=position,
+                done=report.decided,
                 total=len(todo),
                 already_complete=done,
             )
         )
+
+    try:
+        await run_concurrent_transcription_tasks(
+            decide, [(unit,) for unit in todo], context.options.concurrency
+        )
+    except RunStopped as exc:
+        raise RangesStopped(str(exc), len(todo) - report.decided) from exc
+    if errors:
+        raise errors[0]
     if tally.degraded:
         message = (
             f"{context.name}: {tally.degraded} of {tally.total} model calls failed "
@@ -479,6 +547,8 @@ async def _decide_one(
             answer = await context.caller.call(
                 [system, HumanMessage(content=text)], request, label=label
             )
+        except RunStopped:
+            raise
         except Exception as exc:
             if not _degrades(exc):
                 raise
@@ -510,29 +580,33 @@ async def _decide_one(
                 boundary_type=context.options.boundary_type,
                 min_marker_length=context.options.marker_length[0],
             )
+        except RunStopped:
+            raise
         except Exception as exc:
-            await write_failure(
-                store,
-                lease,
-                unit.idx,
-                unit.original,
-                exc,
-                model=context.model,
-                provider=context.caller.provider,
-                collector=collector,
-            )
+            async with context.writes:
+                await write_failure(
+                    store,
+                    lease,
+                    unit.idx,
+                    unit.original,
+                    exc,
+                    model=context.model,
+                    provider=context.caller.provider,
+                    collector=collector,
+                )
             raise
     failed_all = calls > 0 and degraded >= calls
-    await write_result(
-        store,
-        lease,
-        result,
-        model=context.model,
-        provider=context.caller.provider,
-        collector=collector,
-        settings=context.settings,
-        degraded=failed_all,
-    )
+    async with context.writes:
+        await write_result(
+            store,
+            lease,
+            result,
+            model=context.model,
+            provider=context.caller.provider,
+            collector=collector,
+            settings=context.settings,
+            degraded=failed_all,
+        )
     return result, failed_all
 
 
@@ -594,6 +668,8 @@ async def _adjust_one(
         return await adjust_ranges(
             store, text_file, caller=caller, model=model, options=options, events=events
         )
+    except RunStopped:
+        raise
     except Exception as exc:  # noqa: BLE001 - reported per file; the others go on
         logger.error("Adjusting %s failed: %s", text_file.name, exc)
         return exc

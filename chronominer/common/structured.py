@@ -36,6 +36,7 @@ from .responses import (
     response_error_of,
     stop_of,
 )
+from .retry import RunStopped
 from .usage import usage_from_response
 
 logger = logging.getLogger(__name__)
@@ -723,6 +724,9 @@ async def _invoke_once(
     )
     try:
         response = await call(prepared, messages)
+    except RunStopped:
+        # Its cause may be a stopped answer, which must not end this unit.
+        raise
     except Exception as exc:
         stopped = stop_of(exc)
         if stopped is not None:

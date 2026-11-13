@@ -42,6 +42,7 @@ EXTRACT_KEYS = {
     "items_submitted",
     "outputs",
     "usage",
+    "stopped",
 }
 PLAN_KEYS = {"to_process", "skipped", "unstored", "blocked", "refused", "spec"}
 ZERO_USAGE = {
@@ -249,6 +250,7 @@ def test_interrupt_and_crash_write_one_json_line(
         "items_submitted": 0,
         "outputs": [],
         "usage": ZERO_USAGE,
+        "stopped": None,
     }
     assert "[ERROR]" in err
 

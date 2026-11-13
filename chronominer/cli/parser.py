@@ -81,6 +81,11 @@ EXTRACT_EPILOG = (
             "       without --all, --select or --files, or a --select that\n"
             "       matches nothing",
         ),
+        (
+            "3",
+            "a provider serves no further calls of this run; the chunks left\n"
+            "       stay pending and a rerun resumes them",
+        ),
     )
     + JSON_CONTRACT
     + """
@@ -128,6 +133,11 @@ RANGES_ADJUST_EPILOG = (
             "usage or configuration error (an unknown schema, an unset key\n"
             "       variable), or no text file with a line-ranges file",
         ),
+        (
+            "3",
+            "a provider serves no further calls of this run; a rerun adjusts\n"
+            "       the files left",
+        ),
     )
     + JSON_CONTRACT
     + """
@@ -150,6 +160,11 @@ REPAIR_EPILOG = (
             "usage or configuration error: a missing input, an input no\n"
             "       database records, a database the store refuses, no key or\n"
             "       batch API, or a model without image input for page chunks",
+        ),
+        (
+            "3",
+            "a provider serves no further calls of this run; the chunks left\n"
+            "       stay pending and extract resumes them",
         ),
     )
     + JSON_CONTRACT
@@ -266,6 +281,11 @@ answers match its fingerprint, input and content is reused unless --force.
             "usage or configuration error: an unknown classifier or one of\n"
             "       another unit, --chunking adjust, a missing line-ranges file,\n"
             "       an unset key variable, or nothing to classify",
+        ),
+        (
+            "3",
+            "a provider serves no further calls of this run; a rerun asks\n"
+            "       about the units left",
         ),
     )
     + JSON_CONTRACT

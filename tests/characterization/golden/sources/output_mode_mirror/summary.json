@@ -15,6 +15,7 @@
       "<tmp>/out/sub/deep/beta_output.csv",
       "<tmp>/out/chronominer.sqlite"
     ],
+    "stopped": null,
     "usage": {
       "extract": {
         "cached_tokens": 0,

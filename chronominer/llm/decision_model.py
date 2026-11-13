@@ -66,6 +66,7 @@ class DecisionModel:
             record=self._record,
             retry=settings.retry,
             gate=env.limiters.get(self.dialect),
+            stop=env.stop,
         )
         self.runner = DecisionRunner(seam, model=model, dialect=self.dialect)
 

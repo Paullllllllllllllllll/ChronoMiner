@@ -142,6 +142,7 @@ def test_render_reports_a_render_that_raises_permission_error(
 ) -> None:
     held, other = _seeded(tmp_path)
     other.unlink()
+    held.write_text("{}", encoding="utf-8")
     original = Store.render
 
     async def render(self: Store, lease: Any, targets: Any, **kwargs: Any) -> Any:

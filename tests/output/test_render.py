@@ -13,15 +13,19 @@ reading and writing but not for deletion, so the replacement fails.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 import sqlite3
 import sys
+import time
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 import pytest
 
 from chronominer.common.store import Lease, UnitResult
+from chronominer.output import render
 from chronominer.output.render import (
     FORMAT_CHOICES,
     document_targets,
@@ -248,6 +252,116 @@ def test_render_database_skips_a_document_another_run_holds(tmp_path: Path) -> N
 
     assert result.skipped is not None and result.failed
     assert result.written == []
+
+
+def test_render_database_leases_and_records_only_changed_documents(
+    tmp_path: Path,
+) -> None:
+    kept = _seeded(tmp_path)
+    other = tmp_path / "other_output.json"
+
+    async def main() -> None:
+        async with open_store(tmp_path) as store:
+            await store.begin_run("extract")
+            lease = await seed(store, [chunk(0)], name="other")
+            await render_item(store, "other", (), other, lease)
+
+    asyncio.run(main())
+    other.unlink()
+    rows = (
+        "SELECT d.name, d.lease_generation, o.rendered_at, o.run_id, o.sha256 "
+        "FROM documents AS d JOIN outputs AS o ON o.doc_id = d.doc_id ORDER BY d.name"
+    )
+    connection = sqlite3.connect(database_path(tmp_path))
+    try:
+        before = connection.execute(rows).fetchall()
+    finally:
+        connection.close()
+
+    results = asyncio.run(render_database(database_path(tmp_path)))
+
+    by_name = {result.name: result for result in results}
+    assert by_name[NAME].unchanged == [kept] and not by_name[NAME].written
+    assert by_name["other"].written == [other]
+    connection = sqlite3.connect(database_path(tmp_path))
+    try:
+        after = connection.execute(rows).fetchall()
+    finally:
+        connection.close()
+    assert after[0] == before[0]
+    assert after[1][0] == "other"
+    assert after[1][1] > before[1][1]
+    assert after[1][3] != before[1][3]
+
+
+def test_render_database_reads_each_document_when_its_turn_comes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _seeded(tmp_path)
+
+    async def main() -> None:
+        async with open_store(tmp_path) as store:
+            await store.begin_run("extract")
+            lease = await seed(store, [chunk(0)], name="other")
+            await render_item(store, "other", (), tmp_path / "other_output.json", lease)
+
+    asyncio.run(main())
+    first, second = sorted([NAME, "other"])
+    real = render.read_only
+    opened = 0
+
+    @contextlib.contextmanager
+    def read_only(path: Path) -> Iterator[sqlite3.Connection]:
+        # Another run takes the second document after the first was read.
+        nonlocal opened
+        opened += 1
+        if opened == 2:
+            connection = sqlite3.connect(path)
+            try:
+                connection.execute(
+                    "UPDATE documents SET lease_run_id = 'other-run', "
+                    "lease_until = ? WHERE name = ?",
+                    (time.time() + 600, second),
+                )
+                connection.commit()
+            finally:
+                connection.close()
+        with real(path) as connection:
+            yield connection
+
+    monkeypatch.setattr(render, "read_only", read_only)
+
+    results = asyncio.run(render_database(database_path(tmp_path)))
+
+    by_name = {result.name: result for result in results}
+    assert by_name[first].unchanged and by_name[first].skipped is None
+    assert by_name[second].skipped == "another run holds its lease"
+    assert not by_name[second].unchanged
+
+
+def test_render_database_leaves_out_a_document_reset_after_the_listing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    output = _seeded(tmp_path)
+    before = output.read_bytes()
+    real = render.read_only
+
+    @contextlib.contextmanager
+    def read_only(path: Path) -> Iterator[sqlite3.Connection]:
+        # Another run returns the chunks to pending before the document's turn.
+        connection = sqlite3.connect(path)
+        try:
+            connection.execute("UPDATE units SET status = 'pending'")
+            connection.commit()
+        finally:
+            connection.close()
+        with real(path) as connection:
+            yield connection
+
+    monkeypatch.setattr(render, "read_only", read_only)
+
+    assert asyncio.run(render_database(database_path(tmp_path))) == []
+    assert output.read_bytes() == before
 
 
 def test_preview_database_writes_nothing(tmp_path: Path) -> None:

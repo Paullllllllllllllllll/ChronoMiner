@@ -1,5 +1,27 @@
 # Changelog
 
+- **v1.11.0** (13 November 2026) -- When the attempt context of `ext.py` answers a
+  failed call with the new decision `STOP`, because a provider will serve no
+  further calls of the run, `extract`, `ranges adjust`, `repair` and the
+  `classify` commands stop at once with the new exit code 3 instead of failing
+  every remaining chunk. The calls already running finish, and the item in work
+  keeps its finished chunks, is rendered and is released; its other chunks stay
+  pending, and for `repair` these are the chunks it had reset, which an `extract`
+  rerun takes up. No further item starts, one error line names the reason and
+  what was left, the JSON lines of these commands gain a `stopped` field, null
+  unless the run was stopped, and `--help` lists the exit code. The store's tool
+  component moves to version 4, which indexes the entry answers that the
+  staleness triggers read: extracting a document with many entry answers again
+  no longer reads all of them at every entry write. An older ChronoMiner refuses
+  a store at version 4. `ranges adjust` and `--chunking adjust` decide
+  `--concurrency` line ranges at a time and commit them one after another.
+  Planning classifies the items of an output root over one read connection. A
+  render reads each document when its turn comes and leaves it alone, without a
+  lease or a write, when its files and rows already match the store. The stored
+  message of a failed attempt names the transport error behind it, for example
+  `(cause: httpx.ReadTimeout)`. The shared package gains `Decision.STOP`,
+  `RunStopped`, `StopSignal`, `heed_stop`, `ExitCode.STOPPED` and the
+  connection-level `resume_state`.
 - **v1.10.0** (12 November 2026) -- The context image is sent before every
   chunk to every model that takes images, whatever the provider, in synchronous
   runs and in batches; it was limited to OpenAI and OpenRouter in synchronous

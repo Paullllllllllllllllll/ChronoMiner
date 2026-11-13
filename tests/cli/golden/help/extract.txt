@@ -143,6 +143,8 @@ Exit codes:
   2    usage or configuration error, no item found, several items
        without --all, --select or --files, or a --select that
        matches nothing
+  3    a provider serves no further calls of this run; the chunks left
+       stay pending and a rerun resumes them
   130  interrupted (Ctrl+C or Ctrl+Break)
 
 With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and

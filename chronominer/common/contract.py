@@ -1,7 +1,9 @@
 """Agent contract: exit codes and the one-line JSON run summary.
 
 Exit codes: 0 when every item completed, 1 when an item failed or no item
-could be processed, 2 for usage and configuration errors, 130 on interrupt.
+could be processed, 2 for usage and configuration errors, 3 when the run
+stopped because a provider serves no further calls (its unprocessed units
+stay as they were; a rerun at once would stop again), 130 on interrupt.
 With ``--json`` a front end writes exactly one JSON summary line to stdout on
 every exit path; every summary carries a ``dry_run`` flag. A run summary
 reports the run's tokens under :data:`USAGE_KEY` (see :func:`usage_field`).
@@ -27,6 +29,7 @@ class ExitCode(IntEnum):
     OK = 0
     FAILURE = 1
     USAGE = 2
+    STOPPED = 3
     INTERRUPTED = 130
 
 

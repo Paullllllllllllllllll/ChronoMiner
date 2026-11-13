@@ -123,6 +123,7 @@ __all__ = [
     "current_unit",
     "file_sha256",
     "refresh_documents",
+    "resume_state",
     "select_documents",
     "unit_context",
 ]
@@ -2676,7 +2677,7 @@ class Store:
 
     def resume_state(self, document: int | str) -> ResumeState | None:
         """Return what resume needs of a document, or None when it is unknown."""
-        return self._read(lambda connection: _resume_state(connection, document))
+        return self._read(lambda connection: resume_state(connection, document))
 
 
 # =============================================================================
@@ -2701,9 +2702,15 @@ def _check_submission_leases(
         _check_lease(connection, lease, now)
 
 
-def _resume_state(
+def resume_state(
     connection: sqlite3.Connection, document: int | str
 ) -> ResumeState | None:
+    """Return what resume needs of a document, or None when it is unknown.
+
+    *document* is a document id or name. :meth:`Store.resume_state` opens a
+    connection per call; a caller that reads many documents of one database
+    passes one read connection (:func:`~.sqlite.read_only`) to this function.
+    """
     column = "doc_id" if isinstance(document, int) else "name"
     rows = _dicts(
         connection, f"SELECT * FROM documents WHERE {column} = ?", (document,)

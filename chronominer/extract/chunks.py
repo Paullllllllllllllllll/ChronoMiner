@@ -25,6 +25,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from chronominer.common.retry import RunStopped
 from chronominer.common.selection import PageRange
 from chronominer.common.store import Lease, Store
 from chronominer.events import RunEvents
@@ -276,6 +277,9 @@ async def extract_payload(payload: Any, extractor: Any) -> PayloadResult:
     A text chunk goes as text, a page as an image. A page that never produced
     an image (``render_error``) is recorded as a failed chunk without a
     request; an answer with an error has no text.
+
+    Raises:
+        RunStopped: The provider serves no further calls of this run.
     """
     label = payload.image_name
     if getattr(payload, "render_error", None) is not None:
@@ -288,6 +292,8 @@ async def extract_payload(payload: Any, extractor: Any) -> PayloadResult:
             result = await extractor.extract_image_from_base64(
                 payload.base64, payload.mime_type, label=label
             )
+    except RunStopped:
+        raise
     except Exception as exc:
         logger.exception("Error extracting %s: %s", label, exc)
         return _no_text(payload)

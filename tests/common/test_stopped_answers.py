@@ -26,7 +26,7 @@ from chronominer.common.responses import (
     inspect_response,
     truncation_of,
 )
-from chronominer.common.retry import ErrorKind, classify_error
+from chronominer.common.retry import ErrorKind, RunStopped, classify_error
 from chronominer.common.structured import (
     PreparedRequest,
     StructuredRequest,
@@ -108,6 +108,17 @@ def test_an_sdk_error_for_a_cut_answer_is_a_truncation() -> None:
         "truncated", "LengthFinishReasonError: finish_reason=length"
     )
     assert result.text == ""
+
+
+def test_a_run_stop_is_not_read_as_a_stopped_answer() -> None:
+    stop = RunStopped("LengthFinishReasonError: length limit reached")
+    stop.__cause__ = LengthFinishReasonError("length limit reached")
+    model = _Model([stop])
+
+    with pytest.raises(RunStopped):
+        _call(model)
+
+    assert model.calls == 1
 
 
 def test_a_cut_answer_error_is_not_retried_as_a_server_error() -> None:

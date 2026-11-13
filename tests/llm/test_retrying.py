@@ -8,7 +8,7 @@ import contextlib
 import pytest
 
 from chronominer import ext
-from chronominer.common.retry import Decision, default_decision
+from chronominer.common.retry import Decision, StopSignal, default_decision
 from chronominer.llm.retrying import AttemptDecisions
 
 _IDENTITY = ext.Identity(provider="openai", api_key_env="OPENAI_API_KEY", role="t")
@@ -71,6 +71,19 @@ def test_call_failure_decision_is_popped_once() -> None:
     decisions.failed(_Attempt(Decision.WAIT), exc)
     assert decisions.decide(exc) is Decision.WAIT
     assert decisions.decide(exc) is default_decision(exc)
+
+
+def test_a_stop_decision_sets_the_signal_before_the_ladder_asks() -> None:
+    stop = StopSignal()
+    decisions = AttemptDecisions(stop)
+
+    decisions.failed(_Attempt(Decision.RETRY), ValueError("slow"))
+    assert stop.reason is None
+
+    exc = ValueError("no further calls")
+    decisions.failed(_Attempt(Decision.STOP), exc)
+    assert stop.reason == "ValueError: no further calls"
+    assert decisions.decide(exc) is Decision.STOP
 
 
 def test_unrecorded_exception_gets_default_decision() -> None:

@@ -13,6 +13,7 @@
       "<tmp>/out/page_output.csv",
       "<tmp>/out/chronominer.sqlite"
     ],
+    "stopped": null,
     "usage": {
       "extract": {
         "cached_tokens": 0,

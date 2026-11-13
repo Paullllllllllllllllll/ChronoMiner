@@ -74,6 +74,7 @@ from chronominer.common.decisions import (
     dialect_for,
     request_fingerprint,
 )
+from chronominer.common.retry import RunStopped
 from chronominer.common.sqlite import read
 from chronominer.common.store import (
     Lease,
@@ -100,6 +101,7 @@ from chronominer.providers import infer_provider, split_provider_prefix
 from chronominer.ranges.lines import read_lines
 from chronominer.run import ConfigurationError, StoreRefusedError, writer_options
 from chronominer.spec import ClassifyItemsSpec
+from chronominer.stopping import RunStop
 
 __all__ = [
     "CLASSIFIED",
@@ -141,13 +143,21 @@ class ClassifyResult:
     """The outcome of a classify command.
 
     *usage* holds the tokens of the decision-model calls per role and
-    *databases* the database files opened for writing.
+    *databases* the database files opened for writing. *stop* says why the
+    run stopped and what it left unclassified, None when it was not stopped;
+    the stopped document and those after it are not among *targets*.
     """
 
     targets: tuple[TargetResult, ...]
     usage: Mapping[str, Usage] = field(default_factory=dict)
     databases: tuple[str, ...] = ()
     seconds: float = 0.0
+    stop: RunStop | None = None
+
+    @property
+    def stopped(self) -> str | None:
+        """Why the run stopped, or None when it was not stopped."""
+        return self.stop.reason if self.stop is not None else None
 
     def count(self, state: str) -> int:
         """Return the number of documents in *state*."""
@@ -173,7 +183,9 @@ class ClassifyResult:
 
     @property
     def exit_code(self) -> ExitCode:
-        """1 when a document failed, was refused or blocked by a lease, else 0."""
+        """3 when stopped; 1 when a document failed, was refused or leased."""
+        if self.stop is not None:
+            return ExitCode.STOPPED
         held = self.count(FAILED) + self.count(REFUSED) + self.count(BLOCKED)
         return exit_code_for(failed=held)
 
@@ -733,7 +745,9 @@ async def run_classify(
 
     A dry run opens no store for writing and builds no client: it counts
     the units that would be asked and reused. A failed request fails its
-    document, and the run goes on with the next request.
+    document, and the run goes on with the next request. When a provider
+    serves no further calls of the run, the answers recorded so far stay, no
+    further request or document starts, and the result's ``stop`` says so.
 
     Raises:
         ConfigurationError: The decision client cannot be built; nothing
@@ -764,13 +778,19 @@ async def run_classify(
     worker = _Classify(plan, model, stores, sink)
     results: list[TargetResult] = []
     exit_code: int = ExitCode.FAILURE
+    stop: RunStop | None = None
     try:
         position = 0
         for target in plan.targets:
             if target.state == READY:
                 position += 1
-            results.append(await worker.target(target, position, len(ready)))
-        exit_code = ClassifyResult(tuple(results)).exit_code
+            try:
+                results.append(await worker.target(target, position, len(ready)))
+            except RunStopped as exc:
+                further = len(ready) - position
+                stop = RunStop(str(exc), target.name, further=further)
+                break
+        exit_code = ClassifyResult(tuple(results), stop=stop).exit_code
     except (asyncio.CancelledError, KeyboardInterrupt):
         exit_code = ExitCode.INTERRUPTED
         raise
@@ -784,4 +804,5 @@ async def run_classify(
         usage={role: env.usage.get(role) for role in env.usage.roles},
         databases=stores.databases if stores is not None else (),
         seconds=time.monotonic() - started,
+        stop=stop,
     )

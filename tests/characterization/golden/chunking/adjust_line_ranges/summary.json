@@ -13,6 +13,7 @@
       "<tmp>/out/ledger_output.csv",
       "<tmp>/out/chronominer.sqlite"
     ],
+    "stopped": null,
     "usage": {
       "adjust": {
         "cached_tokens": 0,

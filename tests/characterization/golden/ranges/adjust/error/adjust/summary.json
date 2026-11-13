@@ -11,6 +11,7 @@
     "outputs": [
       "<tmp>/docs/chronominer.sqlite"
     ],
+    "stopped": null,
     "usage": {
       "adjust": {
         "cached_tokens": 0,

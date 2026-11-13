@@ -5,6 +5,7 @@
     "dry_run": false,
     "failed": 0,
     "repaired": 1,
+    "stopped": null,
     "usage": {
       "extract": {
         "cached_tokens": 0,

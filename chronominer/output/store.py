@@ -128,7 +128,8 @@ import contextlib
 import json
 import sqlite3
 import time
-from collections.abc import Callable, Iterator, Mapping, Sequence
+from collections.abc import Callable, Iterable, Iterator, Mapping, Sequence
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from enum import StrEnum
@@ -138,7 +139,7 @@ from typing import Any, Final
 
 from chronominer.common.classify_store import COMPONENT as CLASSIFICATIONS
 from chronominer.common.native import MODEL_DERIVED_IMAGE_KEYS, changed_image_settings
-from chronominer.common.sqlite import read, read_only
+from chronominer.common.sqlite import read_only
 from chronominer.common.store import (
     Component,
     ResumeState,
@@ -149,6 +150,7 @@ from chronominer.common.store import (
     WriterOptions,
     check_schema,
     file_sha256,
+    resume_state,
 )
 
 __all__ = [
@@ -170,10 +172,12 @@ __all__ = [
     "VIEWS",
     "Classification",
     "ImageSettings",
+    "ItemQuery",
     "ItemState",
     "MissingComponentError",
     "chunk_decision_rows",
     "classify",
+    "classify_items",
     "clear_chunk_decisions",
     "create_entries_view",
     "database_path",
@@ -459,7 +463,17 @@ def _version_3(connection: sqlite3.Connection) -> None:
             statement = ""
 
 
-COMPONENT: Final = Component(TOOL, (_version_1, _version_2, _version_3))
+_TRIGGER_INDEXES_V4 = """
+CREATE INDEX entry_answers_by_chunk ON classification_rows (doc_id, unit, ordinal);
+CREATE INDEX entry_answers_by_request ON classification_rows (doc_id, request_sha256);
+"""
+"""The entry triggers find a chunk's answers by ``doc_id``, not by document
+name, since a renamed document's answers keep the name they were asked
+under."""
+
+COMPONENT: Final = Component(
+    TOOL, (_version_1, _version_2, _version_3, _TRIGGER_INDEXES_V4)
+)
 """The tool's schema component: version 1 adds the content tables and views,
 version 2 the ``chunk_decisions`` table and the decision columns of
 ``chunks``, version 3 the triggers that flag ``classifications`` answers
@@ -467,10 +481,12 @@ stale whenever any writer, of any version, changes them underneath: the
 answers about a chunk's entries when the chunk's entry rows are inserted,
 deleted or changed or its unit is reset, flagged, replaced or deleted, and
 every chunk answer of a document when its chunk layout (a unit's line range,
-page or index) changes or a chunk unit is deleted. Version 3 needs the
-classifications component (:data:`COMPONENTS`); without it the migration is
-refused (:class:`MissingComponentError`). An older ChronoMiner refuses a
-store at version 3."""
+page or index) changes or a chunk unit is deleted. Version 4 adds the two
+indexes on ``classification_rows`` through which the entry triggers reach a
+chunk's answers without reading every answer of the document. Version 3
+needs the classifications component (:data:`COMPONENTS`); without it the
+migration is refused (:class:`MissingComponentError`). An older ChronoMiner
+refuses a store at a newer version."""
 
 ENTRY_LOCATOR: Final = "{chunk_index}:{entry_index}"
 """The locator of an entry's classification rows; their ``ordinal`` is the
@@ -885,11 +901,14 @@ def _blocked(
 
 
 def _input_refusal(
-    name: str, doc_id: int, details: _Details, input_path: Path | None
+    name: str,
+    doc_id: int,
+    details: _Details,
+    input_path: Path | None,
+    content: str | None,
 ) -> Classification | None:
     if input_path is None or details.input_sha256 is None:
         return None
-    content = _current_sha256(input_path)
     if content is None or content == details.input_sha256:
         return None
     return Classification(
@@ -985,18 +1004,127 @@ def classify(  # noqa: PLR0913 - keyword-only options of run.py and tests
     resumes with a note. Raises the store's errors for a versionless, newer
     or unreadable database.
     """
-    path = database_path(root)
-    present = tuple(output for output in outputs if _nonempty(output))
+    item = ItemQuery(name, outputs, image_settings, input_path)
+    (classification,) = classify_items(
+        root,
+        (item,),
+        model=model,
+        retry_errors=retry_errors,
+        holder=holder,
+        now=now,
+        kind=kind,
+        schema_sha256=schema_sha256,
+    )
+    return classification
+
+
+@dataclass(frozen=True)
+class ItemQuery:
+    """One item of :func:`classify_items`, with the arguments of :func:`classify`."""
+
+    name: str
+    outputs: Sequence[Path] = ()
+    image_settings: ImageSettings | None = None
+    input_path: Path | None = None
+
+
+@dataclass(frozen=True)
+class _Stored:
+    resume: ResumeState | None = None
+    details: _Details | None = None
+
+    def recorded_input(self) -> bool:
+        details = self.details
+        return (
+            details is not None
+            and bool(details.counts)
+            and details.input_sha256 is not None
+        )
+
+
+def _stored(connection: sqlite3.Connection, name: str, kind: str) -> _Stored:
+    resume = resume_state(connection, name)
+    if resume is None:
+        return _Stored()
+    return _Stored(resume, _details(connection, resume.doc_id, kind))
+
+
+_HASH_WORKERS: Final = 8
+
+
+def _hashes(paths: Iterable[Path]) -> dict[Path, str | None]:
+    """Return the SHA-256 of each file, None for one that cannot be read."""
+    unique = list(dict.fromkeys(paths))
+    if len(unique) < 2:  # noqa: PLR2004 - a pool only pays for two files or more
+        return {path: _current_sha256(path) for path in unique}
+    with ThreadPoolExecutor(max_workers=min(_HASH_WORKERS, len(unique))) as pool:
+        return dict(zip(unique, pool.map(_current_sha256, unique), strict=True))
+
+
+def classify_items(  # noqa: PLR0913 - keyword-only options of classify
+    root: Path,
+    items: Sequence[ItemQuery],
+    *,
+    model: str | None = None,
+    retry_errors: bool = True,
+    holder: str | None = None,
+    now: float | None = None,
+    kind: str = KIND_CHUNK,
+    schema_sha256: str | None = None,
+) -> list[Classification]:
+    """Classify the items of output root *root* from the store; never write.
+
+    The rules are those of :func:`classify`. The schema is checked once and
+    the stored states are read over one read-only connection, which closes
+    before the inputs whose documents record a SHA-256 are hashed in a
+    thread pool. Returns one classification per item, in order.
+    """
     state = _schema(root)
-    store = None
+    stored = [_Stored()] * len(items)
     if state.exists and not state.empty:
-        store = Store(path, TOOL, components=COMPONENTS)
-    resume = store.resume_state(name) if store is not None else None
+        with read_only(state.path) as connection:
+            stored = [_stored(connection, item.name, kind) for item in items]
+    hashes = _hashes(
+        item.input_path
+        for item, found in zip(items, stored, strict=True)
+        if item.input_path is not None and found.recorded_input()
+    )
+    return [
+        _classify(
+            root,
+            item,
+            found,
+            None if item.input_path is None else hashes.get(item.input_path),
+            model=model,
+            retry_errors=retry_errors,
+            holder=holder,
+            now=now,
+            kind=kind,
+            schema_sha256=schema_sha256,
+        )
+        for item, found in zip(items, stored, strict=True)
+    ]
+
+
+def _classify(  # noqa: PLR0913 - keyword-only options of classify
+    root: Path,
+    item: ItemQuery,
+    found: _Stored,
+    content: str | None,
+    *,
+    model: str | None,
+    retry_errors: bool,
+    holder: str | None,
+    now: float | None,
+    kind: str,
+    schema_sha256: str | None,
+) -> Classification:
+    """Classify one item from its stored state; *content* is its input's hash."""
+    name, outputs, input_path = item.name, item.outputs, item.input_path
+    image_settings = item.image_settings
+    present = tuple(output for output in outputs if _nonempty(output))
+    resume, details = found.resume, found.details
     doc_id = resume.doc_id if resume is not None else None
-    details = None
-    if resume is not None:
-        known = resume.doc_id
-        details = read(path, lambda connection: _details(connection, known, kind))
     if resume is None or details is None or not details.counts:
         leased = None if resume is None else _blocked(resume, name, kind, holder, now)
         if leased is not None:
@@ -1015,7 +1143,7 @@ def classify(  # noqa: PLR0913 - keyword-only options of run.py and tests
     assert doc_id is not None
 
     hold = _blocked(resume, name, kind, holder, now) or _input_refusal(
-        name, doc_id, details, input_path
+        name, doc_id, details, input_path, content
     )
     if hold is not None:
         return hold

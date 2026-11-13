@@ -38,6 +38,7 @@ SUMMARY_KEYS = {
     "items_submitted",
     "outputs",
     "usage",
+    "stopped",
 }
 
 

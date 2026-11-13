@@ -193,6 +193,8 @@ def repair_result(spec: RepairSpec, result: RepairResult) -> RenderableType:
         Text(str(result.failed), style="red" if result.failed else ""),
     )
     parts: list[RenderableType] = [causes, table]
+    if result.stop is not None:
+        parts.append(Text(result.stop.message(), style="red"))
     if result.database is not None:
         parts.append(Text(f"Stored in: {result.database}"))
     parts += _lines((str(path) for path in result.outputs), "Rendered: ")

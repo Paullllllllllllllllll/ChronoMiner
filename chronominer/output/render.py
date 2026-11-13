@@ -23,12 +23,13 @@ from __future__ import annotations
 import contextlib
 import hashlib
 import sqlite3
+import time
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, fields
 from pathlib import Path
 from typing import Final
 
-from chronominer.common.sqlite import read
+from chronominer.common.sqlite import read, read_only
 from chronominer.common.store import (
     DocumentRow,
     Lease,
@@ -53,7 +54,6 @@ from chronominer.output.store import (
     KIND_RANGE,
     open_store,
     output_path,
-    read_only_connection,
     read_store,
 )
 
@@ -90,6 +90,10 @@ RENDERERS: Final[Mapping[str, Renderer]] = {
 
 _NOT_PENDING = (
     "SELECT count(*) FROM units WHERE doc_id = ? AND kind = ? AND status != 'pending'"
+)
+_RENDERED_KINDS = "SELECT DISTINCT doc_id, kind FROM units WHERE status != 'pending'"
+_DOCUMENT_KINDS = (
+    "SELECT DISTINCT kind FROM units WHERE doc_id = ? AND status != 'pending'"
 )
 
 
@@ -269,6 +273,7 @@ class _Renderable:
     document: DocumentRow
     chunks: bool
     ranges: bool
+    outputs: tuple[OutputRow, ...] = ()
 
 
 def _targets(
@@ -318,17 +323,127 @@ def _preview_document(
     return result
 
 
-def _renderable_documents(root: Path) -> tuple[Store, list[_Renderable]] | None:
+def _rows[R](
+    connection: sqlite3.Connection,
+    sql: str,
+    cls: type[R],
+    params: Sequence[int | str] = (),
+) -> list[R]:
+    cursor = connection.execute(sql, params)
+    columns = [description[0] for description in cursor.description]
+    names = [item.name for item in fields(cls)]  # type: ignore[arg-type]
+    return [
+        cls(**{name: values[name] for name in names})
+        for values in (dict(zip(columns, row, strict=True)) for row in cursor)
+    ]
+
+
+def _renderable_documents(root: Path) -> list[_Renderable] | None:
+    """Return the documents with a file to render, with their outputs rows.
+
+    The schema is checked once; the rows are read over one connection.
+    """
     reader = read_store(root)
     if reader is None:
         return None
+
+    def rows(
+        connection: sqlite3.Connection,
+    ) -> tuple[list[DocumentRow], set[tuple[int, str]], list[OutputRow]]:
+        documents = _rows(
+            connection, "SELECT * FROM documents ORDER BY name", DocumentRow
+        )
+        kinds = {
+            (int(doc_id), str(kind))
+            for doc_id, kind in connection.execute(_RENDERED_KINDS)
+        }
+        outputs = _rows(
+            connection, "SELECT * FROM outputs ORDER BY doc_id, path", OutputRow
+        )
+        return documents, kinds, outputs
+
+    documents, kinds, outputs = read(reader.path, rows)
+    by_document: dict[int, list[OutputRow]] = {}
+    for row in outputs:
+        by_document.setdefault(row.doc_id, []).append(row)
     items = []
-    for doc in reader.documents():
-        chunks = rendered_units(reader, doc.doc_id) > 0
-        ranges = rendered_ranges(reader, doc.doc_id) > 0
+    for doc in documents:
+        chunks = (doc.doc_id, KIND_CHUNK) in kinds
+        ranges = (doc.doc_id, KIND_RANGE) in kinds
         if chunks or ranges:
-            items.append(_Renderable(doc, chunks, ranges))
-    return reader, items
+            registered = tuple(by_document.get(doc.doc_id, ()))
+            items.append(_Renderable(doc, chunks, ranges, registered))
+    return items
+
+
+def _output_key(path: Path, root: Path) -> str:
+    """Return the ``outputs.path`` the store records for *path*."""
+    resolved = Path(path).resolve()
+    try:
+        return resolved.relative_to(root.resolve()).as_posix()
+    except ValueError:
+        return str(resolved)
+
+
+def _refreshed(connection: sqlite3.Connection, item: _Renderable) -> _Renderable | None:
+    """Return the document of *item* as the store holds it now.
+
+    Another run may have changed its lease, units or ``outputs`` rows after
+    the documents were listed. None when it no longer has a file to render.
+    """
+    key = (item.document.doc_id,)
+    documents = _rows(
+        connection, "SELECT * FROM documents WHERE doc_id = ?", DocumentRow, key
+    )
+    kinds = {str(kind) for (kind,) in connection.execute(_DOCUMENT_KINDS, key)}
+    chunks, ranges = KIND_CHUNK in kinds, KIND_RANGE in kinds
+    if not documents or not (chunks or ranges):
+        return None
+    outputs = _rows(
+        connection,
+        "SELECT * FROM outputs WHERE doc_id = ? ORDER BY path",
+        OutputRow,
+        key,
+    )
+    return _Renderable(documents[0], chunks, ranges, tuple(outputs))
+
+
+def _settled(
+    connection: sqlite3.Connection,
+    root: Path,
+    item: _Renderable,
+    formats: Sequence[str] | None,
+    now: float,
+) -> list[Path] | None:
+    """Return the files of a document a render would leave as they are.
+
+    None when a render would replace a file, keep an edited one, mark one
+    stale or change an ``outputs`` row besides its time and run, and when
+    another run's live lease would skip the document.
+    """
+    document = item.document
+    until = document.lease_until
+    if document.lease_run_id is not None and until is not None and until > now:
+        return None
+    recorded = {row.path: row for row in item.outputs}
+    paths = []
+    for target in _targets(root, item, item.outputs, formats):
+        text = target.renderer(connection, document.doc_id)
+        data = text if isinstance(text, bytes) else text.encode("utf-8")
+        digest = hashlib.sha256(data).hexdigest()
+        try:
+            current = file_sha256(target.path)
+        except OSError:
+            return None
+        row = recorded.get(_output_key(target.path, root))
+        if (
+            current != digest
+            or row is None
+            or (row.format, row.sha256, row.stale) != (target.format, digest, 0)
+        ):
+            return None
+        paths.append(target.path)
+    return paths
 
 
 def preview_database(
@@ -345,25 +460,20 @@ def preview_database(
         StoreError: The database is versionless, newer or unreadable.
     """
     root = database.parent
-    found = _renderable_documents(root)
-    if found is None:
+    items = _renderable_documents(root)
+    if items is None:
         return []
-    reader, items = found
-    outputs = {
-        item.document.doc_id: reader.outputs(item.document.doc_id) for item in items
-    }
-    with read_only_connection(root) as connection:
-        return [
-            _preview_document(
-                connection,
-                database,
-                item,
-                outputs[item.document.doc_id],
-                formats,
-                force,
-            )
-            for item in items
-        ]
+    previews = []
+    for listed in items:
+        with read_only(database) as connection:
+            item = _refreshed(connection, listed)
+            if item is not None:
+                previews.append(
+                    _preview_document(
+                        connection, database, item, item.outputs, formats, force
+                    )
+                )
+    return previews
 
 
 async def _render_document(
@@ -401,6 +511,21 @@ async def _render_document(
     return result
 
 
+def _at_its_turn(
+    database: Path, listed: _Renderable, formats: Sequence[str] | None
+) -> tuple[_Renderable | None, list[Path] | None]:
+    """Read *listed* again; return it with the files a render would leave.
+
+    The read transaction covers this document alone: one over all documents
+    would hold off the commits of a run working in the store.
+    """
+    with read_only(database) as connection:
+        item = _refreshed(connection, listed)
+        if item is None:
+            return None, None
+        return item, _settled(connection, database.parent, item, formats, time.time())
+
+
 async def render_database(
     database: Path,
     *,
@@ -413,16 +538,17 @@ async def render_database(
     is skipped with a note. A file changed outside the tool is left alone
     unless *force*; a file that cannot be replaced stays stale for a later
     render. Documents without a done or failed chunk and without a stored
-    range are left out.
+    range are left out. A document whose files all equal their rendering and
+    their ``outputs`` rows is reported unchanged without a lease or a write,
+    so its rows keep the time and run of the render that wrote them.
 
     Raises:
         StoreError: The database is versionless, newer or unreadable.
     """
     root = database.parent
-    found = _renderable_documents(root)
-    if found is None or not found[1]:
+    items = _renderable_documents(root)
+    if not items:
         return []
-    items = found[1]
     results: list[DocumentRender] = []
     async with open_store(root) as store:
         await store.begin_run(
@@ -433,7 +559,17 @@ async def render_database(
             },
         )
         try:
-            for item in items:
+            for listed in items:
+                item, unchanged = _at_its_turn(database, listed, formats)
+                if item is None:
+                    continue
+                if unchanged is not None:
+                    results.append(
+                        DocumentRender(
+                            store.path, item.document.name, unchanged=unchanged
+                        )
+                    )
+                    continue
                 results.append(await _render_document(store, item, formats, force))
         finally:
             await store.end_run(1 if any(result.failed for result in results) else 0)

@@ -385,6 +385,46 @@ def carry_prompt_feedback(response: Any, body: bytes | str | None) -> None:
         metadata["prompt_feedback"] = dict(feedback)
 
 
+_MAX_CAUSES = 20
+
+
+def transport_cause(error: BaseException) -> httpx.TransportError | None:
+    """Return the httpx transport error that caused *error*, or None.
+
+    An SDK wraps a transport failure in a class of its own, whose name and
+    message do not say which phase failed: a read, pool, connect or write
+    timeout, a refused connection or a dropped one. The first
+    :class:`httpx.TransportError` among the causes says it. An *error* that
+    is a transport error itself has no such cause.
+    """
+    seen: set[int] = set()
+    current = error.__cause__ or error.__context__
+    while current is not None and id(current) not in seen and len(seen) < _MAX_CAUSES:
+        if isinstance(current, httpx.TransportError):
+            return current
+        seen.add(id(current))
+        current = current.__cause__ or current.__context__
+    return None
+
+
+def error_text(error: BaseException) -> str:
+    """Return the stored text of *error*: its message and its transport cause.
+
+    The cause (:func:`transport_cause`) is added as ``(cause:
+    httpx.ReadTimeout)``, with the cause's own message where it has one.
+    """
+    text = str(error)
+    if isinstance(error, httpx.TransportError):
+        return text
+    cause = transport_cause(error)
+    if cause is None:
+        return text
+    name = f"httpx.{type(cause).__name__}"
+    detail = str(cause)
+    note = f"{name}: {detail}" if detail and detail not in text else name
+    return f"{text} (cause: {note})"
+
+
 def error_type_of(error: BaseException) -> str:
     """Return the error type stored for *error*, its class name.
 
@@ -419,7 +459,8 @@ class HttpAttempt:
     :func:`sent_request`). A response that
     :func:`~.responses.inspect_response` finds stopped (a content filter, a
     refusal, a truncated answer) is stored with the outcome's message as its
-    error and the outcome's kind as its error type.
+    error and the outcome's kind as its error type. The stored text of a
+    failed call names its transport cause (:func:`error_text`).
     """
 
     def __init__(
@@ -472,7 +513,7 @@ class HttpAttempt:
             raw, raw_kind, status = captured.body, "http", captured.status
         elif response is not None:
             raw, raw_kind = sdk_dump(unwrap_raw_response(response)), "sdk"
-        message = None if error is None else str(error)
+        message = None if error is None else error_text(error)
         kind = None if error is None else error_type_of(error)
         stopped = None if error is None else stop_of(error)
         if stopped is not None:

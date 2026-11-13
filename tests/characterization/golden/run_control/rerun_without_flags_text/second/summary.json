@@ -9,6 +9,7 @@
     "items_submitted": 0,
     "items_total": 0,
     "outputs": [],
+    "stopped": null,
     "usage": {
       "total": {
         "cached_tokens": 0,

@@ -321,6 +321,7 @@ class Extractor:
             chunk_tokens=chunking.chunk_tokens,
             prompt_caching=self.job.settings.prompt_caching,
             force=self.job.force,
+            concurrency=spec.run.concurrency,
         )
         return RangeJob(
             chunking.mode,
@@ -493,6 +494,7 @@ class Extractor:
             delay=self.job.settings.concurrency.delay_between_tasks,
             on_unit=counter,
             entries=EntrySchema(schema.schema, schema.name),
+            stop=self.job.env.stop,
         )
 
     async def _decide(
@@ -506,7 +508,8 @@ class Extractor:
 
         Without a decision model, *needed* comes back unchanged. Under
         ``apply`` with a threshold for the request, chunks below it are
-        written as skipped and left out of the returned list.
+        written as skipped and left out of the returned list. A failed
+        pre-pass returns *needed*, except a stopped run, which propagates.
         """
         decider = self._decider
         if decider is None or not needed:

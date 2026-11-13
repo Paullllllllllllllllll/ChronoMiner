@@ -378,7 +378,12 @@ def _stamp(
 async def _write(
     store: Store, lease: Lease, unit: RangeUnit, result: UnitResult
 ) -> None:
-    """Write *result* for *unit* and the new contents of every range unit."""
+    """Write *result* for *unit* and the new contents of every range unit.
+
+    The contents come from the stored units read before the write, so a
+    caller that decides the ranges of one document concurrently lets one
+    write end before the next begins.
+    """
     contents = layout(stored_ranges(store, lease.doc_id), unit)
     own = contents.get(unit.idx)
     final = dataclasses.replace(result, content=_content(own))

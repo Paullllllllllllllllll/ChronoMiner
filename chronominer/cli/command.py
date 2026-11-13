@@ -1,9 +1,10 @@
 """Shared plumbing of the subcommands: summary line, errors, logging, warnings.
 
 Exit codes: 0 when every item completed, 1 when an item failed or another
-run leases one, 2 for usage and configuration errors, 130 on Ctrl+C or
-Ctrl+Break. With ``--json`` exactly one JSON summary line goes to stdout on
-every exit; everything else goes to stderr.
+run leases one, 2 for usage and configuration errors, 3 when a provider
+stopped the run (``extract``, ``ranges adjust``, ``repair``, ``classify``),
+130 on Ctrl+C or Ctrl+Break. With ``--json`` exactly one JSON summary line
+goes to stdout on every exit; everything else goes to stderr.
 """
 
 from __future__ import annotations
@@ -56,6 +57,9 @@ __all__ = [
 
 LOGGER_NAME = "chronominer"
 
+STOPPED_KEY = "stopped"
+"""The summary field that names why a provider stopped the run, else null."""
+
 # The phrase that marks a wait announcement; matched case-insensitively.
 _WAIT_PHRASE = "waiting until"
 
@@ -72,6 +76,7 @@ def summary_fields(  # noqa: PLR0913 - one keyword per summary field
     submitted: int = 0,
     outputs: Sequence[str] = (),
     usage: Mapping[str, Usage] | None = None,
+    stopped: str | None = None,
 ) -> dict[str, Any]:
     """Return the fields of the JSON run summary.
 
@@ -79,7 +84,8 @@ def summary_fields(  # noqa: PLR0913 - one keyword per summary field
     are among the *skipped* items too, and a leased one exits 1.
     *submitted* counts the items whose chunks wait in batches (``--batch``);
     they count neither complete nor failed. *usage* holds the run's tokens
-    per role; the summary adds their total.
+    per role; the summary adds their total. *stopped* is the reason a
+    provider stopped the run, None when it was not stopped.
     """
     return {
         "items_total": total,
@@ -90,6 +96,7 @@ def summary_fields(  # noqa: PLR0913 - one keyword per summary field
         "items_submitted": submitted,
         "outputs": list(outputs),
         USAGE_KEY: usage_field(usage),
+        STOPPED_KEY: stopped,
     }
 
 
@@ -124,13 +131,18 @@ def repair_fields(
     repaired: int = 0,
     failed: int = 0,
     usage: Mapping[str, Usage] | None = None,
+    stopped: str | None = None,
 ) -> dict[str, Any]:
-    """Return the fields of the repair summary; *usage* as in a run summary."""
+    """Return the fields of the repair summary.
+
+    *usage* and *stopped* are as in a run summary.
+    """
     return {
         "command": "repair",
         "repaired": repaired,
         "failed": failed,
         USAGE_KEY: usage_field(usage),
+        STOPPED_KEY: stopped,
     }
 
 
@@ -219,6 +231,7 @@ def classify_fields(  # noqa: PLR0913 - one keyword per summary field
     reused: int = 0,
     outputs: Sequence[str] = (),
     usage: Mapping[str, Usage] | None = None,
+    stopped: str | None = None,
 ) -> dict[str, Any]:
     """Return the fields of the classify summary.
 
@@ -227,7 +240,7 @@ def classify_fields(  # noqa: PLR0913 - one keyword per summary field
     skipped. ``units_asked`` counts the units asked about (in a dry run:
     that would be asked), ``units_reused`` those whose stored answers were
     kept; ``outputs`` lists the databases written and *usage* holds the
-    decision-model tokens per role.
+    decision-model tokens per role. *stopped* is as in a run summary.
     """
     return {
         "command": "classify",
@@ -243,6 +256,7 @@ def classify_fields(  # noqa: PLR0913 - one keyword per summary field
         "units_reused": reused,
         "outputs": list(outputs),
         USAGE_KEY: usage_field(usage),
+        STOPPED_KEY: stopped,
     }
 
 

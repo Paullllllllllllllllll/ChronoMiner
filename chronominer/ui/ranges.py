@@ -21,7 +21,7 @@ from rich.console import Console, RenderableType
 from rich.text import Text
 
 from chronominer import ext
-from chronominer.common.contract import ExitCode, exit_code_for
+from chronominer.common.contract import ExitCode
 from chronominer.common.options import OptionTable, Source
 from chronominer.common.selection import parse_page_range
 from chronominer.common.wizard import (
@@ -545,7 +545,7 @@ def _run(request: RunRequest, resolve: Resolver) -> int:
             _error(request, f"Error: {exc}")
             return int(exc.exit_code)
     request.console.print(summary_table(result, progress))
-    return int(exit_code_for(failed=result.failed))
+    return int(result.exit_code)
 
 
 def generate_flow() -> TaskFlow:

@@ -14,7 +14,10 @@ call's attempts to the unit and records them through
 entries, and only then reports it to *on_unit*. After all units it raises
 :class:`UnitsFailedError` when a unit failed or could not be written; a lost
 lease stops the document and is raised as
-:class:`~chronominer.common.store.LeaseLostError`.
+:class:`~chronominer.common.store.LeaseLostError`. A stopped run
+(:class:`~chronominer.common.retry.RunStopped`) writes no row for the unit
+whose call it stopped and starts no further unit; the units in flight are
+written, then the exception propagates.
 
 Unit conventions (the ``chunk`` units of :mod:`chronominer.output.store`):
 
@@ -52,6 +55,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from chronominer.common.capture import error_type_of, use_recorder
+from chronominer.common.retry import RunStopped, StopSignal
 from chronominer.common.store import (
     Lease,
     LeaseLostError,
@@ -61,11 +65,11 @@ from chronominer.common.store import (
     UnitResult,
     unit_context,
 )
-from chronominer.extract.pool import run_streaming_transcription_tasks
 from chronominer.extract.response_parsing import answer_outcome, parse_extraction
 from chronominer.output.attempts import AttemptRows
 from chronominer.output.entries import entries_writer
 from chronominer.output.store import KIND_CHUNK
+from chronominer.pool import run_streaming_transcription_tasks
 
 __all__ = [
     "UNIT_KIND",
@@ -289,14 +293,20 @@ class _Units:
         handle: DocumentHandle,
         on_unit: UnitCallback | None,
         entries: EntrySchema,
+        stop: StopSignal | None = None,
     ) -> None:
         self.handle = handle
         self.on_unit = on_unit
         self.entries = entries
+        self.stop = stop
         self.total = 0
         self.failed = 0
         self.write_errors: list[BaseException] = []
         self.lost: LeaseLostError | None = None
+
+    def _check_stop(self) -> None:
+        if self.stop is not None and self.stop.reason is not None:
+            raise RunStopped(self.stop.reason)
 
     async def run(
         self,
@@ -307,13 +317,20 @@ class _Units:
         source_index: int | str,
         provenance: Mapping[str, Any] | None = None,
     ) -> None:
-        """Extract one unit through *call*, write it, then report it."""
+        """Extract one unit through *call*, write it, then report it.
+
+        Raises:
+            RunStopped: The run stopped before or during the unit's call; the
+                unit is not written.
+        """
         handle = self.handle
         if self.lost is not None:
             return
+        self._check_stop()
         await handle.store.wait_capacity()
         if self.lost is not None:
             return
+        self._check_stop()
         recorder = AttemptRows(
             handle.store, provider=handle.provider, model=handle.model
         )
@@ -322,6 +339,8 @@ class _Units:
         with unit_context(handle.key(idx)), use_recorder(recorder):
             try:
                 result = await call()
+            except RunStopped:
+                raise
             except Exception as exc:
                 logger.exception("Error extracting %s: %s", label, exc)
                 raised = exc
@@ -439,7 +458,7 @@ class _Units:
             ) from cause
 
 
-async def run_unit_stream(
+async def run_unit_stream(  # noqa: PLR0913 - the pool's settings, keyword-only
     handle: DocumentHandle,
     payloads: AsyncIterator[Any],
     extractor: Any,
@@ -449,6 +468,7 @@ async def run_unit_stream(
     delay: float = 0.0,
     on_unit: UnitCallback | None = None,
     entries: EntrySchema | None = None,
+    stop: StopSignal | None = None,
 ) -> int:
     """Extract streamed payloads into the document's units.
 
@@ -456,13 +476,16 @@ async def run_unit_stream(
     producer yields it, each call *delay* seconds after the worker's
     previous one. A payload carries ``index`` and ``image_name`` (its
     label); the producer leaves out the units already done. *entries* types
-    the entry columns. Returns the number of units processed.
+    the entry columns. *stop* is the run's stop signal: once it is set, no
+    worker starts a further unit. Returns the number of units processed.
 
     Raises:
         UnitsFailedError: A unit failed or could not be written.
         LeaseLostError: The lease was lost; the remaining units were skipped.
+        RunStopped: The run stopped; the units in flight were written, the
+            others keep their status.
     """
-    units = _Units(handle, on_unit, entries or EntrySchema())
+    units = _Units(handle, on_unit, entries or EntrySchema(), stop)
 
     async def handle_payload(payload: Any) -> None:
         label = str(payload.image_name)

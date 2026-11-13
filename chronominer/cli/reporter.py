@@ -111,11 +111,14 @@ class StderrReporter:
         Each blocked item is named with its reason, a lease with its expiry.
         An item another run's lease holds makes the run incomplete; one
         waiting for a batch is left to ``batch check``. Items that
-        ``--pages`` left partial are counted.
+        ``--pages`` left partial are counted. A stopped run is reported by
+        one error line instead of the outcome line.
         """
         for name, reason in zip(result.blocked, result.blocked_reasons, strict=True):
             print_warning(f"Not processed (blocked): '{name}': {reason}.")
-        if result.leased:
+        if result.stop is not None:
+            print_error(result.stop.message())
+        elif result.leased:
             failures = (
                 f" and {result.failed} failure(s) of {len(result.items)} item(s)"
                 if result.failed

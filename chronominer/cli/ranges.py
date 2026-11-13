@@ -5,7 +5,8 @@ the extract summary: one item per text file, its outputs the written
 ``_line_ranges.txt`` files and the databases. ``ranges adjust`` exits 2
 before any write when the schema, the key variable, the endpoint or a
 context file is unusable, or no text file has a line-ranges file; its dry
-run lists an unset key variable as a warning instead.
+run lists an unset key variable as a warning instead. It exits 3 when a
+provider stopped the run.
 """
 
 from __future__ import annotations
@@ -27,7 +28,7 @@ from chronominer.cli.command import (
 )
 from chronominer.cli.console import print_error, print_info, print_warning
 from chronominer.cli.reporter import StderrReporter
-from chronominer.common.contract import ExitCode, exit_code_for
+from chronominer.common.contract import ExitCode
 from chronominer.common.options import OptionTable
 from chronominer.run import PlanError, RangesPlan, plan_ranges, run_ranges
 from chronominer.settings import (
@@ -83,13 +84,14 @@ def _process(
         return summary.emit(exc.exit_code, **summary_fields(total=exc.items_total))
     reporter.completion(result)
     return summary.emit(
-        exit_code_for(failed=result.failed),
+        result.exit_code,
         **summary_fields(
             total=len(result.items),
             complete=result.complete,
             failed=result.failed,
             outputs=result.outputs,
             usage=result.usage,
+            stopped=result.stopped,
         ),
     )
 

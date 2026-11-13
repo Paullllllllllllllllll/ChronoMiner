@@ -189,6 +189,7 @@
         "value": true
       }
     },
+    "stopped": null,
     "to_process": [
       {
         "name": "beta.txt",

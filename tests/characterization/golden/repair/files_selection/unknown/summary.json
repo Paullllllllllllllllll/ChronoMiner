@@ -5,6 +5,7 @@
     "dry_run": false,
     "failed": 0,
     "repaired": 0,
+    "stopped": null,
     "usage": {
       "total": {
         "cached_tokens": 0,

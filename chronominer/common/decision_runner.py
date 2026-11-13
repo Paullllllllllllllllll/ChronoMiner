@@ -55,9 +55,11 @@ from .retry import (
     ErrorKind,
     RetryGate,
     RetryHooks,
+    StopSignal,
     call_with_retry,
     classify_error,
     default_decision,
+    heed_stop,
 )
 from .settings_schema import RetrySettings
 from .usage import Usage
@@ -329,7 +331,7 @@ class Seam:
     provider, settings, client builder, model and client kind ``decision``);
     ``record`` adds usage to the run's totals; ``retry`` holds the attempt
     budgets; ``gate`` is the provider's rate limiter; ``sleep`` replaces
-    ``asyncio.sleep`` between retries.
+    ``asyncio.sleep`` between retries; ``stop`` is the run's stop signal.
     """
 
     attempt: Callable[[], DecisionAttempt]
@@ -337,16 +339,20 @@ class Seam:
     retry: RetrySettings = field(default_factory=RetrySettings)
     gate: RetryGate | None = None
     sleep: Callable[[float], Awaitable[None]] | None = None
+    stop: StopSignal | None = None
 
 
 class _AttemptDecisions:
     """The decisions of failed attempts, until the retry ladder asks for them."""
 
-    def __init__(self) -> None:
+    def __init__(self, stop: StopSignal | None = None) -> None:
         self._pending: dict[int, tuple[BaseException, Decision]] = {}
+        self._stop = stop
 
     def failed(self, attempt: DecisionAttempt, exc: Exception) -> None:
-        self._pending[id(exc)] = (exc, attempt.on_error(exc))
+        decision = attempt.on_error(exc)
+        heed_stop(self._stop, decision, exc)
+        self._pending[id(exc)] = (exc, decision)
 
     def decide(self, exc: BaseException) -> Decision:
         entry = self._pending.pop(id(exc), None)
@@ -368,6 +374,7 @@ class DecisionRunner:
 
         Raises:
             MalformedAnswer: The answers stayed invalid on every allowed try.
+            RunStopped: The provider serves no further calls of this run.
             Exception: The last error of a call that failed after its retries,
                 such as ``httpx.HTTPError`` or the seam's ``OSError``.
         """
@@ -402,7 +409,7 @@ class DecisionRunner:
         self, parts: Sequence[Part], questions: Sequence[Question], label: str
     ) -> DecisionResult:
         seam = self.seam
-        decisions = _AttemptDecisions()
+        decisions = _AttemptDecisions(seam.stop)
 
         async def one_attempt() -> DecisionResult:
             attempt = seam.attempt()
@@ -436,7 +443,9 @@ class DecisionRunner:
             timeouts += 1
             return decision if timeouts < seam.retry.timeout_attempts else Decision.FAIL
 
-        hooks = RetryHooks(on_error=decide, gate=seam.gate, sleep=seam.sleep)
+        hooks = RetryHooks(
+            on_error=decide, gate=seam.gate, sleep=seam.sleep, stop=seam.stop
+        )
         return await call_with_retry(
             one_attempt,
             policy=seam.retry.policy(),

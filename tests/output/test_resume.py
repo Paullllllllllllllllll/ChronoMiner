@@ -33,12 +33,15 @@ from chronominer.common.store import (
     UnreadableDatabaseError,
     VersionlessDatabaseError,
 )
+from chronominer.output import store as store_module
 from chronominer.output.render import render_item
 from chronominer.output.store import (
     DATABASE_NAME,
     KIND_RANGE,
+    ItemQuery,
     ItemState,
     classify,
+    classify_items,
     image_settings_record,
     open_store,
 )
@@ -345,6 +348,82 @@ def test_range_units_are_classified_by_their_kind(tmp_path: Path) -> None:
     assert chunks.state is ItemState.COMPLETE
     assert by_range.state is ItemState.PARTIAL
     assert by_range.units == (UnitKey(1, KIND_RANGE, 1),)
+
+
+def test_the_items_of_a_root_are_classified_over_one_connection(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    async def main() -> None:
+        async with open_store(tmp_path) as store:
+            await store.begin_run("extract")
+            for name, units in (
+                ("done", DONE),
+                ("partial", PAGES_RUN),
+                ("moved", DONE),
+            ):
+                lease = await seed_document(store, units, name=name)
+                output = tmp_path / f"{name}_output.json"
+                await render_item(store, name, (), output, lease)
+            await store.end_run(0)
+
+    asyncio.run(main())
+    inputs = {name: tmp_path / f"{name}.txt" for name in ("done", "partial", "moved")}
+    inputs["new"] = tmp_path / "new.txt"
+    for name, path in inputs.items():
+        path.write_text(name, encoding="utf-8")
+    for name in ("done", "partial", "moved"):
+        text = "before" if name == "moved" else name
+        sha = hashlib.sha256(text.encode("utf-8")).hexdigest()
+        _execute(
+            tmp_path,
+            f"UPDATE documents SET input_sha256 = '{sha}' WHERE name = '{name}'",
+        )
+    items = [
+        ItemQuery(name, [tmp_path / f"{name}_output.json"], None, path)
+        for name, path in inputs.items()
+    ]
+    one_by_one = [
+        classify(tmp_path, item.name, outputs=item.outputs, input_path=item.input_path)
+        for item in items
+    ]
+    opened: list[Path] = []
+    checked: list[Path] = []
+    hashed: list[Path] = []
+    read_only, check_schema, sha256 = (
+        store_module.read_only,
+        store_module.check_schema,
+        store_module._current_sha256,
+    )
+
+    def opening(path: Path, **keywords: Any) -> Any:
+        opened.append(path)
+        return read_only(path, **keywords)
+
+    def checking(path: Path, *args: Any, **keywords: Any) -> Any:
+        checked.append(path)
+        return check_schema(path, *args, **keywords)
+
+    def hashing(path: Path) -> str | None:
+        hashed.append(path)
+        return sha256(path)
+
+    monkeypatch.setattr(store_module, "read_only", opening)
+    monkeypatch.setattr(store_module, "check_schema", checking)
+    monkeypatch.setattr(store_module, "_current_sha256", hashing)
+
+    together = classify_items(tmp_path, items)
+
+    assert together == one_by_one
+    assert [result.state for result in together] == [
+        ItemState.COMPLETE,
+        ItemState.PARTIAL,
+        ItemState.REFUSED,
+        ItemState.NONE,
+    ]
+    assert (len(opened), len(checked)) == (1, 1)
+    assert sorted(hashed) == sorted(
+        inputs[name] for name in ("done", "partial", "moved")
+    )
 
 
 def _versionless(root: Path) -> None:

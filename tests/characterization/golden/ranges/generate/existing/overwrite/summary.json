@@ -12,6 +12,7 @@
       "<tmp>/docs/ledger_line_ranges.txt",
       "<tmp>/docs/chronominer.sqlite"
     ],
+    "stopped": null,
     "usage": {
       "total": {
         "cached_tokens": 0,

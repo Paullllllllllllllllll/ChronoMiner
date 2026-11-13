@@ -12,6 +12,7 @@
       "<tmp>/out/ledger_output.json",
       "<tmp>/out/chronominer.sqlite"
     ],
+    "stopped": null,
     "usage": {
       "extract": {
         "cached_tokens": 0,

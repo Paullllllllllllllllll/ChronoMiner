@@ -49,6 +49,7 @@ from chronominer.common.context import ContextError
 from chronominer.common.contract import ExitCode, exit_code_for
 from chronominer.common.decisions import dialect_for
 from chronominer.common.options import Source
+from chronominer.common.retry import RunStopped
 from chronominer.common.selection import PageRange, parse_page_range, select_items
 from chronominer.common.spec_view import resolved_view
 from chronominer.common.sqlite import DEFAULT_BUSY_TIMEOUT, DEFAULT_WARN_INTERVAL
@@ -98,16 +99,18 @@ from chronominer.llm.prompts import (
 )
 from chronominer.output.render import format_path, output_formats, render_item
 from chronominer.output.store import (
+    KIND_CHUNK,
     Classification,
+    ItemQuery,
     ItemState,
-    classify,
+    classify_items,
     database_path,
     document_name,
     lease_reason,
     open_store,
 )
 from chronominer.ranges.adjust import ROLE as ADJUST_ROLE
-from chronominer.ranges.adjust import AdjustOptions, adjust_ranges
+from chronominer.ranges.adjust import AdjustOptions, RangesStopped, adjust_ranges
 from chronominer.ranges.generate import GenerateReport, generate_files
 from chronominer.ranges.lines import ranges_path
 from chronominer.ranges.store import group_by_folder, open_folder_store
@@ -123,6 +126,7 @@ from chronominer.spec import (
     effective_spec,
     resolve_schema,
 )
+from chronominer.stopping import RunStop
 
 __all__ = [
     "BUSY_TIMEOUT",
@@ -670,32 +674,52 @@ class _Classifier:
         root = self.output_dir if self.output_dir is not None else item.path.parent
         return root, document_name(output, root), output
 
-    def planned(self, item: SourceItem) -> PlannedItem:
-        """Return *item* planned with its resume state; write nothing.
+    def planned(
+        self, located: Sequence[tuple[SourceItem, Path, str, Path]]
+    ) -> list[PlannedItem]:
+        """Return the *located* items planned with their resume state.
+
+        *located* holds each item with its output root, document name and
+        ``_output.json``; the items of one root are classified together, the
+        roots in order of their first item. Writes nothing.
 
         Raises:
-            StoreRefusedError: The root's database is refused.
+            StoreRefusedError: A root's database is refused.
         """
-        root, name, output = self.locate(item)
         formats = output_formats(self.spec.output.formats)
-        outputs = [format_path(output, fmt) for fmt in formats]
-        try:
-            state = classify(
-                root,
-                name,
-                outputs=outputs,
-                image_settings=self.image if item.type in _IMAGE_TYPES else None,
-                model=self.spec.model.model,
-                schema_sha256=self.schema_sha256,
-                input_path=item.path,
-            )
-        except StoreError as exc:
-            raise StoreRefusedError(str(exc)) from exc
-        if self.spec.run.force and state.state is not ItemState.BLOCKED:
-            state = Classification(
-                ItemState.NONE, name, state.doc_id, reason="overwrite mode"
-            )
-        return PlannedItem(item, state, root, name, output)
+        by_root: dict[Path, list[int]] = {}
+        for position, (_, root, _, _) in enumerate(located):
+            by_root.setdefault(root, []).append(position)
+        states: dict[int, Classification] = {}
+        for root, positions in by_root.items():
+            queries = [
+                ItemQuery(
+                    located[position][2],
+                    [format_path(located[position][3], fmt) for fmt in formats],
+                    self.image if located[position][0].type in _IMAGE_TYPES else None,
+                    located[position][0].path,
+                )
+                for position in positions
+            ]
+            try:
+                found = classify_items(
+                    root,
+                    queries,
+                    model=self.spec.model.model,
+                    schema_sha256=self.schema_sha256,
+                )
+            except StoreError as exc:
+                raise StoreRefusedError(str(exc)) from exc
+            states.update(zip(positions, found, strict=True))
+        planned: list[PlannedItem] = []
+        for position, (item, root, name, output) in enumerate(located):
+            state = states[position]
+            if self.spec.run.force and state.state is not ItemState.BLOCKED:
+                state = Classification(
+                    ItemState.NONE, name, state.doc_id, reason="overwrite mode"
+                )
+            planned.append(PlannedItem(item, state, root, name, output))
+        return planned
 
 
 def _schema_sha256(schema: ResolvedSchema) -> str | None:
@@ -779,17 +803,25 @@ def plan(
     )
     groups: dict[ItemState, list[PlannedItem]] = {state: [] for state in ItemState}
     seen: dict[tuple[Path, str], SourceItem] = {}
+    located: list[tuple[SourceItem, Path, str, Path]] = []
+    duplicate: InputError | None = None
     for item in discovered:
         root, name, output = classifier.locate(item)
         other = seen.setdefault((root.resolve(), name.casefold()), item)
         if other is not item:
-            raise InputError(
+            duplicate = InputError(
                 f"{other.path} and {item.path} share the output {output}; "
                 "rename one or run them separately.",
                 items_total=len(discovered),
             )
-        planned = classifier.planned(item)
+            break
+        located.append((item, root, name, output))
+    # The items before a duplicate are classified first, so a refused store
+    # among them is reported before the duplicate, as item by item.
+    for planned in classifier.planned(located):
         groups[planned.resume.state].append(planned)
+    if duplicate is not None:
+        raise duplicate
     to_process = [_with_prompt(item, spec) for item in _in_order(groups, discovered)]
     logger.info(
         "%d item(s) to process, %d already complete",
@@ -888,7 +920,9 @@ class RunResult:
     of them that another run's lease held; they make the run exit 1, while
     items waiting for a batch are submitted work. *unstored* names the items
     skipped because their outputs have no store rows, *unselected* those of
-    which ``--pages`` selects no chunk.
+    which ``--pages`` selects no chunk. *stop* says why the run stopped and
+    what it left unprocessed, None when it was not stopped; the stopped item
+    and those after it are not among *items*.
     """
 
     items: tuple[ItemResult, ...]
@@ -901,6 +935,12 @@ class RunResult:
     unselected: tuple[str, ...] = ()
     blocked_reasons: tuple[str, ...] = ()
     leased: tuple[str, ...] = ()
+    stop: RunStop | None = None
+
+    @property
+    def stopped(self) -> str | None:
+        """Why the run stopped, or None when it was not stopped."""
+        return self.stop.reason if self.stop is not None else None
 
     @property
     def total_usage(self) -> Usage:
@@ -939,7 +979,9 @@ class RunResult:
 
     @property
     def exit_code(self) -> ExitCode:
-        """1 when an item failed or another run's lease held one, else 0."""
+        """3 when the run stopped; 1 when an item failed or was leased; else 0."""
+        if self.stop is not None:
+            return ExitCode.STOPPED
         return exit_code_for(failed=self.failed + len(self.leased))
 
     @property
@@ -1087,6 +1129,14 @@ class _Blocked:
     reason: str
 
 
+@dataclass(frozen=True)
+class _Stopped:
+    """An item in which the run stopped; *units* of its chunks stay pending."""
+
+    reason: str
+    units: int
+
+
 @dataclass
 class _ItemRun:
     """One item of a run: its store document, lease, extraction and render.
@@ -1170,7 +1220,12 @@ class _ItemRun:
         extractor: ExtractionMethod,
         pages: PageRange | None,
     ) -> tuple[tuple[str, ...], str | None]:
-        """Extract the item's chunks, then render; return the outputs and error."""
+        """Extract the item's chunks, then render; return the outputs and error.
+
+        Raises:
+            NothingSelectedError: ``--pages`` selects no chunk of the item.
+            RunStopped: The run stopped; the chunks done are rendered first.
+        """
         planned, job = self.planned, self.job
         spec = job.spec
         if planned.resume.note:
@@ -1196,6 +1251,7 @@ class _ItemRun:
         )
         returned: tuple[str, ...] = ()
         error: str | None = None
+        stopped: RunStopped | None = None
         try:
             returned = tuple(str(path) for path in await extractor.extract(item))
         except LeaseLostError as exc:
@@ -1205,11 +1261,15 @@ class _ItemRun:
         except NothingSelectedError as exc:
             await _note(store, doc_id, str(exc), job.events)
             raise
+        except RunStopped as exc:
+            stopped = exc
         except Exception as exc:
             logger.exception("Failed to process item %s: %s", planned.name, exc)
             error = str(exc) or type(exc).__name__
         force = spec.run.force or planned.resume.state is ItemState.NONE
         rendered = await self.render_or_note(store, doc_id, lease, force=force)
+        if stopped is not None:
+            raise stopped
         outputs = tuple(dict.fromkeys((*returned, *rendered)))
         return outputs, error
 
@@ -1223,11 +1283,13 @@ async def _run_item(  # noqa: PLR0913 - the item's run context
     pages: PageRange | None,
     stores: _Stores,
     submitted: set[tuple[Path, int]],
-) -> ItemResult | _Blocked:
+) -> ItemResult | _Blocked | _Stopped:
     """Process one item; :class:`_Blocked` when another run holds its document.
 
     *submitted* holds the documents (database, id) whose chunks this run
-    submitted to a batch.
+    submitted to a batch. :class:`_Stopped` when the run stopped in the
+    item: its done chunks are rendered, its lease is released, and it is
+    reported neither finished nor failed.
 
     Raises:
         NothingSelectedError: ``--pages`` selects no chunk of the item.
@@ -1241,6 +1303,8 @@ async def _run_item(  # noqa: PLR0913 - the item's run context
     events.item_started(ItemStarted(planned.name, planned.type, index, total))
     try:
         outputs, error = await item_run.extract(store, doc_id, lease, extractor, pages)
+    except RunStopped as exc:
+        return _Stopped(str(exc), _pending_units(store, doc_id, pages))
     finally:
         with contextlib.suppress(sqlite3.Error):
             await store.release(lease)
@@ -1281,6 +1345,32 @@ def _failed_units(store: Store, doc_id: int) -> tuple[UnitRow, ...]:
     with contextlib.suppress(StoreError, sqlite3.Error):
         return tuple(store.failed_units(doc_id=doc_id))
     return ()
+
+
+def _run_stop(
+    job: Job, planned: PlannedItem, result: object, further: int
+) -> RunStop | None:
+    """Return the stop of the run after *planned* returned *result*, or None.
+
+    An item that fails otherwise while the run stops, as by a lost lease,
+    returns that failure; the run's stop signal then tells of the stop.
+    """
+    if isinstance(result, _Stopped):
+        return RunStop(
+            result.reason, planned.name, result.units, further=further, noun="chunk"
+        )
+    reason = job.env.stop.reason
+    return RunStop(reason, further=further) if reason is not None else None
+
+
+def _pending_units(store: Store, doc_id: int, pages: PageRange | None) -> int:
+    """Return the pending chunks of the document *doc_id* that *pages* selects."""
+    with contextlib.suppress(StoreError, sqlite3.Error):
+        units = store.units(doc_id, kind=KIND_CHUNK)
+        positions = pages.resolve(len(units)) if pages is not None else None
+        chosen = units if positions is None else [units[i] for i in positions]
+        return sum(1 for unit in chosen if unit.status == "pending")
+    return 0
 
 
 def _short_of_complete(store: Store, doc_id: int) -> bool:
@@ -1472,7 +1562,11 @@ async def run(run_plan: RunPlan, events: RunEvents | None = None) -> RunResult:
     lease holds, also a complete one to render again, counts as blocked and
     the run records exit code 1 like a failure. A failed item is logged
     and counted; the run continues with the next one. Refused items count as
-    failed. Cancellation propagates.
+    failed. When a provider serves no further calls of the run
+    (:class:`~chronominer.common.retry.RunStopped`), the item in work keeps
+    its unprocessed chunks pending and is rendered and released, no further
+    item starts, the result's ``stop`` says so and the run records exit code
+    3. Cancellation propagates.
 
     Raises:
         ValueError: The plan is a dry run.
@@ -1502,6 +1596,7 @@ async def run(run_plan: RunPlan, events: RunEvents | None = None) -> RunResult:
     )
     stores = _Stores(run_plan, sink)
     exit_code: int = ExitCode.FAILURE
+    stop: RunStop | None = None
     try:
         async with contextlib.AsyncExitStack() as stack:
             extractor = (
@@ -1532,13 +1627,18 @@ async def run(run_plan: RunPlan, events: RunEvents | None = None) -> RunResult:
                         continue
                     if isinstance(result, _Blocked):
                         held.add(planned, result)
-                    else:
+                    elif isinstance(result, ItemResult):
                         results.append(result)
+                    stop = _run_stop(job, planned, result, total - index)
+                    if stop is not None:
+                        break
             for planned in run_plan.refused:
                 sink.warning(planned.reason)
                 results.append(ItemResult(planned.name, False, (), planned.reason))
         failed = any(not result.success for result in results)
         exit_code = ExitCode.FAILURE if failed or held.leased else ExitCode.OK
+        if stop is not None:
+            exit_code = ExitCode.STOPPED
     except (asyncio.CancelledError, KeyboardInterrupt):
         exit_code = ExitCode.INTERRUPTED
         raise
@@ -1557,6 +1657,7 @@ async def run(run_plan: RunPlan, events: RunEvents | None = None) -> RunResult:
         unselected=tuple(unselected),
         blocked_reasons=tuple(held.reasons),
         leased=tuple(held.leased),
+        stop=stop,
     )
 
 
@@ -1772,7 +1873,11 @@ async def _adjust_item(
     options: AdjustOptions,
     events: RunEvents,
 ) -> ItemResult:
-    """Adjust one file's ranges and report it; *position* is (index, total)."""
+    """Adjust one file's ranges and report it; *position* is (index, total).
+
+    Raises:
+        RangesStopped: The run stopped; the file is not reported.
+    """
     index, total = position
     name = text_file.name
     events.item_started(ItemStarted(name, "text", index, total))
@@ -1788,6 +1893,8 @@ async def _adjust_item(
             events=events,
         )
         outputs = (str(ranges_path(text_file)),)
+    except RangesStopped:
+        raise
     except Exception as exc:  # noqa: BLE001 - one failed file must not stop the run
         logger.error("Adjusting %s failed: %s", name, exc)
         error = str(exc) or type(exc).__name__
@@ -1803,8 +1910,12 @@ async def _run_adjust(
     spec: RangesAdjustSpec,
     env: CallEnv,
     events: RunEvents,
-) -> tuple[list[ItemResult], list[str]]:
-    """Adjust each file with the store of its folder; one run per folder."""
+) -> tuple[list[ItemResult], list[str], RunStop | None]:
+    """Adjust each file with the store of its folder; one run per folder.
+
+    A stopped run ends with the file in work: no further file or folder
+    starts, and the folder's run records exit code 3.
+    """
     schema = ranges_plan.schema
     assert schema is not None
     try:
@@ -1816,8 +1927,12 @@ async def _run_adjust(
         ) from exc
     results: list[ItemResult] = []
     databases: list[str] = []
+    stop: RunStop | None = None
+    total = len(ranges_plan.files)
     try:
         for folder, files in group_by_folder(list(ranges_plan.files)).items():
+            if stop is not None:
+                break
             async with open_folder_store(folder) as store, store.heartbeat():
                 databases.append(str(store.path.resolve()))
                 await store.begin_run(
@@ -1834,21 +1949,34 @@ async def _run_adjust(
                         pages=ranges_plan.pages,
                         force=spec.run.force,
                         prompt_caching=env.settings.prompt_caching,
+                        concurrency=spec.run.concurrency,
                     )
-                    result = await _adjust_item(
-                        store,
-                        text_file,
-                        (len(results) + 1, len(ranges_plan.files)),
-                        caller,
-                        options,
-                        events,
-                    )
+                    index = len(results) + 1
+                    try:
+                        result = await _adjust_item(
+                            store, text_file, (index, total), caller, options, events
+                        )
+                    except RangesStopped as exc:
+                        stop = RunStop(
+                            str(exc),
+                            text_file.name,
+                            exc.left,
+                            further=total - index,
+                            noun="line range",
+                        )
+                        break
                     failed = failed or not result.success
                     results.append(result)
-                await store.end_run(ExitCode.FAILURE if failed else ExitCode.OK)
+                    # A stopped file whose render then failed reports that
+                    # failure; the run's stop signal still tells of the stop.
+                    if env.stop.reason is not None:
+                        stop = RunStop(env.stop.reason, further=total - index)
+                        break
+                code = ExitCode.FAILURE if failed else ExitCode.OK
+                await store.end_run(ExitCode.STOPPED if stop is not None else code)
     finally:
         await caller.aclose()
-    return results, databases
+    return results, databases, stop
 
 
 async def run_ranges(
@@ -1858,7 +1986,8 @@ async def run_ranges(
 
     Each file's ranges are recorded in ``chronominer.sqlite`` beside it and
     its ``_line_ranges.txt`` is rendered from them. A file that fails is
-    reported and the others go on.
+    reported and the others go on; a stopped run renders the file in work
+    and starts no further file.
 
     Raises:
         ValueError: The plan is a dry run.
@@ -1872,8 +2001,9 @@ async def run_ranges(
     started = time.monotonic()
     spec = ranges_plan.spec
     env = CallEnv.create(ranges_plan.settings, sink)
+    stop: RunStop | None = None
     if isinstance(spec, RangesAdjustSpec):
-        results, databases = await _run_adjust(ranges_plan, spec, env, sink)
+        results, databases, stop = await _run_adjust(ranges_plan, spec, env, sink)
     else:
         results = await _run_generate(ranges_plan, spec, sink)
         folders = group_by_folder(list(ranges_plan.files))
@@ -1883,4 +2013,5 @@ async def run_ranges(
         seconds=time.monotonic() - started,
         usage={role: env.usage.get(role) for role in env.usage.roles},
         databases=tuple(databases),
+        stop=stop,
     )

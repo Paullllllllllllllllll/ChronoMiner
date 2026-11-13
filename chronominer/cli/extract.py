@@ -34,7 +34,7 @@ def _process(run_plan: RunPlan, reporter: StderrReporter, summary: Summary) -> i
 
     Skipped items are the complete, unstored and blocked ones and those of
     which ``--pages`` selects no chunk; an item another run's lease holds
-    exits 1.
+    exits 1, a run a provider stopped exits 3.
     """
     skipped = run_plan.not_processed
     reporter.beginning(run_plan)
@@ -68,6 +68,7 @@ def _process(run_plan: RunPlan, reporter: StderrReporter, summary: Summary) -> i
             submitted=result.submitted,
             outputs=result.outputs,
             usage=result.usage,
+            stopped=result.stopped,
         ),
     )
 

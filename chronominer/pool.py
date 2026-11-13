@@ -4,6 +4,10 @@
 tuples; :func:`run_streaming_transcription_tasks` consumes an async producer
 through a bounded queue. Both report each result to a callback as soon as it
 is ready.
+
+A task that raises :class:`~chronominer.common.retry.RunStopped` ends
+admission: no worker starts a further task, the tasks in flight finish, and
+the pool then raises that exception.
 """
 
 from __future__ import annotations
@@ -12,6 +16,8 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any
+
+from chronominer.common.retry import RunStopped
 
 __all__ = [
     "run_concurrent_transcription_tasks",
@@ -38,6 +44,9 @@ async def run_concurrent_transcription_tasks(
     Returns:
         One result per input tuple in the original order (``None`` for a
         failed task or a failed callback).
+
+    Raises:
+        RunStopped: A task stopped the run; the tasks not started stay so.
     """
     n = len(args_list)
     results: list[Any] = [None] * n
@@ -50,9 +59,10 @@ async def run_concurrent_transcription_tasks(
     for i in range(n):
         index_queue.put_nowait(i)
     workers_n = max(1, min(int(concurrency_limit), n))
+    stopped: list[RunStopped] = []
 
     async def worker() -> None:
-        while True:
+        while not stopped:
             try:
                 i = index_queue.get_nowait()
             except asyncio.QueueEmpty:
@@ -61,6 +71,8 @@ async def run_concurrent_transcription_tasks(
             try:
                 if delay > 0:
                     await asyncio.sleep(delay)
+                if stopped:
+                    return
                 result = await corofunc(*args)
                 results[i] = result
                 if on_result is not None:
@@ -73,6 +85,9 @@ async def run_concurrent_transcription_tasks(
                             f"on_result callback failed for args {args}: {cb_exc}"
                         )
                         results[i] = None
+            except RunStopped as exc:
+                stopped.append(exc)
+                return
             except Exception as e:  # noqa: BLE001 - one failed task must not stop the pool
                 logger.error(f"Extraction task failed with arguments {args}: {e}")
                 results[i] = None
@@ -85,7 +100,50 @@ async def run_concurrent_transcription_tasks(
             task.cancel()
         await asyncio.gather(*worker_tasks, return_exceptions=True)
         raise
+    if stopped:
+        raise stopped[0]
     return results
+
+
+async def _feed(
+    producer: AsyncIterator[Any], queue: asyncio.Queue[Any], stopped: list[RunStopped]
+) -> None:
+    """Put the producer's items on *queue*; close the producer after a stop."""
+    async for item in producer:
+        if stopped:
+            break
+        await queue.put(item)
+    close = getattr(producer, "aclose", None)
+    if stopped and close is not None:
+        await close()
+
+
+async def _handle_streamed(
+    item: Any,
+    handler: Callable[[Any], Awaitable[Any]],
+    on_result: Callable[[Any], Awaitable[None]] | None,
+    results: list[Any],
+    stopped: list[RunStopped],
+) -> None:
+    """Run *handler* on *item* and append its result; a stop goes to *stopped*."""
+    try:
+        result = await handler(item)
+    except RunStopped as exc:
+        stopped.append(exc)
+        return
+    except Exception as e:  # noqa: BLE001 - one failed item must not stop the pool
+        logger.error(f"Streaming extraction task failed: {e}")
+        results.append(None)
+        return
+    results.append(result)
+    # Other workers append while the callback awaits, so fix the slot now.
+    slot = len(results) - 1
+    if on_result is not None:
+        try:
+            await on_result(result)
+        except Exception as cb_exc:  # noqa: BLE001 - isolate callback
+            logger.error(f"on_result callback failed: {cb_exc}")
+            results[slot] = None
 
 
 async def run_streaming_transcription_tasks(
@@ -105,16 +163,21 @@ async def run_streaming_transcription_tasks(
     Returns:
         The handler results in completion order (``None`` for a failed item
         or a failed callback).
+
+    Raises:
+        RunStopped: A handler stopped the run. The producer yields no
+            further item, and the items it yielded before are discarded
+            unhandled; the exception wins over a producer exception.
     """
     workers_n = max(1, int(concurrency_limit))
     queue: asyncio.Queue[Any] = asyncio.Queue(maxsize=2 * workers_n)
     producer_error: list[BaseException] = []
+    stopped: list[RunStopped] = []
     results: list[Any] = []
 
     async def produce() -> None:
         try:
-            async for item in producer:
-                await queue.put(item)
+            await _feed(producer, queue, stopped)
         except BaseException as e:  # noqa: BLE001 - re-raised after the workers drain
             producer_error.append(e)
         finally:
@@ -126,23 +189,12 @@ async def run_streaming_transcription_tasks(
             item = await queue.get()
             if item is _SENTINEL:
                 return
+            if stopped:
+                continue
             if delay > 0:
                 await asyncio.sleep(delay)
-            try:
-                result = await handler(item)
-            except Exception as e:  # noqa: BLE001 - one failed item must not stop the pool
-                logger.error(f"Streaming extraction task failed: {e}")
-                results.append(None)
-                continue
-            results.append(result)
-            # Other workers append while the callback awaits, so fix the slot now.
-            slot = len(results) - 1
-            if on_result is not None:
-                try:
-                    await on_result(result)
-                except Exception as cb_exc:  # noqa: BLE001 - isolate callback
-                    logger.error(f"on_result callback failed: {cb_exc}")
-                    results[slot] = None
+            if not stopped:
+                await _handle_streamed(item, handler, on_result, results, stopped)
 
     producer_task = asyncio.create_task(produce())
     worker_tasks = [asyncio.create_task(work()) for _ in range(workers_n)]
@@ -155,6 +207,8 @@ async def run_streaming_transcription_tasks(
         await asyncio.gather(*all_tasks, return_exceptions=True)
         raise
 
+    if stopped:
+        raise stopped[0]
     if producer_error:
         raise producer_error[0]
     return results

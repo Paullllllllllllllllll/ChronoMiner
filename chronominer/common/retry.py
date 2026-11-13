@@ -11,6 +11,10 @@ clients are built with ``max_retries=0``. It retries transient errors on the
 attempt budget and the caller's validation errors on a separate, smaller
 budget, honors ``Retry-After``, recovers usage from failed attempts, and lets
 an ``on_error`` hook decide what happens after each transient failure.
+
+A ``STOP`` decision ends more than the call: it sets the run's
+:class:`StopSignal` and raises :class:`RunStopped`, and every call that shares
+the signal raises :class:`RunStopped` before its next attempt.
 """
 
 from __future__ import annotations
@@ -42,9 +46,12 @@ __all__ = [
     "RetryGate",
     "RetryHooks",
     "RetryPolicy",
+    "RunStopped",
+    "StopSignal",
     "call_with_retry",
     "classify_error",
     "default_decision",
+    "heed_stop",
     "http_status",
     "is_connection_error",
     "is_rate_limit_message",
@@ -82,6 +89,56 @@ class Decision(StrEnum):
     SWITCH_KEY = "switch_key"
     WAIT = "wait"
     FAIL = "fail"
+    STOP = "stop"
+
+
+class RunStopped(Exception):
+    """The provider serves no further calls of this run.
+
+    :func:`call_with_retry` raises it after a ``STOP`` decision, with the
+    failed call as its cause, and before any attempt once the run's
+    :class:`StopSignal` is set. The unit of the call was not processed: a
+    pipeline leaves it as it is, starts no further unit and ends the run
+    with :attr:`~.contract.ExitCode.STOPPED`.
+    """
+
+
+class StopSignal:
+    """Whether a run was told to stop, and why.
+
+    One signal serves every call of a run. The first reason set stays.
+    """
+
+    def __init__(self) -> None:
+        self._reason: str | None = None
+
+    def set(self, reason: str) -> None:
+        """Stop the run for *reason*; a later call changes nothing."""
+        if self._reason is None:
+            self._reason = reason
+
+    @property
+    def reason(self) -> str | None:
+        """Why the run stopped, or None while it runs."""
+        return self._reason
+
+    def __bool__(self) -> bool:
+        return self._reason is not None
+
+
+def _stop_reason(exc: BaseException) -> str:
+    return f"{type(exc).__name__}: {str(exc)[:200]}"
+
+
+def heed_stop(stop: StopSignal | None, decision: Decision, exc: BaseException) -> None:
+    """Set *stop* when the *decision* about the failed call *exc* is ``STOP``.
+
+    :func:`call_with_retry` sets the signal once the error reaches it. A
+    caller that records the attempt first calls this as soon as it has the
+    decision, so the calls sharing the signal start no request meanwhile.
+    """
+    if stop is not None and decision is Decision.STOP:
+        stop.set(_stop_reason(exc))
 
 
 @dataclass(frozen=True)
@@ -480,7 +537,8 @@ class RetryHooks:
     failed attempt; leave it unset when ``on_error`` records usage itself.
     ``on_retry`` sees each scheduled retry before the sleep. ``gate`` is
     acquired before and told the outcome after every attempt. ``sleep``
-    defaults to ``asyncio.sleep``.
+    defaults to ``asyncio.sleep``. ``stop`` is the run's stop signal: a
+    ``STOP`` decision sets it, and no attempt starts once it is set.
     """
 
     on_error: OnError | None = None
@@ -488,6 +546,7 @@ class RetryHooks:
     on_retry: Callable[[RetryEvent], None] | None = None
     gate: RetryGate | None = None
     sleep: Callable[[float], Awaitable[None]] | None = None
+    stop: StopSignal | None = None
 
 
 @dataclass
@@ -539,6 +598,11 @@ class _Ladder:
             )
         self._recover_usage(exc)
         decision = await _decide(self.hooks.on_error, exc, kind)
+        if decision.action is Decision.STOP:
+            reason = _stop_reason(exc)
+            if self.hooks.stop is not None:
+                self.hooks.stop.set(reason)
+            raise RunStopped(reason) from exc
         if decision.action is Decision.FAIL:
             return None
         if decision.action is Decision.WAIT:
@@ -602,14 +666,26 @@ async def call_with_retry(
     ``policy.validation_attempts`` and bypass ``on_error``. After any other
     failure the decision applies: RETRY backs off, SWITCH_KEY retries at once
     (the hook has switched the key), WAIT sleeps for the reset without using
-    an attempt, FAIL re-raises. Cancellation is never retried; the last error
-    is re-raised.
+    an attempt, FAIL re-raises, STOP sets ``hooks.stop`` and raises
+    :class:`RunStopped`. Cancellation is never retried; the last error is
+    re-raised.
+
+    Raises:
+        RunStopped: A ``STOP`` decision, or ``hooks.stop`` was set before an
+            attempt began; no request is sent in the second case.
     """
     ladder = _Ladder(policy or RetryPolicy(), hooks or RetryHooks(), label)
     gate = ladder.hooks.gate
+    stop = ladder.hooks.stop
     while True:
+        # Before the gate, so a stopped run takes no further permit; after
+        # it, for a stop set while this call waited.
+        if stop is not None and stop.reason is not None:
+            raise RunStopped(stop.reason)
         if gate is not None:
             await gate.acquire()
+            if stop is not None and stop.reason is not None:
+                raise RunStopped(stop.reason)
         ladder.attempts += 1
         try:
             result = await call()

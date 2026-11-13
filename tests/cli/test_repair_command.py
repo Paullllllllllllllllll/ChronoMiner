@@ -142,6 +142,7 @@ def test_startup_runs_after_the_plan_and_before_the_work(
         "command": "repair",
         "repaired": 2 - failed,
         "failed": failed,
+        "stopped": None,
     }
     assert usage["extract"]["total_tokens"] == 6
     assert usage["total"]["total_tokens"] == 6
@@ -163,6 +164,7 @@ def test_a_dry_run_calls_startup_but_not_the_work(
         "repaired": 0,
         "failed": 0,
         "usage": ZERO_USAGE,
+        "stopped": None,
     }
     assert "[DRY RUN] 1 chunk(s) would be repaired." in err
     assert not load().log_file().parent.exists()
@@ -228,6 +230,7 @@ def test_an_error_of_the_repair_work_exits_1(
         "repaired": 0,
         "failed": 0,
         "usage": ZERO_USAGE,
+        "stopped": None,
     }
     assert "Unexpected error: page image unreadable" in err
     assert "Invalid arguments" not in err

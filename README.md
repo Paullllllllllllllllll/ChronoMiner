@@ -1,4 +1,4 @@
-# ChronoMiner v1.10.0
+# ChronoMiner v1.11.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -335,6 +335,7 @@ hold, while a document with stored pages keeps the settings it was extracted wit
 | 0 | every item completed or, under `--batch`, was submitted, or nothing was left to do |
 | 1 | an item failed (refused items included), another run leases an item (the final message names each blocked item with its reason and a lease with its expiry; an item waiting for a batch is named but does not change the exit code), a repaired chunk stayed unrepaired, a batch failed or waits unresolved, `batch check --wait` reached `--wait-hours` with batches pending, a cancellation failed, a file could not be rendered or its document was held by another run, `drop` refused a document, a `classify` request failed or a document to classify was refused or leased, or an unexpected error |
 | 2 | usage or configuration error: invalid flags or settings, an unknown schema, an unset API key variable (outside a dry run), a provider without a batch API under `--batch`, a model without image input for image or PDF items, no items in the input, a folder of several items without `--all`, `--select` or `--files`, a `--select` or `--files` that matches no item or stored document, a missing input path or folder, no store at the `drop` input, two inputs that share one output, an unknown classifier or one of another unit, `classify --chunking adjust`, a missing line-ranges file under `classify --chunking line-ranges`, no document to classify, a database without schema version, newer than the tool, unreadable or due a schema step while another run holds a lease |
+| 3 | stopped: a provider serves no further calls of the run (`extract`, `ranges adjust`, `repair`, `classify`); the run ends at once, the chunks, ranges and documents it did not reach stay as they were and a rerun resumes them; the error line names the reason and what was left, and the code wins over 0 and 1 |
 | 130 | interrupted (Ctrl+C, or Ctrl+Break on Windows) |
 
 Each command's `--help` lists its own exit codes. Progress, warnings and errors go to
@@ -346,13 +347,13 @@ zero where nothing ran, unless stated otherwise.
 
 | Command | Fields |
 | --- | --- |
-| `extract`, `ranges generate`, `ranges adjust` | `items_total`, `items_complete`, `items_failed`, `items_skipped`, `items_blocked`, `items_submitted`, `outputs`, `usage` |
+| `extract`, `ranges generate`, `ranges adjust` | `items_total`, `items_complete`, `items_failed`, `items_skipped`, `items_blocked`, `items_submitted`, `outputs`, `usage`, `stopped` |
 | `batch check` | `command` (`check_batches`), `finalized`, `pending`, `failed`, `unresolved`, `submitted`, `complete`, `outputs`, `usage`; the booleans `adopted` with `--adopt` and `abandoned` with `--abandon`; with `--wait`, `polls` (checks made), `waited_seconds` and `stopped` (`settled`, `timeout`, `interrupted`, `error`, or null before the first check) |
 | `batch cancel` | `command` (`cancel_batches`), `cancelled`, `failed` |
-| `repair` | `command` (`repair`), `repaired`, `failed`, `usage` |
+| `repair` | `command` (`repair`), `repaired`, `failed`, `usage`, `stopped` |
 | `render` | `command` (`render`), `databases`, `documents`, `written`, `unchanged`, `kept`, `stale`, `skipped`, `outputs` |
 | `drop` | `command` (`drop`), `dropped`, `refused`, `deleted_files`, `kept_files` |
-| `classify chunks`, `classify entries`, `classify documents` | `command` (`classify`), `unit`, `classifier`, `items_total`, `items_classified`, `items_refused`, `items_blocked`, `items_failed`, `items_skipped`, `units_asked`, `units_reused`, `outputs`, `usage` |
+| `classify chunks`, `classify entries`, `classify documents` | `command` (`classify`), `unit`, `classifier`, `items_total`, `items_classified`, `items_refused`, `items_blocked`, `items_failed`, `items_skipped`, `units_asked`, `units_reused`, `outputs`, `usage`, `stopped` |
 
 `items_total` counts the items processed (on a plan error, those the run would have
 processed), `items_skipped` the complete, unstored and blocked items and those of which
@@ -373,6 +374,15 @@ every field of the effective run specification, such as `model.model`, to its
 `value` and `source` (`flag`, `settings`, `default` or `resolved`, described under
 [Settings File](#settings-file)); the ranges commands add `to_process` and `spec`
 only.
+
+`stopped` is null unless a provider stopped the run (exit code 3); it then holds the
+type and message of the error that stopped it. A stopped run counts the item it was
+working on and the items after it neither complete nor failed. That item's finished
+chunks are stored and rendered, its lease is released, and a rerun resumes the rest.
+A stopped `repair` leaves the chunks it did not reach pending, so an `extract` run of
+the document resumes them, and its later documents keep their failed chunks for the
+next `repair`. The `stopped` field of `batch check --wait` is a different field,
+described below.
 
 For `batch check`, the first four count submissions by outcome (`unresolved`: waiting
 for `--adopt` or `--abandon`), `submitted` the submissions a check opened (always 0,

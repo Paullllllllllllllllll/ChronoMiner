@@ -27,7 +27,7 @@ from chronominer.batch.repair import (
     run_repair,
 )
 from chronominer.common.batch import supports_batch
-from chronominer.common.contract import ExitCode, exit_code_for
+from chronominer.common.contract import ExitCode
 from chronominer.common.options import Source
 from chronominer.common.wizard import (
     BACK,
@@ -326,7 +326,7 @@ def _run(request: RunRequest) -> int:
         with RichProgress(request.console) as progress:
             result = asyncio.run(run_repair(plan, progress))
     request.console.print(repair_result(spec, result))
-    return int(exit_code_for(failed=result.failed))
+    return int(result.exit_code)
 
 
 def flow() -> TaskFlow:

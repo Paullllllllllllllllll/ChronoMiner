@@ -18,11 +18,12 @@ dict the unit pipeline records::
         "error_type": str,                # a stopped answer's outcome kind
     }
 
-A failed chunk returns the dict with ``error`` set instead of raising; an
-answer the provider stopped (a content filter, a refusal, an answer cut at
-the output-token limit) fails the chunk. An
-answer that fails JSON validation keeps its text: its entries are parsed as
-far as they can be (:mod:`~chronominer.extract.response_parsing`).
+A failed chunk returns the dict with ``error`` set instead of raising, except
+for :class:`~chronominer.common.retry.RunStopped`, which ends the run and
+propagates; an answer the provider stopped (a content filter, a refusal, an
+answer cut at the output-token limit) fails the chunk. An answer that fails
+JSON validation keeps its text: its entries are parsed as far as they can be
+(:mod:`~chronominer.extract.response_parsing`).
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ from chronominer.common.provider_requests import (
     system_content,
 )
 from chronominer.common.responses import unwrap_raw_response
+from chronominer.common.retry import RunStopped
 from chronominer.common.structured import (
     ResponseFormat,
     StructuredRequest,
@@ -378,6 +380,8 @@ class ChunkExtractor:
                 label=label,
                 min_input_tokens=min_input_tokens,
             )
+        except RunStopped:
+            raise
         except Exception as exc:  # noqa: BLE001 - a failed chunk returns an error dict
             logger.error(
                 "Extraction failed for %s: %s - %s", label, type(exc).__name__, exc

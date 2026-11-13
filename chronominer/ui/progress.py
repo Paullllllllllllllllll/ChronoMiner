@@ -274,6 +274,7 @@ def summary_table(
 
     The chunk counts come from *progress*; without it they show as ``-``.
     With *batch* the items whose chunks went to a batch show as submitted.
+    A stopped run adds the line that names the reason and what was left.
     """
     tallies = progress.tallies if progress is not None else {}
     table = Table(title="Run summary", title_justify="left")
@@ -318,6 +319,8 @@ def summary_table(
         style="bold",
     )
     parts: list[RenderableType] = [table, *_failure_lines(result)]
+    if result.stop is not None:
+        parts.append(Text(result.stop.message(), style="red"))
     outputs = [path for item in result.items for path in item.outputs]
     parts.append(_listing("Outputs", outputs))
     parts += [

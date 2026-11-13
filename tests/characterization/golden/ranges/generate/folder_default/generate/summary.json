@@ -15,6 +15,7 @@
       "<tmp>/docs/chronominer.sqlite",
       "<tmp>/docs/sub/chronominer.sqlite"
     ],
+    "stopped": null,
     "usage": {
       "total": {
         "cached_tokens": 0,

@@ -16,10 +16,12 @@ from chronominer.common.capture import (
     capture_response,
     current_recorder,
     current_scope,
+    error_text,
     install_capture,
     record_attempt,
     redact_payloads,
     sdk_dump,
+    transport_cause,
     use_recorder,
 )
 
@@ -231,3 +233,63 @@ def test_sdk_dump_prefers_the_model_dump() -> None:
 
     assert sdk_dump(Model()) == '{"a": 1}'
     assert sdk_dump({"b": "ü"}) == '{"b": "ü"}'
+
+
+class _SdkTimeout(Exception):
+    """Stands for an SDK timeout class that wraps the transport error."""
+
+
+def _wrapped(cause: BaseException, message: str = "Request timed out.") -> Exception:
+    error = _SdkTimeout(message)
+    error.__cause__ = cause
+    return error
+
+
+def test_error_text_names_the_transport_cause() -> None:
+    read = _wrapped(httpx.ReadTimeout(""))
+    pool = _wrapped(httpx.PoolTimeout(""))
+    dropped = _wrapped(
+        httpx.RemoteProtocolError("Server disconnected"), "Connection error."
+    )
+
+    assert error_text(read) == "Request timed out. (cause: httpx.ReadTimeout)"
+    assert error_text(pool) == "Request timed out. (cause: httpx.PoolTimeout)"
+    assert error_text(dropped) == (
+        "Connection error. (cause: httpx.RemoteProtocolError: Server disconnected)"
+    )
+    assert isinstance(transport_cause(read), httpx.ReadTimeout)
+
+
+def test_error_text_finds_the_cause_behind_other_wrappers() -> None:
+    inner = _wrapped(httpx.ConnectTimeout("handshake timed out"))
+    outer = RuntimeError("call failed")
+    outer.__context__ = inner
+
+    assert error_text(outer) == (
+        "call failed (cause: httpx.ConnectTimeout: handshake timed out)"
+    )
+
+
+def test_error_text_leaves_other_errors_as_they_are() -> None:
+    plain = ValueError("bad request")
+    transport = httpx.ReadTimeout("read timed out")
+    chained = RuntimeError("outer")
+    chained.__cause__ = KeyError("inner")
+    repeated = _wrapped(httpx.ConnectError("refused"), "Connection error: refused")
+
+    assert error_text(plain) == "bad request"
+    assert error_text(transport) == "read timed out"
+    assert error_text(chained) == "outer"
+    assert transport_cause(transport) is None
+    assert error_text(repeated) == (
+        "Connection error: refused (cause: httpx.ConnectError)"
+    )
+
+
+def test_transport_cause_survives_a_cycle_of_causes() -> None:
+    first = RuntimeError("first")
+    second = RuntimeError("second")
+    first.__cause__ = second
+    second.__cause__ = first
+
+    assert transport_cause(first) is None

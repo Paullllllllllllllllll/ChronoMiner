@@ -1,10 +1,11 @@
-"""Bounded concurrent and streaming chunk pools of the extraction layer.
+"""Bounded concurrent and streaming pools of extraction and range adjustment.
 
 ``run_concurrent_transcription_tasks`` maps a handler over argument tuples
 and ``run_streaming_transcription_tasks`` consumes an async producer through
 a bounded queue. Both keep result order, record a failed item or a failed
-``on_result`` callback as ``None``, and leave no orphaned task behind. The
-unit pipeline on top of the pools is covered in ``test_units.py``.
+``on_result`` callback as ``None``, and leave no orphaned task behind. A
+task that raises ``RunStopped`` ends admission and the pool raises it. The
+unit pipeline on top of the pools is covered in ``extract/test_units.py``.
 """
 
 from __future__ import annotations
@@ -15,7 +16,8 @@ from typing import Any
 
 import pytest
 
-from chronominer.extract.pool import (
+from chronominer.common.retry import RunStopped
+from chronominer.pool import (
     run_concurrent_transcription_tasks,
     run_streaming_transcription_tasks,
 )
@@ -156,7 +158,7 @@ class TestRunConcurrentTranscriptionTasks:
             return i * 2
 
         with patch(
-            "chronominer.extract.pool.asyncio.create_task",
+            "chronominer.pool.asyncio.create_task",
             counting_create_task,
         ):
             results = await run_concurrent_transcription_tasks(
@@ -335,3 +337,57 @@ class TestStreamingOrphanFreeFailure:
         current = asyncio.current_task()
         leaked = [t for t in asyncio.all_tasks() if t is not current and not t.done()]
         assert leaked == []
+
+
+@pytest.mark.asyncio
+class TestRunStop:
+    """A task that stops the run ends admission; the task in flight finishes."""
+
+    async def test_the_concurrent_pool_starts_no_task_after_a_stop(self) -> None:
+        started: list[int] = []
+        finished: list[int] = []
+        stopping = asyncio.Event()
+
+        async def task(index: int) -> int:
+            started.append(index)
+            if index == 1:
+                stopping.set()
+                raise RunStopped("no further calls")
+            if index == 0:
+                await stopping.wait()
+            finished.append(index)
+            return index
+
+        with pytest.raises(RunStopped, match="no further calls"):
+            await run_concurrent_transcription_tasks(
+                task, [(i,) for i in range(6)], concurrency_limit=2
+            )
+        assert started == [0, 1]
+        assert finished == [0]
+
+    async def test_the_streaming_pool_stops_its_producer(self) -> None:
+        produced: list[int] = []
+        handled: list[int] = []
+        closed: list[bool] = []
+
+        async def producer() -> AsyncIterator[int]:
+            try:
+                for i in range(50):
+                    produced.append(i)
+                    yield i
+            finally:
+                closed.append(True)
+
+        async def handler(item: int) -> int:
+            handled.append(item)
+            if item == 2:
+                raise RunStopped("no further calls")
+            return item
+
+        with pytest.raises(RunStopped, match="no further calls"):
+            await run_streaming_transcription_tasks(
+                producer(), handler, concurrency_limit=1
+            )
+        assert handled == [0, 1, 2]
+        assert len(produced) < 50
+        assert closed == [True]

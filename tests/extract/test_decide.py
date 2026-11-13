@@ -17,6 +17,7 @@ from PIL import Image as PILImage
 
 from chronominer.common.decision_runner import DecisionRunner
 from chronominer.common.decisions import Image
+from chronominer.common.retry import RunStopped
 from chronominer.common.settings_schema import Decisions
 from chronominer.extract.chunks import TextChunk
 from chronominer.extract.decide import (
@@ -249,6 +250,17 @@ def test_a_failed_pre_pass_extracts_every_chunk(
     needed, handle, warnings = _run_decide("apply", 0.05)
     assert (needed, handle.writes, handle.store.stored) == ([0, 1], [], [])
     assert "pre-pass failed" in warnings[0]
+
+
+def test_a_stopped_pre_pass_stops_the_item_instead_of_extracting_it(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def stopped(self: Any, document: str, chunks: Any) -> list[ChunkDecision]:
+        raise RunStopped("no further calls")
+
+    monkeypatch.setattr(_Decider, "classify", stopped)
+    with pytest.raises(RunStopped, match="no further calls"):
+        _run_decide("apply", 0.05)
 
 
 def test_shadow_and_apply_without_a_threshold_skip_nothing() -> None:

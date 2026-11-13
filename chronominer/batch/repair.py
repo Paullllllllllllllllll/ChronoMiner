@@ -64,6 +64,7 @@ from chronominer.batch.submit import (
 from chronominer.batch.wait import wait_for_submissions
 from chronominer.common.batch import supports_batch
 from chronominer.common.contract import ExitCode, exit_code_for
+from chronominer.common.retry import RunStopped, StopSignal
 from chronominer.common.sqlite import read
 from chronominer.common.store import (
     LeaseLostError,
@@ -123,6 +124,7 @@ from chronominer.spec import (
     effective_spec,
     resolve_schema,
 )
+from chronominer.stopping import RunStop
 
 __all__ = [
     "PAGE_KINDS",
@@ -236,6 +238,9 @@ class RepairResult:
     answer afterwards and *failed* the others. *database* is the last
     database written and *outputs* the files that hold the new rendering;
     *message* explains a repair that ended before any chunk was sent.
+    *stop* says why the repair stopped and what it left unprocessed, None
+    when it was not stopped; the chunks it left are counted neither repaired
+    nor failed.
     """
 
     repaired: int = 0
@@ -246,6 +251,19 @@ class RepairResult:
     database: Path | None = None
     outputs: tuple[Path, ...] = ()
     message: str | None = None
+    stop: RunStop | None = None
+
+    @property
+    def stopped(self) -> str | None:
+        """Why the repair stopped, or None when it was not stopped."""
+        return self.stop.reason if self.stop is not None else None
+
+    @property
+    def exit_code(self) -> ExitCode:
+        """3 when the repair stopped; 1 when a chunk stayed unrepaired; else 0."""
+        if self.stop is not None:
+            return ExitCode.STOPPED
+        return exit_code_for(failed=self.failed)
 
 
 @dataclass
@@ -1007,6 +1025,7 @@ class _Session:
     handle: DocumentHandle
     events: RunEvents
     clients: BatchClients | None = None
+    stop: StopSignal | None = None
 
     @property
     def idxs(self) -> list[int]:
@@ -1017,12 +1036,18 @@ class _Session:
         self.events.warning(message)
 
     async def sync(self, payloads: Sequence[Any]) -> bool:
-        """Extract *payloads* one call each; return True (units were written)."""
+        """Extract *payloads* one call each; return True (units were written).
+
+        Raises:
+            RunStopped: The provider serves no further calls of the repair;
+                the chunks not extracted stay pending.
+        """
         plan, document = self.plan, self.document
         await self.handle.reset(self.idxs)
+        env = CallEnv.create(plan.settings, self.events, stop=self.stop)
         extractor = ChunkExtractor(
             plan.spec.model,
-            CallEnv.create(plan.settings, self.events),
+            env,
             schema=document.schema.schema or {},
             schema_name=document.schema.name or "",
             images=plan.spec.images,
@@ -1041,6 +1066,7 @@ class _Session:
                 concurrency=DEFAULT_CONCURRENCY,
                 delay=plan.settings.concurrency.delay_between_tasks,
                 entries=EntrySchema(document.schema.schema, document.schema.name),
+                stop=env.stop,
             )
         except UnitsFailedError as exc:
             logger.info("Repair of '%s': %s", self.handle.name, exc)
@@ -1187,6 +1213,15 @@ class _Session:
             and unit.outcome != SKIPPED_OUTCOME
         )
 
+    def pending(self) -> int:
+        """Return how many selected units are still pending."""
+        wanted = set(self.idxs)
+        return sum(
+            1
+            for unit in self.store.units(self.handle.doc_id, kind=self.handle.kind)
+            if unit.idx in wanted and unit.status == "pending"
+        )
+
 
 def _writer_options(events: RunEvents) -> WriterOptions:
     def on_busy(path: Path, waited: float) -> None:
@@ -1199,14 +1234,19 @@ def _writer_options(events: RunEvents) -> WriterOptions:
     return WriterOptions(on_busy=on_busy)
 
 
-async def _repair_document(
+async def _repair_document(  # noqa: PLR0913 - one document's repair context
     store: Store,
     plan: RepairPlan,
     document: RepairDocument,
     result: RepairResult,
     events: RunEvents,
+    stop: StopSignal,
 ) -> None:
-    """Repair the selected units of one document; add to *result*."""
+    """Repair the selected units of one document; add to *result*.
+
+    A stopped repair renders the document, counts its chunks done as
+    repaired, sets ``result.stop`` and leaves the others uncounted.
+    """
     selected = len(document.units)
     lease = await store.acquire(document.doc_id)
     if lease is None:
@@ -1241,6 +1281,7 @@ async def _repair_document(
             provider=model.provider,
         ),
         events,
+        stop=stop,
     )
     if not units:
         result.failed += selected
@@ -1264,6 +1305,20 @@ async def _repair_document(
         session.warn(
             f"The lease on '{document.name}' was lost; the repair stopped: {exc}"
         )
+    except RunStopped as exc:
+        result.outputs = (*result.outputs, *await session.render())
+        repaired = session.count()
+        left = session.pending()
+        result.repaired += repaired
+        result.failed += selected - repaired - left
+        result.stop = RunStop(
+            str(exc),
+            document.name,
+            left,
+            noun="chunk",
+            hint="they stay pending, and an extract run of the document resumes them",
+        )
+        return
     result.repaired += repaired
     result.failed += selected - repaired
 
@@ -1274,7 +1329,13 @@ async def _repair_database(
     documents: Sequence[RepairDocument],
     result: RepairResult,
     events: RunEvents,
-) -> None:
+    stop: StopSignal,
+) -> int:
+    """Repair the documents of one database; return how many it started.
+
+    After a stop no further document starts and the run records exit code 3.
+    """
+    started = 0
     async with open_store(root, writer=_writer_options(events)) as store:
         await store.begin_run("repair", spec=effective_spec(plan.spec))
         exit_code = int(ExitCode.FAILURE)
@@ -1288,13 +1349,23 @@ async def _repair_database(
                 )
             async with store.heartbeat():
                 for document in documents:
-                    await _repair_document(store, plan, document, result, events)
+                    started += 1
+                    await _repair_document(store, plan, document, result, events, stop)
+                    # A document that fails otherwise while the run stops
+                    # reports that failure; the signal still tells of the stop.
+                    if result.stop is None and stop.reason is not None:
+                        result.stop = RunStop(stop.reason)
+                    if result.stop is not None:
+                        break
             exit_code = int(exit_code_for(failed=result.failed - failed))
+            if result.stop is not None:
+                exit_code = int(ExitCode.STOPPED)
         finally:
             try:
                 await store.end_run(exit_code)
             except sqlite3.Error as exc:
                 logger.warning("Could not record the run end in %s: %s", store, exc)
+    return started
 
 
 def _by_root(documents: Iterable[RepairDocument]) -> dict[Path, list[RepairDocument]]:
@@ -1307,15 +1378,28 @@ def _by_root(documents: Iterable[RepairDocument]) -> dict[Path, list[RepairDocum
 async def run_repair(plan: RepairPlan, events: RunEvents | None = None) -> RepairResult:
     """Repair the units *plan* selected; a plan with nothing to do returns its result.
 
-    Errors raised here are failures of the repair, not usage errors.
+    Errors raised here are failures of the repair, not usage errors. The
+    synchronous calls of all documents share one stop signal: once a
+    provider serves no further calls, no further document starts and
+    ``result.stop`` names what was left.
     """
     result = plan.outcome()
     if not plan.to_repair or plan.dry_run:
         return result
     sink = events if events is not None else NullEvents()
+    stop = StopSignal()
+    started = 0
     for root, documents in _by_root(plan.documents).items():
         result.database = database_path(root)
-        await _repair_database(root, plan, documents, result, sink)
+        started += await _repair_database(root, plan, documents, result, sink, stop)
+        if result.stop is not None:
+            break
+    if result.stop is not None:
+        further = len(plan.documents) - started
+        hint = result.stop.hint
+        if further:
+            hint += "; a repair rerun resumes the further documents"
+        result.stop = replace(result.stop, further=further, hint=hint)
     return result
 
 

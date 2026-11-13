@@ -7,6 +7,7 @@ the default answer moves a range start to the next heading.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import json
 from collections.abc import AsyncIterator
 from pathlib import Path
@@ -34,6 +35,7 @@ from chronominer.spec import MarkerLength
 from tests.characterization.fakes import permanent_error, transient_error
 from tests.characterization.inputs import make_text_file, write_ranges
 from tests.ranges.fakes import FakeCaller, boundary, default_answer
+from tests.recording_events import RecordingEvents
 
 pytestmark = pytest.mark.unit
 
@@ -185,6 +187,103 @@ async def test_ranges_move_to_the_next_heading(store: Store, ledger: Path) -> No
     assert decisions[1] is not None
     assert decisions[1]["adjusted_range"] == [25, 38]
     assert decisions[1]["decision"]["semantic_marker"] == "Record 005."
+
+
+async def test_ranges_are_decided_concurrently_with_the_same_result(
+    store: Store, ledger: Path
+) -> None:
+    active = peak = 0
+
+    class Slow(FakeCaller):
+        async def call(self, messages: Any, request: Any, *, label: str) -> Any:
+            nonlocal active, peak
+            active += 1
+            peak = max(peak, active)
+            await asyncio.sleep(0.2 if "range 1 " in label else 0.01)
+            active -= 1
+            return await super().call(messages, request, label=label)
+
+    events = RecordingEvents()
+
+    report = await adjust_ranges(
+        store,
+        ledger,
+        caller=Slow(),
+        model="gpt-4o",
+        options=AdjustOptions(**{**vars(OPTIONS), "concurrency": 3}),
+        events=events,
+    )
+
+    assert peak == 3
+    assert read_ranges(ranges_path(ledger)) == ADJUSTED
+    assert (report.decided, report.calls) == (4, 4)
+    units = _units(ledger)
+    assert [row["outcome"] for row in units] == ["on_target", "moved", "moved", "moved"]
+    done = [event for kind, event in events.events if kind == "chunk_done"]
+    assert [event.done for event in done] == [1, 2, 3, 4]
+    assert done[-1].chunk == 0
+
+
+async def test_two_decisions_committed_at_once_keep_both_in_the_layout(
+    store: Store, ledger: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    start = MID_RECORD[1:3]
+    write_ranges(ledger, start)
+    await _adjust(store, ledger, FakeCaller())
+    expected = read_ranges(ranges_path(ledger))
+    assert expected == [(21, 42), (43, 56)]
+
+    class SecondLater(FakeCaller):
+        async def call(self, messages: Any, request: Any, *, label: str) -> Any:
+            await asyncio.sleep(0.05 if "range 2 " in label else 0)
+            return await super().call(messages, request, label=label)
+
+    write_ranges(ledger, start)
+    commit = store.write_unit
+    arrivals = 0
+    second_arrived, second_done = asyncio.Event(), asyncio.Event()
+
+    async def write_unit(lease: Any, result: Any, *, extra: Any = None) -> None:
+        # The write of range 1 commits last. Unserialized, it then holds a
+        # layout read before range 2 was decided, which moves the end of 1.
+        nonlocal arrivals
+        arrivals += 1
+        if arrivals == 1:
+            with contextlib.suppress(TimeoutError):
+                async with asyncio.timeout(0.3):
+                    await second_arrived.wait()
+                    await second_done.wait()
+            await commit(lease, result, extra=extra)
+            return
+        second_arrived.set()
+        await commit(lease, result, extra=extra)
+        second_done.set()
+
+    monkeypatch.setattr(store, "write_unit", write_unit)
+
+    await _adjust(store, ledger, SecondLater(), concurrency=2, force=True)
+
+    assert arrivals == 2
+    assert read_ranges(ranges_path(ledger)) == expected
+    contents = [json.loads(row["content"]) for row in _units(ledger)]
+    assert contents == [list(bounds) for bounds in expected]
+
+
+async def test_a_permanent_error_under_concurrency_starts_no_new_range(
+    store: Store, ledger: Path
+) -> None:
+    def failing(text: str, label: str) -> Any:
+        if "range 1 " in label:
+            return permanent_error()
+        return default_answer(text, label)
+
+    with pytest.raises(Exception, match="400"):
+        await _adjust(store, ledger, FakeCaller(failing), concurrency=2)
+
+    assert read_ranges(ranges_path(ledger)) == MID_RECORD
+    statuses = [row["status"] for row in _units(ledger)]
+    assert statuses[:2] == ["failed", "done"]
+    assert "pending" in statuses[2:]
 
 
 async def test_a_range_without_content_is_deleted(store: Store, ledger: Path) -> None:

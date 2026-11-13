@@ -7,7 +7,8 @@ classified or nothing was left to ask (a dry run always), 1 when a document
 failed, was refused because its input changed, or another run leases it, 2
 for usage and configuration errors (an unknown classifier or one of another
 unit, ``--chunking adjust``, a missing line-ranges file, an unset key
-variable, no documents), 130 on Ctrl+C or Ctrl+Break.
+variable, no documents), 3 when a provider stopped the run, 130 on Ctrl+C
+or Ctrl+Break.
 """
 
 from __future__ import annotations
@@ -115,7 +116,9 @@ def _report(plan: ClassifyPlan, result: ClassifyResult) -> None:
         f"classified; {result.asked} {plan.unit}(s) {asked}, {result.reused} "
         f"{reused}."
     )
-    if result.exit_code == ExitCode.OK:
+    if result.stop is not None:
+        print_error(result.stop.message())
+    elif result.exit_code == ExitCode.OK:
         print_success(counts)
     else:
         print_warning(counts)
@@ -172,6 +175,7 @@ def _run(
         reused=result.reused,
         outputs=result.databases,
         usage=result.usage,
+        stopped=result.stopped,
     )
     if plan.dry_run:
         return summary.emit(ExitCode.OK, **fields, **_plan_fields(plan, result))

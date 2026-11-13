@@ -13,16 +13,25 @@ import contextlib
 from collections.abc import Callable
 
 from chronominer import ext
-from chronominer.common.retry import Decision, default_decision
+from chronominer.common.retry import (
+    Decision,
+    StopSignal,
+    default_decision,
+    heed_stop,
+)
 
 __all__ = ["AttemptDecisions"]
 
 
 class AttemptDecisions:
-    """The decisions of failed attempts, until the retry ladder asks for them."""
+    """The decisions of failed attempts, until the retry ladder asks for them.
 
-    def __init__(self) -> None:
+    *stop* is the run's stop signal, if the call shares one.
+    """
+
+    def __init__(self, stop: StopSignal | None = None) -> None:
         self._pending: dict[int, tuple[BaseException, Decision]] = {}
+        self._stop = stop
 
     async def enter[C](
         self,
@@ -44,8 +53,14 @@ class AttemptDecisions:
             raise
 
     def failed[C](self, attempt: ext.Attempt[C], exc: Exception) -> None:
-        """Record the decision of *attempt* about *exc*, which it raised."""
-        self._pending[id(exc)] = (exc, attempt.on_error(exc))
+        """Record the decision of *attempt* about *exc*, which it raised.
+
+        A ``STOP`` decision sets the run's stop signal at once, before the
+        caller records the attempt.
+        """
+        decision = attempt.on_error(exc)
+        heed_stop(self._stop, decision, exc)
+        self._pending[id(exc)] = (exc, decision)
 
     def decide(self, exc: BaseException) -> Decision:
         """Return the recorded decision about *exc*, or the default decision."""

@@ -40,6 +40,7 @@ from chronominer.common.decisions import (
     request_fingerprint,
 )
 from chronominer.common.images import decision_jpeg
+from chronominer.common.retry import RunStopped
 from chronominer.llm.caller import CallEnv
 from chronominer.llm.decision_model import KIND, DecisionModel
 from chronominer.spec import DecisionSpec, ResolvedSchema
@@ -185,6 +186,8 @@ class ChunkDecider(DecisionModel):
         Raises:
             MalformedAnswer: An answer does not fit its question.
             httpx.HTTPError: A request failed after the retries.
+            RunStopped: The provider serves no further calls of this run;
+                the requests in flight finish first.
         """
         decisions: list[ChunkDecision] = []
         window: list[Any] = []
@@ -200,8 +203,16 @@ class ChunkDecider(DecisionModel):
     async def _window(
         self, document: str, chunks: Sequence[Any]
     ) -> list[ChunkDecision]:
-        found = await asyncio.gather(*(self._one(document, chunk) for chunk in chunks))
-        return [decision for decision in found if decision is not None]
+        found = await asyncio.gather(
+            *(self._one(document, chunk) for chunk in chunks), return_exceptions=True
+        )
+        errors = [item for item in found if isinstance(item, BaseException)]
+        for error in errors:
+            if isinstance(error, RunStopped):
+                raise error
+        if errors:
+            raise errors[0]
+        return [item for item in found if isinstance(item, ChunkDecision)]
 
     async def _one(self, document: str, chunk: Any) -> ChunkDecision | None:
         request = Request(
