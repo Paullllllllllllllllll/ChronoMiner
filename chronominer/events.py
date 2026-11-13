@@ -3,6 +3,11 @@
 The core never prints. It calls a :class:`RunEvents` implementation instead:
 the CLI writes the events to stderr, a test records them, and
 :class:`NullEvents` drops them. Events are called on the event-loop thread.
+
+The events of items open at once interleave. An item event names the
+item's store *document* and the output *root* that holds its database, so
+a front end can tell two items apart that share a file name; they are None
+where the command reports no store document.
 """
 
 from __future__ import annotations
@@ -32,6 +37,8 @@ class ItemStarted:
     kind: str
     index: int
     total: int
+    document: str | None = None
+    root: str | None = None
 
 
 @dataclass(frozen=True)
@@ -51,6 +58,8 @@ class ChunkDone:
     done: int
     total: int
     already_complete: int = 0
+    document: str | None = None
+    root: str | None = None
 
 
 @dataclass(frozen=True)
@@ -81,6 +90,8 @@ class ItemFinished:
     error: str | None = None
     submitted: bool = False
     partial: bool = False
+    document: str | None = None
+    root: str | None = None
 
 
 class RunEvents(Protocol):

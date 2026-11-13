@@ -1,4 +1,4 @@
-# ChronoMiner v1.12.0
+# ChronoMiner v1.13.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -121,6 +121,7 @@ both.
 | `--batch`, `--no-batch` | submit the chunks to the provider's batch API | off | yes |
 | `--force` | extract inputs again from the start: every stored unit of the input is reset, also outside --pages; stored responses are kept | | no |
 | `--concurrency N` | parallel requests | 16 | yes |
+| `--open-items N` | items open at once, sharing the --concurrency requests; no effect with --batch or on a single item | 1 | yes |
 | `--dry-run` | plan without API calls or writes | | no |
 | `--json` | print one JSON summary line on stdout | | no |
 | `--settings FILE` | alternate settings file | config/settings.yaml | no |
@@ -139,6 +140,14 @@ not hold (`--context-window` with `--chunking auto`) has no effect, and the run 
 on stderr. The chunking options apply to text items, the image options to image and
 PDF items. A dry run plans without the API key variables and names an unset one in a
 warning.
+
+`--concurrency` bounds the requests of the whole run, and `--open-items` sets how
+many items share them. With the default of 1 the items run one after another. A
+higher value opens the next item whenever the open ones have fewer chunks left than
+`--concurrency`, so a folder of short documents keeps every request slot busy. Each
+item keeps its own lease, the items render their files one at a time, and the
+summary lists the items in their order whatever the timing. Under `--batch`, and for
+a run of one item, `--open-items` has no effect and the run warns.
 
 ### ranges generate
 
@@ -255,9 +264,11 @@ refused.
 `chunk`. `classify chunks` also takes the image options of `extract`, with their
 defaults and settings defaults; they size the pages of items the store does not
 hold, while a document with stored pages keeps the settings it was extracted with.
-Every classify command asks about one document at a time, with up to
-`--concurrency` requests about it in flight; a run stop lets those finish and starts
-no further request.
+Every classify command keeps up to `--concurrency` requests of the run in flight;
+`classify chunks` and `classify documents` share them among `--open-items`
+documents at once, as `extract` does, while `classify entries` asks about one
+document at a time. A run stop lets the requests in flight finish and starts no
+further request.
 
 | Flag | Description | Default | In `defaults:` |
 | --- | --- | --- | --- |
@@ -280,6 +291,7 @@ no further request.
 | `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
 | `--force` | ask about every chunk again instead of reusing the stored answers | | no |
 | `--concurrency N` | parallel requests | 16 | yes |
+| `--open-items N` | items open at once, sharing the --concurrency requests; no effect on a single item | 1 | yes |
 | `--dry-run` | plan without API calls or writes | | no |
 | `--json` | print one JSON summary line on stdout | | no |
 | `--settings FILE` | alternate settings file | config/settings.yaml | no |
@@ -328,6 +340,7 @@ no further request.
 | `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
 | `--force` | ask about every document again instead of reusing the stored answers | | no |
 | `--concurrency N` | parallel requests | 16 | yes |
+| `--open-items N` | items open at once, sharing the --concurrency requests; no effect on a single item | 1 | yes |
 | `--dry-run` | plan without API calls or writes | | no |
 | `--json` | print one JSON summary line on stdout | | no |
 | `--settings FILE` | alternate settings file | config/settings.yaml | no |
@@ -383,12 +396,14 @@ adds `to_process` (each item's `name`, `type` and resume `state`), `skipped`,
 every field of the effective run specification, such as `model.model`, to its
 `value` and `source` (`flag`, `settings`, `default` or `resolved`, described under
 [Settings File](#settings-file)); the ranges commands add `to_process` and `spec`
-only.
+only. `run.open_items` appears in `spec`, and in the spec the store records with the
+run, only above 1.
 
 `stopped` is null unless a provider stopped the run (exit code 3); it then holds the
-type and message of the error that stopped it. A stopped run counts the item it was
-working on and the items after it neither complete nor failed. That item's finished
-chunks are stored and rendered, its lease is released, and a rerun resumes the rest.
+type and message of the error that stopped it. A stopped run counts the items it was
+working on and the items it did not open neither complete nor failed. Their finished
+chunks are stored and rendered, their leases are released, and a rerun resumes the
+rest.
 A stopped `repair` leaves the chunks it did not reach pending, so an `extract` run of
 the document resumes them, and its later documents keep their failed chunks for the
 next `repair`. The `stopped` field of `batch check --wait` is a different field,

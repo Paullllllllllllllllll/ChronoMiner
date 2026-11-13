@@ -1,5 +1,20 @@
 # Changelog
 
+- **v1.13.0** (13 November 2026) -- A new option, `--open-items N` (default 1),
+  lets `extract`, `classify chunks` and `classify documents` keep several items
+  open at once. `--concurrency` now bounds the requests of the whole run, and
+  the open items share them, so a folder of short documents keeps every request
+  slot busy: 40 two-chunk items at `--concurrency 16` against an endpoint
+  answering after 1 s took 12.6 s with eight items open, against 52.4 s with
+  one. Each item keeps its own lease, items render their files one at a time,
+  and the summary, the exit code and the failure list follow the item order
+  whatever the timing. A provider stop opens no further item and closes every
+  open item as an interrupted one; an item that was only opening then is left
+  as it was, also under `--force`. The option has no effect under `--batch` or
+  for a single item, where the run warns. The stored run spec records
+  `run.open_items` only above 1. With the default of 1 a run behaves as before.
+  The shared package gains `common/scheduler.py`.
+
 - **v1.12.0** (13 November 2026) -- ChronoMiner now reads input folders through
   the discovery module it shares with AutoExcerpter and ChronoTranscriber
   (`common/discovery.py`). Items are processed in the natural order of their

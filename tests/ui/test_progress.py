@@ -112,6 +112,20 @@ def test_item_without_chunks_prints_its_verdict() -> None:
     assert "[1/1] gamma.txt: failed" in lines
 
 
+def test_the_items_bar_counts_no_item_that_is_still_open() -> None:
+    progress = RichProgress(_console(), open_items=2)
+    first = {"document": "a", "root": "out"}
+    second = {"document": "b", "root": "out"}
+    with progress:
+        progress.item_started(ItemStarted("a.txt", "text", 1, 2, **first))
+        progress.item_started(ItemStarted("b.txt", "text", 2, 2, **second))
+        progress.item_finished(ItemFinished("b.txt", 2, 2, True, **second))
+        (items, *_rest) = progress._progress.tasks
+        assert items.completed == 1
+        progress.item_finished(ItemFinished("a.txt", 1, 2, True, **first))
+        assert items.completed == 2
+
+
 def test_partial_item_prints_partial() -> None:
     console = _console()
     with RichProgress(console) as progress:

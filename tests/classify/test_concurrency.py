@@ -204,6 +204,39 @@ def test_a_request_asked_while_later_ones_are_reused_stores_the_same_answers(
     assert _stable(tmp_path / "two") == _stable(tmp_path / "one")
 
 
+def _together(gate: Gate, requests: int) -> None:
+    """Hold the next *requests* requests until all of them have arrived."""
+    full = asyncio.Event()
+    first = gate.arrived
+    for number in range(first, first + requests - 1):
+        gate.hold[number] = full.wait
+    gate.hold[first + requests - 1] = _set_then(full)
+
+
+@pytest.mark.parametrize(("open_items", "peak"), [("1", 1), ("3", 3)])
+def test_open_documents_share_the_run_s_requests(
+    tmp_path: Path,
+    gate: Gate,
+    capsys: pytest.CaptureFixture[str],
+    open_items: str,
+    peak: int,
+) -> None:
+    folder = tmp_path / "in"
+    for name in "abcdef":
+        write_text(folder / f"{name}.txt", "Line one.\nLine two.\n")
+    _together(gate, peak)
+    argv = ["classify", "chunks", "--classifier", str(_classifier(folder))]
+    argv += ["--input", str(folder), "--all", "--output", str(tmp_path / "out")]
+    argv += ["--concurrency", "4", "--open-items", open_items, "--json"]
+
+    code = entry.main(argv)
+
+    (summary,) = json_lines(capsys.readouterr().out)
+    assert (code, summary["items_classified"]) == (0, 6)
+    assert gate.peak == peak
+    assert len(view(tmp_path / "out")) == 6
+
+
 def test_a_stop_lets_the_request_in_flight_finish_and_sends_no_further_one(
     tmp_path: Path,
     text: Path,

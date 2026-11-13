@@ -73,6 +73,7 @@ from chronominer.spec import (
     ImageSpec,
     SpecError,
     effective_spec,
+    open_items_warning,
     resolve_schema,
 )
 
@@ -538,6 +539,14 @@ def plan_classify(
         raise ConfigurationError(missing.message, items_total=len(targets))
     if missing is not None and spec.run.dry_run:
         warnings += (missing.message,)
+    unused = open_items_warning(
+        spec.run.open_items,
+        (sources or {}).get("run.open_items"),
+        batch=False,
+        items=sum(1 for target in targets if target.state == READY),
+    )
+    if unused is not None:
+        warnings += (unused,)
     return ClassifyPlan(
         spec=spec,
         classifier=classifier,

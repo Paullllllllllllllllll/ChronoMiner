@@ -6,7 +6,7 @@ document, the units (:mod:`chronominer.classify.units`) are grouped in order
 into requests by :func:`~chronominer.common.decision_runner.plan_requests`
 (entries never across chunks) and asked through the run's
 :class:`~chronominer.llm.decision_model.DecisionModel` under the role
-``classify``, ``--concurrency`` requests at a time. A request whose every
+``classify``, ``--concurrency`` requests of the run at a time. A request whose every
 unit has a stored answer to every question, by the same fingerprint, input,
 content and request, is reused
 (:func:`~chronominer.common.classify_store.reusable_answers`) and appended
@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import math
 import sqlite3
 import time
 from collections.abc import (
@@ -84,6 +85,7 @@ from chronominer.common.decisions import (
     request_fingerprint,
 )
 from chronominer.common.retry import RunStopped
+from chronominer.common.scheduler import RunScheduler
 from chronominer.common.sqlite import read
 from chronominer.common.store import (
     Lease,
@@ -106,11 +108,11 @@ from chronominer.output.store import (
     lease_reason,
     open_store,
 )
-from chronominer.pool import run_streaming_transcription_tasks
+from chronominer.pool import ItemSlots, run_streaming_transcription_tasks
 from chronominer.providers import infer_provider, split_provider_prefix
 from chronominer.ranges.lines import read_lines
 from chronominer.run import ConfigurationError, StoreRefusedError, writer_options
-from chronominer.spec import ClassifyItemsSpec
+from chronominer.spec import ClassifyItemsSpec, open_window
 from chronominer.stopping import RunStop
 
 __all__ = [
@@ -228,6 +230,7 @@ class _Stores:
         self._events = events
         self._stores: dict[Path, Store] = {}
         self._keepers: list[LeaseKeeper] = []
+        self._opening = asyncio.Lock()
 
     @property
     def databases(self) -> tuple[str, ...]:
@@ -237,25 +240,28 @@ class _Stores:
     async def get(self, root: Path) -> Store:
         """Return the open store of output root *root*.
 
+        Items open at once share it: a root's store is opened once.
+
         Raises:
             StoreRefusedError: The root's database is refused.
         """
         key = root.resolve()
-        store = self._stores.get(key)
-        if store is not None:
+        async with self._opening:
+            store = self._stores.get(key)
+            if store is not None:
+                return store
+            key.mkdir(parents=True, exist_ok=True)
+            store = open_store(key, writer=writer_options(self._events))
+            try:
+                await store.open()
+            except StoreError as exc:
+                raise StoreRefusedError(str(exc)) from exc
+            self._stores[key] = store
+            await store.begin_run(self._plan.command, spec=self._plan.effective_spec())
+            keeper = store.heartbeat(on_lost=self._lost)
+            keeper.start()
+            self._keepers.append(keeper)
             return store
-        key.mkdir(parents=True, exist_ok=True)
-        store = open_store(key, writer=writer_options(self._events))
-        try:
-            await store.open()
-        except StoreError as exc:
-            raise StoreRefusedError(str(exc)) from exc
-        self._stores[key] = store
-        await store.begin_run(self._plan.command, spec=self._plan.effective_spec())
-        keeper = store.heartbeat(on_lost=self._lost)
-        keeper.start()
-        self._keepers.append(keeper)
-        return store
 
     def _lost(self, lease: Lease) -> None:
         self._events.warning(
@@ -388,19 +394,37 @@ class _Classify:
         )
 
     async def target(
-        self, target: ClassifyTarget, index: int, total: int
+        self,
+        target: ClassifyTarget,
+        index: int,
+        total: int,
+        slots: ItemSlots | None = None,
     ) -> TargetResult:
-        """Classify one target; a target not ready keeps its state and reason."""
+        """Classify one target; a target not ready keeps its state and reason.
+
+        Each request holds one of the target's *slots* for its call.
+        """
         if target.state != READY:
             return TargetResult(
                 target.name, target.document, target.state, reason=target.reason
             )
-        self.events.item_started(ItemStarted(target.name, target.kind, index, total))
+        share = slots if slots is not None else ItemSlots()
+        root = str(target.root.resolve())
+        self.events.item_started(
+            ItemStarted(
+                target.name,
+                target.kind,
+                index,
+                total,
+                document=target.document,
+                root=root,
+            )
+        )
         try:
             if self.classifier.unit == "entry":
-                tally = await self._entries(target)
+                tally = await self._entries(target, share)
             else:
-                tally = await self._item(target)
+                tally = await self._item(target, share)
         except _NotClassified as exc:
             result = TargetResult(
                 target.name, target.document, exc.state, reason=str(exc)
@@ -431,12 +455,18 @@ class _Classify:
             )
         self.events.item_finished(
             ItemFinished(
-                target.name, index, total, success, error=result.reason or None
+                target.name,
+                index,
+                total,
+                success,
+                error=result.reason or None,
+                document=target.document,
+                root=root,
             )
         )
         return result
 
-    async def _item(self, target: ClassifyTarget) -> _Tally:
+    async def _item(self, target: ClassifyTarget, slots: ItemSlots) -> _Tally:
         spec = self.plan.spec
         assert isinstance(spec, ClassifyItemsSpec)
         assert target.path is not None
@@ -456,10 +486,11 @@ class _Classify:
             )
             units = self._text_units(chunks, spec.model)
             context = self._row_context(target, store, "text")
-            requests = _listed(self._requests(target, units, images=False))
-            await self._ask(target, requests, context, store, None, tally)
+            listed = list(self._requests(target, units, images=False))
+            slots.expect(len(listed))
+            await self._ask(target, _listed(listed), context, store, None, tally, slots)
             return tally
-        return await self._pages(target, spec, store, tally, seen)
+        return await self._pages(target, spec, store, tally, seen, slots)
 
     async def _pages(  # noqa: PLR0913 - the item's context
         self,
@@ -468,17 +499,24 @@ class _Classify:
         store: Store | None,
         tally: _Tally,
         seen: _Seen,
+        slots: ItemSlots,
     ) -> _Tally:
-        """Classify the pages of an image or PDF item, or its document unit."""
+        """Classify the pages of an image or PDF item, or its document unit.
+
+        The requests are counted for *slots* from the pages selected, before
+        a page is rendered: one per group of pages, one for a document unit.
+        """
         assert target.path is not None
         img_cfg, model_type, section, record = self._image_settings(target, spec)
         total = page_count(target.path, target.kind)
         if self.classifier.unit == "chunk":
             indices = self._selected(total)
+            slots.expect(math.ceil(len(indices) / self._group(images=True)))
         else:
             selection = self.classifier.selection
             first = selection.first_pages if selection is not None else total
             indices = list(range(min(first, total)))
+            slots.expect(1)
         context = self._row_context(target, store, record)
         pages = page_units(
             target.path,
@@ -491,7 +529,7 @@ class _Classify:
         )
         prepared: list[int] = []
         requests = self._page_requests(target, pages, indices, tally, seen, prepared)
-        await self._ask(target, requests, context, store, None, tally)
+        await self._ask(target, requests, context, store, None, tally, slots)
         if not prepared and not tally.failed:
             raise _NotClassified(SKIPPED, "it has no pages to classify")
         return tally
@@ -596,7 +634,7 @@ class _Classify:
         )
         return img_cfg, model_type, section, image_settings_record(img_cfg, model_type)
 
-    async def _entries(self, target: ClassifyTarget) -> _Tally:
+    async def _entries(self, target: ClassifyTarget, slots: ItemSlots) -> _Tally:
         doc_id = target.doc_id
         fields = self.classifier.fields
         assert doc_id is not None and fields is not None
@@ -623,12 +661,14 @@ class _Classify:
                 raise _NotClassified(SKIPPED, "it has no entries")
             tally = _Tally()
             context = self._row_context(target, store, "entries")
-            requests = _listed(
+            listed = [
                 request
                 for units in groups
                 for request in self._requests(target, units, images=False)
-            )
-            await self._ask(target, requests, context, store, lease, tally)
+            ]
+            slots.expect(len(listed))
+            requests = _listed(listed)
+            await self._ask(target, requests, context, store, lease, tally, slots)
             return tally
         finally:
             if store is not None and lease is not None:
@@ -683,12 +723,14 @@ class _Classify:
         store: Store | None,
         lease: Lease | None,
         tally: _Tally,
+        slots: ItemSlots,
     ) -> None:
         """Ask *requests* through the worker pool, ``--concurrency`` at a time.
 
         An error that ends the document starts no further request; the
         requests in flight finish, and the first such error is raised. A run
-        stop ends admission the same way and wins.
+        stop ends admission the same way and wins. Each request holds one of
+        *slots* for its call and reports its end.
         """
         ended: list[Exception] = []
 
@@ -700,10 +742,18 @@ class _Classify:
                     yield request
 
         async def ask(request: Request) -> None:
+            try:
+                await ask_one(request)
+            finally:
+                slots.done()
+
+        async def ask_one(request: Request) -> None:
             if ended:
                 return
             try:
-                await self._request(target.root, request, context, store, lease, tally)
+                await self._request(
+                    target.root, request, context, store, lease, tally, slots
+                )
             except RunStopped:
                 raise
             except Exception as exc:  # noqa: BLE001 - raised once the pool drains
@@ -723,8 +773,12 @@ class _Classify:
         store: Store | None,
         lease: Lease | None,
         tally: _Tally,
+        slots: ItemSlots,
     ) -> None:
-        """Reuse the stored answers of *request*, else ask and record them."""
+        """Reuse the stored answers of *request*, else ask and record them.
+
+        The call holds one of *slots*; a reused request takes none.
+        """
         count = len(request.units)
         try:
             if not self.plan.force:
@@ -748,7 +802,8 @@ class _Classify:
                 return
             first, last = request.units[0].locator, request.units[-1].locator
             label = f"{request.document} {self.classifier.name} {first}..{last}"
-            result = await self.model.runner.ask(request, label=label)
+            async with slots.slot():
+                result = await self.model.runner.ask(request, label=label)
             rows = answer_rows(result, self.classifier, context, store.clock())
             await record_answers(
                 store, rows, lease=lease, seen_doc_id=context.seen_doc_id
@@ -801,13 +856,71 @@ class _Classify:
             raise
 
 
+@dataclass(frozen=True)
+class _Stopped:
+    """A document in which the run stopped; it is reported neither way."""
+
+    name: str
+    reason: str
+
+
+def _positions(targets: Sequence[ClassifyTarget]) -> list[tuple[ClassifyTarget, int]]:
+    """Return each target with its position among the ready targets so far."""
+    position = 0
+    positioned: list[tuple[ClassifyTarget, int]] = []
+    for target in targets:
+        if target.state == READY:
+            position += 1
+        positioned.append((target, position))
+    return positioned
+
+
+async def _classify_target(
+    worker: _Classify,
+    entry: tuple[ClassifyTarget, int],
+    total: int,
+    slots: ItemSlots,
+) -> TargetResult | _Stopped:
+    """Classify one target; :class:`_Stopped` when the run stopped in it."""
+    target, position = entry
+    try:
+        return await worker.target(target, position, total, slots)
+    except RunStopped as exc:
+        return _Stopped(target.name, str(exc))
+
+
+def _classify_stop(
+    plan: ClassifyPlan,
+    outcomes: Sequence[TargetResult | _Stopped],
+    reason: str | None,
+    total: int,
+) -> RunStop | None:
+    """Return the stop of the run from the outcomes of the targets opened.
+
+    The *total* ready targets less the ready ones opened were not started.
+    """
+    opened = plan.targets[: len(outcomes)]
+    further = total - sum(1 for target in opened if target.state == READY)
+    stopped = [outcome for outcome in outcomes if isinstance(outcome, _Stopped)]
+    if stopped:
+        return RunStop.of(
+            stopped[0].reason,
+            [(outcome.name, None) for outcome in stopped],
+            further=further,
+        )
+    return RunStop(reason, further=further) if reason is not None else None
+
+
 async def run_classify(
     plan: ClassifyPlan, events: RunEvents | None = None
 ) -> ClassifyResult:
-    """Classify the plan's ready documents one after another.
+    """Classify the plan's ready documents in order.
 
     The requests about one document go through the worker pool of
-    :mod:`chronominer.pool`, at most ``--concurrency`` at once. A dry run
+    :mod:`chronominer.pool`; ``--concurrency`` bounds the requests of the
+    whole run, and up to ``--open-items`` documents share them
+    (:class:`~chronominer.common.scheduler.RunScheduler`). The results are
+    reported in document order. A dry run
     opens no store for writing and builds no client: it counts the units
     that would be asked and reused. A failed request fails its document, and
     the run goes on with the next request. When a provider serves no further
@@ -842,23 +955,24 @@ async def run_classify(
             ) from exc
         stores = _Stores(plan, sink)
     worker = _Classify(plan, model, stores, sink)
+    control = plan.spec.run
+    scheduler = RunScheduler(
+        control.concurrency,
+        window=open_window(control.open_items, batch=False, items=len(ready)),
+        stop=env.stop,
+    )
     results: list[TargetResult] = []
     exit_code: int = ExitCode.FAILURE
     stop: RunStop | None = None
     try:
-        position = 0
-        for target in plan.targets:
-            if target.state == READY:
-                position += 1
-            try:
-                results.append(await worker.target(target, position, len(ready)))
-            except RunStopped as exc:
-                further = len(ready) - position
-                stop = RunStop(str(exc), target.name, further=further)
-                break
-            if env.stop.reason is not None:
-                stop = RunStop(env.stop.reason, further=len(ready) - position)
-                break
+        outcomes = await scheduler.run(
+            _positions(plan.targets),
+            lambda entry, ticket: _classify_target(
+                worker, entry, len(ready), ItemSlots(scheduler, ticket)
+            ),
+        )
+        results = [o for o in outcomes if isinstance(o, TargetResult)]
+        stop = _classify_stop(plan, outcomes, env.stop.reason, len(ready))
         exit_code = ClassifyResult(tuple(results), stop=stop).exit_code
     except (asyncio.CancelledError, KeyboardInterrupt):
         exit_code = ExitCode.INTERRUPTED

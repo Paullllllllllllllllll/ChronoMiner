@@ -43,6 +43,7 @@ from chronominer.common.images import decision_jpeg
 from chronominer.common.retry import RunStopped
 from chronominer.llm.caller import CallEnv
 from chronominer.llm.decision_model import KIND, DecisionModel
+from chronominer.pool import ItemSlots
 from chronominer.spec import DecisionSpec, ResolvedSchema
 
 __all__ = [
@@ -176,12 +177,16 @@ class ChunkDecider(DecisionModel):
         return self._thresholds.get(fingerprint)
 
     async def classify(
-        self, document: str, chunks: AsyncIterable[Any]
+        self,
+        document: str,
+        chunks: AsyncIterable[Any],
+        slots: ItemSlots | None = None,
     ) -> list[ChunkDecision]:
         """Return the relevance of each chunk of *chunks*.
 
         A chunk is a text chunk (``text``) or a page image (``base64``); one
-        whose answer is a refusal is left out.
+        whose answer is a refusal is left out. Each request holds one of the
+        item's *slots*.
 
         Raises:
             MalformedAnswer: An answer does not fit its question.
@@ -189,22 +194,30 @@ class ChunkDecider(DecisionModel):
             RunStopped: The provider serves no further calls of this run;
                 the requests in flight finish first.
         """
+        share = slots if slots is not None else ItemSlots()
         decisions: list[ChunkDecision] = []
         window: list[Any] = []
         async for chunk in chunks:
             window.append(chunk)
             if len(window) == self.concurrency:
-                decisions += await self._window(document, window)
+                decisions += await self._window(document, window, share)
                 window = []
         if window:
-            decisions += await self._window(document, window)
+            decisions += await self._window(document, window, share)
         return decisions
 
     async def _window(
-        self, document: str, chunks: Sequence[Any]
+        self, document: str, chunks: Sequence[Any], slots: ItemSlots
     ) -> list[ChunkDecision]:
+        async def one(chunk: Any) -> ChunkDecision | None:
+            try:
+                async with slots.slot():
+                    return await self._one(document, chunk)
+            finally:
+                slots.done()
+
         found = await asyncio.gather(
-            *(self._one(document, chunk) for chunk in chunks), return_exceptions=True
+            *(one(chunk) for chunk in chunks), return_exceptions=True
         )
         errors = [item for item in found if isinstance(item, BaseException)]
         for error in errors:

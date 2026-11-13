@@ -77,10 +77,13 @@ def _model_and_response() -> list[Any]:
     ]
 
 
-def _run_answers(flags: Sequence[str], end: str, *, batch: bool = False) -> list[Any]:
+def _run_answers(
+    flags: Sequence[str], end: str, *, batch: bool = False, items: int = 1
+) -> list[Any]:
     concurrency = [] if batch else [KEEP]  # not asked for a batch run
+    open_items = [KEEP] if items > 1 and not batch else []  # several items only
     # decision pre-pass, submission, run options
-    return [KEEP, batch, list(flags), *concurrency, end]
+    return [KEEP, batch, list(flags), *concurrency, *open_items, end]
 
 
 def _text_answers(
@@ -131,7 +134,7 @@ def _image_answers(folder: Path, out: Path, *, batch: bool) -> list[Any]:
         ["csv"],
         *_model_and_response(),
         KEEP,  # page images
-        *_run_answers([], "run", batch=batch),
+        *_run_answers([], "run", batch=batch, items=2),
     ]
 
 

@@ -163,6 +163,8 @@ __all__ = [
     "inapplicable",
     "item_type",
     "model_suggestions",
+    "open_items_warning",
+    "open_window",
     "parse",
     "parse_batch_cancel",
     "parse_batch_check",
@@ -407,13 +409,18 @@ class ImageSpec:
 
 @dataclass(frozen=True)
 class RunControl:
-    """Batch, resume, concurrency and agent-contract switches."""
+    """Batch, resume, concurrency and agent-contract switches.
+
+    ``concurrency`` bounds the requests of the whole run; ``open_items`` is
+    the number of items that share them at once.
+    """
 
     batch: bool
     force: bool
     concurrency: int
     dry_run: bool
     json: bool
+    open_items: int = 1
 
 
 @dataclass(frozen=True)
@@ -600,12 +607,14 @@ class ClassifierChoice:
 class ClassifyControl:
     """The concurrency and agent-contract switches of a classify command.
 
-    ``concurrency`` bounds the requests about one document in flight at once.
+    ``concurrency`` bounds the requests of the whole run in flight at once;
+    ``open_items`` is the number of documents that share them at once.
     """
 
     concurrency: int
     dry_run: bool
     json: bool
+    open_items: int = 1
 
 
 @dataclass(frozen=True)
@@ -1177,6 +1186,19 @@ def _run_options() -> list[Option]:
             "input is reset, also outside --pages; stored responses are kept"
         ),
         concurrency_option(DEFAULT_CONCURRENCY),
+        Option(
+            "open_items",
+            "--open-items",
+            (
+                "items open at once, sharing the --concurrency requests; no "
+                "effect with --batch or on a single item"
+            ),
+            group="run",
+            type=positive_int,
+            metavar="N",
+            default=1,
+            target="run.open_items",
+        ),
         dry_run_option("run.dry_run"),
         json_option("run.json"),
         settings_option(),
@@ -1473,6 +1495,13 @@ def _classify_items_table(unit: str) -> OptionTable:
             *(OPTIONS[name] for name in _IMAGE_NAMES),
             *_classifier_rows(unit),
             OPTIONS["concurrency"],
+            replace(
+                OPTIONS["open_items"],
+                help=(
+                    "items open at once, sharing the --concurrency requests; no "
+                    "effect on a single item"
+                ),
+            ),
             dry_run_option("run.dry_run"),
             json_option("run.json"),
             settings_option(),
@@ -1530,7 +1559,8 @@ def effective_spec(
     """Return every field of *spec* (dotted path) with its value and source.
 
     Values are JSON values; fields missing from *sources* were given by the
-    caller and count as flags.
+    caller and count as flags. ``run.open_items`` is left out while it is 1:
+    it changes when requests are sent, not what they ask.
     """
     known = sources or {}
     return {
@@ -1539,6 +1569,7 @@ def effective_spec(
             "source": known.get(path, Source.FLAG).value,
         }
         for path, value in _flatten(spec).items()
+        if not (path == "run.open_items" and value == 1)
     }
 
 
@@ -1596,6 +1627,39 @@ def condition_warnings(
             + ", ".join(reasons)
         )
     return messages
+
+
+def open_items_warning(
+    open_items: int, source: Source | None, *, batch: bool, items: int
+) -> str | None:
+    """Return the warning of an ``--open-items`` the run cannot use, else None.
+
+    The option has no effect with ``--batch`` or when the run processes at
+    most one item. Like :func:`condition_warnings`, it names the flag or
+    settings default that supplied the value; a value of 1 never warns.
+    """
+    if open_items <= 1 or (not batch and items > 1):
+        return None
+    reasons = []
+    if batch:
+        reasons.append("the batch is True")
+    if items <= 1:
+        reasons.append(f"the run processes {items} item(s)")
+    flag = "--open-items"
+    label = (
+        flag
+        if source is not Source.SETTINGS
+        else f"the settings default open_items ({flag})"
+    )
+    return (
+        f"{label} applies only to a run of several items without --batch and "
+        "has no effect here: " + ", ".join(reasons)
+    )
+
+
+def open_window(open_items: int, *, batch: bool, items: int) -> int:
+    """Return the number of items a run keeps open: 1 under ``--batch``."""
+    return 1 if batch or items <= 1 else max(1, open_items)
 
 
 def _origin(

@@ -21,6 +21,7 @@ from chronominer.events import ChunkDone, RunEvents
 from chronominer.extract.units import DocumentHandle
 from chronominer.llm.caller import CallEnv
 from chronominer.output.render import output_formats
+from chronominer.pool import ItemSlots
 from chronominer.settings import Settings
 from chronominer.spec import RunSpec
 
@@ -137,7 +138,7 @@ class Item:
     chunks. *context* and *context_image* are the item's resolved extraction
     context, *adjust_context* the context of its boundary decisions under
     ``--chunking adjust``. *document* is the item's store document, set by
-    the run core.
+    the run core. *slots* is the item's share of the run's request slots.
     """
 
     path: Path
@@ -147,6 +148,7 @@ class Item:
     context_image: Path | None = None
     adjust_context: str | None = None
     document: DocumentHandle | None = None
+    slots: ItemSlots = ItemSlots()
 
     @property
     def name(self) -> str:
@@ -182,12 +184,17 @@ class ExtractionMethod(Protocol):
 
 @dataclass
 class ChunkCounter:
-    """Report each finished chunk of an item as a :class:`ChunkDone` event."""
+    """Report each finished chunk of an item as a :class:`ChunkDone` event.
+
+    *document* and *root* name the item's store document and output root.
+    """
 
     events: RunEvents
     item: str
     total: int
     already_complete: int = 0
+    document: str | None = None
+    root: str | None = None
     done: int = field(default=0, init=False)
 
     def __call__(self, index: int, failed: bool) -> None:
@@ -201,5 +208,7 @@ class ChunkCounter:
                 done=self.done,
                 total=self.total,
                 already_complete=self.already_complete,
+                document=self.document,
+                root=self.root,
             )
         )

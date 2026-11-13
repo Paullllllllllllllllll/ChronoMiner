@@ -65,7 +65,18 @@ def test_the_effective_spec_names_the_source_of_every_option() -> None:
     assert payload["input.path"] == {"value": "x", "source": "flag"}
     assert payload["output.formats"] == {"value": ["csv"], "source": "settings"}
     assert payload["chunking.chunk_tokens"]["source"] == "default"
-    assert len(payload) == len([o for o in OPTIONS if o.target is not None])
+    # One item open at a time records the spec it recorded before the option.
+    targets = [o.target for o in OPTIONS if o.target is not None]
+    assert sorted(payload) == sorted(t for t in targets if t != "run.open_items")
+
+
+def test_the_effective_spec_records_several_open_items() -> None:
+    flags = {"input": Path("x"), "schema": "WageRecords", "open_items": 4}
+
+    resolution = resolve_spec(flags)
+
+    payload = effective_spec(resolution.spec, resolution.sources)
+    assert payload["run.open_items"] == {"value": 4, "source": "flag"}
 
 
 def test_to_argv_spells_out_values_the_settings_defaults_change() -> None:

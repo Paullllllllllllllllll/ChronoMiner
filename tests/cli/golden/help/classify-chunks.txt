@@ -65,6 +65,8 @@ decision model:
 run control:
   --force               ask about every chunk again instead of reusing the stored answers
   --concurrency N       parallel requests; default: 16
+  --open-items N        items open at once, sharing the --concurrency requests; no effect on a
+                        single item; default: 1
   --dry-run             plan without API calls or writes
   --json                print one JSON summary line on stdout
   --settings FILE       alternate settings file; default: config/settings.yaml

@@ -2,7 +2,7 @@
 
 :class:`RichProgress` implements :class:`~chronominer.events.RunEvents`
 on a rich console. On a terminal it shows an overall bar for the items, a
-chunk bar for the current item and a status line for waits; warnings and one
+chunk bar for each open item and a status line for waits; warnings and one
 result line per item are printed above the bars, and so are log records
 written to stderr while the display runs. On any other console it prints
 plain lines only. It tallies the chunks of each item from the
@@ -91,10 +91,16 @@ class ChunkTally:
 
 
 class RichProgress:
-    """Show run events on a rich console; use as a context manager."""
+    """Show run events on a rich console; use as a context manager.
 
-    def __init__(self, console: Console | None = None) -> None:
+    *open_items* is the number of items the run keeps open at once. An item
+    the run leaves without a finish event (``--pages`` selected none of its
+    chunks) loses its bar once that many younger items have started.
+    """
+
+    def __init__(self, console: Console | None = None, open_items: int = 1) -> None:
         self.console = console if console is not None else Console(stderr=True)
+        self.open_items = max(1, open_items)
         self._progress = Progress(
             TextColumn("{task.description}", markup=False),
             BarColumn(),
@@ -105,7 +111,9 @@ class RichProgress:
             auto_refresh=False,
         )
         self._items_task: TaskID | None = None
-        self._chunk_task: TaskID | None = None
+        self._chunk_tasks: dict[tuple[str | None, str | None], TaskID] = {}
+        self._positions: dict[tuple[str | None, str | None], int] = {}
+        self._finished = 0
         self._status: str = ""
         self._live: Live | None = None
         self._tallies: dict[str, ChunkTally] = {}
@@ -153,6 +161,15 @@ class RichProgress:
     def _print(self, text: Text) -> None:
         self.console.print(text, soft_wrap=True)
 
+    def _chunk_key(
+        self, root: str | None, document: str | None
+    ) -> tuple[str | None, str | None]:
+        """Return the open item an event names; the only one when it names none."""
+        key = (root, document)
+        if key not in self._chunk_tasks and len(self._chunk_tasks) == 1:
+            return next(iter(self._chunk_tasks))
+        return key
+
     def item_started(self, event: ItemStarted) -> None:
         """Start the chunk bar of the item and size the overall bar."""
         self._status = ""
@@ -162,9 +179,18 @@ class RichProgress:
             )
         else:
             self._progress.update(self._items_task, total=event.total)
-        if self._chunk_task is not None:
-            self._progress.remove_task(self._chunk_task)
-        self._chunk_task = self._progress.add_task(event.name, total=None, note="")
+        key = (event.root, event.document)
+        stale = self._chunk_tasks.pop(key, None)
+        if stale is not None:
+            self._progress.remove_task(stale)
+        while len(self._chunk_tasks) >= self.open_items:
+            oldest = next(iter(self._chunk_tasks))
+            self._progress.remove_task(self._chunk_tasks.pop(oldest))
+            self._positions.pop(oldest, None)
+        self._chunk_tasks[key] = self._progress.add_task(
+            event.name, total=None, note=""
+        )
+        self._positions[key] = event.index
         if not self.live:
             self._print(
                 Text(
@@ -177,14 +203,13 @@ class RichProgress:
         """Count the chunk and advance the chunk bar to *done* of *total*."""
         self._status = ""
         self._tallies.setdefault(event.item, ChunkTally()).count(event)
-        if self._chunk_task is None:
+        task = self._chunk_tasks.get(self._chunk_key(event.root, event.document))
+        if task is None:
             return
         note = "chunks"
         if event.already_complete:
             note += f", +{event.already_complete} from an earlier run"
-        self._progress.update(
-            self._chunk_task, completed=event.done, total=event.total, note=note
-        )
+        self._progress.update(task, completed=event.done, total=event.total, note=note)
 
     def waiting(self, event: Waiting) -> None:
         """Show the wait on the status line, or print it."""
@@ -200,13 +225,22 @@ class RichProgress:
             self._print(Text(f"Warning: {line}", style="yellow"))
 
     def item_finished(self, event: ItemFinished) -> None:
-        """Print the item's result line and advance the overall bar."""
+        """Print the item's result line and advance the overall bar.
+
+        The bar stands at the highest position finished less the items
+        before it that are still open, which with one item open at a time is
+        the position of this item.
+        """
         self._status = ""
-        if self._chunk_task is not None:
-            self._progress.remove_task(self._chunk_task)
-            self._chunk_task = None
+        key = self._chunk_key(event.root, event.document)
+        task = self._chunk_tasks.pop(key, None)
+        if task is not None:
+            self._progress.remove_task(task)
+        self._positions.pop(key, None)
+        self._finished = max(self._finished, event.index)
         if self._items_task is not None:
-            self._progress.update(self._items_task, completed=event.index)
+            behind = sum(place < self._finished for place in self._positions.values())
+            self._progress.update(self._items_task, completed=self._finished - behind)
         if not event.success:
             verdict = "failed"
         elif event.submitted:

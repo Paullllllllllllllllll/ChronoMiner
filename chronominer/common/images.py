@@ -48,6 +48,11 @@ from .native import (
 
 logger = logging.getLogger(__name__)
 
+# PyMuPDF supports one thread at a time, across documents too; several items
+# open at once render from several threads.
+PYMUPDF_LOCK = threading.RLock()
+"""The lock every PyMuPDF call of the process holds that can run beside another."""
+
 POINTS_PER_INCH = 72.0
 DEFAULT_LOW_MAX_SIDE_PX = 512
 DEFAULT_HIGH_TARGET_BOX = (768, 1536)
@@ -503,8 +508,9 @@ class PageSource:
 class PdfPageSource(PageSource):
     """Render PDF pages lazily from one open document.
 
-    PyMuPDF documents are not thread-safe, so all document access runs under
-    a lock; preprocessing and encoding run outside it. Page names follow
+    PyMuPDF is not thread-safe, so all document access runs under the
+    process-wide :data:`PYMUPDF_LOCK`, also beside the sources of other
+    documents; preprocessing and encoding run outside it. Page names follow
     ``name_template`` with the 1-based page ``number``.
     """
 
@@ -526,20 +532,23 @@ class PdfPageSource(PageSource):
             section=section,
             payload_sha256_key=payload_sha256_key,
         )
-        self._render_lock = threading.Lock()
-        self._doc: pymupdf.Document | None = pymupdf.open(pdf_path)
-        # An encrypted PDF reports a page count but fails every render.
-        if self._doc.needs_pass:
-            self._doc.close()
-            self._doc = None
-            raise ValueError(f"Cannot open password-protected PDF: {pdf_path.name}")
+        self._render_lock = PYMUPDF_LOCK
+        self._doc: pymupdf.Document | None = None
+        with self._render_lock:
+            document = pymupdf.open(pdf_path)
+            # An encrypted PDF reports a page count but fails every render.
+            if document.needs_pass:
+                document.close()
+                raise ValueError(f"Cannot open password-protected PDF: {pdf_path.name}")
+            self._doc = document
         logger.debug(
             f"Opened {pdf_path.name}: {len(self)} page(s), "
             f"model_type={self.model_type}, dpi={self.target_dpi}"
         )
 
     def __len__(self) -> int:
-        return len(self._doc) if self._doc is not None else 0
+        with self._render_lock:
+            return len(self._doc) if self._doc is not None else 0
 
     @classmethod
     def image_name(cls, index: int) -> str:

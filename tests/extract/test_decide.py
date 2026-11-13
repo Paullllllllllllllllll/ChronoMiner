@@ -198,7 +198,9 @@ class _Decider:
     def __init__(self, threshold: float | None) -> None:
         self._threshold = threshold
 
-    async def classify(self, document: str, chunks: Any) -> list[ChunkDecision]:
+    async def classify(
+        self, document: str, chunks: Any, slots: Any = None
+    ) -> list[ChunkDecision]:
         return [
             ChunkDecision(c.index, 0.01 if c.index == 0 else 0.8) async for c in chunks
         ]
@@ -243,7 +245,9 @@ def test_apply_skips_chunks_below_the_threshold_and_records_why() -> None:
 def test_a_failed_pre_pass_extracts_every_chunk(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def broken(self: Any, document: str, chunks: Any) -> list[ChunkDecision]:
+    async def broken(
+        self: Any, document: str, chunks: Any, slots: Any = None
+    ) -> list[ChunkDecision]:
         raise httpx.ConnectError("down")
 
     monkeypatch.setattr(_Decider, "classify", broken)
@@ -255,7 +259,9 @@ def test_a_failed_pre_pass_extracts_every_chunk(
 def test_a_stopped_pre_pass_stops_the_item_instead_of_extracting_it(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    async def stopped(self: Any, document: str, chunks: Any) -> list[ChunkDecision]:
+    async def stopped(
+        self: Any, document: str, chunks: Any, slots: Any = None
+    ) -> list[ChunkDecision]:
         raise RunStopped("no further calls")
 
     monkeypatch.setattr(_Decider, "classify", stopped)

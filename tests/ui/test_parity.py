@@ -501,6 +501,7 @@ def mixed_folder_auto(ws: Workspace) -> Script:
         KEEP,
         [],
         KEEP,
+        "2",  # items open at once
         "copy",
     ]
     return Script("extract", ws.session(), answers)

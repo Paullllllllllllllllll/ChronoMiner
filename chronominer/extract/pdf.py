@@ -21,6 +21,7 @@ import pymupdf
 
 from chronominer.common.images import (
     POINTS_PER_INCH,
+    PYMUPDF_LOCK,
     PagePayload,
     PdfPageSource,
     content_scale_factor,
@@ -135,16 +136,18 @@ class PDFProcessor:
     def open_pdf(self) -> None:
         """Open the PDF document."""
         try:
-            self.doc = pymupdf.open(self.pdf_path)
+            with PYMUPDF_LOCK:
+                self.doc = pymupdf.open(self.pdf_path)
         except Exception as exc:
             logger.error("Failed to open PDF: %s, %s", self.pdf_path, exc)
             raise
 
     def close_pdf(self) -> None:
         """Close the opened PDF document."""
-        if self.doc:
-            self.doc.close()
-            self.doc = None
+        with PYMUPDF_LOCK:
+            if self.doc:
+                self.doc.close()
+                self.doc = None
 
     def __enter__(self) -> PDFProcessor:
         self.open_pdf()
@@ -159,6 +162,10 @@ class PDFProcessor:
         self.close_pdf()
 
     def page_count(self) -> int:
-        """Return the number of pages; the document is closed afterwards."""
-        with pymupdf.open(self.pdf_path) as doc:
+        """Return the number of pages; the document is closed afterwards.
+
+        Items open at once count and render their PDFs from several threads,
+        so the call holds the process's PyMuPDF lock.
+        """
+        with PYMUPDF_LOCK, pymupdf.open(self.pdf_path) as doc:
             return int(doc.page_count)

@@ -28,6 +28,7 @@ JSON validation keeps its text: its entries are parsed as far as they can be
 
 from __future__ import annotations
 
+import copy
 import logging
 from collections.abc import Mapping
 from pathlib import Path
@@ -238,6 +239,22 @@ class ChunkExtractor:
         self.context = context
         for kind in ("text", "image"):
             self._prompts[kind] = self._prompt(kind)
+
+    def for_item(
+        self, context: str | None, context_image: Path | None
+    ) -> ChunkExtractor:
+        """Return an extractor of one item's chunks: its context, this caller.
+
+        Items open at once each send their own context and context image.
+        The returned extractor shares this one's caller, whose clients are
+        closed with this extractor.
+        """
+        item = copy.copy(self)
+        item._prompts = dict(self._prompts)
+        item.update_context(context)
+        item.update_context_image(context_image)
+        self._skipped_context_image = item._skipped_context_image
+        return item
 
     def update_context_image(self, path: Path | None) -> None:
         """Send *path* as the context image of later chunks; None sends none.

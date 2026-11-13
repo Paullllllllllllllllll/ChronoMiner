@@ -19,7 +19,7 @@ from chronominer import run as core
 from chronominer.common.contract import ExitCode
 from chronominer.common.wizard import State
 from chronominer.settings import SettingsError, resolve
-from chronominer.spec import OPTIONS, Resolution, RunSpec
+from chronominer.spec import OPTIONS, Resolution, RunSpec, open_window
 from chronominer.ui.progress import RichProgress, plan_table, summary_table
 from chronominer.ui.review import PROGRAM, build_review, equivalent_command
 from chronominer.ui.session import TASKS, RunRequest, Session, TaskFlow, plural
@@ -78,8 +78,12 @@ def _run(request: RunRequest) -> int:
             _say(console, f"Warning: {warning}")
         console.print(plan_table(run_plan))
         return int(ExitCode.OK)
+    control = run_plan.spec.run
+    window = open_window(
+        control.open_items, batch=control.batch, items=len(run_plan.to_process)
+    )
     try:
-        with RichProgress(console) as progress:
+        with RichProgress(console, window) as progress:
             for warning in run_plan.warnings:
                 progress.warning(warning)
             result = asyncio.run(core.run(run_plan, progress))

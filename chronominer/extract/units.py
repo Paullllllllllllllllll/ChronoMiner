@@ -69,7 +69,7 @@ from chronominer.extract.response_parsing import answer_outcome, parse_extractio
 from chronominer.output.attempts import AttemptRows
 from chronominer.output.entries import entries_writer
 from chronominer.output.store import KIND_CHUNK
-from chronominer.pool import run_streaming_transcription_tasks
+from chronominer.pool import ItemSlots, run_streaming_transcription_tasks
 
 __all__ = [
     "UNIT_KIND",
@@ -294,11 +294,13 @@ class _Units:
         on_unit: UnitCallback | None,
         entries: EntrySchema,
         stop: StopSignal | None = None,
+        slots: ItemSlots | None = None,
     ) -> None:
         self.handle = handle
         self.on_unit = on_unit
         self.entries = entries
         self.stop = stop
+        self.slots = slots if slots is not None else ItemSlots()
         self.total = 0
         self.failed = 0
         self.write_errors: list[BaseException] = []
@@ -338,7 +340,8 @@ class _Units:
         raised: BaseException | None = None
         with unit_context(handle.key(idx)), use_recorder(recorder):
             try:
-                result = await call()
+                async with self.slots.slot():
+                    result = await call()
             except RunStopped:
                 raise
             except Exception as exc:
@@ -469,6 +472,7 @@ async def run_unit_stream(  # noqa: PLR0913 - the pool's settings, keyword-only
     on_unit: UnitCallback | None = None,
     entries: EntrySchema | None = None,
     stop: StopSignal | None = None,
+    slots: ItemSlots | None = None,
 ) -> int:
     """Extract streamed payloads into the document's units.
 
@@ -477,7 +481,9 @@ async def run_unit_stream(  # noqa: PLR0913 - the pool's settings, keyword-only
     previous one. A payload carries ``index`` and ``image_name`` (its
     label); the producer leaves out the units already done. *entries* types
     the entry columns. *stop* is the run's stop signal: once it is set, no
-    worker starts a further unit. Returns the number of units processed.
+    worker starts a further unit. *slots* is the item's share of the run's
+    request slots: each unit holds one for its call, and reports its end.
+    Returns the number of units processed.
 
     Raises:
         UnitsFailedError: A unit failed or could not be written.
@@ -485,17 +491,20 @@ async def run_unit_stream(  # noqa: PLR0913 - the pool's settings, keyword-only
         RunStopped: The run stopped; the units in flight were written, the
             others keep their status.
     """
-    units = _Units(handle, on_unit, entries or EntrySchema(), stop)
+    units = _Units(handle, on_unit, entries or EntrySchema(), stop, slots)
 
     async def handle_payload(payload: Any) -> None:
         label = str(payload.image_name)
-        await units.run(
-            int(payload.index),
-            label,
-            lambda: handler(payload, extractor),
-            source_index=_source_index(payload, label),
-            provenance=_provenance(payload),
-        )
+        try:
+            await units.run(
+                int(payload.index),
+                label,
+                lambda: handler(payload, extractor),
+                source_index=_source_index(payload, label),
+                provenance=_provenance(payload),
+            )
+        finally:
+            units.slots.done()
 
     await run_streaming_transcription_tasks(
         payloads, handle_payload, concurrency, delay

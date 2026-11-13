@@ -97,7 +97,7 @@ RESPONSE_STEP_OPTIONS: Final = (
     "context_image",
 )
 RUN_FLAGS: Final = ("force", "dry_run")
-RUN_OPTIONS: Final = ("batch", *RUN_FLAGS, "concurrency")
+RUN_OPTIONS: Final = ("batch", *RUN_FLAGS, "concurrency", "open_items")
 SELECTION_OPTIONS: Final = ("all", "select", "files")
 """The options that choose the items of a folder; one answer sets one."""
 
@@ -751,7 +751,12 @@ def _run_step(session: Session) -> Step:
                 return None
             return ctx.text_option("concurrency", "Parallel requests:")
 
-        return StepContext.sequence([submission, flags, concurrency])
+        def open_items() -> Nav | None:
+            if state.value("batch") or len(_run_indices(state)) < 2:
+                return None
+            return ctx.text_option("open_items", "Items open at once:")
+
+        return StepContext.sequence([submission, flags, concurrency, open_items])
 
     return Step("run", "Run options", ask=ask, sets=RUN_OPTIONS)
 

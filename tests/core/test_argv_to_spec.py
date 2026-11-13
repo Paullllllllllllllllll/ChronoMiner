@@ -516,6 +516,7 @@ ROWS = [
     ),
     _row("force", "--force", sets={"run.force": True}),
     _row("concurrency", "--concurrency", "4", sets={"run.concurrency": 4}),
+    _row("open_items", "--open-items", "4", sets={"run.open_items": 4}),
     _row("dry_run", "--dry-run", sets={"run.dry_run": True}),
     _row("json", "--json", sets={"run.json": True}),
     _row("settings", "--settings", "other.yaml", sets={}),

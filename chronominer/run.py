@@ -51,6 +51,7 @@ from chronominer.common.decisions import dialect_for
 from chronominer.common.discovery import duplicated, relative_name
 from chronominer.common.options import Source
 from chronominer.common.retry import RunStopped
+from chronominer.common.scheduler import ItemTicket, RunScheduler
 from chronominer.common.selection import PageRange, parse_page_range, select_items
 from chronominer.common.spec_view import resolved_view
 from chronominer.common.sqlite import DEFAULT_BUSY_TIMEOUT, DEFAULT_WARN_INTERVAL
@@ -110,6 +111,7 @@ from chronominer.output.store import (
     lease_reason,
     open_store,
 )
+from chronominer.pool import ItemSlots
 from chronominer.ranges.adjust import ROLE as ADJUST_ROLE
 from chronominer.ranges.adjust import AdjustOptions, RangesStopped, adjust_ranges
 from chronominer.ranges.generate import GenerateReport, generate_files
@@ -125,6 +127,8 @@ from chronominer.spec import (
     RunSpec,
     SpecError,
     effective_spec,
+    open_items_warning,
+    open_window,
     resolve_schema,
 )
 from chronominer.stopping import RunStop
@@ -840,6 +844,14 @@ def plan(
     except ValueError as exc:
         raise ConfigurationError(str(exc), items_total=len(to_process)) from exc
     warnings += _nothing_selected(pages, groups[ItemState.COMPLETE])
+    unused = open_items_warning(
+        spec.run.open_items,
+        (sources or {}).get("run.open_items"),
+        batch=spec.run.batch,
+        items=len(to_process),
+    )
+    if unused is not None:
+        warnings += (unused,)
 
     run_plan = RunPlan(
         spec=spec,
@@ -1029,7 +1041,9 @@ class _Stores:
 
     Opening a store stamps the run, stores the prompt and schema texts,
     marks submissions left ``submitting`` as unresolved and starts the
-    heartbeat that renews the run's leases.
+    heartbeat that renews the run's leases. The items open at once share
+    the store of their root; *finishing* lets one item at a time render
+    its files.
     """
 
     def __init__(self, run_plan: RunPlan, events: RunEvents) -> None:
@@ -1037,6 +1051,8 @@ class _Stores:
         self._events = events
         self._stores: dict[Path, Store] = {}
         self._keepers: list[LeaseKeeper] = []
+        self._opening = asyncio.Lock()
+        self.finishing = asyncio.Lock()
 
     @property
     def databases(self) -> tuple[str, ...]:
@@ -1050,9 +1066,13 @@ class _Stores:
             StoreRefusedError: The root's database is refused.
         """
         key = root.resolve()
-        store = self._stores.get(key)
-        if store is not None:
-            return store
+        async with self._opening:
+            store = self._stores.get(key)
+            if store is None:
+                store = await self._open(key)
+        return store
+
+    async def _open(self, key: Path) -> Store:
         key.mkdir(parents=True, exist_ok=True)
         store = open_store(key, writer=writer_options(self._events))
         try:
@@ -1189,10 +1209,14 @@ class _ItemRun:
     async def render(
         self, store: Store, doc_id: int, lease: Lease, *, force: bool
     ) -> tuple[str, ...]:
-        """Render the item's formats; return the files that hold the rendering."""
-        report = await render_item(
-            store, doc_id, self.job.formats, self.planned.output, lease, force=force
-        )
+        """Render the item's formats; return the files that hold the rendering.
+
+        Items open at once render one at a time.
+        """
+        async with self.stores.finishing:
+            report = await render_item(
+                store, doc_id, self.job.formats, self.planned.output, lease, force=force
+            )
         for message in report.warnings:
             self.job.events.warning(message)
         current = {*report.written, *report.unchanged}
@@ -1219,13 +1243,14 @@ class _ItemRun:
         await _note(store, doc_id, message, self.job.events)
         return ()
 
-    async def extract(
+    async def extract(  # noqa: PLR0913 - the item's store document and slots
         self,
         store: Store,
         doc_id: int,
         lease: Lease,
         extractor: ExtractionMethod,
         pages: PageRange | None,
+        slots: ItemSlots,
     ) -> tuple[tuple[str, ...], str | None]:
         """Extract the item's chunks, then render; return the outputs and error.
 
@@ -1255,6 +1280,7 @@ class _ItemRun:
             context_image=planned.context_image,
             adjust_context=planned.adjust_context,
             document=handle,
+            slots=slots,
         )
         returned: tuple[str, ...] = ()
         error: str | None = None
@@ -1290,13 +1316,16 @@ async def _run_item(  # noqa: PLR0913 - the item's run context
     pages: PageRange | None,
     stores: _Stores,
     submitted: set[tuple[Path, int]],
+    slots: ItemSlots,
 ) -> ItemResult | _Blocked | _Stopped:
     """Process one item; :class:`_Blocked` when another run holds its document.
 
     *submitted* holds the documents (database, id) whose chunks this run
-    submitted to a batch. :class:`_Stopped` when the run stopped in the
-    item: its done chunks are rendered, its lease is released, and it is
-    reported neither finished nor failed.
+    submitted to a batch; *slots* is the item's share of the run's request
+    slots. :class:`_Stopped` when the run stopped in the item: its done
+    chunks are rendered, its lease is released, and it is reported neither
+    finished nor failed. The lease is released on every exit, cancellation
+    included.
 
     Raises:
         NothingSelectedError: ``--pages`` selects no chunk of the item.
@@ -1307,9 +1336,28 @@ async def _run_item(  # noqa: PLR0913 - the item's run context
     if leased is None:
         return _Blocked(item_run.held or "another run holds its document")
     store, doc_id, lease = leased
-    events.item_started(ItemStarted(planned.name, planned.type, index, total))
+    reason = job.env.stop.reason
+    if reason is not None:
+        # Another open item stopped the run while this one waited for its
+        # lease: it sends nothing, so --force must not reset what it stored.
+        with contextlib.suppress(sqlite3.Error):
+            await store.release(lease)
+        return _Stopped(reason, _pending_units(store, doc_id, pages))
+    root = str(store.path.parent)
+    events.item_started(
+        ItemStarted(
+            planned.name,
+            planned.type,
+            index,
+            total,
+            document=planned.document,
+            root=root,
+        )
+    )
     try:
-        outputs, error = await item_run.extract(store, doc_id, lease, extractor, pages)
+        outputs, error = await item_run.extract(
+            store, doc_id, lease, extractor, pages, slots
+        )
     except RunStopped as exc:
         return _Stopped(str(exc), _pending_units(store, doc_id, pages))
     finally:
@@ -1334,6 +1382,8 @@ async def _run_item(  # noqa: PLR0913 - the item's run context
             error,
             submitted=waiting,
             partial=partial,
+            document=planned.document,
+            root=root,
         )
     )
     return ItemResult(
@@ -1355,19 +1405,34 @@ def _failed_units(store: Store, doc_id: int) -> tuple[UnitRow, ...]:
 
 
 def _run_stop(
-    job: Job, planned: PlannedItem, result: object, further: int
+    job: Job, opened: Sequence[tuple[PlannedItem, object]], further: int
 ) -> RunStop | None:
-    """Return the stop of the run after *planned* returned *result*, or None.
+    """Return the stop of the run from the outcomes of the items opened, or None.
 
-    An item that fails otherwise while the run stops, as by a lost lease,
-    returns that failure; the run's stop signal then tells of the stop.
+    *opened* holds each item opened with its outcome, in item order;
+    *further* counts the items not opened. An item that fails otherwise
+    while the run stops, as by a lost lease, returns that failure; the
+    run's stop signal then tells of the stop.
     """
-    if isinstance(result, _Stopped):
-        return RunStop(
-            result.reason, planned.name, result.units, further=further, noun="chunk"
+    stopped = [
+        (planned.name, outcome)
+        for planned, outcome in opened
+        if isinstance(outcome, _Stopped)
+    ]
+    if stopped:
+        return RunStop.of(
+            stopped[0][1].reason,
+            [(name, outcome.units) for name, outcome in stopped],
+            further=further,
+            noun="chunk",
         )
     reason = job.env.stop.reason
     return RunStop(reason, further=further) if reason is not None else None
+
+
+@dataclass(frozen=True)
+class _Unselected:
+    """An item of which ``--pages`` selects no chunk."""
 
 
 def _pending_units(store: Store, doc_id: int, pages: PageRange | None) -> int:
@@ -1554,12 +1619,61 @@ async def _open_extractor(
     return extractor
 
 
+async def _open_items(
+    run_plan: RunPlan,
+    job: Job,
+    extractor: ExtractionMethod,
+    stores: _Stores,
+    submitted: set[tuple[Path, int]],
+) -> list[tuple[PlannedItem, object]]:
+    """Process the plan's items through the run scheduler; return those opened.
+
+    Each item opened comes with its outcome, in item order. A stopped run
+    opens no further item, so the items behind it are not among them.
+    """
+    total = len(run_plan.to_process)
+    items = list(enumerate(run_plan.to_process, start=1))
+    control = run_plan.spec.run
+    scheduler = RunScheduler(
+        control.concurrency,
+        window=open_window(control.open_items, batch=control.batch, items=total),
+        stop=job.env.stop,
+    )
+
+    async def process(entry: tuple[int, PlannedItem], ticket: ItemTicket) -> object:
+        index, planned = entry
+        try:
+            return await _run_item(
+                job,
+                extractor,
+                planned,
+                index,
+                total,
+                run_plan.pages,
+                stores,
+                submitted,
+                ItemSlots(scheduler, ticket),
+            )
+        except NothingSelectedError:
+            return _Unselected()
+
+    outcomes = await scheduler.run(items, process)
+    return [
+        (planned, outcome)
+        for (_, planned), outcome in zip(items, outcomes, strict=False)
+    ]
+
+
 async def run(run_plan: RunPlan, events: RunEvents | None = None) -> RunResult:
-    """Extract the plan's items one after another on the running event loop.
+    """Extract the plan's items on the running event loop.
 
     The run owns one :class:`~chronominer.llm.caller.CallEnv`. When the plan
     has items to process, it opens its extractor before any item starts or
-    any file is written; otherwise it builds no model client. It opens one
+    any file is written; otherwise it builds no model client. The items go
+    in order through one :class:`~chronominer.common.scheduler.RunScheduler`:
+    ``--concurrency`` bounds the requests of all items together, and up to
+    ``--open-items`` items share them (one under ``--batch``); the results
+    are reported in item order. It opens one
     store per output root, stamped with the run. Each item's document is
     leased while its chunks are extracted and while the run core renders
     its formats from the store, also after a failed chunk; complete items
@@ -1616,29 +1730,16 @@ async def run(run_plan: RunPlan, events: RunEvents | None = None) -> RunResult:
             await _note_skipped(job, run_plan, stores)
             await _render_again(job, run_plan, stores, held)
             if extractor is not None:
-                total = len(run_plan.to_process)
-                for index, planned in enumerate(run_plan.to_process, start=1):
-                    try:
-                        result = await _run_item(
-                            job,
-                            extractor,
-                            planned,
-                            index,
-                            total,
-                            run_plan.pages,
-                            stores,
-                            submitted,
-                        )
-                    except NothingSelectedError:
+                opened = await _open_items(run_plan, job, extractor, stores, submitted)
+                for planned, outcome in opened:
+                    if isinstance(outcome, _Unselected):
                         unselected.append(planned.name)
-                        continue
-                    if isinstance(result, _Blocked):
-                        held.add(planned, result)
-                    elif isinstance(result, ItemResult):
-                        results.append(result)
-                    stop = _run_stop(job, planned, result, total - index)
-                    if stop is not None:
-                        break
+                    elif isinstance(outcome, _Blocked):
+                        held.add(planned, outcome)
+                    elif isinstance(outcome, ItemResult):
+                        results.append(outcome)
+                further = len(run_plan.to_process) - len(opened)
+                stop = _run_stop(job, opened, further)
             for planned in run_plan.refused:
                 sink.warning(planned.reason)
                 results.append(ItemResult(planned.name, False, (), planned.reason))

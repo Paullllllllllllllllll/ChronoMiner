@@ -30,6 +30,7 @@ from chronominer.common.selection import PageRange
 from chronominer.common.store import Lease, Store
 from chronominer.events import RunEvents
 from chronominer.extract.units import PayloadResult
+from chronominer.pool import ItemSlots
 from chronominer.ranges.adjust import AdjustOptions, BoundaryCaller, adjust_ranges
 from chronominer.ranges.generate import auto_ranges, chunk_texts, ranges_for_file
 from chronominer.ranges.lines import Range, clamp_ranges, ranges_path, read_ranges
@@ -203,7 +204,8 @@ class RangeJob:
     """What cutting one text document needs.
 
     *mode* is the ``--chunking`` mode, *model* the model whose tokenizer
-    counts *chunk_tokens*; *caller* and *adjust* serve the ``adjust`` mode.
+    counts *chunk_tokens*; *caller* and *adjust* serve the ``adjust`` mode,
+    whose range decisions hold the item's *slots*.
     """
 
     mode: str
@@ -212,6 +214,7 @@ class RangeJob:
     caller: BoundaryCaller | None = None
     adjust: AdjustOptions | None = None
     events: RunEvents | None = None
+    slots: ItemSlots = ItemSlots()
 
 
 async def text_ranges(
@@ -250,6 +253,7 @@ async def text_ranges(
             options=job.adjust,
             document=document,
             events=job.events,
+            slots=job.slots,
         )
         if report.status == "empty":
             return []

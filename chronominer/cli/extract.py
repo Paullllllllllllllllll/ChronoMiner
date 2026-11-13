@@ -24,7 +24,7 @@ from chronominer.common.contract import ExitCode
 from chronominer.common.stale_leases import HeldLease, wait_for_stale_leases
 from chronominer.run import PlanError, RunPlan, plan, run
 from chronominer.settings import Settings, SettingsError, SpecError, resolve
-from chronominer.spec import OPTIONS
+from chronominer.spec import OPTIONS, open_window
 
 __all__ = ["execute"]
 
@@ -38,7 +38,11 @@ def _process(run_plan: RunPlan, reporter: StderrReporter, summary: Summary) -> i
     """
     skipped = run_plan.not_processed
     reporter.beginning(run_plan)
-    events, progress = with_heartbeat(reporter)
+    control = run_plan.spec.run
+    window = open_window(
+        control.open_items, batch=control.batch, items=len(run_plan.to_process)
+    )
+    events, progress = with_heartbeat(reporter, window)
     try:
         result = asyncio.run(run(run_plan, events))
     except PlanError as exc:

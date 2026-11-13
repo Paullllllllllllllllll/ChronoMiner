@@ -77,6 +77,7 @@ from chronominer.output.store import (
     image_settings_record,
     metadata_writer,
 )
+from chronominer.pool import ItemSlots
 from chronominer.ranges.adjust import AdjustOptions
 from chronominer.ranges.lines import Range, read_lines
 from chronominer.spec import (
@@ -330,6 +331,7 @@ class Extractor:
             caller=caller,
             adjust=options,
             events=self.job.events,
+            slots=item.slots,
         )
 
     async def _plan_text(
@@ -463,37 +465,47 @@ class Extractor:
         """Extract or submit the selected chunks that are still to do.
 
         *upstream* is the image-settings record of page chunks, None for text.
+        The item tells its slots how many chunks it sends before the first.
         """
         todo = set(handle.todo(retry_errors=self.job.retry_errors))
         needed = [index for index in selected if index in todo]
         already = len(selected) - len(needed)
         if already:
             logger.info("Skipped %d chunks already stored for %s", already, item.name)
-        needed = await self._decide(handle, needed, source, upstream)
+        needed = await self._decide(handle, needed, source, upstream, item.slots)
+        item.slots.expect(0 if self.job.batch else len(needed))
         if not needed:
             return
-        if self._client is not None:
-            self._client.update_context(item.context)
-            self._client.update_context_image(item.context_image)
+        client = (
+            self._client.for_item(item.context, item.context_image)
+            if self._client is not None
+            else None
+        )
         if self.job.batch:
             await self._submit(item, handle, source(needed))
             return
-        if self._client is None:
+        if client is None:
             raise RuntimeError("The extractor was not opened.")
         counter = ChunkCounter(
-            self.job.events, item.name, total=len(needed), already_complete=already
+            self.job.events,
+            item.name,
+            total=len(needed),
+            already_complete=already,
+            document=handle.name,
+            root=str(handle.store.path.parent),
         )
         schema = self._schema()
         await run_unit_stream(
             handle,
             source(needed),
-            self._client,
+            client,
             extract_payload,
             concurrency=self.job.spec.run.concurrency,
             delay=self.job.settings.concurrency.delay_between_tasks,
             on_unit=counter,
             entries=EntrySchema(schema.schema, schema.name),
             stop=self.job.env.stop,
+            slots=item.slots,
         )
 
     async def _decide(
@@ -502,6 +514,7 @@ class Extractor:
         needed: list[int],
         source: Any,
         upstream: Mapping[str, Any] | None,
+        slots: ItemSlots | None = None,
     ) -> list[int]:
         """Record the relevance of *needed*; return the chunks still to send.
 
@@ -509,6 +522,7 @@ class Extractor:
         ``apply`` with a threshold for the request, chunks below it are
         written as skipped and left out of the returned list. A failed
         pre-pass returns *needed*, except a stopped run, which propagates.
+        Each request holds one of *slots*.
         """
         decider = self._decider
         if decider is None or not needed:
@@ -519,8 +533,10 @@ class Extractor:
                 if chunk.render_error is None:
                     yield chunk
 
+        share = slots if slots is not None else ItemSlots()
+        share.expect(len(needed))
         try:
-            decisions = await decider.classify(handle.name, chunks())
+            decisions = await decider.classify(handle.name, chunks(), share)
         except (httpx.HTTPError, MalformedAnswer, OSError) as exc:
             self.job.events.warning(
                 f"The decision pre-pass failed for '{handle.name}' ({exc}); "

@@ -340,6 +340,38 @@ class TestStreamingOrphanFreeFailure:
 
 
 @pytest.mark.asyncio
+class TestStreamingCancellation:
+    """A cancelled pool ends at once, whatever its queue holds."""
+
+    async def test_cancellation_ends_the_pool_while_the_queue_is_full(self) -> None:
+        working = asyncio.Event()
+
+        async def producer() -> AsyncIterator[int]:
+            for i in range(50):
+                yield i
+
+        async def handler(item: int) -> int:
+            working.set()
+            await asyncio.sleep(60)
+            return item
+
+        pool = asyncio.ensure_future(
+            run_streaming_transcription_tasks(producer(), handler, concurrency_limit=1)
+        )
+        await working.wait()
+        # The producer fills the queue and waits to put its next item.
+        await asyncio.sleep(0.01)
+        pool.cancel()
+
+        with pytest.raises(asyncio.CancelledError):
+            await asyncio.wait_for(pool, timeout=2)
+
+        current = asyncio.current_task()
+        leaked = [t for t in asyncio.all_tasks() if t is not current and not t.done()]
+        assert leaked == []
+
+
+@pytest.mark.asyncio
 class TestRunStop:
     """A task that stops the run ends admission; the task in flight finishes."""
 

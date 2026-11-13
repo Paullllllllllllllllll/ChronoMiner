@@ -8,18 +8,27 @@ is ready.
 A task that raises :class:`~chronominer.common.retry.RunStopped` ends
 admission: no worker starts a further task, the tasks in flight finish, and
 the pool then raises that exception.
+
+:class:`ItemSlots` is an item's share of the run's request slots
+(:class:`~chronominer.common.scheduler.RunScheduler`): each unit of an item
+holds one slot for its calls, so all items open at once stay within the
+run's ``--concurrency``.
 """
 
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
+from dataclasses import dataclass
 from typing import Any
 
 from chronominer.common.retry import RunStopped
+from chronominer.common.scheduler import ItemTicket, RunScheduler
 
 __all__ = [
+    "ItemSlots",
     "run_concurrent_transcription_tasks",
     "run_streaming_transcription_tasks",
 ]
@@ -27,6 +36,35 @@ __all__ = [
 logger = logging.getLogger(__name__)
 
 _SENTINEL: Any = object()
+
+
+@dataclass(frozen=True)
+class ItemSlots:
+    """An item's share of the run's request slots.
+
+    *scheduler* holds the slots every open item draws on; *ticket* tells it
+    how many units the item has left. Without a scheduler a unit takes no
+    slot and the item's own worker pool bounds its requests.
+    """
+
+    scheduler: RunScheduler | None = None
+    ticket: ItemTicket | None = None
+
+    def slot(self) -> contextlib.AbstractAsyncContextManager[None]:
+        """Return the slot one unit holds for its calls, retries included."""
+        if self.scheduler is None:
+            return contextlib.nullcontext()
+        return self.scheduler.slot()
+
+    def expect(self, units: int) -> None:
+        """Say that the item has *units* units still to send."""
+        if self.ticket is not None:
+            self.ticket.expect(units)
+
+    def done(self) -> None:
+        """Say that one expected unit ended, whatever its outcome."""
+        if self.ticket is not None:
+            self.ticket.done()
 
 
 async def run_concurrent_transcription_tasks(

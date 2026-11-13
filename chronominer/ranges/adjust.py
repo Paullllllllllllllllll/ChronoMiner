@@ -58,7 +58,7 @@ from chronominer.events import (
 )
 from chronominer.llm.prompts import boundary_prompt, system_content
 from chronominer.output.store import KIND_RANGE
-from chronominer.pool import run_concurrent_transcription_tasks
+from chronominer.pool import ItemSlots, run_concurrent_transcription_tasks
 from chronominer.ranges.decision import (
     DEFAULT_CONTEXT_WINDOW,
     DecidedRange,
@@ -265,7 +265,8 @@ class _Context:
 
     *writes* serializes the commits of the file's decisions: each lays out
     all ranges from the stored ones, so two that read the same state would
-    each write a layout without the other's decision.
+    each write a layout without the other's decision. *slots* is the
+    item's share of the run's request slots.
     """
 
     store: Store
@@ -278,6 +279,7 @@ class _Context:
     system: str
     settings: Mapping[str, Any]
     writes: asyncio.Lock = field(default_factory=asyncio.Lock)
+    slots: ItemSlots = ItemSlots()
 
 
 def _settings(options: AdjustOptions, system: str) -> dict[str, Any]:
@@ -298,12 +300,14 @@ async def adjust_ranges(
     options: AdjustOptions,
     document: str | None = None,
     events: RunEvents | None = None,
+    slots: ItemSlots | None = None,
 ) -> AdjustReport:
     """Adjust the line ranges of *text_file* and render its ``_line_ranges.txt``.
 
     *store* is open with a run begun; *document* names the document that
     holds the range units, by default the text file's document in its own
-    folder. *model* stamps units written without a model answer.
+    folder. *model* stamps units written without a model answer. Each range
+    decision holds one of the item's *slots* for its calls.
 
     Raises:
         FileNotFoundError: The line-ranges file is missing and
@@ -338,6 +342,7 @@ async def adjust_ranges(
             lines,
             system,
             _settings(options, system),
+            slots=slots if slots is not None else ItemSlots(),
         )
         units = await _starting_units(context, ranges_file, report)
         if not units:
@@ -461,15 +466,25 @@ async def _decide_pending(
         return
     done = sum(unit.decided for unit in units)
     errors: list[Exception] = []
+    slots = context.slots
+    root = str(context.store.path.parent)
+    slots.expect(len(todo))
 
     async def decide(unit: RangeUnit) -> None:
+        try:
+            await decide_slotted(unit)
+        finally:
+            slots.done()
+
+    async def decide_slotted(unit: RangeUnit) -> None:
         if errors:
             return
         await context.store.wait_capacity()
         if errors:
             return
         try:
-            result, degraded = await _decide_one(context, unit, tally)
+            async with slots.slot():
+                result, degraded = await _decide_one(context, unit, tally)
         except RunStopped:
             raise
         except Exception as exc:  # noqa: BLE001 - re-raised once the pool drains
@@ -486,6 +501,8 @@ async def _decide_pending(
                 done=report.decided,
                 total=len(todo),
                 already_complete=done,
+                document=context.name,
+                root=root,
             )
         )
 

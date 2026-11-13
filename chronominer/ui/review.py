@@ -176,6 +176,8 @@ def _run_line(spec: RunSpec, mark: _Mark) -> Line:
     parts.append(mark("run.force", "force" if run.force else "resume"))
     if not run.batch:
         parts.append(mark("run.concurrency", f"concurrency {run.concurrency}"))
+        if run.open_items > 1:
+            parts.append(mark("run.open_items", f"{run.open_items} items open"))
     if run.dry_run:
         parts.append(mark("run.dry_run", "dry run"))
     return Line("run", parts)
