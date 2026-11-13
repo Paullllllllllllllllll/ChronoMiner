@@ -36,7 +36,7 @@ import logging
 import os
 import sqlite3
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import AsyncIterable, Callable, Mapping, Sequence
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
@@ -48,6 +48,7 @@ from chronominer.common.batch import supports_batch
 from chronominer.common.context import ContextError
 from chronominer.common.contract import ExitCode, exit_code_for
 from chronominer.common.decisions import dialect_for
+from chronominer.common.discovery import duplicated, relative_name
 from chronominer.common.options import Source
 from chronominer.common.retry import RunStopped
 from chronominer.common.selection import PageRange, parse_page_range, select_items
@@ -144,6 +145,7 @@ __all__ = [
     "StoreRefusedError",
     "discover",
     "discover_inputs",
+    "document_key",
     "item_names",
     "plan",
     "plan_ranges",
@@ -428,15 +430,20 @@ def _found(inputs: InputSpec, input_path: Path) -> list[SourceItem]:
     return items
 
 
+def document_key(root: Path, document: str) -> tuple[Path, str]:
+    """Return what two items must not share: the output root and document name.
+
+    Names compare without case, as the file systems of the outputs do.
+    """
+    return root.resolve(), document.casefold()
+
+
 def item_names(items: Sequence[SourceItem], input_path: Path) -> list[str]:
-    """Return the names ``--select`` numbers and searches: paths below the input."""
-    names: list[str] = []
-    for item in items:
-        try:
-            names.append(item.path.relative_to(input_path).as_posix())
-        except ValueError:
-            names.append(item.name)
-    return names
+    """Return the names ``--select`` numbers and searches: paths below the input.
+
+    A file input is searched by its file name.
+    """
+    return [relative_name(item.path, input_path) for item in items]
 
 
 def _chosen(
@@ -802,20 +809,20 @@ def plan(
         _schema_sha256(schema),
     )
     groups: dict[ItemState, list[PlannedItem]] = {state: [] for state in ItemState}
-    seen: dict[tuple[Path, str], SourceItem] = {}
-    located: list[tuple[SourceItem, Path, str, Path]] = []
+    located = [(item, *classifier.locate(item)) for item in discovered]
+    pairs = duplicated(
+        range(len(located)), lambda i: document_key(located[i][1], located[i][2])
+    )
     duplicate: InputError | None = None
-    for item in discovered:
-        root, name, output = classifier.locate(item)
-        other = seen.setdefault((root.resolve(), name.casefold()), item)
-        if other is not item:
-            duplicate = InputError(
-                f"{other.path} and {item.path} share the output {output}; "
-                "rename one or run them separately.",
-                items_total=len(discovered),
-            )
-            break
-        located.append((item, root, name, output))
+    if pairs:
+        later, earlier = pairs[0]
+        item, _, _, output = located[later]
+        duplicate = InputError(
+            f"{located[earlier][0].path} and {item.path} share the output "
+            f"{output}; rename one or run them separately.",
+            items_total=len(discovered),
+        )
+        located = located[:later]
     # The items before a duplicate are classified first, so a refused store
     # among them is reported before the duplicate, as item by item.
     for planned in classifier.planned(located):
@@ -1471,7 +1478,7 @@ class _Unbuildable:
 
 
 async def _submit_batch(
-    payloads: Sequence[Any],
+    payloads: AsyncIterable[Any],
     *,
     document: DocumentHandle,
     spec: RunSpec,
@@ -1486,7 +1493,7 @@ async def _submit_batch(
     """
     try:
         return await batch_submit.submit_batch(
-            list(payloads),
+            payloads,
             document=document,
             spec=spec,
             settings=settings,
@@ -1502,7 +1509,7 @@ def _recording(submitted: set[tuple[Path, int]]) -> BatchSubmitter:
     """Return the run's submitter; it adds each submitted document to *submitted*."""
 
     async def submit(  # noqa: PLR0913 - the BatchSubmitter signature
-        payloads: Sequence[Any],
+        payloads: AsyncIterable[Any],
         *,
         document: DocumentHandle,
         spec: RunSpec,
@@ -1721,7 +1728,19 @@ def _text_files(input_path: Path, recursive: bool) -> list[Path]:
         raise InputError(str(exc)) from exc
     if not items:
         raise NoItemsError(f"No text files found to process in: {input_path}")
-    return [item.path for item in items]
+    files = [item.path for item in items]
+    # normcase: the comparison of the file system the files are written to.
+    pairs = duplicated(
+        files, lambda path: os.path.normcase(ranges_path(path).resolve())
+    )
+    if pairs:
+        later, earlier = pairs[0]
+        raise InputError(
+            f"{earlier} and {later} share the line ranges {ranges_path(later)}; "
+            "rename one or run them separately.",
+            items_total=len(files),
+        )
+    return files
 
 
 def _adjust_checks(

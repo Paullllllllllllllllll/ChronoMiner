@@ -598,8 +598,12 @@ class ClassifierChoice:
 
 @dataclass(frozen=True)
 class ClassifyControl:
-    """The agent-contract switches of a classify command."""
+    """The concurrency and agent-contract switches of a classify command.
 
+    ``concurrency`` bounds the requests about one document in flight at once.
+    """
+
+    concurrency: int
     dry_run: bool
     json: bool
 
@@ -1096,7 +1100,7 @@ def _input_options() -> list[Option]:
         Option(
             "files",
             "--files",
-            "comma-separated names of files inside the input folder",
+            "comma-separated paths of files relative to the input folder",
             group="input",
             kind=Kind.LIST,
             type=nonempty_text,
@@ -1468,6 +1472,7 @@ def _classify_items_table(unit: str) -> OptionTable:
             ),
             *(OPTIONS[name] for name in _IMAGE_NAMES),
             *_classifier_rows(unit),
+            OPTIONS["concurrency"],
             dry_run_option("run.dry_run"),
             json_option("run.json"),
             settings_option(),
@@ -1485,6 +1490,7 @@ CLASSIFY_ENTRIES_OPTIONS = OptionTable(
             "subfolders included"
         ),
         *_classifier_rows("entry"),
+        OPTIONS["concurrency"],
         dry_run_option("run.dry_run"),
         json_option("run.json"),
         settings_option(),

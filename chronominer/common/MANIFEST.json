@@ -18,6 +18,7 @@
     "decision_client.py": "a881dc18b4caf0805cba3238ed0a1bcba7153eae2d3e40803ed4a13aab2b9fb7",
     "decision_runner.py": "5a67902c0b8fbd89c28d63fc61c4c969b19ce18b46bf06321e8856e7500894cb",
     "decisions.py": "ac7b4e8110380b5a3512de3c11015f6792dcc9353066952cd35fcfd1afd37882",
+    "discovery.py": "bd0437c55983ebc7598478af0168d9ef7939561dc0a9eb75dcb611b9e854e7c1",
     "heartbeat.py": "0abe82394dcd01d8428ad0085db3d7b25b0cd101159f06388106330105507060",
     "http_timeouts.py": "99c1e822978f54785ccc397ba155424d95889e6561a2d9faf7a95e3fffe7a9b2",
     "image_presets.py": "a762539449a81ea6cd7b035bbacdf2ae0cfee097c04cf6bce352751cdcde6896",

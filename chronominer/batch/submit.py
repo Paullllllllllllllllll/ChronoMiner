@@ -4,8 +4,9 @@
 :func:`submit_units` the submission of given units, which repair reuses. A
 chunk payload is a text chunk (its ``text``) or a page image (its
 ``base64`` data); see :func:`chunk_request`.
-The requests are split into parts by the provider's count and byte limits,
-and every part becomes one submission of the store: the submission and its
+The payloads are taken in slices of at most :data:`SLICE_BYTES` of
+requests; each slice is split into parts by the provider's count and byte
+limits, and every part becomes one submission of the store: the submission and its
 requests, whose custom ids are scoped to the submission id, are committed
 before the upload, and each request's body as submitted (payloads redacted)
 is recorded next, so finalization can store it as the request of the unit's
@@ -22,11 +23,18 @@ Provider errors end in a :class:`SubmitOutcome` and never propagate.
 
 from __future__ import annotations
 
+import contextlib
 import logging
-from collections.abc import Mapping, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterable,
+    AsyncIterator,
+    Mapping,
+    Sequence,
+)
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Literal, Protocol
+from typing import Any, Final, Literal, Protocol
 
 from chronominer.batch.bodies import BodyPlan, build_plan
 from chronominer.batch.clients import BatchClients
@@ -50,12 +58,19 @@ from chronominer.common.store import (
 )
 from chronominer.extract.images import resolve_image_settings
 from chronominer.settings import Settings
-from chronominer.spec import ResolvedSchema, RunSpec, SpecError, resolve_schema
+from chronominer.spec import (
+    ModelSpec,
+    ResolvedSchema,
+    RunSpec,
+    SpecError,
+    resolve_schema,
+)
 
 __all__ = [
     "LABEL",
     "REQUEST_TOO_LARGE",
     "ROLE",
+    "SLICE_BYTES",
     "BatchSubmissionError",
     "SubmitDocument",
     "SubmitOutcome",
@@ -78,6 +93,12 @@ SubmitStatus = Literal["submitted", "refused", "unresolved"]
 
 _PROBE_PREFIX = "0" * 8
 """Stands in for a submission id prefix while parts are planned."""
+
+SLICE_BYTES: Final = 64 * 1024 * 1024
+"""The most request bytes (image data or text) a batch submission takes at once.
+
+A larger request is taken alone; the provider's limits on a part, all above
+this figure, still apply within a slice."""
 
 
 class BatchSubmissionError(RuntimeError):
@@ -158,7 +179,8 @@ def _plan_parts(
 
     The requests are planned under stand-in ids of the store's id length,
     so renaming a part's requests to its scoped ids keeps the split. Units
-    without a request join the first part.
+    without a request join the first part. The planned envelopes are not
+    kept: :func:`_scoped_part` wraps the requests again.
     """
     probes: dict[str, UnitRequest] = {}
     requests: list[BatchRequest] = []
@@ -174,7 +196,7 @@ def _plan_parts(
         members = [probes[custom_id] for custom_id in part.custom_ids]
         if part.index == 1:
             members.extend(unsent)
-        planned.append((part, members))
+        planned.append((replace(part, entries=[]), members))
     return planned
 
 
@@ -372,13 +394,14 @@ async def submit_units(
     plan: BodyPlan,
     clients: BatchClients,
     label: str = LABEL,
+    first_part: int = 1,
 ) -> SubmitOutcome:
     """Submit *units* to the batch API of *plan*'s model, one submission per part.
 
     The units must exist in the store, which must hold the lease of each
-    unit's document. The parts are submitted in order; the first refused or
-    unresolved part ends the submission, and the units of the parts after
-    it stay pending.
+    unit's document. The parts are submitted in order and numbered from
+    *first_part*; the first refused or unresolved part ends the submission,
+    and the units of the parts after it stay pending.
 
     Raises:
         BatchSubmissionError: No unit has a request, or the requests cannot
@@ -392,7 +415,12 @@ async def submit_units(
     except ValueError as exc:
         raise BatchSubmissionError(f"Cannot build the batch requests: {exc}") from exc
     opened: list[str] = []
-    for part, members in parts:
+    for planned, members in parts:
+        part = replace(
+            planned,
+            index=planned.index + first_part - 1,
+            total=planned.total + first_part - 1,
+        )
         ended = await _submit_part(
             store,
             part,
@@ -531,8 +559,116 @@ def _plan(
         raise BatchSubmissionError(f"Cannot build the batch requests: {exc}") from exc
 
 
+@dataclass(frozen=True)
+class _Prepared:
+    """One payload with its unit request, and the size error that keeps it unsent."""
+
+    payload: Any
+    unit: UnitRequest
+    oversized: str | None = None
+
+    @property
+    def sendable(self) -> bool:
+        return self.unit.request is not None and self.oversized is None
+
+
+def _payload_bytes(request: BatchRequest | None, plan: BodyPlan) -> int:
+    """Return the bytes *request* adds to a slice.
+
+    These are its image data or text and the context image, which every
+    request of *plan* carries again.
+    """
+    if request is None:
+        return 0
+    shared = len(plan.context_image[0]) if plan.context_image is not None else 0
+    return len(request.image_base64 or "") + len(request.text.encode("utf-8")) + shared
+
+
+async def _each(payloads: Sequence[Any] | AsyncIterable[Any]) -> AsyncGenerator[Any]:
+    """Yield *payloads*; an asynchronous source is closed when this is."""
+    if not isinstance(payloads, AsyncIterable):
+        for payload in payloads:
+            yield payload
+        return
+    close = getattr(payloads, "aclose", None)
+    try:
+        async for payload in payloads:
+            yield payload
+    finally:
+        if close is not None:
+            await close()
+
+
+async def _slices(
+    payloads: AsyncIterator[Any], document: SubmitDocument, plan: BodyPlan
+) -> AsyncGenerator[list[_Prepared]]:
+    """Yield the payloads in slices of at most :data:`SLICE_BYTES` of requests.
+
+    A slice ends before the request that would take it over the limit, so a
+    request larger than the limit is a slice of its own. Payloads without a
+    sendable request (an unrendered page, an oversized request) join the
+    open slice, so every slice holds a sendable request unless no payload
+    has one.
+    """
+    current: list[_Prepared] = []
+    held = 0
+    async for payload in payloads:
+        key = UnitKey(document.doc_id, document.kind, int(payload.index))
+        unit = UnitRequest(key, chunk_request(payload, detail=plan.detail))
+        _, oversized = split_oversized([unit], plan)
+        prepared = _Prepared(payload, unit, oversized.get(key))
+        size = _payload_bytes(unit.request, plan)
+        opened = any(member.sendable for member in current)
+        if prepared.sendable and opened and held + size > SLICE_BYTES:
+            yield current
+            current, held = [], 0
+        current.append(prepared)
+        held += size
+    if current:
+        yield current
+
+
+async def _submit_slice(
+    prepared: Sequence[_Prepared],
+    document: SubmitDocument,
+    plan: BodyPlan,
+    clients: BatchClients,
+    *,
+    spec: ModelSpec,
+    first_part: int,
+) -> SubmitOutcome:
+    """Record one slice's chunks, fail its oversized ones and submit the others.
+
+    Raises:
+        BatchSubmissionError: The slice holds no request within the size
+            limits; only a document's sole slice can.
+    """
+    if not any(member.unit.request is not None for member in prepared):
+        raise BatchSubmissionError(
+            f"No chunk of '{document.name}' could be prepared for batch submission"
+        )
+    model, provider = spec.model, spec.provider
+    await _record_chunks(
+        document, [member.payload for member in prepared], model, provider
+    )
+    oversized = {
+        member.unit.unit: member.oversized
+        for member in prepared
+        if member.oversized is not None
+    }
+    await fail_oversized(document.store, oversized, model=model, provider=provider)
+    if not any(member.sendable for member in prepared):
+        raise BatchSubmissionError(
+            f"No chunk of '{document.name}' is within the provider's size limits"
+        )
+    units = [member.unit for member in prepared if member.oversized is None]
+    return await submit_units(
+        document.store, units, plan=plan, clients=clients, first_part=first_part
+    )
+
+
 async def submit_batch(
-    payloads: Sequence[Any],
+    payloads: Sequence[Any] | AsyncIterable[Any],
     *,
     document: SubmitDocument,
     spec: RunSpec,
@@ -550,6 +686,12 @@ async def submit_batch(
     failed with that error and not submitted. *schema_path* names the schema
     file; without it ``--schema`` is resolved.
 
+    The payloads are taken, recorded and submitted in slices of at most
+    :data:`SLICE_BYTES` of requests (see :func:`_slices`), each slice in
+    one or more parts numbered on from the slices before; a slice is
+    released before the next is taken. A refused or unresolved part ends
+    the submission, and the payloads after it are not taken.
+
     Raises:
         BatchSubmissionError: The provider has no batch API, no chunk has a
             request within the size limits, or the requests cannot be built.
@@ -560,29 +702,37 @@ async def submit_batch(
             f"Provider '{model.provider}' does not support batch processing"
         )
     plan = _plan(spec, settings, _schema(spec, schema_path), context, context_image)
-    requests = [chunk_request(payload, detail=plan.detail) for payload in payloads]
-    if not any(request is not None for request in requests):
+    clients = BatchClients(settings, ROLE)
+    opened: list[str] = []
+    outcome: SubmitOutcome | None = None
+    taken = _each(payloads)
+    async with (
+        contextlib.aclosing(taken),
+        contextlib.aclosing(_slices(taken, document, plan)) as slices,
+    ):
+        async for prepared in slices:
+            try:
+                outcome = await _submit_slice(
+                    prepared,
+                    document,
+                    plan,
+                    clients,
+                    spec=model,
+                    first_part=len(opened) + 1,
+                )
+            except BatchSubmissionError as exc:
+                if not opened:
+                    raise
+                outcome = SubmitOutcome("refused", (), str(exc))
+            del prepared
+            opened.extend(outcome.submission_ids)
+            if outcome.status != "submitted":
+                break
+    if outcome is None:
         raise BatchSubmissionError(
             f"No chunk of '{document.name}' could be prepared for batch submission"
         )
-    await _record_chunks(document, payloads, model.model, model.provider)
-    units = [
-        UnitRequest(
-            UnitKey(document.doc_id, document.kind, int(payload.index)), request
-        )
-        for payload, request in zip(payloads, requests, strict=True)
-    ]
-    units, oversized = split_oversized(units, plan)
-    await fail_oversized(
-        document.store, oversized, model=model.model, provider=model.provider
-    )
-    if oversized and not any(unit.request is not None for unit in units):
-        raise BatchSubmissionError(
-            f"No chunk of '{document.name}' is within the provider's size limits"
-        )
-    outcome = await submit_units(
-        document.store, units, plan=plan, clients=BatchClients(settings, ROLE)
-    )
+    outcome = replace(outcome, submission_ids=tuple(opened))
     logger.info(
         "Batch submission of '%s' %s: %s",
         document.name,

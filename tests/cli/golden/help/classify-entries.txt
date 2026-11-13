@@ -24,6 +24,7 @@ decision model:
 
 run control:
   --force               ask about every entry again instead of reusing the stored answers
+  --concurrency N       parallel requests; default: 16
   --dry-run             plan without API calls or writes
   --json                print one JSON summary line on stdout
   --settings FILE       alternate settings file; default: config/settings.yaml

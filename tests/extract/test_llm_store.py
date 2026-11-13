@@ -515,7 +515,7 @@ class TestBatch:
         submitted: list[Any] = []
 
         async def submit(payloads: Any, **kwargs: Any) -> _Outcome:
-            submitted.append((payloads, kwargs))
+            submitted.append(([payload async for payload in payloads], kwargs))
             return _Outcome(status, "no capacity")
 
         error = _run(source, tmp_path / "out", "text", submit=submit)

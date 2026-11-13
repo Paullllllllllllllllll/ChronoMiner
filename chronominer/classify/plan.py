@@ -38,6 +38,7 @@ from chronominer.common.classifiers import (
     resolve_classifier,
 )
 from chronominer.common.decisions import dialect_for
+from chronominer.common.discovery import duplicated
 from chronominer.common.options import Source
 from chronominer.common.selection import PageRange, parse_page_range
 from chronominer.common.sqlite import read
@@ -61,6 +62,7 @@ from chronominer.run import (
     NoItemsError,
     StoreRefusedError,
     discover_inputs,
+    document_key,
 )
 from chronominer.settings import Settings, SettingsError
 from chronominer.spec import (
@@ -302,6 +304,22 @@ def image_conflicts(given: ImageSpec, recorded: Mapping[str, Any]) -> list[str]:
     return found
 
 
+def _location(
+    spec: ClassifyItemsSpec, item: SourceItem, input_path: Path
+) -> tuple[Path, str]:
+    """Return the output root of one input item and its document name there."""
+    output_dir = spec.output.directory
+    output_dir = _absolute(output_dir) if output_dir is not None else None
+    output = item_paths(
+        item.path,
+        output_dir=output_dir,
+        layout=spec.output.layout,
+        input_root=input_path,
+    ).output
+    root = output_dir if output_dir is not None else item.path.parent
+    return root, document_name(output, root)
+
+
 def _item_target(
     spec: ClassifyItemsSpec, item: SourceItem, input_path: Path
 ) -> ClassifyTarget:
@@ -312,16 +330,7 @@ def _item_target(
         ConfigurationError: A text item under ``line-ranges`` that the store
             does not hold has no line-ranges file.
     """
-    output_dir = spec.output.directory
-    output_dir = _absolute(output_dir) if output_dir is not None else None
-    output = item_paths(
-        item.path,
-        output_dir=output_dir,
-        layout=spec.output.layout,
-        input_root=input_path,
-    ).output
-    root = output_dir if output_dir is not None else item.path.parent
-    name = document_name(output, root)
+    root, name = _location(spec, item, input_path)
     sha = file_sha256(item.path)
     target = ClassifyTarget(
         item.name, name, root, item.type, path=item.path, input_sha256=sha
@@ -392,20 +401,22 @@ def _refused(target: ClassifyTarget, stored_sha256: str) -> ClassifyTarget:
 def _item_targets(
     spec: ClassifyItemsSpec, input_path: Path
 ) -> tuple[list[ClassifyTarget], tuple[str, ...]]:
+    """Return the targets of the input items and the selection's warnings.
+
+    Raises:
+        InputError: Two items take one document name in one output root.
+    """
     items, warnings = discover_inputs(spec.input, input_path)
-    targets: list[ClassifyTarget] = []
-    seen: dict[tuple[Path, str], Path] = {}
-    for item in items:
-        target = _item_target(spec, item, input_path)
-        other = seen.setdefault((target.root.resolve(), target.document), item.path)
-        if other != item.path:
-            raise InputError(
-                f"{other} and {item.path} share the document {target.document}; "
-                "rename one or classify them separately.",
-                items_total=len(items),
-            )
-        targets.append(target)
-    return targets, warnings
+    locations = {id(item): _location(spec, item, input_path) for item in items}
+    pairs = duplicated(items, lambda item: document_key(*locations[id(item)]))
+    if pairs:
+        later, earlier = pairs[0]
+        raise InputError(
+            f"{earlier.path} and {later.path} share the document "
+            f"{locations[id(later)][1]}; rename one or classify them separately.",
+            items_total=len(items),
+        )
+    return [_item_target(spec, item, input_path) for item in items], warnings
 
 
 def _schema_names(connection: sqlite3.Connection) -> dict[int, Any]:

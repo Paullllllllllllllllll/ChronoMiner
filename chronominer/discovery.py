@@ -11,13 +11,20 @@ input tree.
 from __future__ import annotations
 
 import hashlib
-import re
-from collections.abc import Callable, Iterator, Mapping, Sequence
+import os
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from types import MappingProxyType
 
+from chronominer.common.discovery import (
+    DiscoveryError,
+    ordered,
+    relative_name,
+    resolve_named,
+    scan,
+)
 from chronominer.llm.media import SUPPORTED_IMAGE_EXTENSIONS
 from chronominer.output.store import DATABASE_NAME, LINE_RANGES_SUFFIX
 
@@ -40,7 +47,6 @@ __all__ = [
     "is_sidecar",
     "item_paths",
     "mirror_output_path",
-    "natural_sort_key",
     "output_names",
     "prepare_item_paths",
     "source_type",
@@ -67,12 +73,6 @@ _SIDECAR_ENDINGS = (
 )
 _OUTPUT_FOLDER = "output"
 _OUTPUTS_FOLDER_SUFFIX = "_outputs"
-_SKIPPED_FOLDERS = frozenset({".mabillon"})
-"""Folders discovery never enters: Mabillon's working folders below an output root."""
-
-
-class DiscoveryError(ValueError):
-    """The input cannot serve the requested input type."""
 
 
 @dataclass(frozen=True)
@@ -112,34 +112,21 @@ def is_sidecar(path: Path) -> bool:
     return name.endswith(_SIDECAR_ENDINGS)
 
 
-def _in_output_folder(path: Path, root: Path) -> bool:
-    """Whether *path* lies below a top-level output folder of *root*."""
-    try:
-        parts = path.relative_to(root).parts
-    except ValueError:
+def _output_folder(name: str) -> bool:
+    """Whether *name*, a folder below the input, is a top-level output folder."""
+    if "/" in name:
         return False
-    if len(parts) < 2:
-        return False
-    top = parts[0].lower()
+    top = name.lower()
     return top == _OUTPUT_FOLDER or top.endswith(_OUTPUTS_FOLDER_SUFFIX)
 
 
-def _in_skipped_folder(path: Path, root: Path) -> bool:
-    """Whether *path* lies below a ``.mabillon`` working folder inside *root*."""
-    return any(part in _SKIPPED_FOLDERS for part in path.relative_to(root).parts[:-1])
+def _walk(folder: Path, recursive: bool) -> list[Path]:
+    """Return the input files in *folder*, its subfolders with *recursive*.
 
-
-def _walk(folder: Path, recursive: bool) -> Iterator[Path]:
-    """Yield the input files in *folder*, its subfolders with *recursive*."""
-    entries = folder.rglob("*") if recursive else folder.iterdir()
-    for path in entries:
-        if (
-            path.is_file()
-            and not is_sidecar(path)
-            and not _in_output_folder(path, folder)
-            and not _in_skipped_folder(path, folder)
-        ):
-            yield path
+    The files come in the natural order of their paths below *folder*.
+    """
+    files = scan(folder, depth=None if recursive else 0, skip=_output_folder)
+    return [path for path in files if not is_sidecar(path)]
 
 
 _TYPE_ITEMS: Mapping[str, str] = MappingProxyType({"images": "image"})
@@ -169,13 +156,13 @@ def discover_items(
     of no known type is text. A folder yields the named *files* inside it,
     else its input files (all subfolders with *recursive*, except top-level
     ``output`` and ``*_outputs`` folders and Mabillon's ``.mabillon``
-    working folders), in natural order of their relative paths. Sidecars are
-    never items.
+    working folders); either way in natural order of their relative paths.
+    Sidecars are never items.
 
     Raises:
         DiscoveryError: A file input or a named file whose type is not
-            *kind*, a sidecar named as input, a named file missing from the
-            input folder, or an input that does not exist.
+            *kind*, a sidecar named as input, a named file missing from or
+            outside the input folder, or an input that does not exist.
     """
     accepts = _accepts(kind)
     if input_path.is_file():
@@ -196,10 +183,7 @@ def discover_items(
         found = source_type(path)
         if found is not None and accepts(found):
             items.append(SourceItem(path, found))
-    return sorted(
-        items,
-        key=lambda item: natural_sort_key(item.path.relative_to(input_path).as_posix()),
-    )
+    return items
 
 
 def _named(
@@ -210,30 +194,35 @@ def _named(
 ) -> list[SourceItem]:
     """Return the items of the named *files* in *folder*.
 
+    A name is a path relative to *folder*, with forward or back slashes.
+    Two names of one file give one item.
+
     Raises:
-        DiscoveryError: Naming the files that are missing, sidecars or not
-            of *kind*.
+        DiscoveryError: Naming the files that lie outside *folder*, are
+            missing, sidecars or not of *kind*.
     """
+    names = [name.replace("\\", "/") for name in files]
+    outside = [
+        given
+        for given, name in zip(files, names, strict=True)
+        if not Path(os.path.normpath(folder / name)).is_relative_to(folder)
+    ]
+    if outside:
+        listed = ", ".join(repr(name) for name in outside)
+        raise DiscoveryError(f"--files names paths outside {folder}: {listed}")
     items: list[SourceItem] = []
-    missing: list[str] = []
     unfit: list[str] = []
-    for name in files:
-        path = folder / name
+    for path in resolve_named(folder, names, present=Path.is_file):
         found = source_type(path)
-        if not path.is_file():
-            missing.append(name)
-        elif is_sidecar(path) or not accepts(found):
-            unfit.append(name)
+        if is_sidecar(path) or not accepts(found):
+            unfit.append(relative_name(path, folder))
         else:
             items.append(SourceItem(path, found or "text"))
-    if missing:
-        names = ", ".join(repr(name) for name in missing)
-        raise DiscoveryError(f"--files names that do not exist in {folder}: {names}")
     if unfit:
-        names = ", ".join(repr(name) for name in unfit)
+        listed = ", ".join(repr(name) for name in unfit)
         wanted = "inputs" if kind == "auto" else f"inputs of --type {kind}"
-        raise DiscoveryError(f"--files names that are not {wanted}: {names}")
-    return items
+        raise DiscoveryError(f"--files names that are not {wanted}: {listed}")
+    return ordered(items, folder, lambda item: item.path)
 
 
 def detect_input_type(items: Sequence[SourceItem]) -> str | None:
@@ -242,18 +231,6 @@ def detect_input_type(items: Sequence[SourceItem]) -> str | None:
     if not kinds:
         return None
     return kinds.pop() if len(kinds) == 1 else "mixed"
-
-
-_NATURAL_SORT_RE = re.compile(r"(\d+)")
-
-
-def natural_sort_key(name: str) -> list[object]:
-    """Return a case-insensitive natural-sort key for a file name.
-
-    Splits digit runs so that ``page_2`` sorts before ``page_10``.
-    """
-    parts = _NATURAL_SORT_RE.split(name.lower())
-    return [int(p) if p.isdigit() else p for p in parts]
 
 
 WINDOWS_MAX_PATH = 260

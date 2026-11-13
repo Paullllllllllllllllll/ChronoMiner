@@ -90,8 +90,8 @@ def test_existing_names_select_their_items(docs: Path) -> None:
 
     assert [item.name for item in pdfs.to_process] == ["b.pdf"]
     assert [(item.name, item.type) for item in mixed.to_process] == [
-        ("ledger.txt", "text"),
         ("a.pdf", "pdf"),
+        ("ledger.txt", "text"),
     ]
 
 

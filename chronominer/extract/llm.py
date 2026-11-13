@@ -24,7 +24,7 @@ from __future__ import annotations
 import json
 import logging
 import sqlite3
-from collections.abc import AsyncIterator, Mapping, Sequence
+from collections.abc import AsyncIterable, AsyncIterator, Mapping, Sequence
 from dataclasses import replace
 from pathlib import Path
 from typing import Any
@@ -476,8 +476,7 @@ class Extractor:
             self._client.update_context(item.context)
             self._client.update_context_image(item.context_image)
         if self.job.batch:
-            payloads = [payload async for payload in source(needed)]
-            await self._submit(item, handle, payloads)
+            await self._submit(item, handle, source(needed))
             return
         if self._client is None:
             raise RuntimeError("The extractor was not opened.")
@@ -642,9 +641,9 @@ class Extractor:
             await handle.store.set_image_settings(handle.lease, record)
 
     async def _submit(
-        self, item: Item, handle: DocumentHandle, payloads: list[Any]
+        self, item: Item, handle: DocumentHandle, payloads: AsyncIterable[Any]
     ) -> None:
-        """Submit the chunks to the provider's batch API.
+        """Submit the chunks to the provider's batch API as they are rendered.
 
         Raises:
             BatchSubmissionFailedError: The submission was refused or left

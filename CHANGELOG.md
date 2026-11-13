@@ -1,5 +1,24 @@
 # Changelog
 
+- **v1.12.0** (13 November 2026) -- ChronoMiner now reads input folders through
+  the discovery module it shares with AutoExcerpter and ChronoTranscriber
+  (`common/discovery.py`). Items are processed in the natural order of their
+  paths below the input folder (`p2` before `p10`, letter case ignored), also
+  those `--files` names, and `--select N` numbers them in that order. `--files`
+  takes paths relative to the input folder, with forward or back slashes, at
+  every level of the tree; two spellings of one path give one item, and a path
+  that is missing or leaves the input folder exits 2. Discovery no longer enters
+  folder links or junctions. Two inputs that would take one document name in one
+  output root, or write one `{stem}_line_ranges.txt`, stop every command at
+  planning with exit code 2. The `classify` commands gain `--concurrency`
+  (default 16) and ask up to that many requests about one document at once; a
+  run stop lets the requests in flight finish and starts no further one.
+  `extract --batch` renders and submits the chunks of a document in slices of at
+  most 64 MiB of image data or text, so a long document becomes several batches
+  and is never held in memory whole; a refused part ends the document's
+  submission, and the chunks after it stay pending. Document names, output paths
+  and the store are unchanged, so existing output folders resume as before.
+
 - **v1.11.0** (13 November 2026) -- When the attempt context of `ext.py` answers a
   failed call with the new decision `STOP`, because a provider will serve no
   further calls of the run, `extract`, `ranges adjust`, `repair` and the

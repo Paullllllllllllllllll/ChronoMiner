@@ -6,8 +6,9 @@ document, the units (:mod:`chronominer.classify.units`) are grouped in order
 into requests by :func:`~chronominer.common.decision_runner.plan_requests`
 (entries never across chunks) and asked through the run's
 :class:`~chronominer.llm.decision_model.DecisionModel` under the role
-``classify``. A request whose every unit has a stored answer to every
-question, by the same fingerprint, input, content and request, is reused
+``classify``, ``--concurrency`` requests at a time. A request whose every
+unit has a stored answer to every question, by the same fingerprint, input,
+content and request, is reused
 (:func:`~chronominer.common.classify_store.reusable_answers`) and appended
 again under this run (:func:`~chronominer.common.classify_store.republish_answers`);
 ``--force`` asks again. Answers are written with
@@ -26,7 +27,14 @@ import asyncio
 import contextlib
 import sqlite3
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import (
+    AsyncGenerator,
+    AsyncIterator,
+    Iterable,
+    Iterator,
+    Mapping,
+    Sequence,
+)
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Final
@@ -46,6 +54,7 @@ from chronominer.classify.plan import (
 )
 from chronominer.classify.units import (
     DOCUMENT_LOCATOR,
+    PageUnit,
     SidecarMissingError,
     entry_units,
     page_count,
@@ -97,6 +106,7 @@ from chronominer.output.store import (
     lease_reason,
     open_store,
 )
+from chronominer.pool import run_streaming_transcription_tasks
 from chronominer.providers import infer_provider, split_provider_prefix
 from chronominer.ranges.lines import read_lines
 from chronominer.run import ConfigurationError, StoreRefusedError, writer_options
@@ -302,6 +312,12 @@ def _check_input(target: ClassifyTarget, seen: _Seen) -> None:
         _bind_input(target)
 
 
+async def _listed(requests: Iterable[Request]) -> AsyncGenerator[Request]:
+    """Yield *requests* to the worker pool."""
+    for request in requests:
+        yield request
+
+
 def _model_of(name: str) -> tuple[str, str]:
     """Return the provider and model name of a ``--model`` value."""
     prefix, model = split_provider_prefix(name)
@@ -440,9 +456,8 @@ class _Classify:
             )
             units = self._text_units(chunks, spec.model)
             context = self._row_context(target, store, "text")
-            await self._ask_units(
-                target, units, context, store, None, tally, images=False
-            )
+            requests = _listed(self._requests(target, units, images=False))
+            await self._ask(target, requests, context, store, None, tally)
             return tally
         return await self._pages(target, spec, store, tally, seen)
 
@@ -465,9 +480,6 @@ class _Classify:
             first = selection.first_pages if selection is not None else total
             indices = list(range(min(first, total)))
         context = self._row_context(target, store, record)
-        batch: list[Unit] = []
-        images: list[Part] = []
-        prepared = 0
         pages = page_units(
             target.path,
             target.kind,
@@ -477,6 +489,30 @@ class _Classify:
             section=section,
             max_px=self.max_px,
         )
+        prepared: list[int] = []
+        requests = self._page_requests(target, pages, indices, tally, seen, prepared)
+        await self._ask(target, requests, context, store, None, tally)
+        if not prepared and not tally.failed:
+            raise _NotClassified(SKIPPED, "it has no pages to classify")
+        return tally
+
+    async def _page_requests(  # noqa: PLR0913 - the item's page source and tally
+        self,
+        target: ClassifyTarget,
+        pages: AsyncIterator[PageUnit],
+        indices: Sequence[int],
+        tally: _Tally,
+        seen: _Seen,
+        prepared: list[int],
+    ) -> AsyncGenerator[Request]:
+        """Yield the requests about the rendered pages, a group at a time.
+
+        A page that cannot be rendered fails unasked; *prepared* receives the
+        index of every page rendered. The input is checked before each group
+        is asked about.
+        """
+        batch: list[Unit] = []
+        images: list[Part] = []
         unprepared = 0
         while True:
             try:
@@ -484,37 +520,31 @@ class _Classify:
             except StopAsyncIteration:
                 break
             except RuntimeError as exc:  # the page source's failure-rate check
-                tally.failed += len(indices) - prepared - unprepared
+                tally.failed += len(indices) - len(prepared) - unprepared
                 tally.errors.append(str(exc) or type(exc).__name__)
-                return tally
+                return
             if page.unit is None or page.image is None:
                 unprepared += 1
                 tally.failed += 1
                 tally.errors.append(f"page {page.index + 1}: {page.error}")
                 continue
-            prepared += 1
+            prepared.append(page.index)
             if self.classifier.unit == "document":
                 images.append(Image(page.image))
                 continue
             batch.append(page.unit)
             if len(batch) == self._group(images=True):
                 _check_input(target, seen)
-                await self._ask_units(
-                    target, batch, context, store, None, tally, images=True
-                )
+                for request in self._requests(target, batch, images=True):
+                    yield request
                 batch = []
         _check_input(target, seen)
         if self.classifier.unit == "document":
             # The unit is the whole selection: a missing page fails it unasked.
             whole = images and not tally.failed
             batch = [Unit(DOCUMENT_LOCATOR, 0, tuple(images))] if whole else []
-        if batch:
-            await self._ask_units(
-                target, batch, context, store, None, tally, images=True
-            )
-        if not prepared and not tally.failed:
-            raise _NotClassified(SKIPPED, "it has no pages to classify")
-        return tally
+        for request in self._requests(target, batch, images=True):
+            yield request
 
     def _text_units(self, chunks: Sequence[TextChunk], model: str) -> list[Unit]:
         if not chunks:
@@ -593,10 +623,12 @@ class _Classify:
                 raise _NotClassified(SKIPPED, "it has no entries")
             tally = _Tally()
             context = self._row_context(target, store, "entries")
-            for units in groups:
-                await self._ask_units(
-                    target, units, context, store, lease, tally, images=False
-                )
+            requests = _listed(
+                request
+                for units in groups
+                for request in self._requests(target, units, images=False)
+            )
+            await self._ask(target, requests, context, store, lease, tally)
             return tally
         finally:
             if store is not None and lease is not None:
@@ -628,29 +660,60 @@ class _Classify:
     def _group(self, *, images: bool) -> int:
         return min(self.size, self.budget) if images else self.size
 
-    async def _ask_units(  # noqa: PLR0913 - one document's request context
-        self,
-        target: ClassifyTarget,
-        units: Sequence[Unit],
-        context: RowContext,
-        store: Store | None,
-        lease: Lease | None,
-        tally: _Tally,
-        *,
-        images: bool,
-    ) -> None:
-        """Ask about *units* in requests of at most one group each."""
+    def _requests(
+        self, target: ClassifyTarget, units: Sequence[Unit], *, images: bool
+    ) -> Iterator[Request]:
+        """Yield the requests about *units*, each within one group of units."""
         size = self._group(images=images)
         parts = self._context_parts(target)
         for start in range(0, len(units), size):
-            for request in plan_requests(
+            yield from plan_requests(
                 self.classifier,
                 target.document,
                 units[start : start + size],
                 context=parts,
                 image_budget=self.budget,
-            ):
+            )
+
+    async def _ask(  # noqa: PLR0913 - one document's request context
+        self,
+        target: ClassifyTarget,
+        requests: AsyncGenerator[Request],
+        context: RowContext,
+        store: Store | None,
+        lease: Lease | None,
+        tally: _Tally,
+    ) -> None:
+        """Ask *requests* through the worker pool, ``--concurrency`` at a time.
+
+        An error that ends the document starts no further request; the
+        requests in flight finish, and the first such error is raised. A run
+        stop ends admission the same way and wins.
+        """
+        ended: list[Exception] = []
+
+        async def admitted() -> AsyncGenerator[Request]:
+            async with contextlib.aclosing(requests):
+                async for request in requests:
+                    if ended:
+                        return
+                    yield request
+
+        async def ask(request: Request) -> None:
+            if ended:
+                return
+            try:
                 await self._request(target.root, request, context, store, lease, tally)
+            except RunStopped:
+                raise
+            except Exception as exc:  # noqa: BLE001 - raised once the pool drains
+                ended.append(exc)
+
+        await run_streaming_transcription_tasks(
+            admitted(), ask, concurrency_limit=self.plan.spec.run.concurrency
+        )
+        if ended:
+            raise ended[0]
 
     async def _request(  # noqa: PLR0913 - one request's context
         self,
@@ -743,11 +806,14 @@ async def run_classify(
 ) -> ClassifyResult:
     """Classify the plan's ready documents one after another.
 
-    A dry run opens no store for writing and builds no client: it counts
-    the units that would be asked and reused. A failed request fails its
-    document, and the run goes on with the next request. When a provider
-    serves no further calls of the run, the answers recorded so far stay, no
-    further request or document starts, and the result's ``stop`` says so.
+    The requests about one document go through the worker pool of
+    :mod:`chronominer.pool`, at most ``--concurrency`` at once. A dry run
+    opens no store for writing and builds no client: it counts the units
+    that would be asked and reused. A failed request fails its document, and
+    the run goes on with the next request. When a provider serves no further
+    calls of the run, the requests in flight finish, the answers recorded so
+    far stay, no further request or document starts, and the result's
+    ``stop`` says so.
 
     Raises:
         ConfigurationError: The decision client cannot be built; nothing
@@ -789,6 +855,9 @@ async def run_classify(
             except RunStopped as exc:
                 further = len(ready) - position
                 stop = RunStop(str(exc), target.name, further=further)
+                break
+            if env.stop.reason is not None:
+                stop = RunStop(env.stop.reason, further=len(ready) - position)
                 break
         exit_code = ClassifyResult(tuple(results), stop=stop).exit_code
     except (asyncio.CancelledError, KeyboardInterrupt):

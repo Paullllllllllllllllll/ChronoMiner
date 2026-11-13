@@ -9,7 +9,7 @@ item's store document.
 
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import AsyncIterable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Protocol
@@ -63,11 +63,14 @@ class SubmitOutcome(Protocol):
 
 
 class BatchSubmitter(Protocol):
-    """Submit one document's chunk payloads to the provider's batch API."""
+    """Submit one document's chunk payloads to the provider's batch API.
+
+    The payloads are rendered as the submitter takes them.
+    """
 
     async def __call__(
         self,
-        payloads: Sequence[Any],
+        payloads: AsyncIterable[Any],
         *,
         document: DocumentHandle,
         spec: RunSpec,

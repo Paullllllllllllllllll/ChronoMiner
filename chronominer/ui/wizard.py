@@ -17,6 +17,7 @@ from typing import Final
 
 from chronominer.batch.repair import batch_refusal
 from chronominer.common.batch import supports_batch
+from chronominer.common.discovery import ordered, relative_name
 from chronominer.common.selection import (
     is_numeric_selection,
     parse_page_range,
@@ -31,7 +32,7 @@ from chronominer.common.wizard import (
     Step,
     StepContext,
 )
-from chronominer.discovery import SourceItem, natural_sort_key
+from chronominer.discovery import SourceItem
 from chronominer.spec import INPUT_TYPES, item_type
 from chronominer.ui.questions import (
     IMAGE_OPTIONS,
@@ -139,10 +140,7 @@ def _existing_input(text: str) -> str | None:
 
 
 def _relative(item: SourceItem, root: Path) -> str:
-    try:
-        return item.path.relative_to(root).as_posix()
-    except ValueError:
-        return item.name
+    return relative_name(item.path, root)
 
 
 def _typed_indices(state: State) -> list[int]:
@@ -162,10 +160,7 @@ def _typed_indices(state: State) -> list[int]:
         for index, item in enumerate(inventory.items)
         if kind == "auto" or item.type == wanted
     ]
-    return sorted(
-        indices,
-        key=lambda index: natural_sort_key(_relative(inventory.items[index], location)),
-    )
+    return ordered(indices, location, lambda index: inventory.items[index].path)
 
 
 def _run_indices(state: State) -> list[int]:

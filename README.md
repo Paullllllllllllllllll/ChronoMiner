@@ -1,4 +1,4 @@
-# ChronoMiner v1.11.0
+# ChronoMiner v1.12.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -78,7 +78,7 @@ both.
 | `--type {auto,text,images,pdf}` | input type; auto takes the text, image and PDF files of a folder and detects a file's type by its extension | auto | yes |
 | `--select EXPR` | select items by number (1,3), range (1-5) or name search | | yes |
 | `--all` | process every discovered item | | yes |
-| `--files LIST` | comma-separated names of files inside the input folder | | no |
+| `--files LIST` | comma-separated paths of files relative to the input folder | | no |
 | `--recursive`, `--no-recursive` | search the subfolders of the input folder | off | yes |
 | `--pages RANGE` | chunks (PDF pages, line ranges): 5, first:5, last:5, 3-7, 3-, -7 or 1,3,5-8 | all | no |
 | `--output DIR` | output folder | beside the input | yes |
@@ -128,9 +128,13 @@ both.
 `--schema` and `--input` are required, and `--beside-input` overrides an `output`
 settings default. A folder holding several items needs one of `--all`, `--select`
 and `--files`, which exclude each other; without one the run exits 2 before any
-call. `--select` numbers the items in the order the run discovers them (1-based) and
-takes numbers and ranges (`1,3,5-8`) or, for any other text, keeps the items whose
-path below the input folder holds it, ignoring case. An option whose condition does
+call. The run processes its items in the natural order of their paths below the
+input folder (`p2` before `p10`, case ignored), also those `--files` names.
+`--files` takes paths relative to the input folder (`vol1/p1.png`, forward or back
+slashes); a name that is missing or lies outside the folder exits 2. `--select`
+numbers the items in that order (1-based) and takes numbers and ranges (`1,3,5-8`)
+or, for any other text, keeps the items whose path below the input folder holds it,
+ignoring case; a file input is searched by its name. An option whose condition does
 not hold (`--context-window` with `--chunking auto`) has no effect, and the run warns
 on stderr. The chunking options apply to text items, the image options to image and
 PDF items. A dry run plans without the API key variables and names an unset one in a
@@ -251,6 +255,9 @@ refused.
 `chunk`. `classify chunks` also takes the image options of `extract`, with their
 defaults and settings defaults; they size the pages of items the store does not
 hold, while a document with stored pages keeps the settings it was extracted with.
+Every classify command asks about one document at a time, with up to
+`--concurrency` requests about it in flight; a run stop lets those finish and starts
+no further request.
 
 | Flag | Description | Default | In `defaults:` |
 | --- | --- | --- | --- |
@@ -258,7 +265,7 @@ hold, while a document with stored pages keeps the settings it was extracted wit
 | `--type {auto,text,images,pdf}` | input type; auto takes the text, image and PDF files of a folder and detects a file's type by its extension | auto | yes |
 | `--select EXPR` | select items by number (1,3), range (1-5) or name search | | yes |
 | `--all` | process every discovered item | | yes |
-| `--files LIST` | comma-separated names of files inside the input folder | | no |
+| `--files LIST` | comma-separated paths of files relative to the input folder | | no |
 | `--recursive`, `--no-recursive` | search the subfolders of the input folder | off | yes |
 | `--pages RANGE` | chunks (PDF pages, line ranges): 5, first:5, last:5, 3-7, 3-, -7 or 1,3,5-8 | all | no |
 | `--output DIR` | output folder whose chronominer.sqlite holds the answers | beside the input | yes |
@@ -272,6 +279,7 @@ hold, while a document with stored pages keeps the settings it was extracted wit
 | `--decision-provider {openai,openrouter}` | decision API dialect | from the model id | yes |
 | `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
 | `--force` | ask about every chunk again instead of reusing the stored answers | | no |
+| `--concurrency N` | parallel requests | 16 | yes |
 | `--dry-run` | plan without API calls or writes | | no |
 | `--json` | print one JSON summary line on stdout | | no |
 | `--settings FILE` | alternate settings file | config/settings.yaml | no |
@@ -289,6 +297,7 @@ hold, while a document with stored pages keeps the settings it was extracted wit
 | `--decision-provider {openai,openrouter}` | decision API dialect | from the model id | yes |
 | `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
 | `--force` | ask about every entry again instead of reusing the stored answers | | no |
+| `--concurrency N` | parallel requests | 16 | yes |
 | `--dry-run` | plan without API calls or writes | | no |
 | `--json` | print one JSON summary line on stdout | | no |
 | `--settings FILE` | alternate settings file | config/settings.yaml | no |
@@ -305,7 +314,7 @@ hold, while a document with stored pages keeps the settings it was extracted wit
 | `--type {auto,text,images,pdf}` | input type; auto takes the text, image and PDF files of a folder and detects a file's type by its extension | auto | yes |
 | `--select EXPR` | select items by number (1,3), range (1-5) or name search | | yes |
 | `--all` | process every discovered item | | yes |
-| `--files LIST` | comma-separated names of files inside the input folder | | no |
+| `--files LIST` | comma-separated paths of files relative to the input folder | | no |
 | `--recursive`, `--no-recursive` | search the subfolders of the input folder | off | yes |
 | `--output DIR` | output folder whose chronominer.sqlite holds the answers | beside the input | yes |
 | `--beside-input` | use the chronominer.sqlite beside each input | | no |
@@ -318,6 +327,7 @@ hold, while a document with stored pages keeps the settings it was extracted wit
 | `--decision-provider {openai,openrouter}` | decision API dialect | from the model id | yes |
 | `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
 | `--force` | ask about every document again instead of reusing the stored answers | | no |
+| `--concurrency N` | parallel requests | 16 | yes |
 | `--dry-run` | plan without API calls or writes | | no |
 | `--json` | print one JSON summary line on stdout | | no |
 | `--settings FILE` | alternate settings file | config/settings.yaml | no |
@@ -731,13 +741,25 @@ older ChronoMiner refuses a database with these triggers.
 
 ## Inputs and Chunking
 
-With `--type auto`, a folder yields its text, image and PDF files in natural order
-(with `--recursive` those of its subfolders too, except top-level `output` and
-`*_outputs` folders and Mabillon's `.mabillon` working folders), and a file's type comes from its extension; a file of no known
-type is text. `--type text`, `images` or `pdf` keeps the files of that type. Files the
-tool reads or writes beside an input (context files, line ranges, outputs and the
-database) are never items. An image is one chunk and a PDF has one chunk per page. A
-text is cut into line ranges by `--chunking`:
+With `--type auto`, a folder yields the text, image and PDF files directly in it, and
+with `--recursive` those of every subfolder too, in natural order. A file's type comes
+from its extension; a file of no known type is text. `--type text`, `images` or `pdf`
+keeps the files of that type. Every command that reads input folders (`extract`,
+`ranges`, `classify chunks` and `classify documents`, the wizard) leaves out:
+
+- Mabillon's `.mabillon` working folders, at any depth;
+- the output folders `output` and `*_outputs` (case ignored) directly in the input
+  folder;
+- folder links and junctions;
+- the files the tool reads or writes beside an input: `{stem}_extract_context.*`,
+  `{stem}_adjust_context.*`, `{stem}_line_ranges.txt`, `{stem}_output.json`,
+  `{stem}_output.csv`, and `chronominer.sqlite` with its `-journal`, `-wal` and `-shm`
+  files.
+
+Two inputs that would take one document name in one output root, or write one
+`{stem}_line_ranges.txt` (`a.txt` and `a.md` in one folder), stop the command at
+planning with exit code 2, and the error names both. An image is one chunk and a PDF
+has one chunk per page. A text is cut into line ranges by `--chunking`:
 
 | `--chunking` | Chunks of a text |
 | --- | --- |
@@ -916,9 +938,12 @@ batch holds, is refused and left as it is (exit 1); the others are dropped.
 ## Batch Processing
 
 `--batch` submits the chunks of an extraction to the batch API of OpenAI, Anthropic or
-Google; OpenRouter and custom endpoints have none. Requests are split by the
-provider's count and byte limits, and each part becomes one submission in the
-database, committed before the upload.
+Google; OpenRouter and custom endpoints have none. The chunks of a document are
+rendered and submitted in slices of at most 64 MiB of image data or text, so a long
+document becomes several batches. A slice is split further by the provider's count
+and byte limits, and each part becomes one submission in the database, committed
+before the upload. A refused or unresolved part ends the document's submission; the
+chunks after it are not rendered and stay pending.
 
 `batch check` finds the databases below `--input`, finalizes every finished batch
 into the store, renders the affected documents and deletes the batch's files at the

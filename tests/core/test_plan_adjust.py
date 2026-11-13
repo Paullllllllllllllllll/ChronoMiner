@@ -122,6 +122,19 @@ def test_input_errors_of_both_commands_exit_2(
         assert raised.value.exit_code == ExitCode.USAGE
 
 
+@pytest.mark.usefixtures("openai_key")
+def test_texts_sharing_a_line_ranges_file_exit_2_naming_both(tmp_path: Path) -> None:
+    first = _text(tmp_path / "in" / "list.md")
+    second = _text(tmp_path / "in" / "List.txt")
+    _ranges(first, (1, 40))
+
+    for spec in (_generate(tmp_path / "in"), _adjust(tmp_path / "in")):
+        with pytest.raises(core.InputError, match="share the line ranges") as raised:
+            core.plan_ranges(spec, make_settings())
+        assert str(first) in str(raised.value) and str(second) in str(raised.value)
+        assert raised.value.exit_code == ExitCode.USAGE
+
+
 def test_adjust_needs_the_key_of_its_provider(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

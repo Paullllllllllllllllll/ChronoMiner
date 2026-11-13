@@ -8,7 +8,7 @@ unresolved) and an unbuildable submission drive the extractor's reaction.
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Sequence
+from collections.abc import AsyncIterable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -58,7 +58,7 @@ class FakeSubmit:
 
     async def __call__(
         self,
-        payloads: Sequence[Any],
+        payloads: AsyncIterable[Any],
         *,
         document: DocumentHandle,
         spec: Any,
@@ -67,8 +67,9 @@ class FakeSubmit:
         context: str | None = None,
         context_image: Path | None = None,
     ) -> Outcome:
-        self.items.append((Path(document.name).name, len(payloads)))
-        self.payloads.extend(payloads)
+        taken = [payload async for payload in payloads]
+        self.items.append((Path(document.name).name, len(taken)))
+        self.payloads.extend(taken)
         self.schema_paths.append(schema_path)
         if isinstance(self.outcome, Exception):
             raise self.outcome

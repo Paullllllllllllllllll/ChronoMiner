@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+from collections.abc import AsyncIterator
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
 
 from chronominer import ext
+from chronominer.batch import submit as submit_module
 from chronominer.batch.submit import (
     REQUEST_TOO_LARGE,
     BatchSubmissionError,
@@ -187,3 +190,102 @@ async def test_a_document_without_a_sendable_chunk_is_refused(
     with pytest.raises(BatchSubmissionError, match="No chunk"):
         await submit(tmp_path, page_images(1, unrendered=frozenset({0})))
     assert world.calls == []
+
+
+class Source:
+    """Rendered pages handed out one at a time; counts them and its closing."""
+
+    def __init__(self, payloads: list[Any]) -> None:
+        self.payloads = payloads
+        self.taken = 0
+        self.closed = False
+
+    async def __call__(self) -> AsyncIterator[Any]:
+        try:
+            for payload in self.payloads:
+                self.taken += 1
+                yield payload
+        finally:
+            self.closed = True
+
+
+async def _sliced(
+    root: Path, source: Source
+) -> tuple[SubmitOutcome, list[int], dict[str, list[int]]]:
+    """Submit *source*; return the outcome, the parts and each submission's units."""
+    async with open_store(root) as store:
+        await store.begin_run("extract")
+        document = await leased_document(store)
+        outcome = await submit_batch(
+            source(), document=document, spec=run_spec(root), settings=Settings()
+        )
+        parts = [row.part for row in store.submissions()]
+        members = {
+            submission_id: sorted(
+                key.idx for key in store.submission_requests(submission_id).values()
+            )
+            for submission_id in outcome.submission_ids
+        }
+    return outcome, parts, members
+
+
+def test_the_slice_budget_counts_the_context_image_of_every_request() -> None:
+    request = chunk_request(page_images(1)[0], detail="high")
+    plain: Any = SimpleNamespace(context_image=None)
+    shared: Any = SimpleNamespace(context_image=("A" * 100, "image/png", None))
+
+    own = submit_module._payload_bytes(request, plain)
+
+    assert own > 0
+    assert submit_module._payload_bytes(request, shared) == own + 100
+    assert submit_module._payload_bytes(None, shared) == 0
+
+
+@pytest.fixture
+def two_pages(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Let a slice hold the image data of two test pages."""
+    monkeypatch.setattr(submit_module, "SLICE_BYTES", 2 * len("UEFHRQ=="))
+
+
+@pytest.mark.usefixtures("two_pages")
+async def test_pages_are_taken_and_submitted_one_slice_at_a_time(
+    world: World, tmp_path: Path
+) -> None:
+    source = Source(page_images(6, unrendered=frozenset({5})))
+    taken_at_upload: list[int] = []
+    world.hooks["upload"] = lambda _id: taken_at_upload.append(source.taken)
+
+    outcome, parts, members = await _sliced(tmp_path, source)
+
+    assert outcome.status == "submitted"
+    assert parts == [1, 2, 3]
+    assert list(members.values()) == [[0, 1], [2, 3], [4, 5]]
+    assert taken_at_upload == [3, 5, 6]
+    assert len(world.bodies()) == 5
+    assert source.closed
+
+
+@pytest.mark.usefixtures("two_pages")
+async def test_a_refused_part_leaves_the_later_pages_untaken(
+    world: World, tmp_path: Path
+) -> None:
+    source = Source(page_images(7))
+    creates: list[str] = []
+
+    def create(submission_id: str) -> None:
+        creates.append(submission_id)
+        if len(creates) == 2:
+            raise RuntimeError("too many batches")
+
+    world.hooks["create"] = create
+
+    outcome, parts, members = await _sliced(tmp_path, source)
+
+    assert outcome.status == "refused"
+    assert len(outcome.submission_ids) == 2
+    assert parts == [1, 2]
+    assert list(members.values()) == [[0, 1], [2, 3]]
+    assert (source.taken, source.closed) == (5, True)
+    async with open_store(tmp_path) as store:
+        stored = {row.idx: row.status for row in store.units(1)}
+    assert set(stored) == set(range(4))

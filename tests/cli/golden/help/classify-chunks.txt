@@ -13,7 +13,7 @@ input:
                         detects a file's type by its extension; default: auto
   --select EXPR         select items by number (1,3), range (1-5) or name search
   --all                 process every discovered item
-  --files LIST          comma-separated names of files inside the input folder
+  --files LIST          comma-separated paths of files relative to the input folder
   --recursive, --no-recursive
                         search the subfolders of the input folder; default: off
   --pages RANGE         chunks (PDF pages, line ranges): 5, first:5, last:5, 3-7, 3-, -7 or
@@ -64,6 +64,7 @@ decision model:
 
 run control:
   --force               ask about every chunk again instead of reusing the stored answers
+  --concurrency N       parallel requests; default: 16
   --dry-run             plan without API calls or writes
   --json                print one JSON summary line on stdout
   --settings FILE       alternate settings file; default: config/settings.yaml

@@ -12,7 +12,6 @@ from chronominer.discovery import (
     detect_input_type,
     discover_items,
     is_sidecar,
-    natural_sort_key,
     source_type,
 )
 from chronominer.spec import parse
@@ -181,13 +180,49 @@ class TestSidecars:
 
 @pytest.mark.unit
 class TestNamedFiles:
-    def test_files_select_inputs_of_the_folder(self, temp_dir: Path) -> None:
-        _touch(temp_dir, "a.txt", "b.pdf", "c.png")
-        found = discover_items(temp_dir, files=("c.png", "a.txt"))
+    def test_files_select_inputs_of_the_folder_in_natural_order(
+        self, temp_dir: Path
+    ) -> None:
+        _touch(temp_dir, "a.txt", "b.pdf", "c.png", "vol2/p10.png", "vol2/p9.png")
+        found = discover_items(
+            temp_dir, files=("vol2/p10.png", "c.png", "a.txt", "vol2/p9.png")
+        )
         assert found == [
-            SourceItem(temp_dir / "c.png", "image"),
             SourceItem(temp_dir / "a.txt", "text"),
+            SourceItem(temp_dir / "c.png", "image"),
+            SourceItem(temp_dir / "vol2" / "p9.png", "image"),
+            SourceItem(temp_dir / "vol2" / "p10.png", "image"),
         ]
+
+    def test_files_are_paths_relative_to_the_folder(self, temp_dir: Path) -> None:
+        _touch(temp_dir, "vol1/deep/a.txt", "vol2/b.pdf")
+        found = discover_items(
+            temp_dir, files=("vol1\\deep\\a.txt", "vol2/b.pdf", "vol1/deep/a.txt")
+        )
+        assert found == [
+            SourceItem(temp_dir / "vol1" / "deep" / "a.txt", "text"),
+            SourceItem(temp_dir / "vol2" / "b.pdf", "pdf"),
+        ]
+
+    def test_two_spellings_of_one_file_give_one_item(self, temp_dir: Path) -> None:
+        _touch(temp_dir, "book.pdf", "vol/a.txt")
+        found = discover_items(
+            temp_dir, files=("book.pdf", "vol/../book.pdf", "./vol/a.txt", "vol/a.txt")
+        )
+        assert found == [
+            SourceItem(temp_dir / "book.pdf", "pdf"),
+            SourceItem(temp_dir / "vol" / "a.txt", "text"),
+        ]
+
+    def test_files_outside_the_folder_are_named(self, temp_dir: Path) -> None:
+        root = temp_dir / "in"
+        _touch(temp_dir, "in/a.txt", "other.txt")
+        outside = str(temp_dir / "other.txt")
+        with pytest.raises(DiscoveryError, match="outside") as error:
+            discover_items(root, files=("a.txt", "../other.txt", outside))
+        assert "'../other.txt'" in str(error.value)
+        assert repr(outside) in str(error.value)
+        assert "'a.txt'" not in str(error.value)
 
     def test_missing_files_are_named(self, temp_dir: Path) -> None:
         _touch(temp_dir, "a.txt")
@@ -226,13 +261,3 @@ class TestNamedFiles:
         )
 
         assert _names(found) == ["a.txt", "c.png"]
-
-
-@pytest.mark.unit
-def test_natural_sort_orders_digit_runs_by_value() -> None:
-    names = ["page_10.png", "Page_2.png", "page_1.png"]
-    assert sorted(names, key=natural_sort_key) == [
-        "page_1.png",
-        "Page_2.png",
-        "page_10.png",
-    ]

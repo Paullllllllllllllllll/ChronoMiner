@@ -13,6 +13,7 @@ import pymupdf
 import pytest
 from PIL import Image as PILImage
 
+from chronominer import __main__ as entry
 from chronominer.classify import plan_classify, run_classify, units
 from chronominer.classify import run as classify_run
 from chronominer.classify.plan import stored_images
@@ -157,6 +158,22 @@ def test_adjust_is_refused(
     )
 
     assert code == 2
+    assert server.requests == []
+
+
+def test_inputs_sharing_a_document_exit_2_naming_both(
+    tmp_path: Path, server: DecisionServer, capsys: pytest.CaptureFixture[str]
+) -> None:
+    first = write_text(tmp_path / "in" / "Prices.txt")
+    second = write_text(tmp_path / "in" / "prices.md")
+    argv = ["chunks", "--classifier", "language", "--input", str(first.parent)]
+
+    code = entry.main(["classify", *argv, "--all"])
+
+    assert code == 2
+    error = capsys.readouterr().err
+    assert str(first) in error and str(second) in error
+    assert "share the document" in error
     assert server.requests == []
 
 
