@@ -1,5 +1,12 @@
 # Changelog
 
+- **v1.14.0** (14 November 2026) -- The repository ships a skill for coding
+  agents in `skills/chronominer/`. `SKILL.md` gives the steps of a job (dry run,
+  sample, run, verify), the conventions for options, schemas, context files, the
+  decision pre-pass and classifiers, and a troubleshooting table; `REFERENCE.md`
+  covers line ranges, page images and store queries. The skill defers to the
+  README and `--help` for flags and behavior, and the README's new Agent Skill
+  section says how to install it. The tool's code and behavior are unchanged.
 - **v1.13.0** (13 November 2026) -- A new option, `--open-items N` (default 1),
   lets `extract`, `classify chunks` and `classify documents` keep several items
   open at once. `--concurrency` now bounds the requests of the whole run, and

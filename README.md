@@ -1,4 +1,4 @@
-# ChronoMiner v1.13.0
+# ChronoMiner v1.14.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -1036,6 +1036,16 @@ sizes page images by other settings, so a partial image or PDF item resumed with
 refused. A text item cut with `--chunking auto` keeps its stored
 line ranges on resume, also under another model or `--chunk-tokens`. To resume, run
 the same command again: the state lives in the database, not in the rendered files.
+
+## Agent Skill
+
+`skills/chronominer/` holds a skill for coding agents such as Claude Code. `SKILL.md`
+gives the steps of a job (dry run, sample, run, verify), the conventions for
+options, schemas, context files, the decision pre-pass and classifiers, and a
+troubleshooting table; `REFERENCE.md` covers line ranges, page images and store
+queries. To install it, copy or link the folder into the agent's skills folder, for
+Claude Code `~/.claude/skills/chronominer/`. The skill runs the tool from a clone set
+up as in Installation and defers to this README and `--help` for flags and behavior.
 
 ## Architecture
 
