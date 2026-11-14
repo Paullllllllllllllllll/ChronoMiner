@@ -1,5 +1,18 @@
 # Changelog
 
+- **v1.15.0** (14 November 2026) -- Schemas and classifiers can live in folders
+  outside the repository. The repeatable flags `--schemas-dir` and
+  `--classifiers-dir` and the settings lists `schemas_dirs` and `classifiers_dirs`
+  name user folders that every lookup searches before the bundled `schemas/` and
+  `classifiers/`. A user file shadows the bundled file of the same file name, and
+  a name that two user folders hold is an error naming both files, also in the
+  `--schema` filters of `repair` and `batch check` and for the schema an entry
+  classifier names. `_chronominer_metadata` gains `schema_sha256` and
+  `schema_version`, read from the store when the file is rendered; a document
+  without a recorded hash has neither key, and older outputs gain them at their
+  next `render`. A run that resumes a document without a recorded hash but with
+  done chunks marks it `schema_unverified`, since the schema of those chunks is
+  unknown, and `--force` removes the mark.
 - **v1.14.0** (14 November 2026) -- The repository ships a skill for coding
   agents in `skills/chronominer/`. `SKILL.md` gives the steps of a job (dry run,
   sample, run, verify), the conventions for options, schemas, context files, the

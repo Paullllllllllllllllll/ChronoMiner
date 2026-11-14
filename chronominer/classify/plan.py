@@ -1,8 +1,9 @@
 """Plan a classify command without model calls or writes.
 
 :func:`plan_classify` resolves the classifier (``--classifier``: a file path,
-a file name in the repository's ``classifiers/`` folder without ``.json``, or
-the ``name`` of a classifier there) and checks that its unit is the
+or a file name without ``.json`` or the ``name`` of a classifier in the
+``--classifiers-dir`` folders, the settings' ``classifiers_dirs`` or the
+repository's ``classifiers/`` folder) and checks that its unit is the
 command's, then finds the documents to classify and gives each a state:
 
 - ``classify chunks`` and ``classify documents`` discover the input items as
@@ -67,6 +68,7 @@ from chronominer.run import (
 from chronominer.settings import Settings, SettingsError
 from chronominer.spec import (
     CLASSIFIERS_DIR,
+    AmbiguousSchemaError,
     ClassifyEntriesSpec,
     ClassifyItemsSpec,
     ClassifySpec,
@@ -181,15 +183,18 @@ class ClassifyPlan:
         return effective_spec(self.spec, self.sources)
 
 
-def _classifier(value: str, unit: str) -> tuple[Classifier, Path]:
+def _classifier(value: str, unit: str, settings: Settings) -> tuple[Classifier, Path]:
     """Return the classifier *value* names and its file.
 
+    The settings' ``classifiers_dirs`` are searched before
+    :data:`~chronominer.spec.CLASSIFIERS_DIR`.
+
     Raises:
-        ConfigurationError: No classifier matches, the file is invalid, or
-            it judges another unit than *unit*.
+        ConfigurationError: No classifier matches, two user folders hold
+            it, the file is invalid, or it judges another unit than *unit*.
     """
     try:
-        path = resolve_classifier(value, CLASSIFIERS_DIR)
+        path = resolve_classifier(value, CLASSIFIERS_DIR, settings.classifiers_dirs)
         classifier = load_classifier(path)
     except (OSError, ValueError) as exc:
         raise ConfigurationError(str(exc)) from exc
@@ -206,10 +211,15 @@ def _classifier(value: str, unit: str) -> tuple[Classifier, Path]:
 def _check_classifier(classifier: Classifier, settings: Settings) -> str | None:
     """Check the classifier against the tool; return its schema's name, if any.
 
+    The schema of an entry classifier is looked up in the settings'
+    ``schemas_dirs`` before the repository's folder. A schema found nowhere
+    is not checked, and neither is a file found by its file name whose
+    ``name`` is another one: the classifier names a schema, not a file.
+
     Raises:
         ConfigurationError: A document classifier selects more pages than a
-            request carries, or an entry classifier names fields its schema
-            lacks.
+            request carries, an entry classifier names fields its schema
+            lacks, or two user folders hold its schema.
     """
     budget = settings.decisions.pages_per_request
     selection = classifier.selection
@@ -222,8 +232,12 @@ def _check_classifier(classifier: Classifier, settings: Settings) -> str | None:
     if classifier.schema is None:
         return None
     try:
-        schema = resolve_schema(classifier.schema)
+        schema = resolve_schema(classifier.schema, settings.schemas_dirs)
+    except AmbiguousSchemaError as exc:
+        raise ConfigurationError(str(exc)) from exc
     except SpecError:
+        return classifier.schema
+    if schema.name != classifier.schema:
         return classifier.schema
     known = {entry.name for entry in entry_fields(schema.schema)}
     missing = [name for name in classifier.fields or () if name not in known]
@@ -517,7 +531,7 @@ def plan_classify(
             and ``exit_code`` the exit code (2).
     """
     unit = spec.unit if isinstance(spec, ClassifyItemsSpec) else "entry"
-    classifier, path = _classifier(spec.classify.classifier, unit)
+    classifier, path = _classifier(spec.classify.classifier, unit, settings)
     schema = _check_classifier(classifier, settings)
     pages: PageRange | None = None
     warnings: tuple[str, ...] = ()

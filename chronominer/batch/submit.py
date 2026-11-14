@@ -522,14 +522,17 @@ def chunk_request(payload: Any, *, detail: str | None = None) -> BatchRequest | 
     return BatchRequest(custom_id=f"chunk-{index}", text=str(text), order_index=index)
 
 
-def _schema(spec: RunSpec, schema_path: Path | None) -> ResolvedSchema:
+def _schema(
+    spec: RunSpec, settings: Settings, schema_path: Path | None
+) -> ResolvedSchema:
     """Return the run's schema: the file *schema_path*, else ``--schema``.
 
     Raises:
         BatchSubmissionError: The schema cannot be resolved.
     """
+    argument = str(schema_path or spec.prompt.schema)
     try:
-        return resolve_schema(str(schema_path or spec.prompt.schema))
+        return resolve_schema(argument, settings.schemas_dirs)
     except SpecError as exc:
         raise BatchSubmissionError(str(exc)) from exc
 
@@ -701,7 +704,8 @@ async def submit_batch(
         raise BatchSubmissionError(
             f"Provider '{model.provider}' does not support batch processing"
         )
-    plan = _plan(spec, settings, _schema(spec, schema_path), context, context_image)
+    schema = _schema(spec, settings, schema_path)
+    plan = _plan(spec, settings, schema, context, context_image)
     clients = BatchClients(settings, ROLE)
     opened: list[str] = []
     outcome: SubmitOutcome | None = None

@@ -320,6 +320,33 @@ def test_response_questions_default_schema_and_context_choices(
     assert "   Automatic  the item's {stem}_extract_context image" in asked.lines
 
 
+def test_the_schema_question_lists_the_user_folder_schemas_first(
+    session: Session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    _example_schemas(tmp_path / "schemas", monkeypatch)
+    folder = tmp_path / "project"
+    folder.mkdir()
+    body = {"name": "ProjectLedger", "schema": {"type": "object"}}
+    (folder / "ledger.json").write_text(json.dumps(body), encoding="utf-8")
+    started = Session(
+        session.settings.with_folders((folder,)),
+        session.settings_path,
+        session.environ,
+        session.args,
+        (folder,),
+    )
+
+    asked = _ask(_response, started, [KEEP, "ProjectLedger", "none", KEEP])
+
+    assert _choices_after(asked.lines, "? Schema:") == [
+        "ProjectLedger",
+        *EXAMPLE_SCHEMAS,
+        "A schema file...",
+        "Back",
+    ]
+    assert asked.state.value("schema") == "ProjectLedger"
+
+
 def test_context_takes_topics_as_text_and_a_fallback(session: Session) -> None:
     asked = _ask(
         _response,

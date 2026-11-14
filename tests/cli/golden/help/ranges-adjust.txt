@@ -13,8 +13,10 @@ input:
   --pages RANGE         line ranges: 5, first:5, last:5, 3-7, 3-, -7 or 1,3,5-8; default: all
 
 schema and context:
-  --schema NAME|PATH    schema of the entries whose boundaries the model looks for: a file path, a
-                        file name in schemas/ or a schema's name field; default: required
+  --schema NAME|PATH    schema of the entries whose boundaries the model looks for, found as in
+                        extract; default: required
+  --schemas-dir DIR     folder of schemas, searched for --schema before the settings' schemas_dirs
+                        and schemas/; repeatable
   --context TEXT|PATH|auto|none
                         adjust context: topics as text or a path to a text file (overrides
                         sidecars), auto (the input's {stem}_adjust_context.txt, else the folder's

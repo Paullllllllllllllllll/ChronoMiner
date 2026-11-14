@@ -5,6 +5,8 @@
     "document_total_chunks": 1,
     "model_name": "gpt-4o",
     "schema_name": "NestedEntries",
+    "schema_sha256": "f95bcc4e55f8a1dfb55e8859206557c8afa9e9ace28786643e544c2d8d7d390a",
+    "schema_version": "1.0",
     "timestamp": "<timestamp>",
     "total_chunks": 1,
     "version": 1

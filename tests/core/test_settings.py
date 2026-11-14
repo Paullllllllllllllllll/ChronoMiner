@@ -123,6 +123,26 @@ def test_paths_resolve_against_the_current_directory(
     assert load().log_file() == absolute
 
 
+def test_folder_lists_resolve_like_logs_dir_and_flags_come_first(
+    settings_paths: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    work = settings_paths / "work"
+    work.mkdir()
+    monkeypatch.chdir(work)
+    _write(
+        settings_paths / "settings.yaml",
+        "schemas_dirs: [project/schemas]\nclassifiers_dirs: [project/classifiers]\n",
+    )
+    loaded = load()
+    assert loaded.schemas_dirs == (work / "project" / "schemas",)
+    assert loaded.classifiers_dirs == (work / "project" / "classifiers",)
+    flags = settings_paths / "flag"
+    combined = loaded.with_folders((flags,), (flags,))
+    assert combined.schemas_dirs == (flags, work / "project" / "schemas")
+    assert combined.classifiers_dirs == (flags, work / "project" / "classifiers")
+    assert loaded.with_folders() is loaded
+
+
 def test_the_state_folder_follows_state_dir(settings_paths: Path) -> None:
     _write(settings_paths / "settings.yaml", "state_dir: ''\n")
     assert load().state_folder() == Path.home() / ".chronominer"

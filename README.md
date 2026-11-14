@@ -1,4 +1,4 @@
-# ChronoMiner v1.14.0
+# ChronoMiner v1.15.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -85,7 +85,8 @@ both.
 | `--beside-input` | write outputs beside each input | | no |
 | `--layout {flat,mirror}` | output folder layout: flat (every output in the output folder) or mirror (the input folder tree) | flat | yes |
 | `--formats LIST` | comma-separated formats rendered besides {stem}_output.json and chronominer.sqlite; from csv | none | yes |
-| `--schema NAME\|PATH` | extraction schema: a file path, a file name in schemas/ without .json, or the name field of a schema there | required | yes |
+| `--schema NAME\|PATH` | extraction schema: a file path, or the file name without .json or the name field of a schema in the --schemas-dir folders, the settings' schemas_dirs or schemas/ | required | yes |
+| `--schemas-dir DIR` | folder of schemas, searched for --schema before the settings' schemas_dirs and schemas/; repeatable | | no |
 | `--context TEXT\|PATH\|auto\|none` | extraction context: topics as text or a path to a text file (overrides sidecars), auto (the input's {stem}_extract_context.txt, else the folder's context file) or none | auto | yes |
 | `--fallback-context TEXT\|PATH\|none` | extraction context for inputs without a sidecar under --context auto: topics as text, a path to a text file, or none | none | yes |
 | `--context-image PATH\|auto\|none` | image sent with every chunk: an image file, auto (the input's {stem}_extract_context image) or none | none | yes |
@@ -170,7 +171,8 @@ settings defaults.
 | --- | --- | --- | --- |
 | `--input PATH` | text file, or a folder of text files, whose line ranges to adjust | | no |
 | `--recursive`, `--no-recursive` | search the subfolders of the input folder | off | yes |
-| `--schema NAME\|PATH` | schema of the entries whose boundaries the model looks for: a file path, a file name in schemas/ or a schema's name field | required | yes |
+| `--schema NAME\|PATH` | schema of the entries whose boundaries the model looks for, found as in extract | required | yes |
+| `--schemas-dir DIR` | folder of schemas, searched for --schema before the settings' schemas_dirs and schemas/; repeatable | | no |
 | `--context-window N` | lines around each range boundary sent to the model | 6 | yes |
 | `--marker-length MIN-MAX` | characters the model's boundary marker should have, MIN-MAX; shorter markers are rejected and asked for again | 5-15 | yes |
 | `--context TEXT\|PATH\|auto\|none` | adjust context: topics as text or a path to a text file (overrides sidecars), auto (the input's {stem}_adjust_context.txt, else the folder's context file) or none | auto | no |
@@ -194,6 +196,7 @@ rendered in before; `--formats` names other formats instead of the run's.
 | --- | --- | --- | --- |
 | `--input DIR` | folder searched for batch submissions, subfolders included | the current directory | no |
 | `--schema NAME` | check only documents extracted with this schema | every schema | no |
+| `--schemas-dir DIR` | folder of schemas, searched for --schema before the settings' schemas_dirs and schemas/; repeatable | | no |
 | `--batch-ids IDS` | comma-separated batch IDs to check | every batch | no |
 | `--adopt BATCH_ID` | record this provider batch for the unresolved submission it belongs to, then finalize it | | no |
 | `--abandon SUBMISSION_ID` | give up an unresolved or submitted submission: its chunks return to pending and its uploaded files are deleted; a submitted batch is not cancelled | | no |
@@ -225,6 +228,7 @@ settings defaults.
 | --- | --- | --- | --- |
 | `--input PATH` | folder, chronominer.sqlite or input whose failed chunks to run again; subfolders included | the current directory | no |
 | `--schema NAME` | repair only documents extracted with this schema | every schema | no |
+| `--schemas-dir DIR` | folder of schemas, searched for --schema before the settings' schemas_dirs and schemas/; repeatable | | no |
 | `--indices LIST` | 0-based chunk indices (order in the document) among the failed chunks: 0,5,12 or 3-7 | every failed chunk | no |
 | `--skipped` | extract the chunks the decision pre-pass skipped as irrelevant instead of the failed ones | | no |
 | `--batch`, `--no-batch` | submit the repairs to the provider's batch API | off | yes |
@@ -286,6 +290,7 @@ further request.
 | `--chunk-tokens N` | target tokens per text chunk under --chunking auto | 3500 | yes |
 | `--model NAME` | model whose tokenizer counts the chunk tokens and whose image presets size the pages of items the store does not hold | gpt-6-luna | yes |
 | `--classifier NAME\|PATH` | classifier: a file path, a file name in the classifier folder without .json, or the name field of a classifier there | required | no |
+| `--classifiers-dir DIR` | folder of classifiers, searched for --classifier before the settings' classifiers_dirs and classifiers/; repeatable | | no |
 | `--decision-model ID` | decision model id | typesafe/jev-1.14 | yes |
 | `--decision-provider {openai,openrouter}` | decision API dialect | from the model id | yes |
 | `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
@@ -305,6 +310,8 @@ further request.
 | --- | --- | --- | --- |
 | `--input PATH` | output folder or chronominer.sqlite whose entries to classify; subfolders included | | no |
 | `--classifier NAME\|PATH` | classifier: a file path, a file name in the classifier folder without .json, or the name field of a classifier there | required | no |
+| `--classifiers-dir DIR` | folder of classifiers, searched for --classifier before the settings' classifiers_dirs and classifiers/; repeatable | | no |
+| `--schemas-dir DIR` | folder of schemas, searched for the classifier's schema before the settings' schemas_dirs and schemas/; repeatable | | no |
 | `--decision-model ID` | decision model id | typesafe/jev-1.14 | yes |
 | `--decision-provider {openai,openrouter}` | decision API dialect | from the model id | yes |
 | `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
@@ -335,6 +342,7 @@ further request.
 | `--chunk-tokens N` | target tokens per text chunk under --chunking auto | 3500 | yes |
 | `--model NAME` | model whose tokenizer counts the chunk tokens and whose image presets size the pages of items the store does not hold | gpt-6-luna | yes |
 | `--classifier NAME\|PATH` | classifier: a file path, a file name in the classifier folder without .json, or the name field of a classifier there | required | no |
+| `--classifiers-dir DIR` | folder of classifiers, searched for --classifier before the settings' classifiers_dirs and classifiers/; repeatable | | no |
 | `--decision-model ID` | decision model id | typesafe/jev-1.14 | yes |
 | `--decision-provider {openai,openrouter}` | decision API dialect | from the model id | yes |
 | `--decision-endpoint URL` | decision endpoint URL | the provider's | yes |
@@ -349,6 +357,7 @@ further request.
 
 | Flag | Description | Default | In `defaults:` |
 | --- | --- | --- | --- |
+| `--schemas-dir DIR` | folder of schemas, searched for --schema before the settings' schemas_dirs and schemas/; repeatable | | no |
 | `--settings FILE` | alternate settings file | config/settings.yaml | no |
 
 ## Exit Codes and JSON Summary
@@ -549,6 +558,13 @@ state_dir: ''
 # repository.
 logs_dir: ''
 
+# Folders of schemas and classifiers, searched in order after the
+# --schemas-dir and --classifiers-dir folders and before the repository's
+# schemas/ and classifiers/. A file shadows the repository's file of the same
+# name; a name found in two such folders (flag or settings) is an error.
+schemas_dirs: []
+classifiers_dirs: []
+
 # Run defaults keyed by option name (flags override them), for example:
 # defaults:
 #   model: gpt-6-luna
@@ -661,10 +677,18 @@ that reason records the downscale reason `memory_guard`.
 
 ## Schemas
 
-`--schema` resolves, in this order: an existing file path; a file `<name>.json` in the
-`schemas/` folder of the repository; a schema in that folder whose `name` field equals
-the argument (`--schema PriceListEntries`). An unknown name exits 2 and lists the
-available schemas. The repository ships eight example schemas:
+`--schema` resolves, in this order: an existing file path; the user folders, first
+those of `--schemas-dir` (repeatable) and then the settings list `schemas_dirs`; the
+`schemas/` folder of the repository. In a folder the argument names a file
+`<name>.json`, or else a schema whose `name` field equals it
+(`--schema PriceListEntries`). A file in a user folder shadows the file of the same
+name in `schemas/`. A name that matches a schema in two user folders exits 2 with an
+error naming both files; pass the file path instead or keep one of them. An unknown
+name exits 2, naming the folders searched and the schemas available. Every command
+that takes a schema (`extract`, `ranges adjust`, the `--schema` filter of `repair`
+and `batch check`, the schema an entry classifier names, the guided UI's schema
+lists) searches the same folders; `ui --schemas-dir DIR` passes the folders to the
+UI and to the command it prints. The repository ships eight example schemas:
 
 | Schema | Sources |
 | --- | --- |
@@ -681,7 +705,10 @@ Every example entry also has `source_page` and `notes`. To write your own schema
 one of these files: it holds `name`, `description` and, under `schema`, an object with
 a boolean `contains_no_content_of_requested_type` and an `entries` array. Each
 top-level property of the entry object becomes a column of the `entries` view and of
-the CSV. Save the file in `schemas/` to call it by name, or pass its path.
+the CSV. Keep your schemas in a folder of your project and name it with
+`--schemas-dir` or `schemas_dirs` to call them by name, or pass a file's path.
+`schema_version`, a top-level text of the file, is reported with the outputs
+(see [Output Contract](#output-contract)).
 
 ### Decision pre-pass
 
@@ -709,10 +736,13 @@ fingerprint in a warning. `repair --skipped` extracts skipped chunks.
 A classifier is a JSON file of questions that a decision model answers about one
 unit at a time; the format and its validation are documented in
 `chronominer/common/classifiers.py`, shared with ChronoTranscriber. `--classifier`
-resolves like `--schema`: an existing file path, a file `<name>.json` in the
-repository's `classifiers/` folder, or a classifier there whose `name` field equals
-the argument. A question is a predicate, a choice, a score, or the shared page-type
-choice (`page_types`, for chunks only). The repository ships nine examples:
+resolves like `--schema`: an existing file path; the `--classifiers-dir` folders, then
+the settings list `classifiers_dirs`; the repository's `classifiers/` folder. In a
+folder it names a file `<name>.json` or a classifier whose `name` field equals the
+argument, a user folder shadows `classifiers/` by file name, and a name found in two
+user folders exits 2 naming both files. A question is a predicate, a choice, a score,
+or the shared page-type choice (`page_types`, for chunks only). The repository ships
+nine examples:
 
 | Classifier | Unit | Asks |
 | --- | --- | --- |
@@ -851,9 +881,21 @@ flat`) stop the run at planning with exit code 2; use `--layout mirror` instead.
 in chunk order: `custom_id`, `chunk_index` (1-based), `chunk_range` (`[start, end]` of
 a text chunk, else null), `response` (its `output_text` is the answer as received)
 and, for an image or PDF page, `image_provenance`. `_chronominer_metadata` holds
-`schema_name`, `model_name`, `chunking_method`, `total_chunks`, `timestamp`, `version`
-and, when known, `partial`, `failed_chunks`, `batch_tracking` and further run
-metadata. `render` keeps a file into which another tool wrote metadata.
+`schema_name`, `schema_version`, `schema_sha256`, `model_name`, `chunking_method`,
+`total_chunks`, `timestamp`, `version` and, when known, `partial`, `failed_chunks`,
+`batch_tracking` and further run metadata. `render` keeps a file into which another
+tool wrote metadata.
+
+`schema_sha256` is the SHA-256 the store records for the schema text the document
+was extracted with, and `schema_version` the top-level `schema_version` of that text,
+as a string; both are read from the store when the file is rendered. A document
+without a recorded hash, or whose schema text the store lacks, has neither key, and
+a schema without `schema_version` gives `schema_sha256` alone. A run that resumes a
+document without a recorded hash but with done chunks records its hash and marks the
+document `schema_unverified: true`, since the schema of those chunks is unknown. Such
+a document has neither key until a `--force` run, which extracts every chunk again,
+removes the mark. Older outputs gain the keys at their next `render`, except a file
+edited outside the tool, which `render` keeps.
 
 `--formats csv` adds `{stem}_output.csv`: one row per entry, columns in the order of
 the schema's entry object, an object field as one column per property named with dots

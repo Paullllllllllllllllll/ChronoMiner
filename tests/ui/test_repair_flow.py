@@ -122,6 +122,7 @@ def test_the_steps_set_every_repair_option_but_json_and_settings(
     assert sets == set(REPAIR_OPTIONS.names) - {
         "json",
         "settings",
+        "schemas_dir",
         "skipped",
         "openrouter_provider",
     }

@@ -88,7 +88,7 @@ def _existing(text: str) -> str | None:
     return None
 
 
-def _ask_documents(ctx: StepContext) -> Nav:
+def _ask_documents(ctx: StepContext, session: Session) -> Nav:
     state = ctx.state
 
     def path() -> Nav:
@@ -103,7 +103,7 @@ def _ask_documents(ctx: StepContext) -> Nav:
         return DONE
 
     def schema() -> Nav:
-        return schema_filter(ctx, "Repair the documents of:")
+        return schema_filter(ctx, "Repair the documents of:", session)
 
     def indices() -> Nav:
         return ctx.text_option(
@@ -186,7 +186,12 @@ def _ask_run(ctx: StepContext, session: Session) -> Nav:
 
 def _steps(session: Session) -> list[Step]:
     return [
-        Step("documents", "Documents", ask=_ask_documents, sets=_DOCUMENT_OPTIONS),
+        Step(
+            "documents",
+            "Documents",
+            ask=lambda ctx: _ask_documents(ctx, session),
+            sets=_DOCUMENT_OPTIONS,
+        ),
         Step(
             "model",
             "Model",

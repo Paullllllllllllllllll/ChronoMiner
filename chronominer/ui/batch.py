@@ -143,14 +143,17 @@ def condition_notes(
     return [f"Warning: {warning}" for warning in warnings]
 
 
-def schema_filter(ctx: StepContext, message: str) -> Nav:
-    """Ask the ``--schema`` filter: every schema, a schema name or a file."""
+def schema_filter(ctx: StepContext, message: str, session: Session) -> Nav:
+    """Ask the ``--schema`` filter: every schema, a schema name or a file.
+
+    The names offered are those of the session's schema folders.
+    """
     state = ctx.state
     chosen: dict[str, Any] = {}
 
     def pick() -> Nav:
         current = state.value("schema")
-        names = list(schema_names())
+        names = list(schema_names(session.settings.schemas_dirs))
         if current is not None and current not in names:
             names.insert(0, current)
         choices: list[Choice[str | None]] = [Choice(None, "Every schema")]
@@ -300,7 +303,7 @@ def _check_steps(session: Session) -> list[Step]:
         Step(
             "schema",
             "Schema",
-            ask=lambda ctx: schema_filter(ctx, "Check the documents of:"),
+            ask=lambda ctx: schema_filter(ctx, "Check the documents of:", session),
             sets=("schema",),
         ),
         Step("batches", "Batches", ask=_ask_batch_ids, sets=("batch_ids",)),

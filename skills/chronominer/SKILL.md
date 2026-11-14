@@ -11,7 +11,7 @@ description: >-
 # ChronoMiner
 
 The tool runs from a clone of the repository set up as in the README, Installation;
-the schemas, classifiers and prompts it names live in that clone. The README
+its bundled schemas, classifiers and prompts live in that clone. The README
 documents every behavior; `<command> --help` gives the flags, defaults and exit
 codes of each command. Every call runs through uv with absolute paths, since
 relative paths resolve against the clone:
@@ -66,6 +66,14 @@ uv --directory <clone> run chronominer <command> [options]
   and `repair` read; `_output.json` and `_output.csv` are renderings of it. Stored
   documents leave the store through `drop` after a dry run, and the database file
   stays.
+- A project keeps its own schemas in a folder of the project. Name the folder with
+  `--schemas-dir DIR` (repeatable; on `extract`, `ranges adjust`, `repair`,
+  `batch check`, `classify entries` and `ui`) or list it under `schemas_dirs` in the
+  settings, then pass `--schema` the schema's name; a file path works without
+  either. These folders are searched before the clone's `schemas/`, whose file of
+  the same file name they shadow, and a name found in two of them exits 2 naming
+  both files: pass the path instead. `_output.json` reports the schema's
+  `schema_version` and `schema_sha256` once the store records the hash.
 - A schema states its placeholders and conventions in its field descriptions: the
   prompts fill a field from the input or from what follows directly from it, else with
   `null` or the placeholder the schema describes.
@@ -84,7 +92,9 @@ uv --directory <clone> run chronominer <command> [options]
   `extract` cuts them, about the entries of finished documents of the classifier's
   schema, or about a document's leading chunks or pages; nothing is extracted and
   nothing gates a run. Shipped classifiers are in `classifiers/` (README,
-  Classifiers); a project's own is passed by path. Read answers in the
+  Classifiers); a project's own is passed by path or found by name in the
+  `--classifiers-dir` folders and the settings' `classifiers_dirs`, with the same
+  rules as schema folders. Read answers in the
   `classifications` view: chunks join on document and locator (the line range),
   entries on document and `chunk:entry`.
 - The prompts insert the context as rules binding for every entry, so write a
@@ -100,6 +110,7 @@ of a started image or PDF item, or querying the store, read
 | --- | --- |
 | exit 1, an item leased by another run | wait for that run; a killed run's lease expires after 10 minutes, then rerun |
 | item `refused` | its input, the schema of its done chunks or its image settings changed, or a partial image or PDF item met another model family: restore them, or `--force` (resets the item's stored units, keeps the responses) |
+| exit 2, a schema or classifier name "is ambiguous" | two user folders hold a file of that name: pass the file path, or keep one of the two files |
 | item `blocked` by a batch | `batch check --input <output folder>`; an unresolved submission needs `--adopt` or `--abandon` |
 | a chunk skipped as `skipped_irrelevant` holds entries | `repair --input <output> --skipped` extracts the skipped chunks without the predicate |
 | item `unstored` | a rendered file without stored chunks, as after a `drop` that kept it: runs skip it; move the file away, or `--force` |

@@ -16,10 +16,13 @@ from chronominer.common.settings_schema import (
     ValueKind,
     check_blocks,
     log_file,
+    read_classifiers_dirs,
     read_concurrency,
+    read_folders,
     read_prompt_caching,
     read_rate_limits,
     read_retry,
+    read_schemas_dirs,
     read_state_dir,
     state_directory,
 )
@@ -101,3 +104,28 @@ def test_state_and_log_locations(tmp_path: Path) -> None:
 def test_blocks_may_not_reuse_builtin_keys() -> None:
     with pytest.raises(ValueError, match="retry"):
         check_blocks(frozenset({"retry"}), {"retry": dict})
+
+
+def test_folder_lists_resolve_relative_entries_against_the_base(
+    tmp_path: Path,
+) -> None:
+    reader = _reader(tmp_path)
+    absolute = tmp_path / "elsewhere"
+    data = {"schemas_dirs": ["project/schemas", str(absolute)]}
+    assert read_schemas_dirs(reader, data) == (
+        tmp_path / "project" / "schemas",
+        absolute,
+    )
+    assert read_classifiers_dirs(reader, {}) == ()
+    assert read_classifiers_dirs(reader, {"classifiers_dirs": None}) == ()
+
+
+@pytest.mark.parametrize(
+    ("value", "where"),
+    [("one/folder", "schemas_dirs"), ([""], r"schemas_dirs\[0\]"), ([3], r"\[0\]")],
+)
+def test_a_folder_list_needs_nonempty_paths(
+    tmp_path: Path, value: object, where: str
+) -> None:
+    with pytest.raises(SettingsError, match=where):
+        read_folders(_reader(tmp_path), {"schemas_dirs": value}, "schemas_dirs")

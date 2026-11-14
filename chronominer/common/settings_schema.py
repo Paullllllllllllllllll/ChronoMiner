@@ -3,8 +3,10 @@
 :class:`Reader` reads typed values from a parsed settings mapping and names
 the key in every error. The block readers parse the shared top-level
 sections: ``api_keys``, ``endpoints``, ``timeouts``, ``rate_limits``,
-``retry``, ``concurrency``, ``images``, ``prompt_caching``, ``state_dir`` and
-``logs_dir``. Each tool decides which sections it accepts and injects its own
+``retry``, ``concurrency``, ``images``, ``prompt_caching``, ``state_dir``,
+``logs_dir`` and the folder lists ``schemas_dirs`` and ``classifiers_dirs``
+(the user folders a schema or classifier lookup searches before the tool's
+bundled folder). Each tool decides which sections it accepts and injects its own
 code defaults: a block reader takes the tool's base value (a subclass with
 other defaults or extra fields included) and returns the same type, and the
 keys a tool does not accept stay errors. A missing key keeps the base value.
@@ -45,16 +47,19 @@ __all__ = [
     "check_blocks",
     "log_file",
     "read_api_keys",
+    "read_classifiers_dirs",
     "read_concurrency",
     "read_decisions",
     "read_endpoints",
     "read_extensions",
+    "read_folders",
     "read_images",
     "read_logs_dir",
     "read_page_timeout",
     "read_prompt_caching",
     "read_rate_limits",
     "read_retry",
+    "read_schemas_dirs",
     "read_state_dir",
     "read_timeouts",
     "state_directory",
@@ -598,6 +603,37 @@ def state_directory(state_dir: Path | None, default_name: str) -> Path:
 def read_logs_dir(reader: Reader, data: Mapping[str, Any]) -> Path | None:
     """Return ``logs_dir`` resolved against the reader's base, or None."""
     return reader.path(data, "logs_dir", "")
+
+
+def read_folders(reader: Reader, data: Mapping[str, Any], key: str) -> tuple[Path, ...]:
+    """Return the folder list *key*, () when absent or null.
+
+    Each entry is a nonempty path; a relative one resolves against the
+    reader's base, as ``logs_dir`` does. Whether a folder exists is left to
+    the lookup that searches it.
+    """
+    raw = data.get(key)
+    if raw is None:
+        return ()
+    if not isinstance(raw, list):
+        raise reader.fail(key, "must be a list of folders")
+    folders: list[Path] = []
+    for index, entry in enumerate(raw):
+        if not isinstance(entry, str) or not entry.strip():
+            raise reader.fail(f"{key}[{index}]", "must be a nonempty folder path")
+        value = Path(entry.strip()).expanduser()
+        folders.append(value if value.is_absolute() else reader.base / value)
+    return tuple(folders)
+
+
+def read_schemas_dirs(reader: Reader, data: Mapping[str, Any]) -> tuple[Path, ...]:
+    """Return ``schemas_dirs``: the user schema folders, searched in order."""
+    return read_folders(reader, data, "schemas_dirs")
+
+
+def read_classifiers_dirs(reader: Reader, data: Mapping[str, Any]) -> tuple[Path, ...]:
+    """Return ``classifiers_dirs``: the user classifier folders, searched in order."""
+    return read_folders(reader, data, "classifiers_dirs")
 
 
 def log_file(logs_dir: Path | None, default_dir: Path) -> Path:

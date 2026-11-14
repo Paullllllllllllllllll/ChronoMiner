@@ -54,6 +54,9 @@ classifier:
   --classifier NAME|PATH
                         classifier: a file path, a file name in the classifier folder without
                         .json, or the name field of a classifier there; default: required
+  --classifiers-dir DIR
+                        folder of classifiers, searched for --classifier before the settings'
+                        classifiers_dirs and classifiers/; repeatable
 
 decision model:
   --decision-model ID   decision model id; default: typesafe/jev-1.14

@@ -48,7 +48,7 @@ TABLES: dict[str, OptionTable] = {
     "classify chunks": CLASSIFY_CHUNKS_OPTIONS,
     "classify entries": CLASSIFY_ENTRIES_OPTIONS,
     "classify documents": CLASSIFY_DOCUMENTS_OPTIONS,
-    "ui": OPTIONS.subset(("settings",)),
+    "ui": OPTIONS.subset(("schemas_dir", "settings")),
 }
 SHARED_GROUPS = frozenset({"model", "images"})
 """Groups whose extract options these commands take; their sections may omit them."""

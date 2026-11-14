@@ -595,7 +595,7 @@ def add_classify_command(commands: Commands) -> argparse.ArgumentParser:
 
 
 def add_ui_command(commands: Commands) -> argparse.ArgumentParser:
-    """Add the ui subcommand: the settings option and the extension arguments."""
+    """Add the ui subcommand: its settings, schema-folder and extension options."""
     ui: argparse.ArgumentParser = commands.add_parser(
         "ui",
         help="guided run in an interactive terminal",
@@ -603,7 +603,7 @@ def add_ui_command(commands: Commands) -> argparse.ArgumentParser:
         epilog=UI_EPILOG,
         formatter_class=HelpFormatter,
     )
-    OPTIONS.subset(("settings",)).add_arguments(ui)
+    OPTIONS.subset(("schemas_dir", "settings")).add_arguments(ui)
     ext.register_args(ui)
     return ui
 

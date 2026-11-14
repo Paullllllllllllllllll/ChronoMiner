@@ -7,11 +7,15 @@ image and format options under the same names, so a settings default of
 those options applies there too. Image options left unset take the
 provider's recommended value (:func:`recommended_images`).
 
-``--schema`` names a schema file or a schema of the repository's
-``schemas/`` folder; :func:`resolve_schema` finds it. ``--classifier`` of
-the classify commands names a classifier file of ``classifiers/`` the same
-way (:func:`~chronominer.common.classifiers.resolve_classifier`). A spec
-keeps the argument as given.
+``--schema`` names a schema file or a schema of the user folders
+(``--schemas-dir``, then the settings' ``schemas_dirs``) or of the
+repository's ``schemas/`` folder; :func:`resolve_schema` finds it.
+``--classifier`` of the classify commands names a classifier of the
+``--classifiers-dir`` folders, the settings' ``classifiers_dirs`` or
+``classifiers/`` the same way
+(:func:`~chronominer.common.classifiers.resolve_classifier`). A spec keeps
+the argument as given; the folder flags fill no spec field and join the
+settings' folder lists instead (:meth:`~chronominer.settings.Settings.with_folders`).
 
 A run that calls a model refuses a provider set at a higher precedence level
 than a model of another provider. List options given more than once
@@ -27,7 +31,13 @@ from dataclasses import asdict, dataclass, field, fields, is_dataclass, replace
 from pathlib import Path
 from typing import Any, Final, Literal, NamedTuple, cast
 
-from chronominer.common.classifiers import load_classifier
+from chronominer.common.classifiers import (
+    AmbiguousNameError,
+    find_named_file,
+    load_classifier,
+    named_files,
+    search_folders,
+)
 from chronominer.common.image_presets import (
     DetailCheck,
     DetailRules,
@@ -87,6 +97,7 @@ from chronominer.providers import (
 )
 
 __all__ = [
+    "AmbiguousSchemaError",
     "BATCH_CANCEL_OPTIONS",
     "BATCH_CHECK_OPTIONS",
     "CHUNKING_MODES",
@@ -706,12 +717,21 @@ def _read_schema(path: Path) -> ResolvedSchema:
     )
 
 
-def _folder_schemas(schemas_dir: Path) -> list[ResolvedSchema]:
-    """Return the readable schemas of *schemas_dir*, sorted by file name."""
-    if not schemas_dir.is_dir():
-        return []
+class AmbiguousSchemaError(SpecError, AmbiguousNameError):
+    """A ``--schema`` name matches a schema in two user folders.
+
+    The lookups that pass over a schema they cannot resolve (the ``--schema``
+    filter of repair and batch check, the schema of an entry classifier)
+    raise it all the same.
+    """
+
+
+def _folder_schemas(
+    folders: Sequence[Path], bundled: Path | None
+) -> list[ResolvedSchema]:
+    """Return the readable schemas a lookup can find, in search order."""
     found: list[ResolvedSchema] = []
-    for path in sorted(schemas_dir.glob("*.json")):
+    for path in named_files(folders, SCHEMAS_DIR if bundled is None else bundled):
         try:
             found.append(_read_schema(path))
         except SpecError as exc:
@@ -719,61 +739,71 @@ def _folder_schemas(schemas_dir: Path) -> list[ResolvedSchema]:
     return found
 
 
-def schema_names(schemas_dir: Path | None = None) -> tuple[str, ...]:
-    """Return the names of the schemas in *schemas_dir* (the repo's by default)."""
-    folder = SCHEMAS_DIR if schemas_dir is None else schemas_dir
-    return tuple(schema.name for schema in _folder_schemas(folder))
+def schema_names(
+    folders: Sequence[Path] = (), *, bundled: Path | None = None
+) -> tuple[str, ...]:
+    """Return the names of the schemas a lookup can find, each once.
+
+    *folders* are the user folders; *bundled* defaults to :data:`SCHEMAS_DIR`.
+    """
+    names = (schema.name for schema in _folder_schemas(folders, bundled))
+    return tuple(dict.fromkeys(names))
 
 
-def resolve_schema(argument: str, schemas_dir: Path | None = None) -> ResolvedSchema:
+def resolve_schema(
+    argument: str, folders: Sequence[Path] = (), *, bundled: Path | None = None
+) -> ResolvedSchema:
     """Return the schema a ``--schema`` argument names.
 
-    The argument is, in this order: an existing file path; a file
-    ``<argument>.json`` (or ``<argument>`` ending in ``.json``) in
-    *schemas_dir*; a schema in *schemas_dir* whose ``name`` field equals
-    the argument. *schemas_dir* defaults to :data:`SCHEMAS_DIR`.
+    The argument is, in this order: an existing file path; in the user
+    *folders* (the ``--schemas-dir`` folders, then the settings'
+    ``schemas_dirs``), a file ``<argument>.json`` (or ``<argument>`` ending
+    in ``.json``) or a schema whose ``name`` field equals the argument; the
+    same in *bundled*, by default :data:`SCHEMAS_DIR`, whose files a user
+    folder file of the same file name shadows
+    (:func:`~chronominer.common.classifiers.find_named_file`).
 
     Raises:
+        AmbiguousSchemaError: Two user folders hold a schema of that name.
         SpecError: No schema matches, or the matching file is not a JSON
-            object; the message names the available schemas.
+            object; the message names the folders searched and the
+            available schemas.
     """
-    folder = SCHEMAS_DIR if schemas_dir is None else schemas_dir
+    folder = SCHEMAS_DIR if bundled is None else bundled
     text = argument.strip()
     if not text:
         raise SpecError("--schema needs a schema name or path")
-    given = Path(text).expanduser()
-    if given.is_file():
-        return _read_schema(given)
-    names = [f"{text}.json"]
-    if text.lower().endswith(".json"):
-        names.insert(0, text)
-    for name in names:
-        candidate = folder / name
-        if Path(name).name == name and candidate.is_file():
-            return _read_schema(candidate)
-    available = _folder_schemas(folder)
-    for schema in available:
-        if schema.name == text:
-            return schema
-    listing = ", ".join(sorted(schema.name for schema in available)) or "none"
+    try:
+        path = find_named_file(text, folders, folder, kind="schema")
+    except AmbiguousNameError as exc:
+        raise AmbiguousSchemaError(exc.kind, exc.value, exc.paths) from None
+    if path is not None:
+        return _read_schema(path)
+    available = schema_names(folders, bundled=folder)
+    listing = ", ".join(sorted(available)) or "none"
+    searched = ", ".join(str(path) for path in search_folders(folders, folder))
     raise SpecError(
-        f"unknown schema {argument!r}: not a file, and no schema in {folder} "
+        f"unknown schema {argument!r}: not a file, and no schema in {searched} "
         f"has that file or name; available: {listing}"
     )
 
 
-def classifier_names(folder: Path | None = None) -> tuple[str, ...]:
-    """Return the names of the valid classifiers in *folder* (the repo's)."""
-    folder = CLASSIFIERS_DIR if folder is None else folder
-    if not folder.is_dir():
-        return ()
+def classifier_names(
+    folders: Sequence[Path] = (), *, bundled: Path | None = None
+) -> tuple[str, ...]:
+    """Return the names of the valid classifiers a lookup can find, each once.
+
+    *folders* are the user folders; *bundled* defaults to
+    :data:`CLASSIFIERS_DIR`.
+    """
+    folder = CLASSIFIERS_DIR if bundled is None else bundled
     names: list[str] = []
-    for path in sorted(folder.glob("*.json")):
+    for path in named_files(folders, folder):
         try:
             names.append(load_classifier(path).name)
         except (OSError, ValueError) as exc:
             logger.warning("Skipping classifier file: %s", exc)
-    return tuple(names)
+    return tuple(dict.fromkeys(names))
 
 
 IMAGE_PRESETS = ImagePresets(
@@ -864,6 +894,50 @@ def _context_image(value: str) -> ContextChoice:
     return Path(nonempty_text(value)).expanduser().resolve()
 
 
+def _folder(value: str) -> Path:
+    """Return the absolute path of an existing folder."""
+    path = Path(nonempty_text(value)).expanduser()
+    if not path.is_dir():
+        raise ValueError(f"not a folder: {value}")
+    return path.resolve()
+
+
+def _schemas_dir_option(group: str) -> Option:
+    """Return ``--schemas-dir DIR``; it fills the settings, not the spec."""
+    return Option(
+        "schemas_dir",
+        "--schemas-dir",
+        (
+            "folder of schemas, searched for --schema before the settings' "
+            "schemas_dirs and schemas/; repeatable"
+        ),
+        group=group,
+        kind=Kind.LIST,
+        type=_folder,
+        metavar="DIR",
+        default=(),
+        settable=False,
+    )
+
+
+def _classifiers_dir_option() -> Option:
+    """Return ``--classifiers-dir DIR``; it fills the settings, not the spec."""
+    return Option(
+        "classifiers_dir",
+        "--classifiers-dir",
+        (
+            "folder of classifiers, searched for --classifier before the "
+            "settings' classifiers_dirs and classifiers/; repeatable"
+        ),
+        group="classify",
+        kind=Kind.LIST,
+        type=_folder,
+        metavar="DIR",
+        default=(),
+        settable=False,
+    )
+
+
 def _parse_indices(value: str) -> tuple[int, ...]:
     """Parse 0-based indices such as ``0,5,12`` or ``3-7``."""
     indices: set[int] = set()
@@ -911,8 +985,9 @@ def _prompt_options() -> list[Option]:
             "schema",
             "--schema",
             (
-                "extraction schema: a file path, a file name in schemas/ "
-                "without .json, or the name field of a schema there"
+                "extraction schema: a file path, or the file name without "
+                ".json or the name field of a schema in the --schemas-dir "
+                "folders, the settings' schemas_dirs or schemas/"
             ),
             group="prompt",
             type=nonempty_text,
@@ -921,6 +996,7 @@ def _prompt_options() -> list[Option]:
             default_help="required",
             target="prompt.schema",
         ),
+        _schemas_dir_option("prompt"),
         Option(
             "context",
             "--context",
@@ -1263,11 +1339,12 @@ RANGES_ADJUST_OPTIONS = OptionTable(
         replace(
             OPTIONS["schema"],
             help=(
-                "schema of the entries whose boundaries the model looks for: "
-                "a file path, a file name in schemas/ or a schema's name field"
+                "schema of the entries whose boundaries the model looks for, "
+                "found as in extract"
             ),
             target="schema",
         ),
+        OPTIONS["schemas_dir"],
         replace(OPTIONS["context_window"], condition=None, target="context_window"),
         replace(OPTIONS["marker_length"], condition=None, target="marker_length"),
         replace(
@@ -1334,6 +1411,7 @@ REPAIR_OPTIONS = OptionTable(
             default_help="the current directory",
         ),
         _schema_filter("repair only documents extracted with this schema"),
+        _schemas_dir_option("batch"),
         Option(
             "indices",
             "--indices",
@@ -1370,6 +1448,7 @@ BATCH_CHECK_OPTIONS = OptionTable(
     [
         check_input_option(),
         _schema_filter("check only documents extracted with this schema"),
+        _schemas_dir_option("batch"),
         batch_ids_option(
             "comma-separated batch IDs to check", default_help="every batch"
         ),
@@ -1441,13 +1520,29 @@ CLASSIFY_UNITS: Final = ("chunk", "entry", "document")
 
 
 def _classifier_rows(unit: str) -> list[Option]:
-    """Return the classifier and decision-model rows, then ``--force``."""
+    """Return the classifier, its folders, the decision-model rows and ``--force``.
+
+    An entry classifier names a schema, so ``classify entries`` also takes
+    ``--schemas-dir``.
+    """
     rows = classifier_options(
         force_help=(
             f"ask about every {unit} again instead of reusing the stored answers"
         ),
         choice_provider=classifier_names,
     )
+    folders = [_classifiers_dir_option()]
+    if unit == "entry":
+        folders.append(
+            replace(
+                _schemas_dir_option("classify"),
+                help=(
+                    "folder of schemas, searched for the classifier's schema "
+                    "before the settings' schemas_dirs and schemas/; repeatable"
+                ),
+            )
+        )
+    rows = [rows[0], *folders, *rows[1:]]
     return sorted(rows, key=lambda option: option.name == "force")
 
 

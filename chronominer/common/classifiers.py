@@ -38,16 +38,24 @@ Unit ``entry`` needs ``schema`` (the extraction schema's ``name``) and
 
 :attr:`Classifier.sha256` hashes the normalized classifier, defaults and the
 page-type taxonomy version included, so it changes whenever the questions
-sent change. The module imports only the standard library and the shared
-decision modules.
+sent change.
+
+:func:`find_named_file` is the lookup a tool's ``--classifier`` and
+``--schema`` share: an existing file path, else the user folders (the
+``--classifiers-dir`` or ``--schemas-dir`` folders, then the settings
+folders), else the tool's bundled folder. A file in a user folder shadows the
+bundled file of the same file name; a name found in two user folders raises
+:class:`AmbiguousNameError`. The module imports only the standard library and
+the shared decision modules.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from types import MappingProxyType
@@ -61,15 +69,20 @@ __all__ = [
     "DEFAULT_MAX_TOKENS",
     "QUESTION_TYPES",
     "UNITS",
+    "AmbiguousNameError",
     "Classifier",
     "ClassifierQuestion",
     "Kind",
     "QuestionType",
     "Selection",
     "UnitKind",
+    "declared_name",
+    "find_named_file",
     "load_classifier",
+    "named_files",
     "parse_classifier",
     "resolve_classifier",
+    "search_folders",
     "slot_name",
 ]
 
@@ -452,44 +465,199 @@ def load_classifier(path: Path | str) -> Classifier:
     return parse_classifier(raw, str(path))
 
 
-def _declared_name(path: Path) -> str | None:
+class AmbiguousNameError(ValueError):
+    """A name matches files in more than one user folder.
+
+    *paths* holds the matching file of each folder, in search order. Callers
+    that pass over a name they cannot resolve still raise this error.
+    """
+
+    def __init__(self, kind: str, value: str, paths: Sequence[Path]) -> None:
+        self.kind = kind
+        self.value = value
+        self.paths = tuple(paths)
+        files = " and ".join(str(path) for path in self.paths)
+        super().__init__(
+            f"{kind} {value!r} is ambiguous: it matches {files}, each in another "
+            "user folder; pass the file path, or keep only one of the files"
+        )
+
+
+type NameReader = Callable[[Path], str | None]
+"""Returns the name a JSON file declares, None when it declares none."""
+
+
+def declared_name(path: Path) -> str | None:
+    """Return the ``name`` field of the JSON object in *path*, if it has one."""
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return None
     name = raw.get("name") if isinstance(raw, Mapping) else None
-    return name if isinstance(name, str) else None
+    return name if isinstance(name, str) and name.strip() else None
 
 
-def resolve_classifier(value: str, folder: Path | str | None) -> Path:
+def _key(path: Path) -> str:
+    try:
+        resolved = path.expanduser().resolve()
+    except (OSError, RuntimeError):
+        resolved = path
+    return os.path.normcase(str(resolved))
+
+
+def _distinct(folders: Iterable[Path | str]) -> list[Path]:
+    """Return *folders* as paths, each folder at its first place only."""
+    seen: set[str] = set()
+    kept: list[Path] = []
+    for folder in folders:
+        path = Path(folder).expanduser()
+        key = _key(path)
+        if key not in seen:
+            seen.add(key)
+            kept.append(path)
+    return kept
+
+
+def search_folders(
+    folders: Iterable[Path | str], bundled: Path | str | None = None
+) -> tuple[Path, ...]:
+    """Return the folders a lookup searches: *folders*, then *bundled*.
+
+    A folder named twice is searched at its first place only.
+    """
+    return tuple(_distinct([*folders, *([] if bundled is None else [bundled])]))
+
+
+def _files(folder: Path) -> list[Path]:
+    return sorted(folder.glob("*.json")) if folder.is_dir() else []
+
+
+def _file_names(value: str) -> list[str]:
+    """Return the file names *value* can mean inside a folder."""
+    names = [f"{value}.json"]
+    if value.lower().endswith(".json"):
+        names.insert(0, value)
+    return [name for name in names if Path(name).name == name]
+
+
+def _match(
+    folder: Path,
+    value: str,
+    declared: NameReader,
+    shadowed: frozenset[str] = frozenset(),
+) -> Path | None:
+    """Return the file of *folder* that *value* names: by file name, else by name."""
+    if not folder.is_dir():
+        return None
+    for name in _file_names(value):
+        candidate = folder / name
+        if os.path.normcase(name) not in shadowed and candidate.is_file():
+            return candidate
+    for path in _files(folder):
+        if os.path.normcase(path.name) not in shadowed and declared(path) == value:
+            return path
+    return None
+
+
+def _shadowed(user: Sequence[Path]) -> frozenset[str]:
+    return frozenset(
+        os.path.normcase(path.name) for folder in user for path in _files(folder)
+    )
+
+
+def find_named_file(
+    value: str,
+    folders: Iterable[Path | str] = (),
+    bundled: Path | str | None = None,
+    *,
+    kind: str = "file",
+    declared: NameReader = declared_name,
+) -> Path | None:
+    """Return the JSON file *value* names, None when nothing matches.
+
+    *value* is, in this order: an existing file path; in the user *folders*,
+    a file ``<value>.json`` (or *value* itself when it ends in ``.json``) or a
+    file whose name (*declared*) is *value*; the same in *bundled*, leaving
+    out the files whose file name a user folder holds. Within one folder a
+    file name wins over a declared name, and the first file in name order
+    wins. *kind* names the file type in the error message.
+
+    Raises:
+        AmbiguousNameError: Two user folders each hold a file *value* names.
+    """
+    text = value.strip()
+    if not text:
+        return None
+    given = Path(text).expanduser()
+    try:
+        if given.is_file():
+            return given
+    except (OSError, ValueError):
+        pass
+    user = _distinct(folders)
+    found = [
+        match
+        for folder in user
+        if (match := _match(folder, text, declared)) is not None
+    ]
+    if len(found) > 1:
+        raise AmbiguousNameError(kind, text, found)
+    if found:
+        return found[0]
+    if bundled is None or _key(Path(bundled)) in {_key(folder) for folder in user}:
+        return None
+    return _match(Path(bundled), text, declared, _shadowed(user))
+
+
+def named_files(
+    folders: Iterable[Path | str] = (), bundled: Path | str | None = None
+) -> list[Path]:
+    """Return the JSON files a lookup can find, in search order.
+
+    These are the files of the user *folders*, then those of *bundled* whose
+    file name no user folder holds.
+    """
+    user = _distinct(folders)
+    files = [path for folder in user for path in _files(folder)]
+    if bundled is None or _key(Path(bundled)) in {_key(folder) for folder in user}:
+        return files
+    shadowed = _shadowed(user)
+    return files + [
+        path
+        for path in _files(Path(bundled))
+        if os.path.normcase(path.name) not in shadowed
+    ]
+
+
+def resolve_classifier(
+    value: str, folder: Path | str | None, folders: Iterable[Path | str] = ()
+) -> Path:
     """Return the classifier file *value* names, like ``--schema``.
 
-    *value* is an existing file path, else the stem of ``<value>.json`` in
-    *folder*, else the ``name`` of a JSON file in *folder*. Files in *folder*
+    *value* is an existing file path, else a classifier of the user
+    *folders*, else one of the bundled *folder*, each found by file name
+    without ``.json`` or by its ``name`` (:func:`find_named_file`). Files
     that do not parse are passed over.
 
     Raises:
-        FileNotFoundError: Nothing matches; the message lists the names found.
+        AmbiguousNameError: Two user folders hold a classifier of that name.
+        FileNotFoundError: Nothing matches; the message names the folders
+            searched and the classifiers found.
     """
-    candidate = Path(value).expanduser()
-    try:
-        if candidate.is_file():
-            return candidate.resolve()
-    except (OSError, ValueError):
-        pass
-    names: Sequence[str] = ()
-    if folder is not None and Path(folder).is_dir():
-        folder = Path(folder)
-        stem = folder / f"{value}.json"
-        if stem.is_file():
-            return stem.resolve()
-        found = {path: _declared_name(path) for path in sorted(folder.glob("*.json"))}
-        for path, name in found.items():
-            if name == value:
-                return path.resolve()
-        names = sorted(name for name in found.values() if name is not None)
+    folders = tuple(folders)
+    found = find_named_file(value, folders, folder, kind="classifier")
+    if found is not None:
+        return found.resolve()
+    names = sorted(
+        {
+            name
+            for path in named_files(folders, folder)
+            if (name := declared_name(path)) is not None
+        }
+    )
     available = ", ".join(names) or "none"
+    searched = ", ".join(str(path) for path in search_folders(folders, folder))
     raise FileNotFoundError(
         f"Classifier {value!r} not found as a file, as {value}.json or as a "
-        f"classifier name in {folder}. Available: {available}"
+        f"classifier name in {searched or 'no folder'}. Available: {available}"
     )

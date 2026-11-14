@@ -29,8 +29,11 @@ output:
                         chronominer.sqlite; from csv; default: none
 
 schema and context:
-  --schema NAME|PATH    extraction schema: a file path, a file name in schemas/ without .json, or
-                        the name field of a schema there; default: required
+  --schema NAME|PATH    extraction schema: a file path, or the file name without .json or the name
+                        field of a schema in the --schemas-dir folders, the settings' schemas_dirs
+                        or schemas/; default: required
+  --schemas-dir DIR     folder of schemas, searched for --schema before the settings' schemas_dirs
+                        and schemas/; repeatable
   --context TEXT|PATH|auto|none
                         extraction context: topics as text or a path to a text file (overrides
                         sidecars), auto (the input's {stem}_extract_context.txt, else the folder's

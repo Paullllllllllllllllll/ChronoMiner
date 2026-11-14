@@ -195,6 +195,24 @@ def test_command_words_add_the_settings_file_only_where_the_table_has_it(
     )
 
 
+def test_command_words_repeat_the_ui_schema_folders_where_the_table_has_them(
+    session: Session, tmp_path: Path
+) -> None:
+    folders = (tmp_path / "one", tmp_path / "two")
+    started = Session(session.settings.with_folders(folders), None, {}, None, folders)
+    program = ("chronominer", "batch", "check")
+
+    assert command_words(program, [], started, BATCH_CHECK_OPTIONS) == [
+        *program,
+        "--schemas-dir",
+        str(folders[0]),
+        "--schemas-dir",
+        str(folders[1]),
+    ]
+    bare = OptionTable([Option("input", "--input", "input")])
+    assert command_words(program, [], started, bare) == list(program)
+
+
 def test_command_words_drop_the_service_tier_for_other_providers(
     session: Session,
 ) -> None:

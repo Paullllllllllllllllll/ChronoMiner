@@ -77,6 +77,13 @@ state_dir: ''
 # repository.
 logs_dir: ''
 
+# Folders of schemas and classifiers, searched in order after the
+# --schemas-dir and --classifiers-dir folders and before the repository's
+# schemas/ and classifiers/. A file shadows the repository's file of the same
+# name; a name found in two such folders (flag or settings) is an error.
+schemas_dirs: []
+classifiers_dirs: []
+
 # Run defaults keyed by option name (flags override them), for example:
 # defaults:
 #   model: gpt-6-luna

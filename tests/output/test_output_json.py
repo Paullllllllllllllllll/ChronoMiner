@@ -18,6 +18,7 @@ checked once.
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from pathlib import Path
 from typing import Any
@@ -29,11 +30,24 @@ from chronominer.output.output_json import METADATA_KEY
 from chronominer.output.render import render_item
 from chronominer.output.store import KIND_CHUNK, metadata_writer, open_store
 
-GOLDEN = Path(__file__).resolve().parents[1] / "characterization" / "golden"
+CHARACTERIZATION = Path(__file__).resolve().parents[1] / "characterization"
+GOLDEN = CHARACTERIZATION / "golden"
 SHAPE = (
     GOLDEN / "outputs" / "output_json_shape" / "files" / "out" / "ledger_output.json"
 )
+FLAT_SCHEMA = CHARACTERIZATION / "schemas" / "flat_entries.json"
 COMPUTED = ("total_chunks", "partial", "failed_chunks", "version")
+IDENTITY = ("schema_version", "schema_sha256")
+"""Keys read from the recorded schema hash and its artifact, never stored."""
+
+
+def _schema_texts() -> dict[str, str]:
+    """Return the characterization schema texts by their SHA-256, as CM hashes them."""
+    texts: dict[str, str] = {}
+    for path in (CHARACTERIZATION / "schemas").glob("*.json"):
+        text = path.read_text(encoding="utf-8")
+        texts[hashlib.sha256(text.encode("utf-8")).hexdigest()] = text
+    return texts
 
 
 def _parsed(value: Any) -> Any:
@@ -65,12 +79,18 @@ async def _render(store: Store, name: str, root: Path, lease: Any) -> dict[str, 
     return json.loads(output.read_text(encoding="utf-8"))
 
 
-def test_an_extraction_store_renders_the_golden_shape(tmp_path: Path) -> None:
-    golden = _golden(SHAPE)
-    records = golden["records"]
+def _render_shape(
+    root: Path, schema_text: str | None, *, artifact: bool = True
+) -> dict[str, Any]:
+    """Render the shape golden's document from a store built as extract builds it.
+
+    *schema_text* None records no schema hash; with *artifact* False the
+    hash is recorded but its text is not stored.
+    """
+    records = _golden(SHAPE)["records"]
 
     async def main() -> dict[str, Any]:
-        async with open_store(tmp_path) as store:
+        async with open_store(root) as store:
             await store.begin_run("extract")
             doc_id = await store.ensure_document("ledger", kind="text")
             lease = await store.acquire(doc_id)
@@ -82,6 +102,11 @@ def test_an_extraction_store_renders_the_golden_shape(tmp_path: Path) -> None:
             await store.plan_units(
                 lease, KIND_CHUNK, planned, model="gpt-4o", provider="openai"
             )
+            sha: str | None = None
+            if schema_text is not None:
+                sha = hashlib.sha256(schema_text.encode("utf-8")).hexdigest()
+                if artifact:
+                    assert await store.store_artifact("schema", schema_text) == sha
             await store.write(
                 lease,
                 metadata_writer(
@@ -94,6 +119,7 @@ def test_an_extraction_store_renders_the_golden_shape(tmp_path: Path) -> None:
                         "chunking_text_version": 2,
                         "document_total_chunks": 4,
                     },
+                    schema_sha256=sha,
                 ),
             )
             for index, record in enumerate(records):
@@ -110,30 +136,93 @@ def test_an_extraction_store_renders_the_golden_shape(tmp_path: Path) -> None:
                         provenance={"custom_id": record["custom_id"]},
                     ),
                 )
-            return await _render(store, "ledger", tmp_path, lease)
+            return await _render(store, "ledger", root, lease)
 
     rendered = asyncio.run(main())
     meta = rendered[METADATA_KEY]
     assert meta["timestamp"]
     meta["timestamp"] = "<timestamp>"
+    return rendered
 
-    assert _parsed(rendered) == golden
+
+ORDER_AFTER_IDENTITY = [
+    "model_name",
+    "chunking_method",
+    "total_chunks",
+    "timestamp",
+    "version",
+    "chunking_text_version",
+    "document_total_chunks",
+]
+
+
+def test_an_extraction_store_renders_the_golden_shape(tmp_path: Path) -> None:
+    schema_text = FLAT_SCHEMA.read_text(encoding="utf-8")
+    rendered = _render_shape(tmp_path, schema_text)
+    meta = rendered[METADATA_KEY]
+
+    assert _parsed(rendered) == _golden(SHAPE)
     assert list(rendered) == [METADATA_KEY, "records"]
-    assert list(meta) == [
-        "schema_name",
-        "model_name",
-        "chunking_method",
-        "total_chunks",
-        "timestamp",
-        "version",
-        "chunking_text_version",
-        "document_total_chunks",
-    ]
+    assert list(meta) == ["schema_name", *IDENTITY, *ORDER_AFTER_IDENTITY]
+    assert meta["schema_version"] == json.loads(schema_text)["schema_version"]
+    assert meta["schema_sha256"] == hashlib.sha256(schema_text.encode()).hexdigest()
     record = rendered["records"][0]
     assert list(record) == ["custom_id", "chunk_index", "chunk_range", "response"]
     assert list(record["response"]) == ["output_text", "response_data", "usage"]
     assert list(record["response"]["response_data"]) == ["usage", "model", "provider"]
     assert isinstance(record["response"]["output_text"], str)
+
+
+def _without_identity(document: dict[str, Any]) -> dict[str, Any]:
+    meta = {
+        key: value
+        for key, value in document[METADATA_KEY].items()
+        if key not in IDENTITY
+    }
+    return {**document, METADATA_KEY: meta}
+
+
+@pytest.mark.parametrize("recorded", [False, True], ids=["no-hash", "no-artifact"])
+def test_a_document_without_its_schema_identity_gets_neither_key(
+    tmp_path: Path, recorded: bool
+) -> None:
+    schema_text = FLAT_SCHEMA.read_text(encoding="utf-8") if recorded else None
+    rendered = _render_shape(tmp_path, schema_text, artifact=False)
+
+    assert _parsed(rendered) == _without_identity(_golden(SHAPE))
+    assert list(rendered[METADATA_KEY]) == ["schema_name", *ORDER_AFTER_IDENTITY]
+
+
+def test_a_schema_without_a_version_gets_its_hash_alone(tmp_path: Path) -> None:
+    schema = json.loads(FLAT_SCHEMA.read_text(encoding="utf-8"))
+    del schema["schema_version"]
+    text = json.dumps(schema)
+    meta = _render_shape(tmp_path, text)[METADATA_KEY]
+
+    assert list(meta) == ["schema_name", "schema_sha256", *ORDER_AFTER_IDENTITY]
+    assert meta["schema_sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def test_stored_identity_keys_are_never_reported(tmp_path: Path) -> None:
+    async def main() -> dict[str, Any]:
+        async with open_store(tmp_path) as store:
+            await store.begin_run("extract")
+            doc_id = await store.ensure_document("ledger", kind="text")
+            lease = await store.acquire(doc_id)
+            assert lease is not None
+            await store.plan_units(
+                lease, KIND_CHUNK, [PlannedUnit(0)], model="m", provider="openai"
+            )
+            values = {"schema_name": "X", "schema_version": "9", "schema_sha256": "0"}
+            await store.write(lease, metadata_writer(store, doc_id, values))
+            await store.write_unit(
+                lease, UnitResult(KIND_CHUNK, 0, "done", "m", "openai", content="{}")
+            )
+            return await _render(store, "ledger", tmp_path, lease)
+
+    meta = asyncio.run(main())[METADATA_KEY]
+
+    assert not set(IDENTITY) & set(meta)
 
 
 def _golden_files() -> list[Path]:
@@ -180,8 +269,16 @@ async def _seed_golden(store: Store, golden: dict[str, Any]) -> Any:
     planned = [PlannedUnit(index) for index in sorted({*done, *failed, *pending})]
     model = str(meta.get("model_name"))
     await store.plan_units(lease, KIND_CHUNK, planned, model=model, provider="p")
-    values = {key: value for key, value in meta.items() if key not in COMPUTED}
-    await store.write(lease, metadata_writer(store, doc_id, values))
+    values = {
+        key: value
+        for key, value in meta.items()
+        if key not in COMPUTED and key not in IDENTITY
+    }
+    sha: str | None = None
+    if "schema_sha256" in meta:
+        text = _schema_texts()[meta["schema_sha256"]]
+        sha = await store.store_artifact("schema", text)
+    await store.write(lease, metadata_writer(store, doc_id, values, schema_sha256=sha))
     for index, record in zip(done, golden["records"], strict=True):
         response = dict(record["response"])
         output_text = response.pop("output_text")

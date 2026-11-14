@@ -1,7 +1,7 @@
-usage: chronominer batch check [-h] [--input DIR] [--schema NAME] [--batch-ids IDS]
-                               [--adopt BATCH_ID | --abandon SUBMISSION_ID] [--wait]
-                               [--poll-minutes N] [--wait-hours N] [--formats LIST] [--json]
-                               [--settings FILE]
+usage: chronominer batch check [-h] [--input DIR] [--schema NAME] [--schemas-dir DIR]
+                               [--batch-ids IDS] [--adopt BATCH_ID | --abandon SUBMISSION_ID]
+                               [--wait] [--poll-minutes N] [--wait-hours N] [--formats LIST]
+                               [--json] [--settings FILE]
 
 Check the batch submissions found below a folder and write the outputs of every finished batch.
 
@@ -12,6 +12,8 @@ batches:
   --input DIR           folder searched for batch submissions, subfolders included; default: the
                         current directory
   --schema NAME         check only documents extracted with this schema; default: every schema
+  --schemas-dir DIR     folder of schemas, searched for --schema before the settings' schemas_dirs
+                        and schemas/; repeatable
   --batch-ids IDS       comma-separated batch IDs to check; default: every batch
   --adopt BATCH_ID      record this provider batch for the unresolved submission it belongs to,
                         then finalize it

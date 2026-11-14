@@ -97,12 +97,16 @@ class Session:
     ``settings_path`` is the ``--settings`` file the ui was started with;
     ``environ`` is where the review looks up API key variables; ``args``
     holds the parsed ``ui`` arguments the wizard passes to the extension.
+    ``schemas_dirs`` are the ``--schemas-dir`` folders the ui was started
+    with; ``settings`` searches them already, and the equivalent command
+    names them.
     """
 
     settings: Settings
     settings_path: Path | None = None
     environ: Mapping[str, str] = field(default_factory=lambda: os.environ)
     args: argparse.Namespace | None = None
+    schemas_dirs: tuple[Path, ...] = ()
 
 
 def new_state(session: Session, table: OptionTable) -> State:
@@ -182,8 +186,9 @@ def command_words(
     """Return the full command: *program*, *argv*, settings and extension words.
 
     With a *provider* other than OpenAI, ``--service-tier`` is left out, as
-    the review leaves out the tier. ``--settings`` is added when the ui was
-    started with one and *table* has the option. The extension's own options
+    the review leaves out the tier. ``--settings`` and ``--schemas-dir`` are
+    added when the ui was started with them and *table* has the option. The
+    extension's own options
     given to the ui follow (:func:`chronominer.ext.extra_argv`) when the
     command registers them: the commands that call providers
     (:data:`~chronominer.spec.PROVIDER_TABLES`).
@@ -193,6 +198,9 @@ def command_words(
     words = [*program, *argv]
     if session.settings_path is not None and "settings" in table:
         words += ["--settings", str(absolute(session.settings_path))]
+    if "schemas_dir" in table:
+        for folder in session.schemas_dirs:
+            words += ["--schemas-dir", str(folder)]
     if any(table is provider_table for provider_table in PROVIDER_TABLES):
         words += ext.extra_argv(session.args)
     return words

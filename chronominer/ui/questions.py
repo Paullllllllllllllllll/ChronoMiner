@@ -673,7 +673,8 @@ class ResponseQuestions:
 
     The response format offers automatic only without a settings default
     and the schema only where the model supports it. The schema is one of
-    the repository's schemas or a schema file. The context is the item's
+    the schemas of the user folders and the repository's folder, or a
+    schema file. The context is the item's
     sidecar (automatic, with a fallback for items without one), topics as
     text, a text file, or none. Questions whose option the table lacks are
     skipped; the ranges adjust context is the adjust one.
@@ -757,11 +758,11 @@ class ResponseQuestions:
         return self.ctx.select_option("response_format", "Response format:", choices)
 
     def schema(self) -> Nav | None:
-        """Ask the schema: a name from schemas/ or a schema file."""
+        """Ask the schema: a name from the schema folders or a schema file."""
         state = self.state
         if "schema" not in state.table:
             return None
-        names = list(schema_names())
+        names = list(schema_names(self.session.settings.schemas_dirs))
         current = state.value("schema")
         if current is not None and current not in names:
             names.insert(0, current)

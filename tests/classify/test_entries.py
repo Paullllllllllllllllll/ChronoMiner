@@ -8,21 +8,27 @@ import json
 import sqlite3
 import time
 from pathlib import Path
+from typing import Any
 
 import pytest
 
+from chronominer import __main__ as entry
 from chronominer.classify import plan_classify, run_classify
 from chronominer.output.store import database_path
+from chronominer.run import ConfigurationError
 from chronominer.settings import Settings
 from chronominer.spec import resolve_classify_entries
 from tests.classify.conftest import (
+    SCHEMA,
     Chunk,
     Classify,
     DecisionServer,
+    classifier_file,
     seed,
     view,
     write_text,
 )
+from tests.cli.conftest import json_lines
 
 BREAD = {"item": "bread", "unit": "lb", "price": 4.0, "notes": "wheaten"}
 BEEF = {"item": "beef", "unit": "lb", "price": 6.0}
@@ -171,4 +177,144 @@ def test_a_document_changed_after_planning_is_checked_again_under_the_lease(
     result = asyncio.run(run_classify(plan))
 
     assert [target.state for target in result.targets] == [state]
+    assert server.requests == []
+
+
+def _classify_entries(
+    capsys: pytest.CaptureFixture[str], *argv: str | Path
+) -> tuple[int, dict[str, Any], str]:
+    """Run ``classify entries --json``; return the exit code, summary and stderr."""
+    code = entry.main(["classify", "entries", *(str(arg) for arg in argv), "--json"])
+    captured = capsys.readouterr()
+    (summary,) = json_lines(captured.out)
+    return code, summary, captured.err
+
+
+PROJECT_SCHEMA = "ProjectPriceEntries"
+"""An invented schema name that only a user schema folder holds."""
+
+
+def _project_folders(tmp_path: Path, fields: list[str]) -> tuple[Path, Path]:
+    """Write a user schema folder and an entry classifier naming its schema."""
+    schemas = tmp_path / "project" / "schemas"
+    schemas.mkdir(parents=True)
+    body = {**SCHEMA.schema, "name": PROJECT_SCHEMA}
+    (schemas / "project_prices.json").write_text(json.dumps(body), encoding="utf-8")
+    classifiers = tmp_path / "project" / "classifiers"
+    classifier_file(
+        classifiers,
+        {
+            "name": "project_group",
+            "version": 1,
+            "unit": "entry",
+            "schema": PROJECT_SCHEMA,
+            "fields": fields,
+            "questions": [
+                {"name": "bread", "type": "predicate", "instructions": "Bread?"}
+            ],
+        },
+    )
+    return schemas, classifiers
+
+
+def _seed_project(tmp_path: Path) -> Path:
+    text = write_text(tmp_path / "in" / "prices.txt")
+    out = tmp_path / "out"
+    seed(out, text, CHUNKS)
+    with contextlib.closing(sqlite3.connect(database_path(out))) as connection:
+        connection.execute(
+            "UPDATE document_meta SET metadata = "
+            "json_set(metadata, '$.schema_name', ?)",
+            (PROJECT_SCHEMA,),
+        )
+        connection.commit()
+    return out
+
+
+def test_an_entry_classifier_finds_its_schema_in_a_schemas_dir(
+    tmp_path: Path, server: DecisionServer, capsys: pytest.CaptureFixture[str]
+) -> None:
+    schemas, classifiers = _project_folders(tmp_path, ["item", "unit"])
+    out = _seed_project(tmp_path)
+
+    code, summary, err = _classify_entries(
+        capsys,
+        "--classifier",
+        "project_group",
+        "--classifiers-dir",
+        classifiers,
+        "--schemas-dir",
+        schemas,
+        "--input",
+        out,
+    )
+
+    assert code == 0, summary
+    assert (summary["classifier"], summary["units_asked"]) == ("project_group", 3)
+
+
+def test_fields_the_user_folder_schema_lacks_are_refused(
+    tmp_path: Path, server: DecisionServer, capsys: pytest.CaptureFixture[str]
+) -> None:
+    schemas, classifiers = _project_folders(tmp_path, ["item", "vintage"])
+    out = _seed_project(tmp_path)
+
+    code, summary, err = _classify_entries(
+        capsys,
+        "--classifier",
+        "project_group",
+        "--classifiers-dir",
+        classifiers,
+        "--schemas-dir",
+        schemas,
+        "--input",
+        out,
+    )
+
+    assert code == 2
+    assert "vintage" in err
+    assert server.requests == []
+
+
+def test_the_settings_folders_serve_classify_entries(
+    tmp_path: Path, server: DecisionServer
+) -> None:
+    schemas, classifiers = _project_folders(tmp_path, ["item", "vintage"])
+    out = _seed_project(tmp_path)
+    settings = Settings(schemas_dirs=(schemas,), classifiers_dirs=(classifiers,))
+    flags = {"input": out, "classifier": "project_group"}
+
+    with pytest.raises(ConfigurationError, match="lacks: vintage"):
+        plan_classify(resolve_classify_entries(flags).spec, settings)
+
+
+def test_a_schema_name_in_two_user_folders_is_an_error(
+    tmp_path: Path, server: DecisionServer, capsys: pytest.CaptureFixture[str]
+) -> None:
+    schemas, classifiers = _project_folders(tmp_path, ["item"])
+    other = tmp_path / "other"
+    other.mkdir()
+    (other / "copy.json").write_text(
+        (schemas / "project_prices.json").read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+    out = _seed_project(tmp_path)
+
+    code, summary, err = _classify_entries(
+        capsys,
+        "--classifier",
+        "project_group",
+        "--classifiers-dir",
+        classifiers,
+        "--schemas-dir",
+        schemas,
+        "--schemas-dir",
+        other,
+        "--input",
+        out,
+    )
+
+    assert code == 2
+    assert "ambiguous" in err
+    assert str(other / "copy.json") in err
     assert server.requests == []

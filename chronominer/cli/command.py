@@ -387,8 +387,15 @@ class _WaitLineHandler(logging.StreamHandler):  # type: ignore[type-arg]
 
 
 def load_settings(flags: Mapping[str, Any]) -> Settings:
-    """Load the settings file named by ``--settings``, else the default one."""
-    return load(flags.get("settings"), blocks=ext.settings_blocks())
+    """Load the settings file named by ``--settings``, else the default one.
+
+    The ``--schemas-dir`` and ``--classifiers-dir`` folders are searched
+    before the settings folders.
+    """
+    settings = load(flags.get("settings"), blocks=ext.settings_blocks())
+    return settings.with_folders(
+        flags.get("schemas_dir", ()), flags.get("classifiers_dir", ())
+    )
 
 
 def guarded(summary: Summary, body: Callable[[], int]) -> int:

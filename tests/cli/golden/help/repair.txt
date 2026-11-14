@@ -12,6 +12,8 @@ input:
 
 batches:
   --schema NAME         repair only documents extracted with this schema; default: every schema
+  --schemas-dir DIR     folder of schemas, searched for --schema before the settings' schemas_dirs
+                        and schemas/; repeatable
 
 chunks to repair:
   --indices LIST        0-based chunk indices (order in the document) among the failed chunks:

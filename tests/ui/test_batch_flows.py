@@ -159,7 +159,7 @@ def test_the_steps_set_every_option_but_json_settings_and_the_wait(
 ) -> None:
     sets = {name for step in flow.steps(session) for name in step.sets}
     one_pass = {"wait", "poll_minutes", "wait_hours"}
-    assert sets == set(table.names) - {"json", "settings", *one_pass}
+    assert sets == set(table.names) - {"json", "settings", "schemas_dir", *one_pass}
 
 
 def test_a_check_session_finalizes_a_finished_submission(

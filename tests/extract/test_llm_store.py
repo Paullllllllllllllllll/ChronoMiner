@@ -188,6 +188,19 @@ def _metadata(out: Path) -> dict[str, Any]:
     return stored
 
 
+def _schema_sha(out: Path) -> str | None:
+    _stored, sha = read(out / DATABASE_NAME, lambda c: document_metadata(c, 1))
+    return sha
+
+
+def _forget_schema(out: Path) -> None:
+    """Clear the recorded schema hash, as a store an earlier version wrote."""
+    connection = sqlite3.connect(out / DATABASE_NAME)
+    with connection:
+        connection.execute("UPDATE document_meta SET schema_sha256 = NULL")
+    connection.close()
+
+
 def _text_ranges(source: Path, tokens: int = 60) -> list[tuple[int, int]]:
     return auto_ranges(read_lines(source), tokens, "gpt-5.6-luna")
 
@@ -267,6 +280,70 @@ class TestTextDocuments:
         assert (first, len(script.requests)) == (2, total)
         assert [row["status"] for row in _chunks(out)] == ["done"] * total
         assert "chunk_slice" not in _metadata(out)
+
+    def test_a_new_document_records_its_schema_hash(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        helpers.install(monkeypatch, [_answer])
+        source = _ledger(tmp_path / "in" / "ledger.txt")
+        out = tmp_path / "out"
+
+        assert _run(source, out, "text", pages="first:2") is None
+
+        sha = _schema_sha(out)
+        assert sha is not None
+        meta = _output(out)["_chronominer_metadata"]
+        assert (meta["schema_sha256"], meta["schema_version"]) == (sha, "1.0")
+
+    def test_a_resume_without_a_recorded_hash_is_unverified_until_force(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        script = helpers.install(monkeypatch, [_answer])
+        source = _ledger(tmp_path / "in" / "ledger.txt")
+        out = tmp_path / "out"
+        total = len(_text_ranges(source))
+        assert _run(source, out, "text", pages="first:2") is None
+        recorded = _schema_sha(out)
+        _forget_schema(out)
+
+        assert _run(source, out, "text") is None
+
+        assert len(script.requests) == total
+        assert [row["status"] for row in _chunks(out)] == ["done"] * total
+        assert _schema_sha(out) == recorded
+        meta = _output(out)["_chronominer_metadata"]
+        assert "schema_sha256" not in meta and "schema_version" not in meta
+        assert meta["schema_unverified"] is True
+
+        assert _run(source, out, "text", force=True) is None
+
+        assert len(script.requests) == 2 * total
+        assert _schema_sha(out) == recorded
+        meta = _output(out)["_chronominer_metadata"]
+        assert meta["schema_sha256"] == recorded
+        assert "schema_unverified" not in meta
+
+    def test_a_document_without_done_chunks_records_the_hash_on_resume(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        helpers.install(monkeypatch, [_answer])
+        source = _pdf(tmp_path / "in" / "book.pdf")
+        out = tmp_path / "out"
+        assert _run(source, out, "pdf", pages="1") is None
+        recorded = _schema_sha(out)
+        _forget_schema(out)
+        connection = sqlite3.connect(out / DATABASE_NAME)
+        with connection:
+            connection.execute("DELETE FROM entry_rows")
+            connection.execute(
+                "UPDATE units SET status = 'pending', content = NULL "
+                "WHERE kind = 'chunk'"
+            )
+        connection.close()
+
+        assert _run(source, out, "pdf") is None
+
+        assert _schema_sha(out) == recorded
 
     @pytest.mark.parametrize(
         "changed",

@@ -77,7 +77,7 @@ from chronominer.output.store import (
     read_store,
 )
 from chronominer.settings import Settings
-from chronominer.spec import SpecError, resolve_schema
+from chronominer.spec import AmbiguousSchemaError, SpecError, resolve_schema
 
 __all__ = [
     "ABANDONED",
@@ -385,10 +385,16 @@ async def _adopt_target(
     return database.path, submission.submission_id, batch_id
 
 
-def _schema_name(argument: str) -> str:
-    """Return the schema name ``--schema`` names; the argument when unknown."""
+def _schema_name(argument: str, folders: Sequence[Path]) -> str:
+    """Return the schema name ``--schema`` names; the argument when unknown.
+
+    Raises:
+        CheckTargetError: Two user folders hold a schema of that name.
+    """
     try:
-        return resolve_schema(argument).name
+        return resolve_schema(argument, folders).name
+    except AmbiguousSchemaError as exc:
+        raise CheckTargetError(str(exc)) from exc
     except SpecError:
         return argument
 
@@ -643,9 +649,10 @@ async def check_submissions(  # noqa: PLR0913 - one keyword per check option
 
     Raises:
         CheckTargetError: *adopt* or *abandon* fits no submission, or more
-            than one.
+            than one, or two user folders hold a schema named *schema*.
     """
     directory = Path(directory)
+    name = _schema_name(schema, settings.schemas_dirs) if schema is not None else None
     result = result if result is not None else CheckResult()
     if clients is None:
         clients = BatchClients(settings, ROLE, args=args)
@@ -657,7 +664,6 @@ async def check_submissions(  # noqa: PLR0913 - one keyword per check option
         abandon=_abandon_target(found, abandon, directory) if abandon else None,
     )
     wanted = set(batch_ids)
-    name = _schema_name(schema) if schema is not None else None
     for database in found:
         if not database.submissions:
             continue

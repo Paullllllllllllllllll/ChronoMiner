@@ -4,9 +4,12 @@
 (gitignored), else the packaged ``resources/settings.example.yaml``; without
 any file the code values apply. Every key is optional and falls back to the
 code value; unknown keys are errors. Relative paths in the file resolve
-against the current directory. The ``defaults`` block sets run options by
-option name of the extract table (see :mod:`chronominer.spec`); the other
-commands take the defaults of the options they share with it. A flag
+against the current directory. The lists ``schemas_dirs`` and
+``classifiers_dirs`` name user folders that the schema and classifier lookup
+searches before the repository's ``schemas/`` and ``classifiers/``. The
+``defaults`` block sets run options by option name of the extract table (see
+:mod:`chronominer.spec`); the other commands take the defaults of the
+options they share with it. A flag
 overrides a default, and a default overrides the code value. Tuning knobs,
 such as the line-range readjuster thresholds and the image byte caps, are
 code constants. Further top-level blocks are accepted only when the caller
@@ -19,8 +22,8 @@ Every block is one of the shared blocks of
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from dataclasses import dataclass, field
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any
@@ -42,6 +45,7 @@ from chronominer.common.settings_schema import (
     check_blocks,
     log_file,
     read_api_keys,
+    read_classifiers_dirs,
     read_concurrency,
     read_decisions,
     read_endpoints,
@@ -51,6 +55,7 @@ from chronominer.common.settings_schema import (
     read_prompt_caching,
     read_rate_limits,
     read_retry,
+    read_schemas_dirs,
     read_state_dir,
     read_timeouts,
     state_directory,
@@ -121,8 +126,12 @@ class Concurrency(schema.Concurrency):
 class Settings:
     """Machine values, the optional run defaults and any extra blocks.
 
-    *extensions* maps the name of each extra top-level block in the file to
-    the value its parser returned.
+    *schemas_dirs* and *classifiers_dirs* are the user folders a schema or
+    classifier lookup searches before the repository's own folder: the
+    ``--schemas-dir`` and ``--classifiers-dir`` folders of the command (see
+    :meth:`with_folders`), then the settings lists. *extensions* maps the name
+    of each extra top-level block in the file to the value its parser
+    returned.
     """
 
     api_keys: Mapping[str, str] = field(default_factory=lambda: DEFAULT_API_KEYS)
@@ -141,6 +150,24 @@ class Settings:
     defaults: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
     source: Path | None = None
     extensions: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
+    schemas_dirs: tuple[Path, ...] = ()
+    classifiers_dirs: tuple[Path, ...] = ()
+
+    def with_folders(
+        self, schemas: Sequence[Path] = (), classifiers: Sequence[Path] = ()
+    ) -> Settings:
+        """Return these settings with the flag folders searched first.
+
+        *schemas* and *classifiers* are the ``--schemas-dir`` and
+        ``--classifiers-dir`` folders; they come before the settings lists.
+        """
+        if not schemas and not classifiers:
+            return self
+        return replace(
+            self,
+            schemas_dirs=(*schemas, *self.schemas_dirs),
+            classifiers_dirs=(*classifiers, *self.classifiers_dirs),
+        )
 
     def state_folder(self) -> Path:
         """Return the folder of the extensions' state files.
@@ -232,11 +259,15 @@ class Settings:
             defaults=MappingProxyType(dict(defaults or {})),
             source=source,
             extensions=read_extensions(reader, data, blocks),
+            schemas_dirs=read_schemas_dirs(reader, data),
+            classifiers_dirs=read_classifiers_dirs(reader, data),
         )
 
 
 _TOP_KEYS = frozenset(
     {
+        "schemas_dirs",
+        "classifiers_dirs",
         "api_keys",
         "endpoints",
         "timeouts",

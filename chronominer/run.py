@@ -511,14 +511,15 @@ def discover(spec: RunSpec) -> list[SourceItem]:
     return discover_inputs(spec.input, _input_path(spec))[0]
 
 
-def _schema(argument: str, total: int = 0) -> ResolvedSchema:
-    """Return the schema *argument* names.
+def _schema(argument: str, settings: Settings, total: int = 0) -> ResolvedSchema:
+    """Return the schema *argument* names, searching the settings' folders.
 
     Raises:
-        ConfigurationError: No schema matches the argument.
+        ConfigurationError: No schema matches the argument, or two user
+            folders hold it.
     """
     try:
-        return resolve_schema(argument)
+        return resolve_schema(argument, settings.schemas_dirs)
     except SpecError as exc:
         raise ConfigurationError(str(exc), items_total=total) from exc
 
@@ -803,7 +804,7 @@ def plan(
     input_path = _input_path(spec)
     logger.info("Input=%s, Output=%s", input_path, output_dir or "beside input")
     discovered, warnings = discover_inputs(spec.input, input_path)
-    schema = _schema(spec.prompt.schema, len(discovered))
+    schema = _schema(spec.prompt.schema, settings, len(discovered))
 
     classifier = _Classifier(
         spec,
@@ -1866,7 +1867,7 @@ def _adjust_checks(
             range selection.
     """
     total = len(files)
-    schema = _schema(spec.schema, total)
+    schema = _schema(spec.schema, settings, total)
     missing = _adjust_key(spec, settings, args, total)
     if missing is not None and not spec.run.dry_run:
         raise ConfigurationError(missing.message, items_total=total)

@@ -114,6 +114,7 @@ from chronominer.settings import Settings, SettingsError
 from chronominer.spec import (
     CONTEXT_NONE,
     DEFAULT_CONCURRENCY,
+    AmbiguousSchemaError,
     ContextChoice,
     ContextText,
     ImageSpec,
@@ -503,9 +504,16 @@ def _candidates(path: Path) -> list[tuple[Store, RepairDocument]]:
     return found
 
 
-def _schema_name(argument: str) -> str:
+def _schema_name(argument: str, folders: Sequence[Path]) -> str:
+    """Return the schema name ``--schema`` names; the argument when unknown.
+
+    Raises:
+        RepairPlanError: Two user folders hold a schema of that name.
+    """
     try:
-        return resolve_schema(argument).name
+        return resolve_schema(argument, folders).name
+    except AmbiguousSchemaError as exc:
+        raise RepairPlanError(str(exc)) from exc
     except SpecError:
         return argument
 
@@ -514,15 +522,17 @@ def _filtered(
     found: Sequence[tuple[Store, RepairDocument]],
     spec: RepairSpec,
     files: Sequence[str],
+    folders: Sequence[Path],
 ) -> list[tuple[Store, RepairDocument]]:
     """Keep the documents of ``--schema`` and *files*.
 
     Raises:
-        RepairPlanError: A name of *files* matches no document.
+        RepairPlanError: A name of *files* matches no document, or the
+            ``--schema`` name is ambiguous.
     """
     kept = list(found)
     if spec.schema is not None:
-        wanted = _schema_name(spec.schema)
+        wanted = _schema_name(spec.schema, folders)
         kept = [
             (store, document)
             for store, document in kept
@@ -855,24 +865,33 @@ def _value(spec: Mapping[str, Any], key: str) -> str | None:
 
 
 def _schema_of(
-    store: Store, document: RepairDocument, spec: RepairSpec
+    store: Store, document: RepairDocument, spec: RepairSpec, folders: Sequence[Path]
 ) -> DocumentSchema:
     """Return the document's schema: stored, else by name, else ``--schema``.
 
+    A stored name that two user folders hold gives way to a ``--schema``
+    that resolves, such as a file path.
+
     Raises:
-        RepairPlanError: No schema can be found.
+        RepairPlanError: No schema can be found, or a name is ambiguous.
     """
     stored = document_schema(store, document.doc_id)
     if stored.schema is not None and stored.name:
         return stored
+    ambiguous: AmbiguousSchemaError | None = None
     for argument in (stored.name, spec.schema):
         if not argument:
             continue
         try:
-            resolved = resolve_schema(argument)
+            resolved = resolve_schema(argument, folders)
+        except AmbiguousSchemaError as exc:
+            ambiguous = ambiguous or exc
+            continue
         except SpecError:
             continue
         return DocumentSchema(resolved.name, resolved.schema)
+    if ambiguous is not None:
+        raise RepairPlanError(str(ambiguous)) from ambiguous
     raise RepairPlanError(
         f"The schema of '{document.name}' is not stored; name it with --schema."
     )
@@ -887,7 +906,7 @@ def _prepare(
         RepairPlanError: The schema, context or image settings cannot be
             resolved.
     """
-    schema = _schema_of(store, document, spec)
+    schema = _schema_of(store, document, spec, settings.schemas_dirs)
     context_choice, fallback, image_choice = _run_choices(store, document.doc_id)
     anchor = document.input_path or document.output
     try:
@@ -953,7 +972,7 @@ def plan_repair(
     if not path.exists():
         raise RepairPlanError(f"Input path does not exist: {path}")
     names = tuple(files) or tuple(getattr(spec, "files", None) or ())
-    found = _filtered(_candidates(path), spec, names)
+    found = _filtered(_candidates(path), spec, names, settings.schemas_dirs)
     tally = _Selection()
     selected: list[tuple[Store, RepairDocument]] = []
     for store, document in found:

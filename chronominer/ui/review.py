@@ -13,6 +13,7 @@ out every value that differs from the code default.
 from __future__ import annotations
 
 from collections.abc import Callable, Sequence
+from pathlib import Path
 from typing import Final
 
 from chronominer import ext
@@ -29,6 +30,7 @@ from chronominer.common.wizard import (
 from chronominer.discovery import DATABASE_NAME
 from chronominer.spec import (
     OPTIONS,
+    AmbiguousSchemaError,
     RunSpec,
     SpecError,
     condition_warnings,
@@ -119,10 +121,12 @@ def _output_line(spec: RunSpec, mark: _Mark) -> Line:
     return Line("output", parts)
 
 
-def _schema_line(spec: RunSpec, mark: _Mark) -> Line:
+def _schema_line(spec: RunSpec, mark: _Mark, folders: Sequence[Path]) -> Line:
     argument = spec.prompt.schema
     try:
-        schema = resolve_schema(argument)
+        schema = resolve_schema(argument, folders)
+    except AmbiguousSchemaError as exc:
+        return Line("schema", [mark("prompt.schema", argument), Part(str(exc))])
     except SpecError:
         return Line("schema", [mark("prompt.schema", argument)])
     return Line("schema", [mark("prompt.schema", schema.name), Part(str(schema.path))])
@@ -225,7 +229,7 @@ def build_review(state: State, session: Session) -> Review:
     lines = [
         _input_line(state, spec, mark),
         _output_line(spec, mark),
-        _schema_line(spec, mark),
+        _schema_line(spec, mark, session.settings.schemas_dirs),
     ]
     if "text" in types:
         lines.append(_chunking_line(spec, mark))

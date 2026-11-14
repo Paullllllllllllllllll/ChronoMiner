@@ -34,6 +34,8 @@
     "document_total_chunks": 2,
     "model_name": "claude-sonnet-4-5",
     "schema_name": "FlatEntries",
+    "schema_sha256": "ff1e47033cdedea26aadcdcbea0624e08673a5dc4b54ab95bd1e824529da6dfd",
+    "schema_version": "1.0",
     "timestamp": "<timestamp>",
     "total_chunks": 2,
     "version": 1

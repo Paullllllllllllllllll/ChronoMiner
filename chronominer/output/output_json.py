@@ -11,16 +11,27 @@ content as received, then the other response fields; see
 :mod:`chronominer.output.store` for the unit fields) and, for an image or
 PDF page, ``image_provenance``.
 
-``_chronominer_metadata`` holds ``schema_name``, ``model_name``,
-``chunking_method``, ``total_chunks`` (the document's chunk units),
-``timestamp`` (the last unit update), ``version`` 1, then when known
-``chunking_text_version``, ``document_total_chunks``, ``chunk_slice``,
-``partial`` (true while a unit is not done), ``failed_chunks`` (the chunk
-indices of failed units), ``image_provenance`` and ``batch_tracking`` (the
-document's batch submissions). The run metadata of ``document_meta`` fills
-the named keys; a stored ``timestamp`` or ``batch_tracking`` wins over the
-computed one, and other stored keys follow at the end. The file is indented
-by two spaces and ends with one newline.
+``_chronominer_metadata`` holds ``schema_name``, ``schema_version`` and
+``schema_sha256`` (see below), ``model_name``, ``chunking_method``,
+``total_chunks`` (the document's chunk units), ``timestamp`` (the last unit
+update), ``version`` 1, then when known ``chunking_text_version``,
+``document_total_chunks``, ``chunk_slice``, ``partial`` (true while a unit is
+not done), ``failed_chunks`` (the chunk indices of failed units),
+``image_provenance`` and ``batch_tracking`` (the document's batch
+submissions). The run metadata of ``document_meta`` fills the named keys; a
+stored ``timestamp`` or ``batch_tracking`` wins over the computed one, and
+other stored keys follow at the end. The file is indented by two spaces and
+ends with one newline.
+
+``schema_sha256`` is the hash ``document_meta`` records for the document's
+schema text, and ``schema_version`` the top-level ``schema_version`` of that
+text in ``artifacts``, as a string. Both are read when the file is rendered.
+A document without a recorded hash, or whose schema text is not in
+``artifacts``, gets neither key, and a schema text without a
+``schema_version`` gets ``schema_sha256`` alone. A document whose run metadata
+carries ``schema_unverified`` (it kept done chunks from before a hash was
+recorded) gets neither key either; the mark itself follows with the other
+stored keys.
 """
 
 from __future__ import annotations
@@ -40,6 +51,7 @@ PAGE_KINDS: Final = ("pdf", "image", "images")
 
 _COMPUTED: Final = ("total_chunks", "partial", "failed_chunks", "version")
 _LEADING: Final = ("schema_name", "model_name", "chunking_method")
+_IDENTITY: Final = ("schema_version", "schema_sha256")
 _OPTIONAL: Final = ("chunking_text_version", "document_total_chunks", "chunk_slice")
 _RANGE_RE: Final = re.compile(r"^\s*(\d+)\s*-\s*(\d+)\s*$")
 _UNITS: Final = (
@@ -171,6 +183,33 @@ def _schema_name(connection: sqlite3.Connection, doc_id: int) -> str | None:
     return None if row is None else str(row[0])
 
 
+def _schema_identity(
+    connection: sqlite3.Connection, schema_sha256: str | None, unverified: bool
+) -> dict[str, str]:
+    """Return ``schema_version`` and ``schema_sha256`` as the store records them.
+
+    Both come from the schema text in ``artifacts`` that *schema_sha256*
+    names; without a recorded hash or its artifact, or for an *unverified*
+    document, there is neither.
+    ``schema_version`` is left out when the text has no string or number of
+    that name at its top level.
+    """
+    if schema_sha256 is None or unverified:
+        return {}
+    row = connection.execute(
+        "SELECT text FROM artifacts WHERE sha256 = ?", (schema_sha256,)
+    ).fetchone()
+    if row is None:
+        return {}
+    identity: dict[str, str] = {}
+    schema = _json(row[0])
+    version = schema.get("schema_version") if isinstance(schema, dict) else None
+    if isinstance(version, (str, int, float)) and not isinstance(version, bool):
+        identity["schema_version"] = str(version)
+    identity["schema_sha256"] = schema_sha256
+    return identity
+
+
 def _add_known_keys(
     meta: dict[str, Any],
     stored: dict[str, Any],
@@ -193,7 +232,7 @@ def _add_known_keys(
 def render_output_json(connection: sqlite3.Connection, doc_id: int) -> str:
     """Return the ``_output.json`` view of document *doc_id*."""
     name, kind = _document(connection, doc_id)
-    stored, _ = document_metadata(connection, doc_id)
+    stored, schema_sha256 = document_metadata(connection, doc_id)
     records: list[dict[str, Any]] = []
     failed: list[int] = []
     total = 0
@@ -232,6 +271,9 @@ def render_output_json(connection: sqlite3.Connection, doc_id: int) -> str:
     )
     meta: dict[str, Any] = {
         "schema_name": schema_name,
+        **_schema_identity(
+            connection, schema_sha256, bool(stored.get("schema_unverified"))
+        ),
         "model_name": stored.get("model_name") or latest_model or "unknown",
         "chunking_method": stored.get("chunking_method") or "unknown",
         "total_chunks": total,
@@ -244,7 +286,14 @@ def render_output_json(connection: sqlite3.Connection, doc_id: int) -> str:
     )
     if tracking:
         meta["batch_tracking"] = tracking
-    known = {*_COMPUTED, *_LEADING, *_OPTIONAL, "timestamp", "image_provenance"}
+    known = {
+        *_COMPUTED,
+        *_LEADING,
+        *_OPTIONAL,
+        *_IDENTITY,
+        "timestamp",
+        "image_provenance",
+    }
     for key, value in stored.items():
         if key not in known and key != "batch_tracking":
             meta[key] = value

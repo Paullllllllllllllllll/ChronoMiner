@@ -10,10 +10,14 @@ import pytest
 
 from chronominer.common.classifiers import (
     DEFAULT_FIRST_PAGES,
+    AmbiguousNameError,
     Selection,
+    find_named_file,
     load_classifier,
+    named_files,
     parse_classifier,
     resolve_classifier,
+    search_folders,
 )
 from chronominer.common.decisions import Choice, Predicate, Score
 from chronominer.common.page_types import page_types
@@ -255,3 +259,58 @@ def test_resolution_takes_a_path_a_stem_then_a_declared_name(tmp_path: Path) -> 
         resolve_classifier("missing", folder)
     with pytest.raises(FileNotFoundError, match="Available: none"):
         resolve_classifier("missing", None)
+
+
+def _write(folder: Path, file_name: str, name: str) -> Path:
+    folder.mkdir(parents=True, exist_ok=True)
+    path = folder / file_name
+    path.write_text(json.dumps(_raw(name=name)), encoding="utf-8")
+    return path
+
+
+def test_user_folders_come_before_the_bundled_folder(tmp_path: Path) -> None:
+    bundled = tmp_path / "bundled"
+    _write(bundled, "front.json", "front")
+    _write(bundled, "leaves.json", "leaves")
+    user = tmp_path / "project"
+    own = _write(user, "front.json", "front_project")
+
+    assert resolve_classifier("front", bundled, [user]) == own.resolve()
+    assert resolve_classifier("leaves", bundled, [user]).name == "leaves.json"
+    assert named_files([user], bundled) == [own, bundled / "leaves.json"]
+
+
+def test_a_shadowed_bundled_file_is_not_found_by_its_name(tmp_path: Path) -> None:
+    bundled = tmp_path / "bundled"
+    _write(bundled, "front.json", "title_pages")
+    user = tmp_path / "project"
+    _write(user, "front.json", "front_project")
+
+    with pytest.raises(FileNotFoundError, match="Available: front_project"):
+        resolve_classifier("title_pages", bundled, [user])
+
+
+def test_a_classifier_in_two_user_folders_is_ambiguous(tmp_path: Path) -> None:
+    first = _write(tmp_path / "one", "front.json", "front")
+    second = _write(tmp_path / "two", "pages.json", "front")
+
+    with pytest.raises(AmbiguousNameError) as caught:
+        resolve_classifier("front", None, [first.parent, second.parent])
+
+    assert caught.value.paths == (first, second)
+    assert caught.value.kind == "classifier"
+    assert str(first) in str(caught.value) and str(second) in str(caught.value)
+
+
+def test_the_folders_searched_drop_repeats_and_end_with_the_bundled_one(
+    tmp_path: Path,
+) -> None:
+    one, two = tmp_path / "one", tmp_path / "two"
+    folders = search_folders([one, two, tmp_path / "two" / ".." / "one"], tmp_path)
+    assert folders == (one, two, tmp_path)
+
+
+def test_find_named_file_returns_none_when_nothing_matches(tmp_path: Path) -> None:
+    _write(tmp_path / "one", "front.json", "front")
+    assert find_named_file("missing", [tmp_path / "one"], tmp_path / "none") is None
+    assert find_named_file("  ", [tmp_path / "one"]) is None

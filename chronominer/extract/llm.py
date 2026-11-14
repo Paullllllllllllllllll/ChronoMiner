@@ -17,6 +17,12 @@ document whose stored chunks were cut with other ranges is refused unless
 ``--force``. A PDF or image document is
 refused when its stored pages used other image settings; a model change alone
 resumes, and an image option the run leaves unset keeps its stored value.
+
+The run metadata records the hash of the schema text (stored in
+``artifacts``). A document without a recorded hash that keeps done chunks of
+an earlier run is marked ``schema_unverified`` when it resumes, as those
+chunks' schema is unknown; a ``--force`` run, which replaces every chunk,
+removes the mark.
 """
 
 from __future__ import annotations
@@ -32,6 +38,7 @@ from typing import Any
 import httpx
 
 from chronominer.common.decisions import MalformedAnswer
+from chronominer.common.sqlite import read
 from chronominer.common.store import (
     BLOCKING_SUBMISSIONS,
     PlannedUnit,
@@ -73,6 +80,7 @@ from chronominer.output.store import (
     ENTRY_TABLE,
     chunk_decision_rows,
     clear_chunk_decisions,
+    document_metadata,
     image_changes,
     image_settings_record,
     metadata_writer,
@@ -179,7 +187,7 @@ class Extractor:
         if self.schema is None:
             path = self.job.schema_path
             argument = str(path) if path is not None else self.job.spec.prompt.schema
-            self.schema = resolve_schema(argument)
+            self.schema = resolve_schema(argument, self.job.settings.schemas_dirs)
         return self.schema
 
     async def open(self) -> None:
@@ -598,11 +606,16 @@ class Extractor:
         total: int | None,
         image_provenance: Mapping[str, Any] | None,
     ) -> None:
-        """Record the document's run metadata and its schema text."""
+        """Record the document's run metadata, its schema text and its hash.
+
+        A document that had no hash recorded and keeps done chunks is marked
+        ``schema_unverified``, since the schema of those chunks is unknown;
+        a ``--force`` run, which replaces every chunk, removes the mark.
+        """
         schema = self._schema()
         text = schema.path.read_text(encoding="utf-8")
         sha = await handle.store.store_artifact("schema", text)
-        values = {
+        values: dict[str, Any] = {
             "schema_name": schema.name,
             "model_name": self.job.spec.model.model,
             "chunking_method": chunking_method,
@@ -611,9 +624,25 @@ class Extractor:
             "chunk_slice": chunk_slice(item.pages),
             "image_provenance": image_provenance,
         }
+        if self.job.force:
+            values["schema_unverified"] = None
+        elif self._keeps_unknown_chunks(handle):
+            values["schema_unverified"] = True
         await handle.store.write(
             handle.lease,
             metadata_writer(handle.store, handle.doc_id, values, schema_sha256=sha),
+        )
+
+    def _keeps_unknown_chunks(self, handle: DocumentHandle) -> bool:
+        """Whether the document keeps done chunks of a schema it never recorded."""
+        _, recorded = read(
+            handle.store.path, lambda c: document_metadata(c, handle.doc_id)
+        )
+        if recorded is not None:
+            return False
+        return any(
+            unit.status == "done"
+            for unit in handle.store.units(handle.doc_id, kind=handle.kind)
         )
 
     def _images(self, handle: DocumentHandle) -> ImageSpec:
