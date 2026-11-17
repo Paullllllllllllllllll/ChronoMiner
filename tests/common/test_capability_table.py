@@ -107,6 +107,7 @@ FACTS: tuple[tuple[str, dict[str, Any]], ...] = (
     ("gpt-4.1", {"max_context_tokens": 1047576}),
     ("gpt-4.1-mini", {"max_context_tokens": 1047576}),
     *((m, _LARGE) for m in ("gpt-6-luna", "gpt-6-sol", "gpt-6.1-sol", "gpt-6-astra")),
+    *((m, _LARGE) for m in ("gpt-6.2-sol", "gpt-6.2-astra")),
     *((m, _LARGE) for m in ("gpt-5.6-luna", "gpt-5.6-terra", "gpt-5.6-sol")),
     ("gpt-5.6", {"family": "gpt-5.6", **_LARGE}),
     # chat-latest: non-reasoning ChatGPT snapshots, 128,000 context.
@@ -140,17 +141,22 @@ FACTS: tuple[tuple[str, dict[str, Any]], ...] = (
             "gpt-6-sol",
             "gpt-6-astra",
             "gpt-6.1-sol",
+            "gpt-6.2-sol",
+            "gpt-6.2-astra",
         )
     ),
     # Image detail.
     ("gpt-5.4-mini", {"supports_original_image_detail": True}),
     ("gpt-5.4-nano", {"supports_original_image_detail": True}),
     *((m, _PATCH_CAP) for m in ("gpt-5.6-sol", "gpt-6-astra", "gpt-6.1-sol")),
+    *((m, _PATCH_CAP) for m in ("gpt-6.2-sol", "gpt-6.2-astra")),
     ("gpt-6-luna", {**_PATCH_CAP, "extras": {ORIGINAL_MAX_SIDE: 3000}}),
     ("gpt-5.6-luna", {"default_image_detail": "high"}),
     # Reasoning efforts per model page and the reasoning guide.
     ("gpt-6-astra", {"reasoning_efforts": _LOW_TO_MAX}),
     ("gpt-6.1-sol", {"reasoning_efforts": _LOW_TO_MAX}),
+    ("gpt-6.2-sol", {"reasoning_efforts": _LOW_TO_MAX}),
+    ("gpt-6.2-astra", {"reasoning_efforts": _LOW_TO_MAX}),
     *(
         (m, {"reasoning_efforts": _NONE_TO_MAX})
         for m in ("gpt-6-luna", "gpt-6-sol", "gpt-5.6-terra")
@@ -209,6 +215,8 @@ FACTS: tuple[tuple[str, dict[str, Any]], ...] = (
         for m in (
             "gpt-6-astra",
             "gpt-6.1-sol",
+            "gpt-6.2-sol",
+            "gpt-6.2-astra",
             "gpt-6-luna",
             "gpt-6-sol",
             "gpt-5.6-sol",
@@ -246,7 +254,14 @@ FACTS: tuple[tuple[str, dict[str, Any]], ...] = (
     # Prompt caching: prompt_cache_options from GPT-5.6, retention on the list.
     *(
         (m, {"prompt_cache_parameter": "prompt_cache_options"})
-        for m in ("gpt-6-luna", "gpt-6-astra", "gpt-6.1-sol", "gpt-5.6-terra")
+        for m in (
+            "gpt-6-luna",
+            "gpt-6-astra",
+            "gpt-6.1-sol",
+            "gpt-6.2-sol",
+            "gpt-6.2-astra",
+            "gpt-5.6-terra",
+        )
     ),
     *(
         (m, {"prompt_cache_parameter": "prompt_cache_retention"})

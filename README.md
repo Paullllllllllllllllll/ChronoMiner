@@ -1,4 +1,4 @@
-# ChronoMiner v1.15.0
+# ChronoMiner v1.16.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -646,9 +646,10 @@ only the models OpenAI lists for Flex processing (GPT-6, GPT-5.6, 5.5, 5.4, 5.2,
 and 5 with the listed mini, nano and pro variants, o3, o4-mini); other models get no
 tier, with one warning per run. An effort a model does not document becomes the next
 level it does, or its highest, with one warning per run: for example `none` and
-`minimal` become `low` on gpt-6-astra and gpt-6.1-sol, and Gemini `minimal` becomes
-`low` on Gemini 3.1 Pro and 3.7/3.8 Flash. The verbosity reaches the GPT-5 and GPT-6
-reasoning models only; the chat-latest models are not reasoning models. A set
+`minimal` become `low` on gpt-6-astra, gpt-6.1-sol, gpt-6.2-sol and gpt-6.2-astra,
+and Gemini `minimal` becomes `low` on Gemini 3.1 Pro and 3.7/3.8 Flash. The
+verbosity reaches the GPT-5 and GPT-6 reasoning models only; the chat-latest models
+are not reasoning models. A set
 `prompt_cache_retention` goes to the models documented for extended retention, and
 GPT-5.6 and later get `prompt_cache_options` with a `30m` TTL instead, in synchronous
 and batch requests alike; other models get neither. Unset image options take the

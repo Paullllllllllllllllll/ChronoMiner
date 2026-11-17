@@ -1,5 +1,11 @@
 # Changelog
 
+- **v1.16.0** (17 November 2026) -- The capability table knows gpt-6.2-sol and
+  gpt-6.2-astra. Both take text and image input with structured outputs and
+  the reasoning efforts `low` to `max`, so `none` and `minimal` become `low`.
+  gpt-6.2-sol otherwise takes the settings of gpt-6.1-sol and gpt-6.2-astra
+  those of gpt-6-astra (Flex processing, image detail, prompt caching), and the
+  wizard suggests both models.
 - **v1.15.0** (14 November 2026) -- Schemas and classifiers can live in folders
   outside the repository. The repeatable flags `--schemas-dir` and
   `--classifiers-dir` and the settings lists `schemas_dirs` and `classifiers_dirs`
