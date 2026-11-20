@@ -1152,7 +1152,7 @@ benchmark runs) is available from the author upon request.
 
 ## Contact
 
-ChronoMiner is written and maintained by Paul Götz, Sociological Institute,
+ChronoMiner is written and maintained by Paul Götz, Department of Sociology,
 University of Zurich. Write to
 [goetz@soziologie.uzh.ch](mailto:goetz@soziologie.uzh.ch) with questions, bug
 reports or collaboration requests.
