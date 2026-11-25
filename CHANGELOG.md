@@ -1,5 +1,10 @@
 # Changelog
 
+- **v1.16.1** (25 November 2026) -- The capability table no longer lists Flex
+  processing for gpt-6.2-sol and gpt-6.2-astra. OpenAI publishes no Flex price
+  for them and its API refuses `service_tier=flex`, so a run with the `flex`
+  tier failed on every request. These models now get no tier, with the usual
+  warning.
 - **v1.16.0** (17 November 2026) -- The capability table knows gpt-6.2-sol and
   gpt-6.2-astra. Both take text and image input with structured outputs and
   the reasoning efforts `low` to `max`, so `none` and `minimal` become `low`.

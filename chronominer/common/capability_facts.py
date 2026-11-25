@@ -92,14 +92,14 @@ _PRO = ("medium", "high", "xhigh")
 _LOW_TO_HIGH = ("low", "medium", "high")
 
 _GPT62 = ("gpt-6.2-sol", "gpt-6.2-astra")
-_GPT6 = (
+_GPT60_61 = (
     "gpt-6-luna",
     "gpt-6-sol",
     "gpt-6-astra",
     "gpt-6.1-sol",
     "gpt-6.1-terra",
-    *_GPT62,
 )
+_GPT6 = (*_GPT60_61, *_GPT62)
 _GPT56 = ("gpt-5.6-sol", "gpt-5.6-terra", "gpt-5.6-luna", "gpt-5.6")
 _CODEX = ("gpt-5.2-codex", "gpt-5.3-codex")
 _OLD_CHAT = ("gpt-5-chat-latest", "gpt-5.1-chat-latest", "gpt-5.2-chat-latest")
@@ -481,10 +481,11 @@ FACTS: tuple[Fact, ...] = (
         _PRO,
         _OA + "models/gpt-5.5-pro: medium, high (default) and xhigh",
     ),
-    # OpenAI Flex processing
+    # OpenAI Flex processing; gpt-6.2 has no Flex price and the API refuses
+    # service_tier=flex for it (25.11.2026).
     Fact(
         (
-            *_GPT6,
+            *_GPT60_61,
             *_GPT56,
             "gpt-5.5",
             "gpt-5.5-pro",
