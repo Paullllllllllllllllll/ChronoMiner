@@ -1,8 +1,9 @@
 """Chunk extraction: one text chunk or page image in, the response dict out.
 
 :class:`ChunkExtractor` builds each provider's messages (the system prompt of
-the chunk kind with the item's context, an optional context image, then the
-chunk text or the page image with its detail) and sends them through
+the chunk kind with the item's context, an optional context image, the
+context lines of a text chunk, then the chunk text or the page image with
+its detail) and sends them through
 :class:`~chronominer.llm.caller.ModelCaller` in the run's response format:
 ``schema`` has the provider enforce the selected schema, ``json`` puts the
 schema in the prompt and checks the answer. The answer becomes the response
@@ -330,21 +331,25 @@ class ChunkExtractor:
             parts = [Part(text=CONTEXT_IMAGE_LABEL), context, *parts]
         check_request_size(self.plan, self.system_prompt(kind), parts)
 
-    def text_messages(self, text: str) -> list[Any]:
+    def text_messages(self, text: str, context: str = "") -> list[Any]:
         """Return the system and user messages of one text chunk.
 
         The chunk is the user message; a context image and its label come
-        before it.
+        before it, then the chunk's context lines *context* as a text block
+        of their own.
 
         Raises:
             RequestTooLargeError: The request exceeds a size limit of the
                 provider.
         """
-        self._check_size("text", [Part(text=text)])
-        context = self._context_blocks()
-        if not context:
+        lines = [Part(text=context)] if context else []
+        self._check_size("text", [*lines, Part(text=text)])
+        blocks = self._context_blocks()
+        if context:
+            blocks.append({"type": "text", "text": context})
+        if not blocks:
             return [self._system_message("text"), HumanMessage(content=text)]
-        content = [*context, {"type": "text", "text": text}]
+        content = [*blocks, {"type": "text", "text": text}]
         return [self._system_message("text"), HumanMessage(content=content)]
 
     def image_messages(
@@ -407,11 +412,14 @@ class ChunkExtractor:
         return self._response(result)
 
     async def extract_text(
-        self, text: str, *, label: str | None = None
+        self, text: str, *, label: str | None = None, context: str = ""
     ) -> dict[str, Any]:
-        """Extract one text chunk; a failure returns the dict with ``error``."""
+        """Extract one text chunk; a failure returns the dict with ``error``.
+
+        *context* is the chunk's context lines block, sent before it.
+        """
         try:
-            messages = self.text_messages(text)
+            messages = self.text_messages(text, context)
         except RequestTooLargeError as exc:
             logger.error("Extraction failed for %s: %s", label or "chunk", exc)
             return error_response(str(exc))

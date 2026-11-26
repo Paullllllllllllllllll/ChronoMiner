@@ -11,6 +11,17 @@ when `--output` names another folder, and close the gaps between ranges, so ever
 line outside a deleted range stays in a chunk. A hand-edited file starts the stored
 boundary decisions over.
 
+A `context (start, end), ...` line below a range sends those lines with that chunk as
+read-only context, under a fixed note that they give no content to extract (README,
+Line Ranges). Use it instead of copying a group heading or the entry a "the same"
+refers to into the input text: name the heading's lines on each later chunk of the
+group. Write such a file by rule from final ranges and extract it with `--chunking
+line-ranges`; adjustment refuses a file with context lines (exit 2), so adjust first
+and add the context lines afterwards. Check the file in the dry run (`chunking`,
+`chunks` and `line_ranges` per item) and, after the run, in the `context_ranges` of
+each `_output.json` record. Changing the context ranges of chunks already sent
+refuses the document until `--force`.
+
 `ranges generate` cuts by token count, so its starts fall inside entries: never
 extract with `--chunking line-ranges` from ranges that `ranges adjust` has not decided.
 After the adjustment, and before extracting, read the first non-empty line at every

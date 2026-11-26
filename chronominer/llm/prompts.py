@@ -20,13 +20,14 @@ project's ``context/extract_context`` image.
 from __future__ import annotations
 
 import logging
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
 from chronominer.common.context import (
     IMAGE_EXTENSIONS,
     ContextError,
+    ResolvedContext,
     resolve_context,
     resolve_context_image,
 )
@@ -55,6 +56,7 @@ __all__ = [
     "BOUNDARY_TYPE_TOKEN",
     "CONTEXT_DIR",
     "CONTEXT_IMAGE_LABEL",
+    "CONTEXT_LINES_NOTE",
     "CONTEXT_SIZE_THRESHOLD",
     "CONTEXT_SUFFIX",
     "CONTEXT_SUFFIXES",
@@ -69,10 +71,12 @@ __all__ = [
     "ContextError",
     "ContextRole",
     "boundary_prompt",
+    "context_lines_text",
     "extraction_prompt",
     "extraction_schema",
     "item_context",
     "item_context_image",
+    "item_context_source",
     "system_content",
 ]
 
@@ -110,6 +114,11 @@ IMAGE_INSTRUCTION = "Extract structured data from this image according to the sc
 """The text block sent before each page image."""
 CONTEXT_IMAGE_LABEL = "Context image:"
 """The text block sent before the context image."""
+CONTEXT_LINES_NOTE = (
+    "The lines inside <context> tags come from elsewhere in the document and "
+    "are context for the text that follows them; they give no content to extract."
+)
+"""The sentence that opens the context lines of a text chunk."""
 BOUNDARY_TYPE_TOKEN = "{{BOUNDARY_TYPE}}"
 MARKER_LENGTH_TOKEN = "{{MARKER_LENGTH}}"
 """Replaced by the marker length range of the run, such as ``5-15``."""
@@ -128,6 +137,22 @@ def extraction_prompt(
     """
     template = load_prompt_template(_PROMPT_PATHS[kind])
     return prepare_prompt_with_context(template, schema_body(schema), context)
+
+
+def context_lines_text(spans: Sequence[tuple[tuple[int, int], str]]) -> str:
+    """Return the text block of a chunk's context lines; empty without any.
+
+    *spans* holds each context range with its lines' text. The block is
+    :data:`CONTEXT_LINES_NOTE`, then each range in a ``<context
+    lines="start-end">`` element.
+    """
+    if not spans:
+        return ""
+    blocks = [
+        f'<context lines="{start}-{end}">\n{text}\n</context>'
+        for (start, end), text in spans
+    ]
+    return "\n".join([CONTEXT_LINES_NOTE, *blocks])
 
 
 def extraction_schema(schema: Mapping[str, Any]) -> dict[str, Any]:
@@ -228,10 +253,26 @@ def item_context(
     Raises:
         ContextError: A given file is empty or unreadable.
     """
+    resolved = item_context_source(item, choice, role, fallback=fallback)
+    return resolved.text if resolved is not None else None
+
+
+def item_context_source(
+    item: Path,
+    choice: ContextText | Path,
+    role: ContextRole = "extract",
+    *,
+    fallback: ContextText | Path = None,
+) -> ResolvedContext | None:
+    """Return the context of *item* with its tier and file, as :func:`item_context`.
+
+    Raises:
+        ContextError: A given file is empty or unreadable.
+    """
     if choice == CONTEXT_NONE:
         return None
     explicit = text_or_file(choice)
-    resolved = resolve_context(
+    return resolve_context(
         item,
         CONTEXT_SUFFIXES[role],
         explicit=explicit,
@@ -239,7 +280,6 @@ def item_context(
         use_sidecars=explicit is None,
         size_threshold=CONTEXT_SIZE_THRESHOLD,
     )
-    return resolved.text if resolved is not None else None
 
 
 def item_context_image(item: Path, choice: ContextChoice) -> Path | None:

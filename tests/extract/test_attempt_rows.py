@@ -23,10 +23,11 @@ import pytest
 
 from chronominer.common.capture import AttemptRecord
 from chronominer.common.sqlite import read_rows
-from chronominer.extract.chunks import extract_payload
+from chronominer.extract.chunks import TextChunk, extract_payload
 from chronominer.extract.extraction import ChunkExtractor
 from chronominer.extract.images import PageImage
 from chronominer.extract.units import UnitsFailedError, run_unit_stream
+from chronominer.llm.prompts import CONTEXT_LINES_NOTE, context_lines_text
 from chronominer.output.attempts import AttemptRows
 from chronominer.settings import RetrySettings
 from chronominer.spec import resolve_schema
@@ -189,6 +190,36 @@ class TestChunkExtractor:
         (entry,) = read_rows(db, "entries", order_by=["entry_index"])
         assert (entry["person"], entry["wage"]) == ("Hans Müller", 12.5)
         assert (unit["response_id"], unit["attempts"]) == (rows[0]["response_id"], 1)
+
+    def test_the_stored_request_of_a_text_chunk_holds_its_context_lines(
+        self, db: Path, network: MockNetwork, sleeps: Sleeps
+    ) -> None:
+        network.answers = [(200, OPENAI_ENTRIES)]
+        schema = resolve_schema("WageRecords")
+        extractor = ChunkExtractor(
+            helpers.model_spec(response_format="json"),
+            helpers.env(clock=sleeps.clock),
+            schema=schema.schema,
+            schema_name=schema.name,
+        )
+        chunk = TextChunk(
+            0,
+            3,
+            4,
+            "Paid to the same, 12s.",
+            "doc-chunk-1",
+            context_ranges=((1, 1),),
+            context=context_lines_text([((1, 1), "Hans Müller, mason")]),
+        )
+
+        assert _run(db, extractor, chunk) is None
+
+        unit, rows = _check_rows(db, network, [OPENAI_ENTRIES])
+        request = json.loads(rows[0]["request"])
+        texts = [part["text"] for part in request["input"][1]["content"]]
+        assert texts == [chunk.context, chunk.text]
+        assert CONTEXT_LINES_NOTE in chunk.context
+        assert json.loads(unit["provenance"])["context_ranges"] == [[1, 1]]
 
     def test_a_malformed_output_is_two_rows_and_the_second_is_selected(
         self, db: Path, network: MockNetwork, sleeps: Sleeps

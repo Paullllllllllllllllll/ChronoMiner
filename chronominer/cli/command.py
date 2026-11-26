@@ -103,22 +103,37 @@ def summary_fields(  # noqa: PLR0913 - one keyword per summary field
 def plan_fields(run_plan: RunPlan) -> dict[str, Any]:
     """Return the fields a dry run adds to the run summary.
 
-    ``to_process`` holds the items to extract with their input type and
-    resume state (none or partial); ``skipped`` the complete items;
-    ``unstored``, ``blocked`` and ``refused`` the items left out, each with
-    the reason. ``spec`` holds the effective value and source of every run
-    option.
+    ``to_process`` holds the items to extract with their input type, resume
+    state (none or partial), chunking, chunk count, the line-ranges file
+    and the context file the run reads (null when none was found) and the
+    context's source (null without context); ``skipped`` the complete
+    items; ``unstored``, ``blocked`` and ``refused`` the items left out,
+    each with the reason. ``spec`` holds the effective value and source of
+    every run option.
     """
     return {
-        "to_process": [
-            {"name": item.name, "type": item.type, "state": item.state}
-            for item in run_plan.to_process
-        ],
+        "to_process": [_item_fields(item) for item in run_plan.to_process],
         "skipped": [item.name for item in run_plan.skipped],
         "unstored": _reasons(run_plan.unstored),
         "blocked": _reasons(run_plan.blocked),
         "refused": _reasons(run_plan.refused),
         "spec": run_plan.resolved_spec(),
+    }
+
+
+def _item_fields(item: PlannedItem) -> dict[str, Any]:
+    chunking = item.chunking
+    line_ranges = chunking.line_ranges if chunking is not None else None
+    return {
+        "name": item.name,
+        "type": item.type,
+        "state": item.state,
+        "chunking": chunking.method if chunking is not None else None,
+        "chunks": chunking.chunks if chunking is not None else None,
+        "chunks_error": chunking.error if chunking is not None else None,
+        "line_ranges": str(line_ranges) if line_ranges is not None else None,
+        "context_file": str(item.context_file) if item.context_file else None,
+        "context_source": item.context_source,
     }
 
 

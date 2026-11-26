@@ -17,8 +17,10 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import tiktoken
 
 import chronominer.cli.extract as extract_cli
+import chronominer.ranges.generate as generate_module
 from chronominer import __main__ as entry
 from chronominer import ext
 from chronominer.common.heartbeat import ENV_VAR
@@ -185,9 +187,21 @@ def test_a_dry_run_reports_the_plan_and_the_effective_spec(
 ) -> None:
     assert _extract(*_dry_run(tmp_path, make_text), "--json") == 0
 
-    payload, _err = _one_line(capsys)
+    payload, err = _one_line(capsys)
     (item,) = payload["to_process"]
-    assert item == {"name": "prices.txt", "type": "text", "state": "none"}
+    assert item == {
+        "name": "prices.txt",
+        "type": "text",
+        "state": "none",
+        "chunking": "auto",
+        "chunks": None,
+        "chunks_error": None,
+        "line_ranges": None,
+        "context_file": None,
+        "context_source": None,
+    }
+    assert "[DRY RUN]     chunking: auto, chunk count not known" in err
+    assert "[DRY RUN]     context: none found" in err
     assert payload["skipped"] == []
     assert payload["spec"]["prompt.schema"] == {"value": SCHEMA, "source": "flag"}
     assert payload["spec"]["output.formats"] == {"value": [], "source": "default"}
@@ -195,6 +209,92 @@ def test_a_dry_run_reports_the_plan_and_the_effective_spec(
         "value": "gpt-6-luna",
         "source": "default",
     }
+
+
+def test_a_dry_run_names_the_line_ranges_and_the_context_it_reads(
+    tmp_path: Path,
+    make_text: MakeText,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    def no_tokenizer(*_args: Any) -> Any:
+        raise AssertionError("a dry run loaded the tokenizer")
+
+    monkeypatch.setattr(generate_module, "_encoding", no_tokenizer)
+    monkeypatch.setattr(tiktoken, "get_encoding", no_tokenizer)
+    text = make_text("in/prices.txt")
+    ranges = text.with_name("prices_line_ranges.txt")
+    ranges.write_text("(1, 1)\n(2, 2)\n  context (1, 1)\n", encoding="utf-8")
+    context = text.with_name("prices_extract_context.txt")
+    context.write_text("Prices are in pence.", encoding="utf-8")
+    argv = ["--schema", SCHEMA, "--input", str(text), "--dry-run", "--json"]
+
+    assert _extract(*argv, "--chunking", "line-ranges") == 0
+
+    payload, err = _one_line(capsys)
+    (item,) = payload["to_process"]
+    assert (item["chunking"], item["chunks"]) == ("line-ranges", 2)
+    assert item["line_ranges"] == str(ranges)
+    assert (item["context_file"], item["context_source"]) == (str(context), "file")
+    assert f"chunking: line-ranges, 2 chunk(s), from {ranges}" in err
+    assert f"context: {context} (file)" in err
+
+    ranges.unlink()
+    assert _extract(*argv, "--chunking", "adjust", "--context", "none") == 0
+
+    payload, err = _one_line(capsys)
+    (item,) = payload["to_process"]
+    assert (item["chunking"], item["chunks"], item["line_ranges"]) == (
+        "adjust",
+        None,
+        None,
+    )
+    assert (item["context_file"], item["context_source"]) == (None, None)
+    assert "no prices_line_ranges.txt found" in err
+    assert sorted(path.name for path in text.parent.iterdir()) == [
+        "prices.txt",
+        "prices_extract_context.txt",
+    ]
+
+
+def test_a_dry_run_reports_an_undecodable_line_ranges_file(
+    tmp_path: Path, make_text: MakeText, capsys: pytest.CaptureFixture[str]
+) -> None:
+    text = make_text("in/prices.txt")
+    ranges = text.with_name("prices_line_ranges.txt")
+    ranges.write_text("(1, 40)\n", encoding="utf-16")
+    argv = ["--schema", SCHEMA, "--input", str(text), "--dry-run", "--json"]
+
+    assert _extract(*argv, "--chunking", "line-ranges") == 0
+
+    payload, err = _one_line(capsys)
+    (item,) = payload["to_process"]
+    assert (item["chunks"], item["line_ranges"]) == (None, str(ranges))
+    assert "utf-8" in item["chunks_error"]
+    assert "chunking: line-ranges, chunk count not known (" in err
+    assert "would be written" not in err
+
+
+def test_adjust_refuses_a_line_ranges_file_with_context_lines(
+    tmp_path: Path, make_text: MakeText, capsys: pytest.CaptureFixture[str]
+) -> None:
+    text = make_text("in/prices.txt")
+    ranges = text.with_name("prices_line_ranges.txt")
+    ranges.write_text("(1, 20)\n(21, 40)\n  context (1, 1)\n", encoding="utf-8")
+    argv = ["--schema", SCHEMA, "--input", str(text), "--dry-run", "--json"]
+
+    assert _extract(*argv, "--chunking", "adjust") == 2
+
+    _payload, err = _one_line(capsys)
+    assert "cannot be adjusted" in err and "--chunking line-ranges" in err
+    assert _extract(*argv, "--chunking", "line-ranges") == 0
+    _one_line(capsys)
+
+    ranges.write_text("(1, 20)\nContext for the editor\n(21, 40)\n", encoding="utf-8")
+    for mode in ("adjust", "line-ranges"):
+        assert _extract(*argv, "--chunking", mode) == 0
+        payload, _err = _one_line(capsys)
+        assert payload["to_process"][0]["chunks"] == 2
 
 
 def test_a_dry_run_writes_nothing(

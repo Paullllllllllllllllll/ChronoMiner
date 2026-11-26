@@ -29,10 +29,12 @@ from chronominer.batch.submit import REQUEST_TOO_LARGE
 from chronominer.common.batch import BatchHandle, BatchResultItem
 from chronominer.common.capture import AttemptRecord, record_attempt
 from chronominer.common.image_presets import MAX_IMAGE_BYTES
+from chronominer.common.retry import RunStopped
 from chronominer.common.sqlite import read
 from chronominer.common.store import PlannedUnit, ResponseRow, UnitKey, UnitResult
 from chronominer.extract.images import resolve_image_settings
 from chronominer.extract.pdf import PDF_PAGE_NAME
+from chronominer.llm.prompts import context_lines_text
 from chronominer.output.entries import entries_writer, parse_entries
 from chronominer.output.render import render_item
 from chronominer.output.store import (
@@ -297,8 +299,11 @@ class FakeExtractor:
             return {"output_text": "", "error": "boom"}
         return {"output_text": answer(text)}
 
-    async def extract_text(self, text: str, *, label: str | None = None) -> Any:
-        return await self._answer(label or "", {"text": text})
+    async def extract_text(
+        self, text: str, *, label: str | None = None, context: str = ""
+    ) -> Any:
+        options = {"text": text, **({"context": context} if context else {})}
+        return await self._answer(label or "", options)
 
     async def extract_image_from_base64(
         self, data: str, mime: str, *, label: str | None = None, **options: Any
@@ -414,6 +419,76 @@ async def test_a_text_chunk_is_cut_again_from_its_line_range(
     )
     (provenance,) = rows(stored.db, "SELECT provenance FROM units WHERE idx = 1")
     assert json.loads(provenance[0])["custom_id"] == "doc-chunk-2"
+
+
+async def test_a_text_chunk_is_repaired_with_its_recorded_context_ranges(
+    tmp_path: Path, extractor: type[FakeExtractor]
+) -> None:
+    stored = await store_document(tmp_path, ["ok", "failed"], kind="text")
+    recorded = {"custom_id": "doc-chunk-2", "context_ranges": [[1, 1]]}
+    connection = sqlite3.connect(stored.db)
+    with connection:
+        connection.execute(
+            "UPDATE units SET provenance = ? WHERE idx = 1", (json.dumps(recorded),)
+        )
+    connection.close()
+    extractor.texts = {chunk_label(1): "Fixed text"}
+
+    result = await repair_module.repair_extraction(spec_for(stored.output), Settings())
+
+    assert (result.repaired, result.failed) == (1, 0)
+    ((_label, options),) = extractor.calls
+    assert options["context"] == context_lines_text(
+        [((1, 1), "Paid to worker 0 on line 0")]
+    )
+    (provenance,) = rows(stored.db, "SELECT provenance FROM units WHERE idx = 1")
+    assert json.loads(provenance[0])["context_ranges"] == [[1, 1]]
+
+
+async def test_a_chunk_whose_source_is_missing_keeps_its_context_ranges(
+    tmp_path: Path, extractor: type[FakeExtractor]
+) -> None:
+    stored = await store_document(tmp_path, ["ok", "failed"], kind="text")
+    recorded = {"custom_id": "doc-chunk-2", "context_ranges": [[1, 1]]}
+    connection = sqlite3.connect(stored.db)
+    with connection:
+        connection.execute(
+            "UPDATE units SET provenance = ? WHERE idx = 1", (json.dumps(recorded),)
+        )
+    connection.close()
+    stored.source.unlink()
+
+    await repair_module.repair_extraction(spec_for(stored.output), Settings())
+
+    assert extractor.calls == []
+    (unit,) = rows(stored.db, "SELECT status, provenance FROM units WHERE idx = 1")
+    assert unit[0] == "failed"
+    assert json.loads(unit[1])["context_ranges"] == [[1, 1]]
+
+
+async def test_a_stopped_sync_repair_keeps_the_context_ranges_of_its_units(
+    tmp_path: Path, extractor: type[FakeExtractor], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    stored = await store_document(tmp_path, ["ok", "failed"], kind="text")
+    recorded = {"custom_id": "doc-chunk-2", "context_ranges": [[1, 1]]}
+    connection = sqlite3.connect(stored.db)
+    with connection:
+        connection.execute(
+            "UPDATE units SET provenance = ? WHERE idx = 1", (json.dumps(recorded),)
+        )
+    connection.close()
+
+    async def stopped(self: FakeExtractor, text: str, **_kwargs: Any) -> Any:
+        raise RunStopped("the provider stopped serving")
+
+    monkeypatch.setattr(FakeExtractor, "extract_text", stopped)
+
+    result = await repair_module.repair_extraction(spec_for(stored.output), Settings())
+
+    assert result.stop is not None
+    (unit,) = rows(stored.db, "SELECT status, provenance FROM units WHERE idx = 1")
+    assert unit[0] == "pending"
+    assert json.loads(unit[1])["context_ranges"] == [[1, 1]]
 
 
 async def test_the_input_path_finds_the_document_too(

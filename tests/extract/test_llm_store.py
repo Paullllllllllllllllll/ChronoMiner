@@ -35,6 +35,7 @@ from chronominer.extract.llm import (
     ImageSettingsChangedError,
 )
 from chronominer.extract.units import DocumentHandle, UnitsFailedError
+from chronominer.llm.prompts import CONTEXT_LINES_NOTE
 from chronominer.output.output_json import render_output_json
 from chronominer.output.store import DATABASE_NAME, document_metadata, open_store
 from chronominer.ranges.adjust import AdjustReport
@@ -403,6 +404,139 @@ class TestTextDocuments:
             "1-4",
             f"5-{len(read_lines(source))}",
         ]
+
+    def test_context_ranges_are_sent_ahead_of_their_chunk_and_recorded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        script = helpers.install(monkeypatch, [_answer])
+        source = _ledger(tmp_path / "in" / "ledger.txt")
+        out = tmp_path / "out"
+        ranges_path(source).write_text(
+            "(1, 8)\n(9, 16)\n  context (1, 1), (5, 5)\n(17, 47)\n", encoding="utf-8"
+        )
+
+        assert _run(source, out, "text", chunking="line-ranges") is None
+
+        first, second, _third = (
+            request.messages[-1].content for request in script.requests
+        )
+        assert isinstance(first, str)
+        context, chunk = second
+        assert context["text"].startswith(CONTEXT_LINES_NOTE)
+        assert '<context lines="1-1">\nRecord 001.\n</context>' in context["text"]
+        assert '<context lines="5-5">\nRecord 002.\n</context>' in context["text"]
+        assert chunk == {"type": "text", "text": "\n".join(read_lines(source)[8:16])}
+        provenance = [json.loads(row["provenance"]) for row in _chunks(out)]
+        assert [row.get("context_ranges") for row in provenance] == [
+            None,
+            [[1, 1], [5, 5]],
+            None,
+        ]
+        records = _output(out)["records"]
+        assert [record.get("context_ranges") for record in records] == [
+            None,
+            [[1, 1], [5, 5]],
+            None,
+        ]
+        assert records[1]["chunk_range"] == [9, 16]
+
+    def test_changed_context_ranges_of_a_sent_chunk_refuse_the_resume(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        script = helpers.install(monkeypatch, [_answer])
+        source = _ledger(tmp_path / "in" / "ledger.txt")
+        out = tmp_path / "out"
+        ranges_file = ranges_path(source)
+        ranges_file.write_text("(1, 8)\n(9, 16)\n(17, 47)\n", encoding="utf-8")
+        assert (
+            _run(source, out, "text", chunking="line-ranges", pages="first:2") is None
+        )
+
+        ranges_file.write_text(
+            "(1, 8)\n(9, 16)\n(17, 47)\n  context (1, 1)\n", encoding="utf-8"
+        )
+        assert _run(source, out, "text", chunking="line-ranges", pages="3") is None
+        assert len(script.requests) == 3
+        assert not isinstance(script.requests[2].messages[-1].content, str)
+
+        ranges_file.write_text(
+            "(1, 8)\n(9, 16)\n  context (5, 5)\n(17, 47)\n  context (1, 1)\n",
+            encoding="utf-8",
+        )
+        error = _run(source, out, "text", chunking="line-ranges")
+        assert isinstance(error, ChunkingChangedError)
+        assert "chunk(s) 2 of 'ledger'" in str(error)
+
+        assert _run(source, out, "text", chunking="line-ranges", force=True) is None
+        assert len(script.requests) == 6
+        provenance = [json.loads(row["provenance"]) for row in _chunks(out)]
+        assert [row.get("context_ranges") for row in provenance] == [
+            None,
+            [[5, 5]],
+            [[1, 1]],
+        ]
+
+    def test_a_chunk_only_prepared_for_a_batch_takes_edited_context_ranges(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        helpers.install(monkeypatch, [_answer])
+        source = _ledger(tmp_path / "in" / "ledger.txt")
+        out = tmp_path / "out"
+        ranges_file = ranges_path(source)
+        ranges_file.write_text("(1, 8)\n(9, 16)\n", encoding="utf-8")
+        assert _run(source, out, "text", chunking="line-ranges", pages="1") is None
+        prepared = {"custom_id": "ledger-chunk-2", "chunk_range": [9, 16]}
+        connection = sqlite3.connect(out / DATABASE_NAME)
+        with connection:
+            connection.execute(
+                "UPDATE units SET provenance = ? WHERE kind = 'chunk' AND idx = 1",
+                (json.dumps(prepared),),
+            )
+        connection.close()
+        ranges_file.write_text("(1, 8)\n(9, 16)\n  context (1, 1)\n", encoding="utf-8")
+
+        assert _run(source, out, "text", chunking="line-ranges") is None
+
+        provenance = json.loads(_chunks(out)[1]["provenance"])
+        assert provenance["context_ranges"] == [[1, 1]]
+
+    def test_a_chunk_of_an_accepted_batch_without_result_keeps_its_context(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        helpers.install(monkeypatch, [_answer])
+        source = _ledger(tmp_path / "in" / "ledger.txt")
+        out = tmp_path / "out"
+        ranges_file = ranges_path(source)
+        ranges_file.write_text("(1, 8)\n(9, 16)\n", encoding="utf-8")
+        assert _run(source, out, "text", chunking="line-ranges", pages="1") is None
+        sent = {"custom_id": "ledger-chunk-2", "chunk_range": [9, 16]}
+        connection = sqlite3.connect(out / DATABASE_NAME)
+        with connection:
+            (run_id,) = connection.execute("SELECT run_id FROM runs").fetchone()
+            connection.execute(
+                "UPDATE units SET status = 'failed', provenance = ? "
+                "WHERE kind = 'chunk' AND idx = 1",
+                (json.dumps(sent),),
+            )
+            connection.execute(
+                "INSERT INTO submissions (submission_id, tool, provider, model, "
+                "run_id, intent_at, batch_id, status) VALUES "
+                "('s1', 'chronominer', 'openai', ?, ?, '2026-01-01', 'b1', "
+                "'finalized')",
+                (MODEL, run_id),
+            )
+            connection.execute(
+                "INSERT INTO submission_requests "
+                "(submission_id, custom_id, doc_id, kind, idx) VALUES "
+                "('s1', 'ledger-chunk-2', 1, 'chunk', 1)"
+            )
+        connection.close()
+        ranges_file.write_text("(1, 8)\n(9, 16)\n  context (1, 1)\n", encoding="utf-8")
+
+        error = _run(source, out, "text", chunking="line-ranges")
+
+        assert isinstance(error, ChunkingChangedError)
+        assert "chunk(s) 2 of 'ledger'" in str(error)
 
     def test_force_recuts_the_chunks_of_a_document_with_a_finalized_batch(
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch

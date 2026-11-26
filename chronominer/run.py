@@ -82,8 +82,10 @@ from chronominer.extract import (
     NothingSelectedError,
     SubmitOutcome,
 )
+from chronominer.extract.chunks import PAGES_METHOD
 from chronominer.extract.images import resolve_image_settings, resume_images
 from chronominer.extract.llm import Extractor, image_record
+from chronominer.extract.pdf import PDFProcessor
 from chronominer.extract.units import DocumentHandle
 from chronominer.llm.caller import CallEnv, ModelCaller
 from chronominer.llm.capabilities import ensure_image_support
@@ -98,6 +100,7 @@ from chronominer.llm.prompts import (
     extraction_schema,
     item_context,
     item_context_image,
+    item_context_source,
 )
 from chronominer.output.render import format_path, output_formats, render_item
 from chronominer.output.store import (
@@ -115,7 +118,13 @@ from chronominer.pool import ItemSlots
 from chronominer.ranges.adjust import ROLE as ADJUST_ROLE
 from chronominer.ranges.adjust import AdjustOptions, RangesStopped, adjust_ranges
 from chronominer.ranges.generate import GenerateReport, generate_files
-from chronominer.ranges.lines import ranges_path
+from chronominer.ranges.lines import (
+    clamp_ranges,
+    context_lines_refusal,
+    ranges_path,
+    read_lines,
+    read_ranges,
+)
 from chronominer.ranges.store import group_by_folder, open_folder_store
 from chronominer.settings import Settings, SettingsError
 from chronominer.spec import (
@@ -136,6 +145,7 @@ from chronominer.stopping import RunStop
 __all__ = [
     "BUSY_TIMEOUT",
     "BUSY_WARN_INTERVAL",
+    "Chunking",
     "ConfigurationError",
     "InputError",
     "ItemResult",
@@ -221,14 +231,39 @@ class MissingKey:
 
 
 @dataclass(frozen=True)
+class Chunking:
+    """How a run would cut one item, as a dry run reports it.
+
+    *method* is the ``--chunking`` mode of a text (``auto``, ``line-ranges``
+    or ``adjust``) or ``pages`` for an image or PDF. *chunks* counts the
+    chunks: the stored ones of a resumed ``auto`` text, those of the
+    line-ranges file (for ``adjust`` before its boundaries move), or the
+    pages; None where only the tokenizer could count them (a new ``auto``
+    text, a missing line-ranges file), which a dry run does not load since it
+    may download its vocabulary, or when the input cannot be read.
+    *line_ranges* is the line-ranges file the run reads, None when it uses
+    none or none was found. *error* says why an input or line-ranges file
+    could not be read or decoded.
+    """
+
+    method: str
+    chunks: int | None
+    line_ranges: Path | None = None
+    error: str | None = None
+
+
+@dataclass(frozen=True)
 class PlannedItem:
     """One discovered input: its resume state, store row and prompt context.
 
     *resume* is the item's classification from the store of *root*, where
     the item is the document *document*; *output* is its ``_output.json``.
     *context* and *context_image* are the item's resolved extraction
-    context; *adjust_context* the context of its boundary decisions under
-    ``--chunking adjust``.
+    context; *context_file* is the file the context was read from and
+    *context_source* its tier (``explicit``, ``file``, ``folder`` or
+    ``default``), both None without context, the file None for context
+    given as text. *adjust_context* is the context of its boundary
+    decisions under ``--chunking adjust``. *chunking* is set by a dry run.
     """
 
     source: SourceItem
@@ -239,6 +274,9 @@ class PlannedItem:
     context: str | None = None
     context_image: Path | None = None
     adjust_context: str | None = None
+    context_file: Path | None = None
+    context_source: str | None = None
+    chunking: Chunking | None = None
 
     @property
     def path(self) -> Path:
@@ -536,7 +574,7 @@ def _with_prompt(item: PlannedItem, spec: RunSpec) -> PlannedItem:
     """
     prompt = spec.prompt
     try:
-        context = item_context(
+        resolved = item_context_source(
             item.path, prompt.context, fallback=prompt.fallback_context
         )
         image = item_context_image(item.path, prompt.context_image)
@@ -549,7 +587,39 @@ def _with_prompt(item: PlannedItem, spec: RunSpec) -> PlannedItem:
         )
     except ContextError as exc:
         raise ConfigurationError(str(exc)) from exc
-    return replace(item, context=context, context_image=image, adjust_context=adjust)
+    return replace(
+        item,
+        context=resolved.text if resolved is not None else None,
+        context_image=image,
+        adjust_context=adjust,
+        context_file=resolved.path if resolved is not None else None,
+        context_source=resolved.source.value if resolved is not None else None,
+    )
+
+
+def _chunking(item: PlannedItem, spec: RunSpec) -> Chunking:
+    """Return how the run of *spec* would cut *item*; write nothing."""
+    if item.type != "text":
+        if item.type != "pdf":
+            return Chunking(PAGES_METHOD, 1)
+        try:
+            return Chunking(PAGES_METHOD, PDFProcessor(item.path).page_count())
+        except Exception as exc:  # noqa: BLE001 - the dry run reports no count
+            logger.warning("Could not count the pages of %s: %s", item.path, exc)
+            return Chunking(PAGES_METHOD, None, error=str(exc))
+    mode = spec.chunking.mode
+    stored = item.resume.total if not spec.run.force else 0
+    if mode == "auto":
+        return Chunking(mode, stored or None)
+    sidecar = ranges_path(item.path)
+    if not sidecar.is_file():
+        return Chunking(mode, None)
+    try:
+        total = len(read_lines(item.path))
+        return Chunking(mode, len(clamp_ranges(read_ranges(sidecar), total)), sidecar)
+    except (OSError, UnicodeDecodeError) as exc:
+        logger.warning("Could not read %s or %s: %s", item.path, sidecar.name, exc)
+        return Chunking(mode, None, sidecar, error=str(exc))
 
 
 def _missing_key(
@@ -835,6 +905,13 @@ def plan(
     if duplicate is not None:
         raise duplicate
     to_process = [_with_prompt(item, spec) for item in _in_order(groups, discovered)]
+    if spec.chunking.mode == "adjust":
+        texts = [item.path for item in to_process if item.type == "text"]
+        _refuse_context_lines(texts, len(to_process))
+    if spec.run.dry_run:
+        to_process = [
+            replace(item, chunking=_chunking(item, spec)) for item in to_process
+        ]
     logger.info(
         "%d item(s) to process, %d already complete",
         len(to_process),
@@ -1889,6 +1966,18 @@ def _adjust_checks(
     return schema, contexts, response_format, pages, missing
 
 
+def _refuse_context_lines(text_files: Sequence[Path], total: int) -> None:
+    """Refuse to adjust a text whose line-ranges file holds context lines.
+
+    Raises:
+        InputError: A line-ranges file of *text_files* holds context lines.
+    """
+    for path in text_files:
+        refusal = context_lines_refusal(ranges_path(path))
+        if refusal is not None:
+            raise InputError(refusal, items_total=total)
+
+
 def _adjust_key(
     spec: RangesAdjustSpec,
     settings: Settings,
@@ -1954,6 +2043,7 @@ def plan_ranges(
             "'chronominer ranges generate' first.",
             items_total=len(files),
         )
+    _refuse_context_lines(ready, len(files))
     return RangesPlan(
         spec,
         input_path,

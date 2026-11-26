@@ -20,8 +20,10 @@ for a Gemini page image, the media resolution its detail maps to.
 :data:`~chronominer.llm.prompts.EXTRACTION_SCHEMA_NAME` (OpenAI
 ``text.format``, Anthropic ``output_config.format`` on the schema the
 synchronous request sends, Google ``response_json_schema``), ``json`` sends
-it only in the prompt. A text chunk is sent as the user message; an image
-chunk follows :data:`~chronominer.llm.prompts.IMAGE_INSTRUCTION`. The
+it only in the prompt. A text chunk is sent as the user message, after its
+context lines (:data:`CONTEXT_LINES_KEY` of the request's metadata) in a
+text block of their own; an image chunk follows
+:data:`~chronominer.llm.prompts.IMAGE_INSTRUCTION`. The
 context image goes to every model with image input, as the synchronous path
 sends it: preprocessed like a page, as JPEG with the model's detail, first under
 :data:`~chronominer.llm.prompts.CONTEXT_IMAGE_LABEL`. The format follows the
@@ -60,6 +62,7 @@ from chronominer.spec import ImageSpec, ModelSpec
 
 __all__ = [
     "CONTEXT_IMAGE_INSTRUCTION",
+    "CONTEXT_LINES_KEY",
     "USER_INSTRUCTION",
     "BodyPlan",
     "build_plan",
@@ -70,6 +73,8 @@ logger = logging.getLogger(__name__)
 
 USER_INSTRUCTION = IMAGE_INSTRUCTION
 CONTEXT_IMAGE_INSTRUCTION = CONTEXT_IMAGE_LABEL
+CONTEXT_LINES_KEY = "context_lines"
+"""The request metadata key of a text chunk's context lines block."""
 
 _CHUNK_KINDS: tuple[ChunkKind, ...] = ("text", "image")
 
@@ -136,6 +141,9 @@ class BodyPlan:
                 )
             )
         else:
+            lines = request.metadata.get(CONTEXT_LINES_KEY)
+            if lines:
+                parts.append(Part(text=str(lines)))
             parts.append(Part(text=request.text))
         return batch_body(
             self.plan, self.system_prompt(request), parts, self._enforced()

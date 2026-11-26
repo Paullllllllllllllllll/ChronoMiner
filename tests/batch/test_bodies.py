@@ -13,9 +13,11 @@ from langchain_anthropic import ChatAnthropic
 from PIL import Image
 
 from chronominer.batch.bodies import BodyPlan, build_plan
+from chronominer.batch.submit import chunk_request
 from chronominer.common.batch import BatchRequest
 from chronominer.common.batch_google import file_request
 from chronominer.common.structured import ANTHROPIC_UNION_LIMIT, prepare_request
+from chronominer.extract.chunks import TextChunk
 from chronominer.extract.extraction import (
     ANTHROPIC_SCHEMA_DESCRIPTION,
     anthropic_schema,
@@ -30,6 +32,7 @@ from chronominer.llm.prompts import (
     CONTEXT_IMAGE_LABEL,
     EXTRACTION_SCHEMA_NAME,
     IMAGE_INSTRUCTION,
+    context_lines_text,
     extraction_prompt,
     extraction_schema,
 )
@@ -567,6 +570,36 @@ def test_the_context_image_precedes_the_chunk_on_google(
     assert context["inline_data"]["mime_type"] == "image/jpeg"
     assert len(parts) == (4 if request_.is_visual else 3)
     assert file_request(body)["contents"][0]["parts"] == parts
+
+
+@pytest.mark.parametrize("provider", ["openai", "anthropic", "google"])
+def test_context_lines_precede_the_text_chunk_as_in_the_sync_path(
+    provider: str,
+) -> None:
+    lines = context_lines_text([((1, 1), "WAGES OF 1701")])
+    chunk = TextChunk(
+        1,
+        5,
+        9,
+        "Paid to John Carter, mason, 2s.",
+        context_ranges=((1, 1),),
+        context=lines,
+    )
+    request = chunk_request(chunk)
+    assert request is not None
+
+    body = plan(provider).body(request)
+
+    if provider == "openai":
+        texts = [part["text"] for part in body["input"][1]["content"]]
+    elif provider == "anthropic":
+        texts = [part["text"] for part in body["messages"][0]["content"]]
+    else:
+        texts = [part["text"] for part in body["contents"][0]["parts"]]
+    assert texts == [lines, "Paid to John Carter, mason, 2s."]
+    assert chunk_request(replace(chunk, context="")) == BatchRequest(
+        "chunk-1", text=chunk.text, order_index=1
+    )
 
 
 def test_a_model_without_image_input_gets_no_context_image(

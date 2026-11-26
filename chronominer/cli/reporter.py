@@ -11,13 +11,43 @@ from chronominer.cli.console import (
     print_warning,
 )
 from chronominer.events import ChunkDone, ItemFinished, ItemStarted, Waiting
-from chronominer.run import RunPlan, RunResult
+from chronominer.ranges.lines import ranges_path
+from chronominer.run import PlannedItem, RunPlan, RunResult
 
 __all__ = ["PROGRESS_STEPS", "StderrReporter"]
 
 # Progress lines per item: one each time another 1/PROGRESS_STEPS of the
 # pending chunks is done; failed chunks are always reported.
 PROGRESS_STEPS = 10
+
+
+def _chunking_line(item: PlannedItem) -> str:
+    """Return the dry run's chunking line of *item*: method, count, sidecar."""
+    chunking = item.chunking
+    assert chunking is not None
+    if chunking.chunks is None:
+        line = f"{chunking.method}, chunk count not known"
+        if chunking.error is not None:
+            line += f" ({chunking.error})"
+    else:
+        line = f"{chunking.method}, {chunking.chunks} chunk(s)"
+        if chunking.method == "adjust":
+            line += " before adjustment"
+    if chunking.method in ("line-ranges", "adjust"):
+        if chunking.line_ranges is not None:
+            return f"{line}, from {chunking.line_ranges}"
+        missing = ranges_path(item.path).name
+        return f"{line}; no {missing} found, it would be written from --chunk-tokens"
+    return line
+
+
+def _context_line(item: PlannedItem) -> str:
+    """Return the dry run's context line of *item*: the file and its source."""
+    if item.context_source is None:
+        return "none found"
+    if item.context_file is None:
+        return f"text ({item.context_source})"
+    return f"{item.context_file} ({item.context_source})"
 
 
 class StderrReporter:
@@ -78,7 +108,10 @@ class StderrReporter:
             print_info("Resume mode: skip (use --force to reprocess all)")
 
     def dry_run(self, run_plan: RunPlan) -> None:
-        """Write what the run would process, and whether it would batch."""
+        """Write what the run would process, and whether it would batch.
+
+        Each item to process is followed by its chunking and its context.
+        """
         print_info(
             f"[DRY RUN] {len(run_plan.discovered)} discovered; "
             f"{len(run_plan.to_process)} would be processed, "
@@ -86,6 +119,9 @@ class StderrReporter:
         )
         for item in run_plan.to_process:
             print_info(f"[DRY RUN]   would process: {item.name} ({item.type})")
+            if item.chunking is not None:
+                print_info(f"[DRY RUN]     chunking: {_chunking_line(item)}")
+            print_info(f"[DRY RUN]     context: {_context_line(item)}")
         for item in run_plan.render_only:
             print_info(f"[DRY RUN]   would render again: {item.name}")
         left_out = (*run_plan.unstored, *run_plan.blocked, *run_plan.refused)

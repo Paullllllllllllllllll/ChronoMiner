@@ -24,6 +24,7 @@ from chronominer.ranges.adjust import (
     BOUNDARY_SENTINEL,
     AdjustDegradedError,
     AdjustOptions,
+    ContextLinesError,
     adjust_files,
     adjust_ranges,
     boundary_user_text,
@@ -343,6 +344,31 @@ async def test_a_hand_edited_file_is_read_as_the_starting_ranges(
     assert report.decided == 2
     assert read_ranges(ranges_path(ledger)) == [(1, 36), (37, 71)]
     assert [row["source_index"] for row in _units(ledger)] == ["1-33", "34-71"]
+
+
+async def test_a_file_with_context_lines_is_not_adjusted(
+    store: Store, ledger: Path
+) -> None:
+    ranges_path(ledger).write_text("(1, 38)\n  context (1, 1)\n(39, 71)\n", "utf-8")
+    caller = FakeCaller()
+
+    with pytest.raises(ContextLinesError, match="cannot be adjusted"):
+        await _adjust(store, ledger, caller)
+
+    assert caller.requests == []
+    assert _units(ledger) == []
+
+
+async def test_a_note_in_prose_is_skipped_and_the_file_adjusted(
+    store: Store, ledger: Path
+) -> None:
+    lines = [f"({start}, {end})" for start, end in MID_RECORD]
+    lines.insert(1, "Context for the editor: records start with a number")
+    ranges_path(ledger).write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+    report = await _adjust(store, ledger, FakeCaller())
+
+    assert list(report.ranges) == ADJUSTED
 
 
 async def test_changed_settings_adjust_again(store: Store, ledger: Path) -> None:

@@ -78,7 +78,12 @@ from chronominer.common.store import (
     file_sha256,
 )
 from chronominer.events import NullEvents, RunEvents
-from chronominer.extract.chunks import TextChunk, custom_id, extract_payload
+from chronominer.extract.chunks import (
+    TextChunk,
+    context_block,
+    custom_id,
+    extract_payload,
+)
 from chronominer.extract.decide import SKIPPED_OUTCOME
 from chronominer.extract.extraction import ChunkExtractor
 from chronominer.extract.images import (
@@ -100,6 +105,7 @@ from chronominer.llm.options import model_capabilities
 from chronominer.llm.prompts import ContextError, item_context, item_context_image
 from chronominer.output.render import JSON_FORMAT, find_databases
 from chronominer.output.store import (
+    CONTEXT_RANGES_KEY,
     DATABASE_NAME,
     KIND_CHUNK,
     OUTPUT_SUFFIX,
@@ -109,7 +115,7 @@ from chronominer.output.store import (
     read_store,
 )
 from chronominer.ranges.generate import chunk_texts
-from chronominer.ranges.lines import read_lines
+from chronominer.ranges.lines import read_lines, stored_context
 from chronominer.settings import Settings, SettingsError
 from chronominer.spec import (
     CONTEXT_NONE,
@@ -718,23 +724,43 @@ def page_image(
 def text_chunk(document: RepairDocument, unit: UnitRow) -> TextChunk:
     """Cut the line range of *unit* again from the recorded text.
 
-    A chunk whose text or range cannot be read carries ``render_error``, so
-    it is recorded as a failed chunk.
+    The chunk takes the context ranges its provenance records. A chunk
+    whose text or range cannot be read carries ``render_error``, so it is
+    recorded as a failed chunk.
     """
     match = _RANGE_RE.match(str(unit.source_index or ""))
     start, end = (int(match.group(1)), int(match.group(2))) if match else (0, 0)
     chunk_id = _custom_id(document, unit, "text")
+    provenance = unit.provenance if isinstance(unit.provenance, Mapping) else {}
+    context = stored_context(provenance.get(CONTEXT_RANGES_KEY))
     source = document.input_path
     try:
         if match is None:
             raise ValueError(f"Chunk {unit.idx} has no line range")
         if source is None or not source.is_file():
             raise FileNotFoundError(f"Recorded source missing: {source}")
-        (text,) = chunk_texts(read_lines(source), [(start, end)])
+        lines = read_lines(source)
+        (text,) = chunk_texts(lines, [(start, end)])
     except (OSError, ValueError) as exc:
         logger.error("Chunk %d of '%s' not rebuilt: %s", unit.idx, document.name, exc)
-        return TextChunk(unit.idx, start, end, "", chunk_id, render_error=str(exc))
-    return TextChunk(unit.idx, start, end, text, chunk_id)
+        return TextChunk(
+            unit.idx,
+            start,
+            end,
+            "",
+            chunk_id,
+            render_error=str(exc),
+            context_ranges=context,
+        )
+    return TextChunk(
+        unit.idx,
+        start,
+        end,
+        text,
+        chunk_id,
+        context_ranges=context,
+        context=context_block(lines, context),
+    )
 
 
 def chunk_payload(document: RepairDocument, unit: UnitRow) -> Any:
@@ -1010,8 +1036,10 @@ class _DetailedExtractor:
         self.inner = inner
         self.options = dict(options)
 
-    async def extract_text(self, text: str, *, label: str | None = None) -> Any:
-        return await self.inner.extract_text(text, label=label)
+    async def extract_text(
+        self, text: str, *, label: str | None = None, context: str = ""
+    ) -> Any:
+        return await self.inner.extract_text(text, label=label, context=context)
 
     async def extract_image_from_base64(
         self, image_base64: str, mime_type: str, *, label: str | None = None
@@ -1062,7 +1090,7 @@ class _Session:
                 the chunks not extracted stay pending.
         """
         plan, document = self.plan, self.document
-        await self.handle.reset(self.idxs)
+        await self._record_chunks(payloads)
         env = CallEnv.create(plan.settings, self.events, stop=self.stop)
         extractor = ChunkExtractor(
             plan.spec.model,
@@ -1094,7 +1122,10 @@ class _Session:
         return True
 
     async def _record_chunks(self, payloads: Sequence[Any]) -> None:
-        """Return the submitted units to pending with their new provenance."""
+        """Return the selected units to pending with their new provenance.
+
+        A unit the run does not reach keeps its custom id and context ranges.
+        """
         handle = self.handle
         await handle.reset(self.idxs)
         for payload in payloads:

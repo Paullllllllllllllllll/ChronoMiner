@@ -6,8 +6,9 @@ The shape is the one its readers know::
 
 Each done, non-stale chunk unit is one record, in chunk order:
 ``custom_id``, ``chunk_index`` (1-based), ``chunk_range`` (``[start, end]``
-of a text chunk, else null), ``response`` (``output_text`` with the unit's
-content as received, then the other response fields; see
+of a text chunk, else null), for a text chunk sent with context ranges
+``context_ranges`` (``[[start, end], ...]``), ``response`` (``output_text``
+with the unit's content as received, then the other response fields; see
 :mod:`chronominer.output.store` for the unit fields) and, for an image or
 PDF page, ``image_provenance``.
 
@@ -41,7 +42,7 @@ import re
 import sqlite3
 from typing import Any, Final
 
-from chronominer.output.store import KIND_CHUNK, document_metadata
+from chronominer.output.store import CONTEXT_RANGES_KEY, KIND_CHUNK, document_metadata
 
 __all__ = ["METADATA_KEY", "PAGE_KINDS", "default_custom_id", "render_output_json"]
 
@@ -258,10 +259,12 @@ def render_output_json(connection: sqlite3.Connection, doc_id: int) -> str:
             or default_custom_id(name, kind, chunk_index),
             "chunk_index": chunk_index,
             "chunk_range": _chunk_range(provenance, source_index),
-            "response": _response(
-                str(content), provenance, usage, str(model), str(provider)
-            ),
         }
+        if "chunk_range" in provenance and provenance.get(CONTEXT_RANGES_KEY):
+            record[CONTEXT_RANGES_KEY] = provenance[CONTEXT_RANGES_KEY]
+        record["response"] = _response(
+            str(content), provenance, usage, str(model), str(provider)
+        )
         if provenance.get("image_provenance"):
             record["image_provenance"] = provenance["image_provenance"]
         records.append(record)

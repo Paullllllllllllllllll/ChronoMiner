@@ -13,8 +13,8 @@ item from the store.
 A text document's chunks come from its line ranges (see
 :mod:`~chronominer.extract.chunks`). Under ``--chunking auto`` a document
 with stored chunks resumes on their stored ranges; under the other modes a
-document whose stored chunks were cut with other ranges is refused unless
-``--force``. A PDF or image document is
+document whose stored chunks were cut with other ranges, or were sent with
+other context ranges, is refused unless ``--force``. A PDF or image document is
 refused when its stored pages used other image settings; a model change alone
 resumes, and an image option the run leaves unset keeps its stored value.
 
@@ -77,6 +77,7 @@ from chronominer.extract.units import DocumentHandle, EntrySchema, run_unit_stre
 from chronominer.llm.caller import ModelCaller
 from chronominer.llm.options import model_capabilities, response_format_for
 from chronominer.output.store import (
+    CONTEXT_RANGES_KEY,
     ENTRY_TABLE,
     chunk_decision_rows,
     clear_chunk_decisions,
@@ -87,7 +88,13 @@ from chronominer.output.store import (
 )
 from chronominer.pool import ItemSlots
 from chronominer.ranges.adjust import AdjustOptions
-from chronominer.ranges.lines import Range, read_lines
+from chronominer.ranges.lines import (
+    Context,
+    Range,
+    RangeLine,
+    read_lines,
+    stored_context,
+)
 from chronominer.spec import (
     ImageSpec,
     ResolvedSchema,
@@ -158,6 +165,52 @@ def _same_layout(units: Sequence[UnitRow], planned: Sequence[PlannedUnit]) -> bo
         and (unit.source_index is None or str(unit.source_index) == plan.source_index)
         for unit, plan in zip(units, planned, strict=True)
     )
+
+
+_SUBMITTED_CHUNKS = (
+    "SELECT DISTINCT r.idx FROM submission_requests AS r "
+    "JOIN submissions AS s ON s.submission_id = r.submission_id "
+    "WHERE r.doc_id = ? AND r.kind = ? "
+    "AND (s.batch_id IS NOT NULL OR s.status = 'unresolved')"
+)
+
+
+def _submitted(handle: DocumentHandle) -> set[int]:
+    """Return the chunks of a batch the provider accepted or may have accepted."""
+    rows = read(
+        handle.store.path,
+        lambda c: c.execute(_SUBMITTED_CHUNKS, (handle.doc_id, handle.kind)).fetchall(),
+    )
+    return {int(row[0]) for row in rows}
+
+
+def _context_changes(
+    units: Sequence[UnitRow], contexts: Sequence[Context], submitted: set[int]
+) -> list[int]:
+    """Return the stored chunks sent with other context ranges than *contexts*.
+
+    A chunk records what it was sent with in its provenance (no
+    ``context_ranges``: none). A chunk counts as sent when it is done, has a
+    stored response, or belongs to a batch the provider accepted or may have
+    accepted (*submitted*); one only prepared for a batch that never went
+    out, or reset to pending, fits any. *units* fit the planned layout.
+    """
+    changed: list[int] = []
+    for unit in units:
+        provenance = unit.provenance
+        if not isinstance(provenance, Mapping) or "chunk_range" not in provenance:
+            continue
+        went_out = (
+            unit.status == "done"
+            or unit.response_id is not None
+            or unit.idx in submitted
+        )
+        if not went_out:
+            continue
+        sent = stored_context(provenance.get(CONTEXT_RANGES_KEY))
+        if sent != tuple(contexts[unit.idx]):
+            changed.append(unit.idx)
+    return changed
 
 
 def chunk_ranges(units: Sequence[UnitRow]) -> list[Range]:
@@ -281,12 +334,12 @@ class Extractor:
     async def _extract_text(self, item: Item, handle: DocumentHandle) -> None:
         spec = self.job.spec
         lines = read_lines(item.path)
-        ranges: list[Range] = []
+        planned: list[RangeLine] = []
         if spec.chunking.mode == "auto" and not self.job.force:
             stored = handle.store.units(handle.doc_id, kind=handle.kind)
-            ranges = chunk_ranges(stored)
-        if not ranges:
-            ranges = await text_ranges(
+            planned = [(bounds, ()) for bounds in chunk_ranges(stored)]
+        if not planned:
+            planned = await text_ranges(
                 item.path,
                 lines,
                 self._range_job(item),
@@ -294,11 +347,13 @@ class Extractor:
                 lease=handle.lease,
                 document=handle.name,
             )
-        chunks = text_chunks(item.path, lines, ranges)
+        ranges = [bounds for bounds, _ in planned]
+        contexts = [context for _, context in planned]
+        chunks = text_chunks(item.path, lines, ranges, contexts)
         selected = self._selected(item, len(chunks), "chunks")
         if selected is None:
             return
-        await self._plan_text(handle, item, ranges)
+        await self._plan_text(handle, item, ranges, contexts)
         await self._write_metadata(
             handle,
             item,
@@ -343,13 +398,20 @@ class Extractor:
         )
 
     async def _plan_text(
-        self, handle: DocumentHandle, item: Item, ranges: Sequence[Range]
+        self,
+        handle: DocumentHandle,
+        item: Item,
+        ranges: Sequence[Range],
+        contexts: Sequence[Context],
     ) -> None:
         """Plan the text chunks; refuse or replace chunks cut with other ranges.
 
+        A stored chunk sent with other context ranges than *contexts* gives
+        it counts as cut with other ranges.
+
         Raises:
-            ChunkingChangedError: Stored chunks used other ranges and
-                ``--force`` is not set.
+            ChunkingChangedError: Stored chunks used other ranges or context
+                ranges and ``--force`` is not set.
         """
         planned = [
             PlannedUnit(index, f"{start}-{end}", f"{start}-{end}")
@@ -365,6 +427,15 @@ class Extractor:
                     "earlier chunking settings."
                 )
             await self._drop_chunks(handle)
+        elif stored and not self.job.force:
+            moved = _context_changes(stored, contexts, _submitted(handle))
+            if moved:
+                raise ChunkingChangedError(
+                    f"The context ranges of chunk(s) "
+                    f"{', '.join(str(idx + 1) for idx in moved)} of '{handle.name}' "
+                    "changed since the chunks were sent. Skipping it; use --force "
+                    "to extract it again, or restore the earlier context ranges."
+                )
         await handle.plan(planned)
         if self.job.force:
             await handle.reset()
@@ -536,8 +607,13 @@ class Extractor:
         if decider is None or not needed:
             return needed
 
+        contexts: dict[int, list[list[int]]] = {}
+
         async def chunks() -> AsyncIterator[Any]:
             async for chunk in source(needed):
+                ranges = getattr(chunk, "context_ranges", ())
+                if ranges:
+                    contexts[int(chunk.index)] = [list(pair) for pair in ranges]
                 if chunk.render_error is None:
                     yield chunk
 
@@ -587,7 +663,8 @@ class Extractor:
                         "threshold": threshold,
                         "question_sha256": decider.question_sha,
                         "fingerprint": fingerprint,
-                    }
+                    },
+                    **({CONTEXT_RANGES_KEY: contexts[idx]} if idx in contexts else {}),
                 },
                 model=decider.spec.model,
                 provider=decider.dialect,

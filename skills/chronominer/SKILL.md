@@ -27,10 +27,11 @@ uv --directory <clone> run chronominer <command> [options]
    synchronously or as a batch. `--batch` runs on OpenAI, Anthropic and Google;
    OpenRouter and custom endpoints have no batch API (exit 2).
 2. **Dry run.** Add `--dry-run --json` to the intended command. Done when it exits 0,
-   `to_process` lists exactly the intended items with the expected resume states, and
-   every value you set by flag shows `"source": "flag"` in `spec`; the classify
-   commands list `targets` in place of `to_process`. An unset key variable is only
-   a warning here; the real run exits 2 on it.
+   `to_process` lists exactly the intended items with the expected resume states and
+   with the intended `chunking`, `chunks`, `line_ranges` and `context_file` (null:
+   none found), and every value you set by flag shows `"source": "flag"` in `spec`;
+   the classify commands list `targets` in place of `to_process`. An unset key
+   variable is only a warning here; the real run exits 2 on it.
 3. **Sample** anything beyond one short item: `--pages 5` takes the first five chunks
    of a text or PDF, `--select 1-5` the first five items of a folder in the natural
    order of their paths (`--files` takes paths relative to the input folder). Read

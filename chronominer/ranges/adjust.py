@@ -72,6 +72,7 @@ from chronominer.ranges.generate import token_ranges
 from chronominer.ranges.lines import (
     Range,
     clamp_ranges,
+    context_lines_refusal,
     ranges_path,
     read_lines,
     read_ranges,
@@ -101,6 +102,7 @@ __all__ = [
     "AdjustOptions",
     "AdjustReport",
     "BoundaryCaller",
+    "ContextLinesError",
     "RangesStopped",
     "adjust_files",
     "adjust_ranges",
@@ -150,6 +152,10 @@ class RangesStopped(RunStopped):
     def __init__(self, reason: str, left: int) -> None:
         super().__init__(reason)
         self.left = left
+
+
+class ContextLinesError(ValueError):
+    """The line-ranges file holds context lines, which adjustment refuses."""
 
 
 class AdjustDegradedError(RuntimeError):
@@ -312,6 +318,7 @@ async def adjust_ranges(
     Raises:
         FileNotFoundError: The line-ranges file is missing and
             ``options.chunk_tokens`` is None.
+        ContextLinesError: The line-ranges file holds context lines.
         AdjustDegradedError: Every model call failed.
         DocumentBusyError: Another live run holds the document.
         RangesStopped: The run stopped; the file is rendered with the
@@ -320,6 +327,9 @@ async def adjust_ranges(
     sink = events or NullEvents()
     text_file = text_file.resolve()
     ranges_file = ranges_path(text_file)
+    refusal = context_lines_refusal(ranges_file)
+    if refusal is not None:
+        raise ContextLinesError(refusal)
     lines = read_lines(text_file)
     name = document or ranges_document(text_file)
     system = boundary_prompt(

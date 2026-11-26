@@ -6,8 +6,9 @@ text in memory by ``--chunk-tokens``; ``line-ranges`` reads the
 ``--chunk-tokens`` when it is missing; ``adjust`` first moves the boundaries
 of that file with the model (:func:`~chronominer.ranges.adjust.adjust_ranges`)
 in the run's database, under the run's lease on the document. Each range is
-one :class:`TextChunk`. An image file is one chunk, a PDF one chunk per page
-(:class:`~chronominer.extract.images.PageImage`).
+one :class:`TextChunk`; the context ranges the file names for it are sent
+with it (:func:`context_block`). An image file is one chunk, a PDF one chunk
+per page (:class:`~chronominer.extract.images.PageImage`).
 
 :func:`extract_payload` extracts one chunk with the run's
 :class:`~chronominer.extract.extraction.ChunkExtractor` and returns a
@@ -30,10 +31,19 @@ from chronominer.common.selection import PageRange
 from chronominer.common.store import Lease, Store
 from chronominer.events import RunEvents
 from chronominer.extract.units import PayloadResult
+from chronominer.llm.prompts import context_lines_text
+from chronominer.output.store import CONTEXT_RANGES_KEY
 from chronominer.pool import ItemSlots
 from chronominer.ranges.adjust import AdjustOptions, BoundaryCaller, adjust_ranges
 from chronominer.ranges.generate import auto_ranges, chunk_texts, ranges_for_file
-from chronominer.ranges.lines import Range, clamp_ranges, ranges_path, read_ranges
+from chronominer.ranges.lines import (
+    Context,
+    Range,
+    RangeLine,
+    clamp_line_ranges,
+    ranges_path,
+    read_line_ranges,
+)
 from chronominer.ranges.store import replace_ranges
 
 __all__ = [
@@ -45,6 +55,7 @@ __all__ = [
     "TextChunk",
     "build_custom_id",
     "chunk_slice",
+    "context_block",
     "custom_id",
     "extract_payload",
     "text_chunks",
@@ -122,7 +133,8 @@ class TextChunk:
     """One line range of a text document as the unit pipeline extracts it.
 
     *start* and *end* are 1-based and inclusive; *image_name* is the
-    chunk's label, ``start-end``.
+    chunk's label, ``start-end``. *context_ranges* are the chunk's context
+    ranges and *context* their text block, sent before *text*.
     """
 
     index: int
@@ -134,6 +146,8 @@ class TextChunk:
     page_index: int | None = None
     base64: str = ""
     mime_type: str = "text/plain"
+    context_ranges: Context = ()
+    context: str = ""
 
     @property
     def image_name(self) -> str:
@@ -151,23 +165,51 @@ class TextChunk:
         return [self.start, self.end]
 
     def provenance(self) -> dict[str, Any]:
-        """Return the chunk unit's provenance: custom id and line range."""
+        """Return the chunk unit's provenance: custom id, line range, context ranges.
+
+        ``context_ranges`` is present only for a chunk that has any.
+        """
         record: dict[str, Any] = {}
         if self.custom_id:
             record["custom_id"] = self.custom_id
         record["chunk_range"] = self.chunk_range
+        if self.context_ranges:
+            record[CONTEXT_RANGES_KEY] = [list(pair) for pair in self.context_ranges]
         return record
 
 
+def context_block(lines: Sequence[str], context: Context) -> str:
+    """Return the text block of the context ranges *context* over *lines*."""
+    texts = chunk_texts(lines, context)
+    return context_lines_text(list(zip(context, texts, strict=True)))
+
+
 def text_chunks(
-    path: Path, lines: Sequence[str], ranges: Sequence[Range]
+    path: Path,
+    lines: Sequence[str],
+    ranges: Sequence[Range],
+    contexts: Sequence[Context] | None = None,
 ) -> list[TextChunk]:
-    """Return the chunks of the text *path* cut by *ranges*."""
+    """Return the chunks of the text *path* cut by *ranges*.
+
+    *contexts* holds the context ranges of each range, in the same order.
+    """
     texts = chunk_texts(lines, ranges)
-    return [
-        TextChunk(index, start, end, text, custom_id(path, "text", index))
-        for index, ((start, end), text) in enumerate(zip(ranges, texts, strict=True))
-    ]
+    chunks: list[TextChunk] = []
+    for index, ((start, end), text) in enumerate(zip(ranges, texts, strict=True)):
+        context = contexts[index] if contexts is not None else ()
+        chunks.append(
+            TextChunk(
+                index,
+                start,
+                end,
+                text,
+                custom_id(path, "text", index),
+                context_ranges=context,
+                context=context_block(lines, context),
+            )
+        )
+    return chunks
 
 
 class _HeldLease:
@@ -225,9 +267,11 @@ async def text_ranges(
     store: Store,
     lease: Lease,
     document: str,
-) -> list[Range]:
+) -> list[RangeLine]:
     """Return the line ranges of the text *path* for ``--chunking`` *job.mode*.
 
+    Each range comes with its context ranges, which only ``line-ranges``
+    reads from the file; ``adjust`` refuses a file that has any.
     The ``line-ranges`` and ``adjust`` modes write their ranges to the range
     units of *document* in *store* under *lease* and render the
     ``_line_ranges.txt`` beside the input.
@@ -237,7 +281,9 @@ async def text_ranges(
         AdjustDegradedError: Every boundary call failed.
     """
     if job.mode == "auto":
-        return auto_ranges(lines, job.chunk_tokens, job.model)
+        return [
+            (bounds, ()) for bounds in auto_ranges(lines, job.chunk_tokens, job.model)
+        ]
     held: Any = _HeldLease(store, lease)
     ranges_file = ranges_path(path)
     if job.mode == "adjust":
@@ -257,7 +303,8 @@ async def text_ranges(
         )
         if report.status == "empty":
             return []
-        return clamp_ranges(report.ranges, len(lines))
+        adjusted = ((bounds, ()) for bounds in report.ranges)
+        return clamp_line_ranges(adjusted, len(lines))
     if not ranges_file.exists():
         generated = ranges_for_file(path, job.chunk_tokens, job.model)
         rendered = await replace_ranges(
@@ -267,8 +314,8 @@ async def text_ranges(
             logger.warning(warning)
         logger.info("Generated %s with %d range(s)", ranges_file.name, len(generated))
         if not ranges_file.exists():
-            return clamp_ranges(generated, len(lines))
-    return clamp_ranges(read_ranges(ranges_file), len(lines))
+            return clamp_line_ranges(((bounds, ()) for bounds in generated), len(lines))
+    return clamp_line_ranges(read_line_ranges(ranges_file), len(lines))
 
 
 def _no_text(payload: Any) -> PayloadResult:
@@ -291,7 +338,9 @@ async def extract_payload(payload: Any, extractor: Any) -> PayloadResult:
     try:
         text = getattr(payload, "text", None)
         if isinstance(text, str):
-            result = await extractor.extract_text(text, label=label)
+            context = getattr(payload, "context", "")
+            extra = {"context": context} if context else {}
+            result = await extractor.extract_text(text, label=label, **extra)
         else:
             result = await extractor.extract_image_from_base64(
                 payload.base64, payload.mime_type, label=label

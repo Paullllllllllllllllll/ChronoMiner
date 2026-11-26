@@ -23,7 +23,12 @@ from chronominer.extract.extraction import (
 )
 from chronominer.extract.response_parsing import INVALID_JSON, NO_OBJECT
 from chronominer.llm.caller import CallEnv
-from chronominer.llm.prompts import EXTRACTION_SCHEMA_NAME, IMAGE_INSTRUCTION
+from chronominer.llm.prompts import (
+    CONTEXT_LINES_NOTE,
+    EXTRACTION_SCHEMA_NAME,
+    IMAGE_INSTRUCTION,
+    context_lines_text,
+)
 from chronominer.settings import PromptCaching, RetrySettings
 from chronominer.spec import ImageSpec, ModelSpec, resolve_schema
 from tests.llm import helpers
@@ -278,6 +283,27 @@ def test_the_context_image_comes_before_a_text_chunk(
     blocks = _human(script.requests[0])
     assert [block["type"] for block in blocks] == ["text", "image_url", "text"]
     assert blocks[2] == {"type": "text", "text": "Record 002."}
+
+
+def test_context_lines_come_between_the_context_image_and_the_chunk(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    extractor, script = _extractor(monkeypatch, [ANSWER, ANSWER])
+    lines = context_lines_text([((1, 1), "WAGES OF 1701")])
+
+    asyncio.run(extractor.extract_text("Record 002.", label="5-9", context=lines))
+    extractor.update_context_image(_context_image(tmp_path))
+    asyncio.run(extractor.extract_text("Record 002.", label="5-9", context=lines))
+
+    plain, imaged = (_human(request) for request in script.requests)
+    assert plain == [
+        {"type": "text", "text": lines},
+        {"type": "text", "text": "Record 002."},
+    ]
+    assert lines.startswith(CONTEXT_LINES_NOTE)
+    assert '<context lines="1-1">\nWAGES OF 1701\n</context>' in lines
+    assert [block["type"] for block in imaged] == ["text", "image_url", "text", "text"]
+    assert imaged[2:] == plain
 
 
 def test_a_model_without_image_input_skips_the_context_image(

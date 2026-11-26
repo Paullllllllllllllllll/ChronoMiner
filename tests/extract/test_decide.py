@@ -223,7 +223,7 @@ def _run_decide(mode: str, threshold: float | None) -> tuple[list[int], _Handle,
 
     async def source(indices: list[int]) -> AsyncIterator[TextChunk]:
         for idx in indices:
-            yield TextChunk(idx, idx, idx, "text")
+            yield TextChunk(idx, idx, idx, "text", context_ranges=((5, 6),))
 
     needed = asyncio.run(extractor._decide(handle, [0, 1], source, None))  # type: ignore[arg-type]
     return needed, handle, warnings
@@ -236,6 +236,7 @@ def test_apply_skips_chunks_below_the_threshold_and_records_why() -> None:
     [(idx, fields)] = handle.writes
     assert (idx, fields["status"], fields["outcome"]) == (0, "done", SKIPPED_OUTCOME)
     assert fields["provenance"]["decision"]["fingerprint"] == "fp"
+    assert fields["provenance"]["context_ranges"] == [[5, 6]]
     assert json.loads(fields["content"]) == {
         "contains_no_content_of_requested_type": True,
         "entries": [],

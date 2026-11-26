@@ -36,7 +36,7 @@ from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any, Final, Literal, Protocol
 
-from chronominer.batch.bodies import BodyPlan, build_plan
+from chronominer.batch.bodies import CONTEXT_LINES_KEY, BodyPlan, build_plan
 from chronominer.batch.clients import BatchClients
 from chronominer.common.batch import (
     BatchBackend,
@@ -501,8 +501,10 @@ def chunk_request(payload: Any, *, detail: str | None = None) -> BatchRequest | 
     """Return the batch request of one chunk payload, or None when it has none.
 
     A payload with ``base64`` image data is an image chunk sent with
-    *detail*; any other payload sends its ``text``. A page that could not
-    be rendered, or a chunk without text, has no request.
+    *detail*; any other payload sends its ``text``, after its ``context``
+    lines when it has any (:data:`~chronominer.batch.bodies.CONTEXT_LINES_KEY`
+    of the request's metadata). A page that could not be rendered, or a
+    chunk without text, has no request.
     """
     if _render_error(payload) is not None:
         return None
@@ -519,7 +521,13 @@ def chunk_request(payload: Any, *, detail: str | None = None) -> BatchRequest | 
     text = getattr(payload, "text", None)
     if not text:
         return None
-    return BatchRequest(custom_id=f"chunk-{index}", text=str(text), order_index=index)
+    context = getattr(payload, "context", "")
+    return BatchRequest(
+        custom_id=f"chunk-{index}",
+        text=str(text),
+        order_index=index,
+        metadata={CONTEXT_LINES_KEY: str(context)} if context else {},
+    )
 
 
 def _schema(
@@ -578,13 +586,15 @@ class _Prepared:
 def _payload_bytes(request: BatchRequest | None, plan: BodyPlan) -> int:
     """Return the bytes *request* adds to a slice.
 
-    These are its image data or text and the context image, which every
-    request of *plan* carries again.
+    These are its image data or text with its context lines, and the
+    context image, which every request of *plan* carries again.
     """
     if request is None:
         return 0
     shared = len(plan.context_image[0]) if plan.context_image is not None else 0
-    return len(request.image_base64 or "") + len(request.text.encode("utf-8")) + shared
+    lines = str(request.metadata.get(CONTEXT_LINES_KEY) or "")
+    text = len(request.text.encode("utf-8")) + len(lines.encode("utf-8"))
+    return len(request.image_base64 or "") + text + shared
 
 
 async def _each(payloads: Sequence[Any] | AsyncIterable[Any]) -> AsyncGenerator[Any]:

@@ -157,6 +157,7 @@ __all__ = [
     "CLASSIFICATIONS",
     "COMPONENT",
     "COMPONENTS",
+    "CONTEXT_RANGES_KEY",
     "DATABASE_NAME",
     "ENTRY_COLUMNS",
     "ENTRY_FIELD_PREFIX",
@@ -198,6 +199,8 @@ TOOL: Final = "chronominer"
 DATABASE_NAME: Final = "chronominer.sqlite"
 OUTPUT_SUFFIX: Final = "_output.json"
 LINE_RANGES_SUFFIX: Final = "_line_ranges.txt"
+CONTEXT_RANGES_KEY: Final = "context_ranges"
+"""The chunk provenance key of the context ranges sent, ``[[start, end], ...]``."""
 
 KIND_CHUNK: Final = "chunk"
 KIND_RANGE: Final = "range"

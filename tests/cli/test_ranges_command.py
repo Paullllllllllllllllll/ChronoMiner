@@ -178,6 +178,22 @@ def test_adjust_refuses_a_bad_model_or_schema(
     assert message in err
 
 
+def test_adjust_refuses_a_file_with_context_lines(
+    make_text: MakeText,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    text = make_text()
+    ranges_path(text).write_text("(1, 20)\n(21, 40)\n  context (1, 1)\n", "utf-8")
+
+    assert _adjust(text, "--json") == 2
+
+    _payload, err = _one_line(capsys)
+    assert "cannot be adjusted" in err and "--chunking line-ranges" in err
+    assert not (text.parent / DATABASE_NAME).exists()
+
+
 def test_adjust_without_a_schema_exits_2(
     make_text: MakeText, capsys: pytest.CaptureFixture[str]
 ) -> None:

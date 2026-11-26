@@ -192,6 +192,12 @@
     "stopped": null,
     "to_process": [
       {
+        "chunking": "auto",
+        "chunks": null,
+        "chunks_error": null,
+        "context_file": null,
+        "context_source": null,
+        "line_ranges": null,
         "name": "beta.txt",
         "state": "none",
         "type": "text"

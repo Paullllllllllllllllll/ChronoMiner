@@ -366,7 +366,7 @@ further request.
 | --- | --- |
 | 0 | every item completed or, under `--batch`, was submitted, or nothing was left to do |
 | 1 | an item failed (refused items included), another run leases an item (the final message names each blocked item with its reason and a lease with its expiry; an item waiting for a batch is named but does not change the exit code), a repaired chunk stayed unrepaired, a batch failed or waits unresolved, `batch check --wait` reached `--wait-hours` with batches pending, a cancellation failed, a file could not be rendered or its document was held by another run, `drop` refused a document, a `classify` request failed or a document to classify was refused or leased, or an unexpected error |
-| 2 | usage or configuration error: invalid flags or settings, an unknown schema, an unset API key variable (outside a dry run), a provider without a batch API under `--batch`, a model without image input for image or PDF items, no items in the input, a folder of several items without `--all`, `--select` or `--files`, a `--select` or `--files` that matches no item or stored document, a missing input path or folder, no store at the `drop` input, two inputs that share one output, an unknown classifier or one of another unit, `classify --chunking adjust`, a missing line-ranges file under `classify --chunking line-ranges`, no document to classify, a database without schema version, newer than the tool, unreadable or due a schema step while another run holds a lease |
+| 2 | usage or configuration error: invalid flags or settings, an unknown schema, an unset API key variable (outside a dry run), a provider without a batch API under `--batch`, a model without image input for image or PDF items, no items in the input, a folder of several items without `--all`, `--select` or `--files`, a `--select` or `--files` that matches no item or stored document, a missing input path or folder, no store at the `drop` input, two inputs that share one output, an unknown classifier or one of another unit, `classify --chunking adjust`, a missing line-ranges file under `classify --chunking line-ranges`, a line-ranges file with context lines under `ranges adjust` or `--chunking adjust`, no document to classify, a database without schema version, newer than the tool, unreadable or due a schema step while another run holds a lease |
 | 3 | stopped: a provider serves no further calls of the run (`extract`, `ranges adjust`, `repair`, `classify`); the run ends at once, the chunks, ranges and documents it did not reach stay as they were and a rerun resumes them; the error line names the reason and what was left, and the code wins over 0 and 1 |
 | 130 | interrupted (Ctrl+C, or Ctrl+Break on Windows) |
 
@@ -400,7 +400,15 @@ failed; stderr reports it as left partial by `--pages`. `usage` holds the tokens
 each role that made calls (`extract`, and `adjust` for boundary decisions) and their
 sum under `total`, each as `input_tokens`, `output_tokens`, `total_tokens`,
 `cached_tokens` and `reasoning_tokens`, also after an interrupt. A successful dry run
-adds `to_process` (each item's `name`, `type` and resume `state`), `skipped`,
+adds `to_process` (each item's `name`, `type`, resume `state`, `chunking` (`auto`,
+`line-ranges`, `adjust`, or `pages` for an image or PDF), `chunks` (from the
+line-range file, for `adjust` before the boundaries move, the stored chunks or the
+pages; null where only the tokenizer could count them, which a dry run does not
+load, or when a file cannot be read or decoded, with the reason in `chunks_error`),
+the `line_ranges` file and the `context_file` it reads, each null when none was
+found, and the
+`context_source` (`explicit`, `file`, `folder`, `default`, or null without context);
+stderr gives the same per item), `skipped`,
 `unstored`, `blocked` and `refused` (`name` and `reason`), and `spec`, which maps
 every field of the effective run specification, such as `model.model`, to its
 `value` and `source` (`flag`, `settings`, `default` or `resolved`, described under
@@ -837,7 +845,40 @@ images and prompt text together exceed 20 MB.
 a text that yields no range fails and keeps its stored ranges and file. Each line
 holds one range as `(start, end)`, 1-based and inclusive. The file is an input: you
 can edit it by hand, and `--chunking line-ranges` extracts one chunk per
-range. `ranges adjust` asks the model, for each range, where the entries of the schema
+range.
+
+A line that begins with `context` names context ranges for the range above it:
+lines from elsewhere in the same text that the model needs to read the chunk, such
+as the heading of a group split across several chunks or the entry a "the same"
+refers to. Several context lines of one range add up. Context lines belong to files
+written by rule and read by `--chunking line-ranges`. `ranges adjust` and
+`extract --chunking adjust` refuse a file that holds one (exit code 2), and
+`ranges generate` and the store's renderings write none.
+
+```text
+(1, 40)
+(41, 120)
+(121, 180)
+  context (41, 42), (95, 95)
+```
+
+Each request sends the context lines in a text block ahead of the chunk, every range
+in a `<context lines="start-end">` element, after one fixed sentence saying that they
+come from elsewhere in the document and give no content to extract. They change
+neither the lines a chunk covers nor the number of chunks; their lines yield entries
+only through the chunk that holds them. `_output.json` lists them per record
+as `context_ranges`, and the stored request holds the text that was sent. A document
+whose sent chunks recorded other context ranges than the file now gives them is
+refused like one whose ranges changed (`--force` extracts it again), by the run and
+not yet by the plan or a dry run. A chunk counts as sent once it is done, has a
+stored response or belongs to a batch the provider accepted or may have accepted; a
+chunk not yet sent takes the current context ranges. A chunk without text counts as
+sent in such a batch too, since the store does not record which chunks of a
+submission carried a request. A complete document keeps its
+chunks and is skipped without a warning, as it is after a change of its ranges. Older
+versions skip a context line with a warning and read the ranges.
+
+`ranges adjust` asks the model, for each range, where the entries of the schema
 begin in a window of `--context-window` lines around the range start, and moves,
 keeps or deletes the boundary. While the model asks for more context, the window
 doubles, up to 64 times its first radius on each side. A range whose entry start lies
@@ -881,7 +922,8 @@ flat`) stop the run at planning with exit code 2; use `--layout mirror` instead.
 `{stem}_output.json` is always written once a chunk is done or failed, as
 `{"_chronominer_metadata": {...}, "records": [...]}`. Each done chunk is one record,
 in chunk order: `custom_id`, `chunk_index` (1-based), `chunk_range` (`[start, end]` of
-a text chunk, else null), `response` (its `output_text` is the answer as received)
+a text chunk, else null), for a chunk sent with context ranges `context_ranges`
+(`[[start, end], ...]`), `response` (its `output_text` is the answer as received)
 and, for an image or PDF page, `image_provenance`. `_chronominer_metadata` holds
 `schema_name`, `schema_version`, `schema_sha256`, `model_name`, `chunking_method`,
 `total_chunks`, `timestamp`, `version` and, when known, `partial`, `failed_chunks`,
