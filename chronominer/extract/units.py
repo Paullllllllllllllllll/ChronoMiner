@@ -32,7 +32,10 @@ Unit conventions (the ``chunk`` units of :mod:`chronominer.output.store`):
   ``outcome`` is ``failed``, ``ok``, ``no_content`` (the answer sets the
   no-content flag) or ``unparsed`` (the answer to a plain-text request,
   kept as text, does not parse as a JSON object); a done unit keeps the
-  answer verbatim as ``content``, a failed one none.
+  answer verbatim as ``content``, a failed one none. A failed unit whose
+  requests all went unanswered in time (read timeouts up to
+  ``retry.timeout_attempts``) has the ``error_type`` ``call_timeout``;
+  synchronous ``repair`` stores the same type and still exits 1.
 - ``provenance`` is the payload's record: ``custom_id``, ``chunk_range`` and,
   for a page, ``image_provenance``.
 - ``response_id`` is the selected attempt (the last one without an error,
@@ -72,6 +75,7 @@ from chronominer.output.store import KIND_CHUNK
 from chronominer.pool import ItemSlots, run_streaming_transcription_tasks
 
 __all__ = [
+    "CALL_TIMEOUT",
     "UNIT_KIND",
     "DocumentHandle",
     "EmptyAnswerError",
@@ -88,6 +92,9 @@ UNIT_KIND = KIND_CHUNK
 
 EMPTY_ANSWER = "empty model output (possible truncation or refusal)"
 """The error of a chunk whose answer has no text."""
+
+CALL_TIMEOUT = "call_timeout"
+"""The error type of a chunk whose requests all went unanswered in time."""
 
 PayloadResult = tuple[Any, str, str | None, Any, int]
 """``(payload, label, answer text, response dict, order_index)``.
@@ -114,6 +121,7 @@ class UnitsFailedError(Exception):
     Raised after every unit was processed; the units written stay in the
     store for a later resume or repair. *write_errors* are the errors of
     the unit writes that failed; the first is the exception's cause.
+    *timed_out* are the labels of the failed units of type ``call_timeout``.
     """
 
     def __init__(
@@ -122,15 +130,22 @@ class UnitsFailedError(Exception):
         failed_chunks: int,
         total_chunks: int,
         write_errors: Sequence[BaseException] = (),
+        timed_out: Sequence[str] = (),
     ) -> None:
         self.source_name = source_name
         self.failed_chunks = failed_chunks
         self.total_chunks = total_chunks
         self.write_errors = list(write_errors)
+        self.timed_out = list(timed_out)
         message = (
             f"{failed_chunks} of {total_chunks} chunk(s) failed to extract "
             f"for '{source_name}'"
         )
+        if self.timed_out:
+            message += (
+                f"; the call timed out on every attempt for chunk(s) "
+                f"{', '.join(self.timed_out)}"
+            )
         if self.write_errors:
             first = self.write_errors[0]
             message += (
@@ -304,6 +319,7 @@ class _Units:
         self.total = 0
         self.failed = 0
         self.write_errors: list[BaseException] = []
+        self.timed_out: list[str] = []
         self.lost: LeaseLostError | None = None
 
     def _check_stop(self) -> None:
@@ -425,6 +441,8 @@ class _Units:
                 or (last.error_type if last else None)
                 or EmptyAnswerError.__name__
             )
+        if error_type == CALL_TIMEOUT:
+            self.timed_out.append(label)
         usage = raw_dict.get("usage")
         model = (selected.record.model if selected else None) or self.handle.model
         provider = (
@@ -457,7 +475,11 @@ class _Units:
         if self.failed:
             cause = self.write_errors[0] if self.write_errors else None
             raise UnitsFailedError(
-                self.handle.name, self.failed, self.total, self.write_errors
+                self.handle.name,
+                self.failed,
+                self.total,
+                self.write_errors,
+                self.timed_out,
             ) from cause
 
 

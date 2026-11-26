@@ -1,4 +1,4 @@
-# ChronoMiner v1.16.1
+# ChronoMiner v1.17.0
 
 <img src="assets/logo.svg" alt="ChronoMiner logo" width="64" align="right">
 
@@ -367,7 +367,8 @@ further request.
 | 0 | every item completed or, under `--batch`, was submitted, or nothing was left to do |
 | 1 | an item failed (refused items included), another run leases an item (the final message names each blocked item with its reason and a lease with its expiry; an item waiting for a batch is named but does not change the exit code), a repaired chunk stayed unrepaired, a batch failed or waits unresolved, `batch check --wait` reached `--wait-hours` with batches pending, a cancellation failed, a file could not be rendered or its document was held by another run, `drop` refused a document, a `classify` request failed or a document to classify was refused or leased, or an unexpected error |
 | 2 | usage or configuration error: invalid flags or settings, an unknown schema, an unset API key variable (outside a dry run), a provider without a batch API under `--batch`, a model without image input for image or PDF items, no items in the input, a folder of several items without `--all`, `--select` or `--files`, a `--select` or `--files` that matches no item or stored document, a missing input path or folder, no store at the `drop` input, two inputs that share one output, an unknown classifier or one of another unit, `classify --chunking adjust`, a missing line-ranges file under `classify --chunking line-ranges`, a line-ranges file with context lines under `ranges adjust` or `--chunking adjust`, no document to classify, a database without schema version, newer than the tool, unreadable or due a schema step while another run holds a lease |
-| 3 | stopped: a provider serves no further calls of the run (`extract`, `ranges adjust`, `repair`, `classify`); the run ends at once, the chunks, ranges and documents it did not reach stay as they were and a rerun resumes them; the error line names the reason and what was left, and the code wins over 0 and 1 |
+| 3 | stopped: a provider serves no further calls of the run (`extract`, `ranges adjust`, `repair`, `classify`); the run ends at once, the chunks, ranges and documents it did not reach stay as they were and a rerun resumes them; the error line names the reason and what was left, and the code wins over 0, 1 and 4 |
+| 4 | `extract`: every request of a chunk's call went out and was not answered within `timeouts.request` (`retry.timeout_attempts` read timeouts; connect and pool timeouts, a call past `retry.page_timeout` and a proxy's 5xx exit 1); the chunk is stored as failed with the error type `call_timeout` (synchronous `repair` stores the same type and exits 1), the run's other chunks and items are finished and stored, and an error line names each such chunk with its item; a rerun would send the same request and wait as long again (see the agent skill's Troubleshooting for the ways out); the code rests on `timeouts.request` being shorter than any cutoff of a proxy in front of the provider, and it wins over 1 |
 | 130 | interrupted (Ctrl+C, or Ctrl+Break on Windows) |
 
 Each command's `--help` lists its own exit codes. Progress, warnings and errors go to
@@ -587,9 +588,13 @@ classifiers_dirs: []
 ```
 
 A failed call waits 2 s, doubled per retry, plus up to 1 s of jitter, at most 120 s, a
-server's `Retry-After` included. The `defaults:` block takes the option names of the
-`extract` table; the other commands use the defaults of the options they share with
-it. Options that only the command line sets and invalid values are errors there.
+server's `Retry-After` included. A chunk whose requests time out
+`retry.timeout_attempts` times, or whose call runs past `retry.page_timeout`, fails
+without further retries; when all those timeouts were read timeouts, `extract` exits
+4. The `defaults:` block takes the
+option names of the `extract` table; the other commands use the defaults of the
+options they share with it. Options that only the command line sets and invalid
+values are errors there.
 Precedence is flag (or wizard answer), then settings default, then code default;
 `--dry-run --json` prints the source of each value, and the database records the
 effective spec of every run. In the dry run's spec an unset output limit, response

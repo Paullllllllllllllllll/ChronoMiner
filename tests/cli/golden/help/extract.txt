@@ -150,6 +150,9 @@ Exit codes:
        matches nothing
   3    a provider serves no further calls of this run; the chunks left
        stay pending and a rerun resumes them
+  4    every request of a chunk's call went unanswered within
+       timeouts.request (retry.timeout_attempts read timeouts); a
+       rerun would wait as long again; wins over 1
   130  interrupted (Ctrl+C or Ctrl+Break)
 
 With --json, stdout carries exactly one JSON summary line on every exit; progress, warnings and

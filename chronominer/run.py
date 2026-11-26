@@ -86,7 +86,7 @@ from chronominer.extract.chunks import PAGES_METHOD
 from chronominer.extract.images import resolve_image_settings, resume_images
 from chronominer.extract.llm import Extractor, image_record
 from chronominer.extract.pdf import PDFProcessor
-from chronominer.extract.units import DocumentHandle
+from chronominer.extract.units import CALL_TIMEOUT, DocumentHandle
 from chronominer.llm.caller import CallEnv, ModelCaller
 from chronominer.llm.capabilities import ensure_image_support
 from chronominer.llm.options import (
@@ -157,6 +157,7 @@ __all__ = [
     "RunPlan",
     "RunResult",
     "StoreRefusedError",
+    "TIMED_OUT",
     "discover",
     "discover_inputs",
     "document_key",
@@ -178,6 +179,10 @@ BUSY_TIMEOUT: float = DEFAULT_BUSY_TIMEOUT
 
 BUSY_WARN_INTERVAL: float = DEFAULT_WARN_INTERVAL
 """Seconds between two warnings about the same busy database."""
+
+TIMED_OUT = 4
+"""Exit code of an ``extract`` run in which a chunk's call timed out on every
+attempt: a rerun would send the same request and wait as long again."""
 
 
 class PlanError(Exception):
@@ -992,7 +997,9 @@ class ItemResult:
     check``; it counts neither complete nor failed. *partial* marks a
     successful ``--pages`` item whose document is still short of complete;
     it counts neither complete nor failed either. *failures* are the failed
-    units of a failed item's document, with their error types and errors.
+    units of a failed item's document, with their error types and errors;
+    *timed_out* the labels of those this run failed because their call timed
+    out on every attempt.
     """
 
     name: str
@@ -1002,6 +1009,7 @@ class ItemResult:
     submitted: bool = False
     partial: bool = False
     failures: tuple[UnitRow, ...] = ()
+    timed_out: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -1075,10 +1083,23 @@ class RunResult:
         return sum(1 for item in self.items if not item.success)
 
     @property
-    def exit_code(self) -> ExitCode:
-        """3 when the run stopped; 1 when an item failed or was leased; else 0."""
+    def timed_out(self) -> tuple[tuple[str, str], ...]:
+        """The item name and chunk label of every call that timed out throughout."""
+        return tuple(
+            (item.name, label) for item in self.items for label in item.timed_out
+        )
+
+    @property
+    def exit_code(self) -> int:
+        """Return the exit code of the run.
+
+        3 when the run stopped; 4 when a chunk's call timed out on every
+        attempt; 1 when an item failed or was leased; else 0.
+        """
         if self.stop is not None:
             return ExitCode.STOPPED
+        if self.timed_out:
+            return TIMED_OUT
         return exit_code_for(failed=self.failed + len(self.leased))
 
     @property
@@ -1436,6 +1457,8 @@ async def _run_item(  # noqa: PLR0913 - the item's run context
         outputs, error = await item_run.extract(
             store, doc_id, lease, extractor, pages, slots
         )
+        # Read under the lease, before another run can reset the rows.
+        failures = () if error is None else _failed_units(store, doc_id)
     except RunStopped as exc:
         return _Stopped(str(exc), _pending_units(store, doc_id, pages))
     finally:
@@ -1471,7 +1494,12 @@ async def _run_item(  # noqa: PLR0913 - the item's run context
         error,
         submitted=waiting,
         partial=partial,
-        failures=() if success else _failed_units(store, doc_id),
+        failures=failures,
+        timed_out=tuple(
+            unit.label or str(unit.idx)
+            for unit in failures
+            if unit.error_type == CALL_TIMEOUT and unit.run_id == store.run_id
+        ),
     )
 
 
@@ -1823,6 +1851,8 @@ async def run(run_plan: RunPlan, events: RunEvents | None = None) -> RunResult:
                 results.append(ItemResult(planned.name, False, (), planned.reason))
         failed = any(not result.success for result in results)
         exit_code = ExitCode.FAILURE if failed or held.leased else ExitCode.OK
+        if any(result.timed_out for result in results):
+            exit_code = TIMED_OUT
         if stop is not None:
             exit_code = ExitCode.STOPPED
     except (asyncio.CancelledError, KeyboardInterrupt):

@@ -16,13 +16,17 @@ dict the unit pipeline records::
                   "reasoning_tokens": int},
         "metadata": {...},                # the provider's response metadata
         "error": str,                     # only for a failed chunk
-        "error_type": str,                # a stopped answer's outcome kind
+        "error_type": str,                # a stopped answer's outcome kind,
+                                          # or call_timeout
     }
 
 A failed chunk returns the dict with ``error`` set instead of raising, except
 for :class:`~chronominer.common.retry.RunStopped`, which ends the run and
 propagates; an answer the provider stopped (a content filter, a refusal, an
-answer cut at the output-token limit) fails the chunk. An answer that fails
+answer cut at the output-token limit) fails the chunk. A call whose requests
+all went unanswered in time
+(:class:`~chronominer.llm.caller.TimeoutAttemptsError`) has the error type
+``call_timeout``. An answer that fails
 JSON validation keeps its text: its entries are parsed as far as they can be
 (:mod:`~chronominer.extract.response_parsing`).
 """
@@ -55,7 +59,8 @@ from chronominer.common.structured import (
 from chronominer.common.usage import Usage, usage_from_response
 from chronominer.extract.images import load_image, resolve_image_settings
 from chronominer.extract.response_parsing import INVALID_JSON, NO_OBJECT, parse_answer
-from chronominer.llm.caller import CallEnv
+from chronominer.extract.units import CALL_TIMEOUT
+from chronominer.llm.caller import CallEnv, TimeoutAttemptsError
 from chronominer.llm.options import (
     model_capabilities,
     request_plan,
@@ -408,7 +413,10 @@ class ChunkExtractor:
             logger.error(
                 "Extraction failed for %s: %s - %s", label, type(exc).__name__, exc
             )
-            return error_response(str(exc))
+            response = error_response(str(exc))
+            if isinstance(exc, TimeoutAttemptsError):
+                response["error_type"] = CALL_TIMEOUT
+            return response
         return self._response(result)
 
     async def extract_text(

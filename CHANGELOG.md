@@ -1,5 +1,19 @@
 # Changelog
 
+- **v1.17.0** (26 November 2026) -- A range in `{stem}_line_ranges.txt` can name
+  context ranges on a `context (start, end), ...` line below it. Their lines are
+  sent ahead of the chunk under a fixed note that they give no content to
+  extract, in synchronous, batch and repair requests alike, and `_output.json`
+  records them as `context_ranges`. A document whose sent chunk has other
+  context ranges now is refused until `--force`, and `ranges adjust` and
+  `--chunking adjust` refuse a file with context lines (exit 2). The `extract`
+  dry run reports each item's chunking, chunk count, line-range file and context
+  file. An `extract` run in which every request of a chunk's call went
+  unanswered within `timeouts.request` now ends with exit 4: the chunk is stored
+  with the error type `call_timeout`, the other chunks stay stored, and a job
+  runner can tell a failure that a rerun cannot cure from one it can. Connect
+  and pool timeouts, a wait beyond the page budget and a provider stop keep
+  their exit codes.
 - **v1.16.1** (25 November 2026) -- The capability table no longer lists Flex
   processing for gpt-6.2-sol and gpt-6.2-astra. OpenAI publishes no Flex price
   for them and its API refuses `service_tier=flex`, so a run with the `flex`

@@ -51,7 +51,10 @@ uv --directory <clone> run chronominer <command> [options]
    another run leases one. Rerun the same command: it resumes and extracts only the
    pending and failed chunks. Then work through Troubleshooting. Exit 3 means the
    provider stopped serving the run: the chunks it did not reach stay pending, and
-   the same command resumes them once the provider serves again.
+   the same command resumes them once the provider serves again. Exit 4 means the
+   call of a chunk timed out on every attempt; the error line names the item and the
+   chunk, and the other chunks are stored. Do not rerun unchanged: see
+   Troubleshooting.
 
 ## Conventions
 
@@ -110,6 +113,7 @@ of a started image or PDF item, or querying the store, read
 | Symptom | Cause and fix |
 | --- | --- |
 | exit 1, an item leased by another run | wait for that run; a killed run's lease expires after 10 minutes, then rerun |
+| exit 4, a chunk's call timed out on every attempt | the answer takes longer than `timeouts.request` allows. Raise `timeouts.request` (below any cutoff of a proxy in front of the provider) or lower `--reasoning-effort`, then rerun: only the failed chunk is asked again and every done chunk is kept. A smaller `--chunk-tokens` or an edited line-ranges file takes effect only with `--force` (select the item with `--files`), which drops the document's stored chunks and entries and extracts all its chunks again |
 | item `refused` | its input, the schema of its done chunks or its image settings changed, or a partial image or PDF item met another model family: restore them, or `--force` (resets the item's stored units, keeps the responses) |
 | exit 2, a schema or classifier name "is ambiguous" | two user folders hold a file of that name: pass the file path, or keep one of the two files |
 | item `blocked` by a batch | `batch check --input <output folder>`; an unresolved submission needs `--adopt` or `--abandon` |

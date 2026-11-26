@@ -14,6 +14,8 @@ open :func:`collect_usage` block; retry waits go to :meth:`RunEvents.waiting`.
 Two bounds of the settings apply around the ladder: timeouts are retried at
 most ``retry.timeout_attempts`` times in all, and one call, its retries
 included, ends with :class:`PageTimeoutError` after ``retry.page_timeout``.
+When the timeouts that end a call were all read timeouts, it ends with
+:class:`TimeoutAttemptsError`, chained to the last one.
 The time an attempt waits on entry and the WAIT pauses of the ladder do not
 count against this deadline; requests and RETRY backoff do.
 A response with fewer input tokens than ``retry.min_input_tokens`` (image
@@ -37,6 +39,8 @@ from collections.abc import Iterator, Mapping, Sequence
 from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any
+
+import httpx
 
 from chronominer import ext
 from chronominer.common.capture import HttpAttempt
@@ -73,6 +77,7 @@ __all__ = [
     "InputTokensBelowThresholdError",
     "ModelCaller",
     "PageTimeoutError",
+    "TimeoutAttemptsError",
     "collect_usage",
 ]
 
@@ -94,6 +99,25 @@ class InputTokensBelowThresholdError(Exception):
         )
 
 
+class TimeoutAttemptsError(Exception):
+    """Each request of one call went out and got no answer in time.
+
+    Raised once ``retry.timeout_attempts`` timeouts end the call and every
+    one of them was a read timeout; the last is the cause. A rerun of the
+    same request is likely to wait as long again, so the run reports such a
+    call apart from other failures. Connect and pool timeouts, which end a
+    request before it reaches the provider, keep their own error.
+    """
+
+    def __init__(self, label: str, timeouts: int, cause: BaseException) -> None:
+        self.label = label
+        self.timeouts = timeouts
+        super().__init__(
+            f"Call timed out on {timeouts} of {timeouts} attempt(s) "
+            f"(retry.timeout_attempts): {str(cause)[:200]}"
+        )
+
+
 class PageTimeoutError(Exception):
     """One call, its retries included, ran past its wall-clock limit."""
 
@@ -104,6 +128,23 @@ class PageTimeoutError(Exception):
             f"Page {label!r} exceeded its {seconds:.0f}s wall-clock ceiling "
             "across all retry attempts"
         )
+
+
+def _is_read_timeout(exc: BaseException) -> bool:
+    """Whether ``exc`` or a cause is an ``httpx.ReadTimeout``.
+
+    The provider SDKs raise their timeout errors from the httpx error, so a
+    read timeout, a request sent and not answered in time, shows in the
+    chain; connect and pool timeouts do not count.
+    """
+    current: BaseException | None = exc
+    for _ in range(20):
+        if current is None:
+            return False
+        if isinstance(current, httpx.ReadTimeout):
+            return True
+        current = current.__cause__ or current.__context__
+    return False
 
 
 _INVALID_OUTPUT: tuple[type[BaseException], ...] = (
@@ -368,7 +409,7 @@ class ModelCaller:
                 self._record(call.usage)
             raise
 
-    async def _with_retries(
+    async def _with_retries(  # noqa: PLR0915 - the ladder's closures share its state
         self,
         prepared: PreparedRequest,
         messages: Sequence[Any],
@@ -379,6 +420,7 @@ class ModelCaller:
     ) -> Any:
         decisions = AttemptDecisions(self.env.stop)
         timeouts = 0
+        unanswered: list[bool] = []
         counter = numbers if numbers is not None else itertools.count(1)
         clock = deadline if deadline is not None else _Deadline()
         pending: list[Decision] = []
@@ -426,6 +468,7 @@ class ModelCaller:
             if not retrying or classify_error(exc) is not ErrorKind.TIMEOUT:
                 return decision
             timeouts += 1
+            unanswered.append(_is_read_timeout(exc))
             if timeouts < self._timeout_attempts:
                 return decision
             logger.error(
@@ -455,13 +498,18 @@ class ModelCaller:
             sleep=sleep,
             stop=self.env.stop,
         )
-        return await call_with_retry(
-            one_attempt,
-            policy=self._policy,
-            validation_errors=_INVALID_OUTPUT,
-            hooks=hooks,
-            label=label,
-        )
+        try:
+            return await call_with_retry(
+                one_attempt,
+                policy=self._policy,
+                validation_errors=_INVALID_OUTPUT,
+                hooks=hooks,
+                label=label,
+            )
+        except Exception as exc:
+            if timeouts < self._timeout_attempts or not all(unanswered):
+                raise
+            raise TimeoutAttemptsError(label, timeouts, exc) from exc
 
     async def aclose(self) -> None:
         """Close the SDK clients of every chat model built. Never raises."""

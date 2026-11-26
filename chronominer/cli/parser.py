@@ -86,6 +86,12 @@ EXTRACT_EPILOG = (
             "a provider serves no further calls of this run; the chunks left\n"
             "       stay pending and a rerun resumes them",
         ),
+        (
+            "4",
+            "every request of a chunk's call went unanswered within\n"
+            "       timeouts.request (retry.timeout_attempts read timeouts); a\n"
+            "       rerun would wait as long again; wins over 1",
+        ),
     )
     + JSON_CONTRACT
     + """

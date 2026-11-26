@@ -148,7 +148,8 @@ class StderrReporter:
         An item another run's lease holds makes the run incomplete; one
         waiting for a batch is left to ``batch check``. Items that
         ``--pages`` left partial are counted. A stopped run is reported by
-        one error line instead of the outcome line.
+        one error line instead of the outcome line. Each chunk whose call
+        timed out on every attempt gets an error line.
         """
         for name, reason in zip(result.blocked, result.blocked_reasons, strict=True):
             print_warning(f"Not processed (blocked): '{name}': {reason}.")
@@ -171,6 +172,14 @@ class StderrReporter:
             )
         else:
             print_success("Processing complete!")
+        for name, label in result.timed_out:
+            print_error(
+                f"'{name}': the call of chunk {label} timed out on every attempt; "
+                "a rerun would wait as long again. The document's finished chunks "
+                "are stored. Raise timeouts.request or lower the reasoning effort "
+                "and rerun, which asks only for this chunk; or rerun the item with "
+                "--force and smaller chunks, which extracts all its chunks again."
+            )
         if result.partial:
             print_info(f"{result.partial} item(s) left partial by --pages.")
         for database in result.databases:

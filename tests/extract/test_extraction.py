@@ -9,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 import httpx
+import openai
 import pytest
 from langchain_core.messages import AIMessage
 from PIL import Image
@@ -22,6 +23,7 @@ from chronominer.extract.extraction import (
     usage_record,
 )
 from chronominer.extract.response_parsing import INVALID_JSON, NO_OBJECT
+from chronominer.extract.units import CALL_TIMEOUT
 from chronominer.llm.caller import CallEnv
 from chronominer.llm.prompts import (
     CONTEXT_LINES_NOTE,
@@ -908,6 +910,38 @@ def test_timeouts_stop_at_the_timeout_attempts(
 
     assert len(script.requests) == 2
     assert "read timed out" in result["error"]
+    assert result["error_type"] == CALL_TIMEOUT
+
+
+def _sdk_timeout(cause: httpx.TimeoutException) -> openai.APITimeoutError:
+    error = openai.APITimeoutError(request=httpx.Request("POST", "https://x.test"))
+    error.__cause__ = cause
+    return error
+
+
+@pytest.mark.parametrize(
+    ("cause", "call_timeout"),
+    [
+        (httpx.ReadTimeout("read"), True),
+        (httpx.ConnectTimeout("connect"), False),
+        (httpx.PoolTimeout("pool"), False),
+    ],
+)
+def test_only_sdk_read_timeouts_mark_a_call_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+    sleeps: Sleeps,
+    cause: httpx.TimeoutException,
+    call_timeout: bool,
+) -> None:
+    env = helpers.env(
+        RetrySettings(max_attempts=8, timeout_attempts=2), clock=sleeps.clock
+    )
+    extractor, script = _extractor(monkeypatch, [_sdk_timeout(cause)], env=env)
+
+    result = _page(extractor)
+
+    assert len(script.requests) == 2
+    assert (result.get("error_type") == CALL_TIMEOUT) is call_timeout
 
 
 def test_connection_errors_keep_the_full_attempt_limit(
@@ -920,9 +954,10 @@ def test_connection_errors_keep_the_full_attempt_limit(
     wrapped.__cause__ = httpx.ConnectError("connection refused")
     extractor, script = _extractor(monkeypatch, [wrapped], env=env)
 
-    _page(extractor)
+    result = _page(extractor)
 
     assert len(script.requests) == 4
+    assert "error_type" not in result
 
 
 def test_a_server_retry_after_raises_the_wait(
@@ -961,8 +996,24 @@ def test_the_page_watchdog_ends_a_chunk_that_runs_too_long(
     assert result["error"] == (
         "Page 'page_0007' exceeded its 0s wall-clock ceiling across all retry attempts"
     )
+    assert "error_type" not in result
     assert "Page watchdog fired for page_0007" in caplog.text
     assert all(attempt.released for attempt in recorder.attempts)
+
+
+def test_a_retry_wait_past_the_page_budget_is_no_call_timeout(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    error = StatusError(429)
+    error.response = httpx.Response(429, headers={"retry-after": "30"})  # type: ignore[attr-defined]
+    env = helpers.env(RetrySettings(page_timeout=0.05))
+    extractor, script = _extractor(monkeypatch, [error, ANSWER], env=env)
+
+    result = _page(extractor, label="page_0003")
+
+    assert len(script.requests) == 1
+    assert "wall-clock ceiling" in result["error"]
+    assert "error_type" not in result
 
 
 def test_a_timeout_error_of_the_call_is_not_the_watchdog(
